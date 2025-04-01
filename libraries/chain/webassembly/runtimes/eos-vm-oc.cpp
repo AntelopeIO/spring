@@ -40,8 +40,8 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
             _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
       }
 
-      void do_sync_call(apply_context& context) override {
-         ;
+      sync_call_return_code do_sync_call(apply_context& context) override {
+         __builtin_unreachable();
       }
 
       const digest_type              _code_hash;
@@ -58,7 +58,7 @@ eosvmoc_runtime::~eosvmoc_runtime() {
 }
 
 std::unique_ptr<wasm_instantiated_module_interface> eosvmoc_runtime::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                        const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) {
+                                                                                        const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& ) {
    return std::make_unique<eosvmoc_instantiated_module>(code_hash, vm_type, *this);
 }
 

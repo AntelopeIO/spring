@@ -247,7 +247,7 @@ void apply_context::exec()
 
 } /// exec()
 
-uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
+int32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
 
    dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
@@ -283,7 +283,11 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
          try {
             // use a new apply_context for a new sync call
             apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, flags, std::move(data));
-            control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+
+            auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+            if (rc == sync_call_return_code::receiver_not_support_sync_call) {  // Currently -1 means there is no valid sync call entry point
+               return -1;
+            }
 
             // store return value
             if (a_ctx.sync_call_ctx.has_value()) {

@@ -935,16 +935,37 @@ void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat
    t.set_code(callee, callee_wat);
 }
 
-static const char no_sync_call_entry_point_wast[] = R"=====(
+static const char entry_point_validation_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i32.const -1)  ;; callee does not export `sync_call`, $call should return -1
+      i32.ne
+      if             ;; assert if $call did not return -1
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (data (i32.const 16) "call host function did not return -1")
+)
+)=====";
+
+static const char no_entry_point_wast[] = R"=====(
 (module
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
 )
 )=====";
 
-// Verify sync call is abort if sync call entry point does not exist and the no-op-if-not-exist
-// is not set
-BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_no_op_flag_not_set_test)  { try {
+// Verify sync call return -1 if sync call entry point does not exist
+BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
@@ -952,44 +973,14 @@ BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_no_op_flag_not_set_test)  { try {
       return;
    }
 
-   create_accounts_and_set_code(caller_wast, no_sync_call_entry_point_wast, t);
+   create_accounts_and_set_code(entry_point_validation_caller_wast, no_entry_point_wast, t);
 
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
-                         sync_call_not_supported_by_receiver_exception,
-                         fc_exception_message_contains("receiver does not support sync calls"));
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
 } FC_LOG_AND_RETHROW() }
 
-static const char no_op_if_receiver_not_support_sync_call_caller_wast[] = R"=====(
-(module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
-   (memory $0 1)
-   (export "memory" (memory $0))
-   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
-
-   (export "apply" (func $apply))
-   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (drop (call $call (get_global $callee) (i64.const 0x02)(i32.const 0)(i32.const 8)))  ;; flags' bit 1 is set to 1, for no_op_if_receiver_not_support_sync_call
-   )
-)
-)=====";
-
-// Verify sync call is no-op if sync call entry point does not exist and the no-op-if-not-exist
-// is set
-BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_no_op_flag_set_test)  { try {
-   validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
-   create_accounts_and_set_code(no_op_if_receiver_not_support_sync_call_caller_wast, no_sync_call_entry_point_wast, t);
-
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
-} FC_LOG_AND_RETHROW() }
 
 // Wrong sync call signature (the type of data_size is wrong)
-static const char bad_entry_point_wast[] = R"=====(
+static const char invalid_entry_point_wast[] = R"=====(
 (module
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)) ;; data_size type should be i32
@@ -999,8 +990,8 @@ static const char bad_entry_point_wast[] = R"=====(
 )
 )=====";
 
-// Verify a contract with wrong sync call entry point cannot be deployed
-BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
+// Verify sync call return -1 if sync call entry point signature is invalid
+BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
@@ -1008,11 +999,9 @@ BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
       return;
    }
 
-   const auto& callee = account_name("callee");
-   t.create_account(callee);
-   BOOST_CHECK_EXCEPTION(t.set_code(callee, bad_entry_point_wast),
-                         wasm_serialization_error,
-                         fc_exception_message_contains("sync call entry point has wrong function signature"));
+   create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

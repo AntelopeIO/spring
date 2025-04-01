@@ -2,7 +2,7 @@
 #include <eosio/chain/apply_context.hpp>
 
 namespace eosio { namespace chain { namespace webassembly {
-   uint32_t interface::call(name receiver, uint64_t flags, std::span<const char> data) {
+   int32_t interface::call(name receiver, uint64_t flags, std::span<const char> data) {
       return context.execute_sync_call(receiver, flags, data);
    }
 
