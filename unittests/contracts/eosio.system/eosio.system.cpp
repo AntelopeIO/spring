@@ -7,6 +7,7 @@
 #include "voting.cpp"
 #include "exchange_state.cpp"
 #include "rex.cpp"
+#include "peer_keys.hpp"
 
 namespace eosiosystem {
 
