@@ -730,7 +730,7 @@ BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
 } FC_LOG_AND_RETHROW() }
 
-static const char get_call_data_not_in_sync_call_wast[] = R"=====(
+static const char get_call_data_in_apply_wast[] = R"=====(
 (module
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
    (memory $0 1)
@@ -744,7 +744,7 @@ static const char get_call_data_not_in_sync_call_wast[] = R"=====(
 )=====";
 
 // Verify get_call_data can be only called in sync calls
-BOOST_AUTO_TEST_CASE(get_call_data_not_in_sync_call_test) { try {
+BOOST_AUTO_TEST_CASE(get_call_data_in_apply_test) { try {
    validating_tester t;
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
@@ -754,7 +754,7 @@ BOOST_AUTO_TEST_CASE(get_call_data_not_in_sync_call_test) { try {
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
-   t.set_code(caller, get_call_data_not_in_sync_call_wast);
+   t.set_code(caller, get_call_data_in_apply_wast);
    t.set_abi(caller, doit_abi);
 
    BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
