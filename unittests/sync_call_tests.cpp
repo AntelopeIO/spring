@@ -29,6 +29,18 @@ static const char* doit_abi = R"=====(
 }
 )=====";
 
+// A common helper function
+void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat, validating_tester& t) {
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, caller_wat);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee = account_name("callee");
+   t.create_account(callee);
+   t.set_code(callee, callee_wat);
+}
+
 // Make a sync call to a function in the same account
 static const char sync_call_in_same_account_wast[] = R"=====(
 (module
@@ -730,6 +742,136 @@ BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
 } FC_LOG_AND_RETHROW() }
 
+// Make a sync call without parameters (data size being 0)
+static const char no_parameters_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 0))) ;; data size is 0
+   )
+)
+)=====";
+
+static const char no_parameters_callee_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $get_call_data (i32.const 160)(i32.const 100)) ;; store call data in memory[160], with size 100
+      (i32.const 0)  ;; caller did not pass in data. get_call_data should return 0
+      i32.ne
+      if             ;; assert if get_call_data did not return 0
+         (call $assert (i32.const 0) (i32.const 0))
+      end
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (data (i32.const 0) "get_call_data did not return 0")
+)
+)=====";
+
+// Verify get_call_data returns 0 if the function does not have any parameters
+BOOST_AUTO_TEST_CASE(no_parameters_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(no_parameters_caller_wast, no_parameters_callee_wast, t);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // no_parameters_callee_wast will throw if get_call_data returns non-zero.
+} FC_LOG_AND_RETHROW() }
+
+static const char no_return_value_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32)))
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 0))
+      (i32.const 0)  ;; callee did not call set_call_return_value, $call shoud return 0
+      i32.ne
+      if             ;; assert if $call did not return 0
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (data (i32.const 16) "call did not return 0")
+)
+)=====";
+
+// Do not return a value (set_call_return_value is not called in $sync_call)
+static const char no_return_value_callee_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify `call()` host function returns 0 if called function does not return a value, ie, `void func()`
+BOOST_AUTO_TEST_CASE(no_return_value_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(no_return_value_caller_wast, no_return_value_callee_wast, t);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // no_return_value_caller_wast will throw if `call` returns a non-zero-length value.
+} FC_LOG_AND_RETHROW() }
+
+// Callee returns 0-length value 
+static const char zero_return_value_size_callee_wast[] = R"=====(
+(module
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $set_call_return_value (i32.const 0)(i32.const 0))  ;; return value size is 0
+   )
+)
+)=====";
+
+// Verify `call()` host function returns 0 if called function returns a 0-length value,
+// like `std::string get()` returning an empty string
+BOOST_AUTO_TEST_CASE(zero_return_value_size_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   // callee returns 0 sized value
+   create_accounts_and_set_code(no_return_value_caller_wast, zero_return_value_size_callee_wast, t);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // no_return_value_caller_wast will throw if `call` returns a non-zero-length value.
+} FC_LOG_AND_RETHROW() }
+
 static const char get_call_data_in_apply_wast[] = R"=====(
 (module
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
@@ -926,16 +1068,6 @@ BOOST_AUTO_TEST_CASE(get_call_return_value_not_called_sync_call_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
 } FC_LOG_AND_RETHROW() }
 
-void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat, validating_tester& t) {
-   const auto& caller = account_name("caller");
-   t.create_account(caller);
-   t.set_code(caller, caller_wat);
-   t.set_abi(caller, doit_abi);
-
-   const auto& callee = account_name("callee");
-   t.create_account(callee);
-   t.set_code(callee, callee_wat);
-}
 
 static const char no_sync_call_entry_point_wast[] = R"=====(
 (module
