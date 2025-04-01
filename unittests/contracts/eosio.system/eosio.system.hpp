@@ -522,12 +522,15 @@ public:
    struct peerkeys_t {
       name producer_name;
       std::optional<public_key> peer_key;
+
+      EOSLIB_SERIALIZE(peerkeys_t, (producer_name)(peer_key))
    };
    using getpeerkeys_response = std::vector<peerkeys_t>;
 
    [[eosio::action]]
    getpeerkeys_response getpeerkeys() {
       getpeerkeys_response resp{{{"n1"_n, {}}}};
+      eosio::print( "-----------> returning: ", resp[0].producer_name, "\n" );
       return resp;
    }
 

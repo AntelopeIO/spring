@@ -1289,10 +1289,12 @@ struct controller_impl {
    getpeerkeys_res_t get_top_producer_keys() {
       try {
          auto get_getpeerkeys_transaction = [&]() {
-            action act(vector<permission_level>{}, config::system_account_name, "getpeerkeys"_n, {});
-
+            auto perms = vector<permission_level>{};
+            action act(perms, config::system_account_name, "getpeerkeys"_n, {});
             signed_transaction trx;
+
             trx.actions.emplace_back(std::move(act));
+            trx.set_reference_block(chain_head.id());
             set_trx_expiration(trx);
             return trx;
          };
@@ -1306,6 +1308,10 @@ struct controller_impl {
          auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::microseconds::maximum(),
                                        gpo.configuration.min_transaction_cpu_usage, true, 0);
 
+         if( trace->except_ptr )
+            std::rethrow_exception(trace->except_ptr);
+         if( trace->except)
+            throw *trace->except;
          getpeerkeys_res_t res;
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];

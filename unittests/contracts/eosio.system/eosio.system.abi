@@ -591,7 +591,12 @@
         {
             "name": "getpeerkeys",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "n",
+                    "type": "name"
+                }
+            ]
         },
         {
             "name": "init",
