@@ -589,7 +589,7 @@ public:
    std::vector<char>                action_return_value;
 
    std::optional<std::vector<char>> last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
-   uint32_t                         sync_call_depth = 0; // depth for sync call
+   const uint32_t                   sync_call_depth = 0; // depth for sync call
 
    generic_index<index64_object>                                  idx64;
    generic_index<index128_object>                                 idx128;
