@@ -3492,7 +3492,7 @@ namespace eosio {
             else
                peer_dlog(this, "Invalid handshake p2p_address ${p}", ("p", msg.p2p_address));
          } else {
-            // check if peer requests no trx or no blocks
+            // peer p2p_address may contain trx or blk only request, honor requested connection type
             set_peer_connection_type(msg.p2p_address);
          }
 
