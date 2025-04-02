@@ -293,7 +293,6 @@ int32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::spa
             if (a_ctx.sync_call_ctx.has_value()) {
                sync_call_return_value = std::move(a_ctx.sync_call_ctx->return_value);
                return_value_size = sync_call_return_value->size();
-               dlog("sync_call_return_value size: ${s}", ("s", return_value_size));
             }
          } catch( const wasm_exit&) {}
       } FC_RETHROW_EXCEPTIONS(warn, "sync call exception on ${receiver}", ("receiver", receiver))
