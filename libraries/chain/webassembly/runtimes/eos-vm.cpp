@@ -420,7 +420,7 @@ REGISTER_LEGACY_HOST_FUNCTION(preactivate_feature, privileged_check);
 REGISTER_HOST_FUNCTION(set_resource_limits, privileged_check);
 REGISTER_LEGACY_HOST_FUNCTION(get_resource_limits, privileged_check);
 REGISTER_HOST_FUNCTION(get_parameters_packed, privileged_check);
-REGISTER_HOST_FUNCTION(set_parameters_packed, privileged_check);
+REGISTER_HOST_FUNCTION(set_parameters_packed, privileged_check, action_check); // Not allowed in sync calls. Change of max_sync_call_depth will interfere with active sync calls.
 REGISTER_HOST_FUNCTION(get_wasm_parameters_packed, privileged_check);
 REGISTER_HOST_FUNCTION(set_wasm_parameters_packed, privileged_check);
 REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers, privileged_check);

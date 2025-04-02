@@ -75,6 +75,11 @@ uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std
          try {
             // use a new sync_call_context for next sync call
             sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, depth, flags, data);
+
+            if (!control.skip_trx_checks()) {
+               call_ctx.privileged = receiver_account->is_privileged();
+            }
+
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
             // store return value

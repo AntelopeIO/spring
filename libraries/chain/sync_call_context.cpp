@@ -58,9 +58,6 @@ bool sync_call_context::has_recipient(account_name account)const {
 bool sync_call_context::is_context_free()const {
    return false;
 }
-bool sync_call_context::is_privileged()const { // to be revisited when privileged is being worked
-   return false;
-}
 
 // This needs to be investigated further
 void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {}

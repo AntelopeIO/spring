@@ -31,7 +31,6 @@ public:
    bool has_recipient(account_name account)const override;
    void update_db_usage( const account_name& payer, int64_t delta ) override;
    bool is_context_free()const override;
-   bool is_privileged()const override;
 };
 
 } } /// namespace eosio::chain

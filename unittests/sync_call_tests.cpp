@@ -1360,12 +1360,13 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    (import "env" "send_context_free_inline" (func $send_context_free_inline (param i32 i32)))   ;; index 10
    (import "env" "send_deferred" (func $send_deferred (param i32 i64 i32 i32 i32)))  ;; index 11
    (import "env" "cancel_deferred" (func $cancel_deferred (param i32) (result i32))) ;; index 12
+   (import "env" "set_parameters_packed" (func $set_parameters_packed (param i32 i32))) ;; index 13
 
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
    (memory $0 1)
    (export "memory" (memory $0))
 
-   (table 13 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
+   (table 14 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
    (elem (i32.const 0) $case_require_auth)               ;; index 0
    (elem (i32.const 1) $case_require_auth2)              ;; index 1
    (elem (i32.const 2) $case_has_auth)                   ;; index 2
@@ -1376,9 +1377,10 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    (elem (i32.const 7) $case_set_action_return_value)    ;; index 7
    (elem (i32.const 8) $case_get_context_free_data)      ;; index 8
    (elem (i32.const 9) $case_send_inline)                ;; index 9
-   (elem (i32.const 10) $case_send_context_free_inline)   ;; index 10
+   (elem (i32.const 10) $case_send_context_free_inline)  ;; index 10
    (elem (i32.const 11) $case_send_deferred)             ;; index 11
    (elem (i32.const 12) $case_cancel_deferred)           ;; index 12
+   (elem (i32.const 13) $case_set_parameters_packed)     ;; index 13
 
    (type $ftable (func))      ;; function table instantiation
    (func $case_require_auth
@@ -1445,6 +1447,11 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    (func $case_cancel_deferred
       i32.const 4  ;; create a pointer
       (drop (call $cancel_deferred))
+   )
+   (func $case_set_parameters_packed
+      i32.const 0
+      i32.const 0
+      call $set_parameters_packed
    )
 
    (func $callee (param $index i32)
@@ -1539,6 +1546,53 @@ BOOST_AUTO_TEST_CASE(constrains_enforcement_test)  { try {
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "12")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
+
+   // set_parameters_packed
+   t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
+                 mvo()("account", "callee"_n)("is_priv", 1)); // make receiver account privileged such that set_parameters_packed can meet the privilege precondition
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "13")),
+                         unaccessible_api,
+                         fc_exception_message_contains("this API may only be called from action"));
+} FC_LOG_AND_RETHROW() }
+
+// Provide the called function via "sync_call" entry point calling the function
+static const char privilege_call_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "get_wasm_parameters_packed" (func $get_wasm_parameters_packed (param i32 i32 i32) (result i32)))
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $get_wasm_parameters_packed (i32.const 0) (i32.const 0) (i32.const 0))) ;; get_wasm_parameters_packed requires privilege
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(privilege_call_test)  { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(caller_wast, privilege_call_wast, t);
+
+   // No privilege, sync call should fail
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
+                         unaccessible_api,
+                         fc_exception_message_contains("callee does not have permission to call this API"));
+
+   // Add privilege to receiver account ("callee"_n)
+   t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
+                 mvo()("account", "callee"_n)("is_priv", 1));
+
+   // With privilege, sync call should succeed
+   BOOST_CHECK_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
