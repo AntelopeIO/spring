@@ -935,6 +935,13 @@ void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat
    t.set_code(callee, callee_wat);
 }
 
+void create_one_account_and_set_code(const char* wat, account_name& acct, validating_tester& t) {
+   acct = account_name("caller");
+   t.create_account(acct);
+   t.set_code(acct, wat);
+   t.set_abi(acct, doit_abi);
+}
+
 static const char entry_point_validation_caller_wast[] = R"=====(
 (module
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
@@ -1002,6 +1009,97 @@ BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+} FC_LOG_AND_RETHROW() }
+
+// The last LSB is set
+static const char valid_flags_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 1)(i32.const 0)(i32.const 8))) ;; flags 1
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(valid_flags_test) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(valid_flags_wast, acct, t);
+   BOOST_REQUIRE_NO_THROW(t.push_action(acct, "doit"_n, acct, {}));
+} FC_LOG_AND_RETHROW() }
+
+// The second LSB is set
+static const char invalid_flags_wast1[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 0X02)(i32.const 0)(i32.const 8))) ;; flags is set to 0X02
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(invalid_flags_test1) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(invalid_flags_wast1, acct, t);
+   BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("least significant bits of sync call"));
+} FC_LOG_AND_RETHROW() }
+
+// The last 2 LSBs are set
+static const char invalid_flags_wast2[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 0X03)(i32.const 0)(i32.const 8))) ;; flags is set to 0X03 (last two LSBs)
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(invalid_flags_wast2, acct, t);
+   BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("least significant bits of sync call"));
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

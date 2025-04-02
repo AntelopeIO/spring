@@ -8,9 +8,12 @@ namespace eosio { namespace chain {
       success                        = 0
    };
 
+   // A bitmap. Only least significant bits can be set. Other bits must be 0.
+   // When a new flag is added, its enum value must be 1 bit left shift from the last flag.
+   // Update all_allowed_bits to include the newly added enum value.
    enum class sync_call_flags {
-      read_only  = 1ull<<0,
-      last       = read_only
+      read_only         = 1ull<<0,
+      all_allowed_bits  = read_only
    };
 
    struct sync_call_context {
