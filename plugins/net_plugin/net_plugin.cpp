@@ -3515,7 +3515,7 @@ namespace eosio {
             }
             return false;
          };
-         if (my_impl->connections.any_of_connections(std::move(is_duplicate))) {
+         if (my_impl->connections.any_of_connections(is_duplicate)) {
             peer_dlog( this, "sending go_away duplicate, msg.p2p_address: ${add}", ("add", msg.p2p_address) );
             go_away_message gam(duplicate);
             gam.node_id = conn_node_id;
