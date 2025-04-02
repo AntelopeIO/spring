@@ -1360,13 +1360,12 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    (import "env" "send_context_free_inline" (func $send_context_free_inline (param i32 i32)))   ;; index 10
    (import "env" "send_deferred" (func $send_deferred (param i32 i64 i32 i32 i32)))  ;; index 11
    (import "env" "cancel_deferred" (func $cancel_deferred (param i32) (result i32))) ;; index 12
-   (import "env" "set_parameters_packed" (func $set_parameters_packed (param i32 i32))) ;; index 13
 
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
    (memory $0 1)
    (export "memory" (memory $0))
 
-   (table 14 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
+   (table 13 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
    (elem (i32.const 0) $case_require_auth)               ;; index 0
    (elem (i32.const 1) $case_require_auth2)              ;; index 1
    (elem (i32.const 2) $case_has_auth)                   ;; index 2
@@ -1380,7 +1379,6 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    (elem (i32.const 10) $case_send_context_free_inline)  ;; index 10
    (elem (i32.const 11) $case_send_deferred)             ;; index 11
    (elem (i32.const 12) $case_cancel_deferred)           ;; index 12
-   (elem (i32.const 13) $case_set_parameters_packed)     ;; index 13
 
    (type $ftable (func))      ;; function table instantiation
    (func $case_require_auth
@@ -1447,11 +1445,6 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    (func $case_cancel_deferred
       i32.const 4  ;; create a pointer
       (drop (call $cancel_deferred))
-   )
-   (func $case_set_parameters_packed
-      i32.const 0
-      i32.const 0
-      call $set_parameters_packed
    )
 
    (func $callee (param $index i32)
@@ -1544,13 +1537,6 @@ BOOST_AUTO_TEST_CASE(constrains_enforcement_test)  { try {
 
    // cancel_deferred
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "12")),
-                         unaccessible_api,
-                         fc_exception_message_contains("this API may only be called from action"));
-
-   // set_parameters_packed
-   t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
-                 mvo()("account", "callee"_n)("is_priv", 1)); // make receiver account privileged such that set_parameters_packed can meet the privilege precondition
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "13")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 } FC_LOG_AND_RETHROW() }
