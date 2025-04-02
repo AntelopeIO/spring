@@ -111,6 +111,7 @@ add_library( eosio_chain
               asset.cpp
               snapshot.cpp
               snapshot_scheduler.cpp
+              sync_call_context.cpp
               deep_mind.cpp
 
              ${CHAIN_EOSVMOC_SOURCES}

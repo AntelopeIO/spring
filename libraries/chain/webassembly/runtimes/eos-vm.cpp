@@ -84,7 +84,7 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
    }
 }
 
-void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
+void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
    EOS_ASSERT(code.size() <= cfg.max_module_bytes, wasm_serialization_error, "Code too large");
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
@@ -110,6 +110,27 @@ void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intr
    }
 }
 
+bool has_proper_sync_call_entry_point( const char* code_bytes, size_t code_size ) {
+   bool sync_call_entry_point_is_valid = false;
+   wasm_code_ptr code_ptr((uint8_t*)code_bytes, code_size);
+
+   try {
+      eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code_size, nullptr);
+
+      const uint32_t i = bkend.get_module().get_exported_function("sync_call");
+      if (i < std::numeric_limits<uint32_t>::max()) {
+         const vm::func_type& function_type = bkend.get_module().get_function_type(i);
+         if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
+            sync_call_entry_point_is_valid = true;
+         }
+      }
+   } catch(vm::exception& e) {
+      EOS_THROW(wasm_serialization_error, e.detail());
+   }
+
+   return sync_call_entry_point_is_valid;
+}
+
 // Be permissive on apply.
 struct apply_options {
    std::uint32_t max_pages = wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size;
@@ -130,17 +151,21 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      void do_sync_call(apply_context& context) override {
+      sync_call_return_code do_sync_call(apply_context& context) override {
+         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
+         assert(sync_call_ctx.has_value());
+         assert(!context.get_action_ptr());
+
+         if (!sync_call_ctx->receiver_supports_sync_call) {
+            return sync_call_return_code::receiver_not_support_sync_call;
+         }
+
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
          vm::wasm_allocator&                      wasm_alloc = context.control.get_sync_call_wasm_allocator(); // get the top free wasm allocator from the pool
 
          // always return the wasm_allocator obtainded by get_sync_wasm_allocator back to the pool
          auto ensure = fc::make_scoped_exit([&]() { context.control.return_sync_call_wasm_allocator(); });
-
-         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
-         assert(sync_call_ctx.has_value());
-         assert(!context.get_action_ptr());
 
          apply_options opts = get_apply_options(context);
 
@@ -155,6 +180,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
+
+         return sync_call_return_code::success;
       }
 
       void apply(apply_context& context) override {
@@ -255,7 +282,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          }
       }
 
-      void do_sync_call(apply_context& context) override {}
+      sync_call_return_code do_sync_call(apply_context& context) override { __builtin_unreachable(); }
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();
@@ -287,7 +314,7 @@ eos_vm_runtime<Impl>::eos_vm_runtime() {}
 
 template<typename Impl>
 std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                             const digest_type&, const uint8_t&, const uint8_t&) {
+                                                                                             const digest_type&, const uint8_t&, const uint8_t&, bool& sync_call_supported) {
 
    using backend_t = eos_vm_backend_t<Impl>;
    try {
@@ -301,7 +328,10 @@ std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instan
       else
 #endif
          bkend = std::make_unique<backend_t>(code, code_size, nullptr, options, false, false); // false, false <--> 2-passes parsing, backend does not own execution context (execution context is reused per thread)
+
       eos_vm_host_functions_t::resolve(bkend->get_module());
+      sync_call_supported = has_proper_sync_call_entry_point(code_bytes, code_size);
+
       return std::make_unique<eos_vm_instantiated_module<Impl>>(this, std::move(bkend));
    } catch(eosio::vm::exception& e) {
       FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: ${e}", ("e", e.what()));
@@ -315,7 +345,7 @@ template class eos_vm_runtime<eosio::vm::jit>;
 eos_vm_profile_runtime::eos_vm_profile_runtime() {}
 
 std::unique_ptr<wasm_instantiated_module_interface> eos_vm_profile_runtime::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                               const digest_type&, const uint8_t&, const uint8_t&) {
+                                                                                               const digest_type&, const uint8_t&, const uint8_t&, bool&) {
 
    using backend_t = eosio::vm::backend<eos_vm_host_functions_t, eosio::vm::jit_profile, webassembly::eos_vm_runtime::apply_options, vm::profile_instr_map>;
    try {

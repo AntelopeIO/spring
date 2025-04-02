@@ -60,11 +60,12 @@ apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint
    context_free = trace.context_free;
 }
 
-apply_context::apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data)
+// For sync calls
+apply_context::apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, uint64_t flags, std::span<const char> data)
 :control(con)
 ,db(con.mutable_db())
 ,trx_context(trx_ctx)
-,sync_call_ctx({sender, receiver, data})
+,sync_call_ctx(sync_call_context(sender, receiver, flags, data))
 ,idx64(*this)
 ,idx128(*this)
 ,idx256(*this)
@@ -246,7 +247,7 @@ void apply_context::exec()
 
 } /// exec()
 
-uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
+int64_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
 
    dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
@@ -258,8 +259,8 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
    const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
    EOS_ASSERT(data.size() <= max_sync_call_data_size, sync_call_call_data_exception,
               "sync call call data size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
-   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, sync_call_validate_exception,
-              "sync call's flags ${f} can only set bit 0", ("f", flags));
+   EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::all_allowed_bits), sync_call_validate_exception,  // all but `std::bit_width(all_allowed_bits)` LSBs must be 0s
+              "only ${bits} least significant bits of sync call's flags (${flags}) can be set", ("bits", std::bit_width(static_cast<uint64_t>(sync_call_flags::all_allowed_bits)))("flags", flags));
 
    auto handle_exception = [&](const auto& e)
    {
@@ -281,8 +282,12 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
 
          try {
             // use a new apply_context for a new sync call
-            apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, std::move(data));
-            control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+            apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, flags, std::move(data));
+
+            auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+            if (rc == sync_call_return_code::receiver_not_support_sync_call) {  // Currently -1 means there is no valid sync call entry point
+               return -1;
+            }
 
             // store return value
             if (a_ctx.sync_call_ctx.has_value()) {

@@ -54,7 +54,7 @@ namespace eosio { namespace chain {
 
       if (control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
          const auto& gpo = control.get_global_properties();
-         webassembly::eos_vm_runtime::validate( code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
+         webassembly::eos_vm_runtime::validate( control, code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
          return;
       }
       Module module;
@@ -91,8 +91,8 @@ namespace eosio { namespace chain {
       my->apply( code_hash, vm_type, vm_version, context );
    }
 
-   void wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
-      my->do_sync_call( code_hash, vm_type, vm_version, context );
+   sync_call_return_code wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+      return my->do_sync_call( code_hash, vm_type, vm_version, context );
    }
 
    bool wasm_interface::is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const {
