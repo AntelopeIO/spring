@@ -484,8 +484,8 @@ public:
 
 public:
    /// Constructor and destructor:
-   host_context(controller& con, transaction_context& trx_ctx);
-   host_context(controller& con, transaction_context& trx_ctx, account_name receiver, uint32_t sync_call_depth );
+   host_context(controller& con, transaction_context& trx_ctx); // for actions
+   host_context(controller& con, transaction_context& trx_ctx, account_name receiver, bool privileged, uint32_t sync_call_depth);  // for sync calls
    virtual ~host_context();
 
    /// Authorization methods:

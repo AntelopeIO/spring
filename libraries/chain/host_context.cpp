@@ -20,11 +20,12 @@ host_context::host_context(controller& con, transaction_context& trx_ctx)
 }
 
 // used to create a sync call context
-host_context::host_context(controller& con, transaction_context& trx_ctx, account_name receiver, uint32_t sync_call_depth)
+host_context::host_context(controller& con, transaction_context& trx_ctx, account_name receiver, bool privileged, uint32_t sync_call_depth)
    : control(con)
    , db(con.mutable_db())
    , trx_context(trx_ctx)
    , receiver(receiver)
+   , privileged(privileged)
    , sync_call_depth(sync_call_depth)
    , idx64(*this)
    , idx128(*this)
@@ -74,11 +75,7 @@ uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std
 
          try {
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, depth, flags, data);
-
-            if (!control.skip_trx_checks()) {
-               call_ctx.privileged = receiver_account->is_privileged();
-            }
+            sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
 
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
