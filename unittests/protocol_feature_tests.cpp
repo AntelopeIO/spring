@@ -2319,7 +2319,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
 // A basic contract to show new host functions can be called.
 static const char basic_sync_call_host_funcs_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32)(result i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32)(result i64)))
    (import "env" "get_call_data" (func $get_call_data (param i32 i32)(result i32)))
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
    (memory $0 1)
