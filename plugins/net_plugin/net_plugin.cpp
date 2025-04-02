@@ -924,7 +924,7 @@ namespace eosio {
       boost::asio::steady_timer        sync_response_expected_timer GUARDED_BY(sync_response_expected_timer_mtx);
 
       alignas(hardware_destructive_interference_sz)
-      std::atomic<go_away_reason>      no_retry{no_reason};
+      std::atomic<go_away_reason>      no_retry{go_away_reason::no_reason};
 
       alignas(hardware_destructive_interference_sz)
       mutable fc::mutex                conn_mtx; //< mtx for last_handshake_recv .. remote_endpoint_ip
@@ -1545,8 +1545,8 @@ namespace eosio {
       auto [on_fork, unknown_block] = block_on_fork(msg_head_id);
       if( unknown_block ) {
          peer_ilog( this, "Peer asked for unknown block ${mn}, sending: benign_other go away", ("mn", msg_head_num) );
-         no_retry = benign_other;
-         enqueue( go_away_message( benign_other ) );
+         no_retry = go_away_reason::benign_other;
+         enqueue( go_away_message{ go_away_reason::benign_other } );
       } else {
          // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1
          if (on_fork)
@@ -1619,7 +1619,7 @@ namespace eosio {
    void connection::check_heartbeat( std::chrono::steady_clock::time_point current_time ) {
       if( latest_msg_time > std::chrono::steady_clock::time_point::min() ) {
          if( current_time > latest_msg_time + hb_timeout ) {
-            no_retry = benign_other;
+            no_retry = go_away_reason::benign_other;
             if( !peer_address().empty() ) {
                peer_wlog(this, "heartbeat timed out for peer address");
                close(true);
@@ -1821,8 +1821,8 @@ namespace eosio {
          peer_requested.reset(); // unable to provide requested blocks
          block_sync_send_start = 0ns;
          block_sync_frame_bytes_sent = 0;
-         no_retry = benign_other;
-         enqueue( go_away_message( benign_other ) );
+         no_retry = go_away_reason::benign_other;
+         enqueue( go_away_message{ go_away_reason::benign_other } );
       }
       return true;
    }
@@ -1957,7 +1957,7 @@ namespace eosio {
    // called from connection strand
    void connection::enqueue( const net_message& m ) {
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
-      go_away_reason close_after_send = no_reason;
+      go_away_reason close_after_send = go_away_reason::no_reason;
       if (std::holds_alternative<go_away_message>(m)) {
          close_after_send = std::get<go_away_message>(m).reason;
       }
@@ -1975,7 +1975,7 @@ namespace eosio {
       block_buffer_factory buff_factory;
       const auto& sb = buff_factory.get_send_buffer( b );
       latest_blk_time = std::chrono::steady_clock::now();
-      enqueue_buffer( msg_type_t::signed_block, block_num, queue, sb, no_reason);
+      enqueue_buffer( msg_type_t::signed_block, block_num, queue, sb, go_away_reason::no_reason);
       return sb->size();
    }
 
@@ -1997,7 +1997,7 @@ namespace eosio {
                         }
                         if (net_msg == msg_type_t::signed_block && block_num)
                            fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", *block_num));
-                        if (close_after_send != no_reason) {
+                        if (close_after_send != go_away_reason::no_reason) {
                            fc_ilog( logger, "sent a go away message: ${r}, closing connection ${cid}",
                                     ("r", reason_str(close_after_send))("cid", conn->connection_id) );
                            conn->close();
@@ -2839,7 +2839,7 @@ namespace eosio {
                   boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
                      cp->latest_blk_time = std::chrono::steady_clock::now();
                      peer_dlog( cp, "bcast block_notice ${b}", ("b", bnum) );
-                     cp->enqueue_buffer( msg_type_t::block_notice_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
+                     cp->enqueue_buffer( msg_type_t::block_notice_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, go_away_reason::no_reason );
                   });
                   return;
                }
@@ -2853,7 +2853,7 @@ namespace eosio {
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
-               cp->enqueue_buffer( msg_type_t::signed_block, bnum, queued_buffer::queue_t::general, sb, no_reason );
+               cp->enqueue_buffer( msg_type_t::signed_block, bnum, queued_buffer::queue_t::general, sb, go_away_reason::no_reason );
             }
          });
       } );
@@ -2867,7 +2867,7 @@ namespace eosio {
          boost::asio::post(cp->strand, [cp, msg]() {
             if (vote_logger.is_enabled(fc::log_level::debug))
                peer_dlog(cp, "sending vote msg");
-            cp->enqueue_buffer( msg_type_t::vote_message, std::nullopt, queued_buffer::queue_t::general, msg, no_reason );
+            cp->enqueue_buffer( msg_type_t::vote_message, std::nullopt, queued_buffer::queue_t::general, msg, go_away_reason::no_reason );
          });
          return true;
       } );
@@ -2888,7 +2888,7 @@ namespace eosio {
          send_buffer_type sb = buff_factory.get_send_buffer( trx );
          fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
          boost::asio::post(cp->strand, [cp, sb{std::move(sb)}]() {
-            cp->enqueue_buffer( msg_type_t::packed_transaction, std::nullopt, queued_buffer::queue_t::general, sb, no_reason );
+            cp->enqueue_buffer( msg_type_t::packed_transaction, std::nullopt, queued_buffer::queue_t::general, sb, go_away_reason::no_reason );
          } );
       } );
    }
@@ -3338,7 +3338,7 @@ namespace eosio {
       buffer_factory buff_factory;
       auto send_buffer = buff_factory.get_send_buffer( block_nack_message{block_id} );
 
-      enqueue_buffer( msg_type_t::block_nack_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
+      enqueue_buffer( msg_type_t::block_nack_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, go_away_reason::no_reason );
    }
 
    void net_plugin_impl::plugin_shutdown() {
@@ -3446,7 +3446,7 @@ namespace eosio {
       if( !is_valid( msg ) ) {
          peer_wlog( this, "bad handshake message");
          no_retry = go_away_reason::fatal_other;
-         enqueue( go_away_message( fatal_other ) );
+         enqueue( go_away_message{ go_away_reason::fatal_other } );
          return;
       }
       peer_dlog( this, "received handshake gen ${g}, froot ${fr}, fhead ${fh}",
@@ -3517,10 +3517,8 @@ namespace eosio {
          };
          if (my_impl->connections.any_of_connections(is_duplicate)) {
             peer_dlog( this, "sending go_away duplicate, msg.p2p_address: ${add}", ("add", msg.p2p_address) );
-            go_away_message gam(duplicate);
-            gam.node_id = conn_node_id;
-            enqueue(gam);
-            no_retry = duplicate;
+            enqueue(go_away_message{go_away_reason::duplicate, conn_node_id});
+            no_retry = go_away_reason::duplicate;
             return;
          }
 
@@ -3604,15 +3602,15 @@ namespace eosio {
    void connection::handle_message( const go_away_message& msg ) {
       peer_wlog( this, "received go_away_message, reason = ${r}", ("r", reason_str( msg.reason )) );
 
-      bool retry = no_retry == no_reason; // if no previous go away message
+      bool retry = no_retry == go_away_reason::no_reason; // if no previous go away message
       no_retry = msg.reason;
-      if( msg.reason == duplicate ) {
+      if( msg.reason == go_away_reason::duplicate ) {
          conn_node_id = msg.node_id;
       }
-      if( msg.reason == wrong_version ) {
-         if( !retry ) no_retry = fatal_other; // only retry once on wrong version
+      if( msg.reason == go_away_reason::wrong_version ) {
+         if( !retry ) no_retry = go_away_reason::fatal_other; // only retry once on wrong version
       }
-      else if ( msg.reason == benign_other ) {
+      else if ( msg.reason == go_away_reason::benign_other ) {
          if ( retry ) peer_dlog( this, "received benign_other reason, retrying to connect");
       }
       else {
@@ -4818,10 +4816,10 @@ namespace eosio {
    // called from any thread
    bool connection::resolve_and_connect() {
       switch ( no_retry ) {
-         case no_reason:
-         case wrong_version:
-         case benign_other:
-         case duplicate: // attempt reconnect in case connection has been dropped, should quickly disconnect if duplicate
+         case go_away_reason::no_reason:
+         case go_away_reason::wrong_version:
+         case go_away_reason::benign_other:
+         case go_away_reason::duplicate: // attempt reconnect in case connection has been dropped, should quickly disconnect if duplicate
             break;
          default:
             fc_dlog( logger, "Skipping connect due to go_away reason ${r}",("r", reason_str( no_retry )));
@@ -4834,7 +4832,7 @@ namespace eosio {
 
       connection_ptr c = shared_from_this();
 
-      if( consecutive_immediate_connection_close > def_max_consecutive_immediate_connection_close || no_retry == benign_other ) {
+      if( consecutive_immediate_connection_close > def_max_consecutive_immediate_connection_close || no_retry == go_away_reason::benign_other ) {
          fc::microseconds connector_period = my_impl->connections.get_connector_period();
          fc::lock_guard g( conn_mtx );
          if( last_close == fc::time_point() || last_close > fc::time_point::now() - connector_period ) {
