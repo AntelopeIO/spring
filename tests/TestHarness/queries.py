@@ -708,15 +708,21 @@ class NodeosQueries:
         if waitForBlock:
             self.waitForBlock(blockNum, timeout=timeout, blockType=BlockType.head)
         block=self.getBlock(blockNum, exitOnError=exitOnError)
-        if block is None and not exitOnError:
-            return None
+        if block is None:
+            if exitOnError:
+                Utils.errorExit(f"getBlock returned None for {blockNum}")
+            else:
+                return None
         return NodeosQueries.getBlockAttribute(block, "producer", blockNum, exitOnError=exitOnError)
 
     def getBlockProducer(self, timeout=None, waitForBlock=True, exitOnError=True, blockType=BlockType.head):
         blockNum=self.getBlockNum(blockType=blockType)
         block=self.getBlock(blockNum, exitOnError=exitOnError, blockType=blockType)
-        if block is None and not exitOnError:
-            return None
+        if block is None:
+            if exitOnError:
+                Utils.errorExit(f"getBlock returned None for {blockNum}")
+            else:
+                return None
         return NodeosQueries.getBlockAttribute(block, "producer", blockNum, exitOnError=exitOnError)
 
     def getNextCleanProductionCycle(self, trans):
