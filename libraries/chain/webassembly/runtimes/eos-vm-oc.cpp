@@ -40,7 +40,7 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
             _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
       }
 
-      sync_call_return_code do_sync_call(apply_context& context) override {
+      sync_call_return_code do_sync_call(sync_call_context& context) override {
          __builtin_unreachable();
       }
 

@@ -13,6 +13,7 @@
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/thread_utils.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <fc/scoped_exit.hpp>
 
 #include "IR/Module.h"
@@ -197,7 +198,7 @@ struct eosvmoc_tier {
          }
       }
 
-      sync_call_return_code do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+      sync_call_return_code do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
          return get_instantiated_module(code_hash, vm_type, vm_version, context)->do_sync_call(context);
       }
 
@@ -249,7 +250,7 @@ struct eosvmoc_tier {
          const digest_type&   code_hash,
          const uint8_t&       vm_type,
          const uint8_t&       vm_version,
-         apply_context&       context)
+         host_context&        context)
       {
          if (context.trx_context.control.is_write_window()) {
             // When in write window (either read only threads are not enabled or
@@ -267,15 +268,13 @@ struct eosvmoc_tier {
          const digest_type&   code_hash,
          const uint8_t&       vm_type,
          const uint8_t&       vm_version,
-         apply_context&       context)
+         host_context&        context)
       {
          wasm_cache_index::iterator it = wasm_instantiation_cache.find( boost::make_tuple(code_hash, vm_type, vm_version) );
          if (it != wasm_instantiation_cache.end()) {
             // An instantiated module's module should never be null.
             assert(it->module);
-            if (context.get_sync_call_ctx().has_value()) {
-               context.get_mutable_sync_call_ctx()->receiver_supports_sync_call = it->sync_call_supported;
-            }
+            context.receiver_supports_sync_call = it->sync_call_supported;
             return it->module;
          }
 
@@ -297,9 +296,7 @@ struct eosvmoc_tier {
 
             c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version, sync_call_supported);  // sets sync_call_supported
             c.sync_call_supported = sync_call_supported;
-            if (context.get_sync_call_ctx().has_value()) {
-               context.get_mutable_sync_call_ctx()->receiver_supports_sync_call = sync_call_supported;
-            }
+            context.receiver_supports_sync_call = sync_call_supported;
          });
          return it->module;
       }
