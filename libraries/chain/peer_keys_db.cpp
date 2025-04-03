@@ -13,7 +13,7 @@ peer_info_t peer_keys_db_t::get_peer_info(name n) const {
    return peer_info_t{};
 }
 
-peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(getpeerkeys_res_t v) {
+peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_res_t& v) {
    if (!_active)
       return {};
    
