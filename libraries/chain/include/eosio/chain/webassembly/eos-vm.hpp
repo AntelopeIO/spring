@@ -45,7 +45,7 @@ class eos_vm_runtime : public eosio::chain::wasm_runtime_interface {
    public:
       eos_vm_runtime();
       std::unique_ptr<wasm_instantiated_module_interface> instantiate_module(const char* code_bytes, size_t code_size,
-                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) override;
+                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& sync_call_supported) override;
 
    private:
       // todo: managing this will get more complicated with sync calls;
@@ -63,7 +63,7 @@ class eos_vm_profile_runtime : public eosio::chain::wasm_runtime_interface {
    public:
       eos_vm_profile_runtime();
       std::unique_ptr<wasm_instantiated_module_interface> instantiate_module(const char* code_bytes, size_t code_size,
-                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) override;
+                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& sync_call_supported) override;
 };
 
 }}}}// eosio::chain::webassembly::eos_vm_runtime

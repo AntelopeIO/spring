@@ -40,10 +40,6 @@ bool sync_call_context::is_read_only()const {
    return flags & static_cast<uint64_t>(sync_call_flags::read_only);
 }
 
-bool sync_call_context::no_op_if_receiver_not_support_sync_call()const {
-   return flags & static_cast<uint64_t>(sync_call_flags::no_op_if_receiver_not_support_sync_call);
-}
-
 // Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
 action_name sync_call_context::get_sender() const {
    // The sync call is initiated by this apply_context or its sync_call_ctx.

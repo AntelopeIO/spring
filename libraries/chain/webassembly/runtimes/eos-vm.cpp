@@ -106,20 +106,30 @@ void validate( const controller& control, const bytes& code, const wasm_config& 
       EOS_ASSERT(apply_idx < std::numeric_limits<uint32_t>::max(), wasm_serialization_error, "apply not exported");
       const vm::func_type& apply_type = bkend.get_module().get_function_type(apply_idx);
       EOS_ASSERT((apply_type == vm::host_function{{vm::i64, vm::i64, vm::i64}, {}}), wasm_serialization_error, "apply has wrong type");
+   } catch(vm::exception& e) {
+      EOS_THROW(wasm_serialization_error, e.detail());
+   }
+}
 
-      // Check sync-call entry point after the protocol feature is activated.
-      // It is optional for a contract to provide sync calls.
-      // To prevent problems, if sync call entry point is present, its signature must be correct
-      if (control.is_builtin_activated(builtin_protocol_feature_t::sync_call)) {
-         uint32_t sync_call_idx = bkend.get_module().get_exported_function("sync_call");
-         if (sync_call_idx < std::numeric_limits<uint32_t>::max()) {
-            const vm::func_type& sync_call_type = bkend.get_module().get_function_type(sync_call_idx);
-            EOS_ASSERT((sync_call_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}), wasm_serialization_error, "sync call entry point has wrong function signature");
+bool has_proper_sync_call_entry_point( const char* code_bytes, size_t code_size ) {
+   bool sync_call_entry_point_is_valid = false;
+   wasm_code_ptr code_ptr((uint8_t*)code_bytes, code_size);
+
+   try {
+      eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code_size, nullptr);
+
+      const uint32_t i = bkend.get_module().get_exported_function("sync_call");
+      if (i < std::numeric_limits<uint32_t>::max()) {
+         const vm::func_type& function_type = bkend.get_module().get_function_type(i);
+         if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
+            sync_call_entry_point_is_valid = true;
          }
       }
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return sync_call_entry_point_is_valid;
 }
 
 // Be permissive on apply.
@@ -142,17 +152,14 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      void do_sync_call(sync_call_context& context) override {
-         uint32_t sync_call_idx = _instantiated_module->get_module().get_exported_function("sync_call");
-         if (sync_call_idx == std::numeric_limits<uint32_t>::max()) {
-            if (context.no_op_if_receiver_not_support_sync_call()) {
-               return;
-            } else {
-               EOS_ASSERT(false, sync_call_not_supported_by_receiver_exception, "receiver does not support sync calls");
-            }
+      sync_call_return_code do_sync_call(apply_context& context) override {
+         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
+         assert(sync_call_ctx.has_value());
+         assert(!context.get_action_ptr());
+
+         if (!sync_call_ctx->receiver_supports_sync_call) {
+            return sync_call_return_code::receiver_not_support_sync_call;
          }
-         // If the contract contains sync_call entry point, its signature had already been
-         // validated when the contract was deployed.
 
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
@@ -174,6 +181,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
+
+         return sync_call_return_code::success;
       }
 
       void apply(apply_context& context) override {
@@ -274,7 +283,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          }
       }
 
-      void do_sync_call(sync_call_context& context) override {}
+      sync_call_return_code do_sync_call(apply_context& context) override { __builtin_unreachable(); }
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();
@@ -306,7 +315,7 @@ eos_vm_runtime<Impl>::eos_vm_runtime() {}
 
 template<typename Impl>
 std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                             const digest_type&, const uint8_t&, const uint8_t&) {
+                                                                                             const digest_type&, const uint8_t&, const uint8_t&, bool& sync_call_supported) {
 
    using backend_t = eos_vm_backend_t<Impl>;
    try {
@@ -320,7 +329,10 @@ std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instan
       else
 #endif
          bkend = std::make_unique<backend_t>(code, code_size, nullptr, options, false, false); // false, false <--> 2-passes parsing, backend does not own execution context (execution context is reused per thread)
+
       eos_vm_host_functions_t::resolve(bkend->get_module());
+      sync_call_supported = has_proper_sync_call_entry_point(code_bytes, code_size);
+
       return std::make_unique<eos_vm_instantiated_module<Impl>>(this, std::move(bkend));
    } catch(eosio::vm::exception& e) {
       FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: ${e}", ("e", e.what()));
@@ -334,7 +346,7 @@ template class eos_vm_runtime<eosio::vm::jit>;
 eos_vm_profile_runtime::eos_vm_profile_runtime() {}
 
 std::unique_ptr<wasm_instantiated_module_interface> eos_vm_profile_runtime::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                               const digest_type&, const uint8_t&, const uint8_t&) {
+                                                                                               const digest_type&, const uint8_t&, const uint8_t&, bool&) {
 
    using backend_t = eosio::vm::backend<eos_vm_host_functions_t, eosio::vm::jit_profile, webassembly::eos_vm_runtime::apply_options, vm::profile_instr_map>;
    try {

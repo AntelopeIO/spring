@@ -45,7 +45,7 @@ void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat
 static const char sync_call_in_same_account_wast[] = R"=====(
 (module
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
 
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(same_account) { try {
 // Make a sync call to a function in "callee"_n account
 static const char caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(different_account) { try {
 // Calls "callee1"_n
 static const char call_depth_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
@@ -166,7 +166,7 @@ static const char call_depth_wast[] = R"=====(
 // Calls "callee2"_n
 static const char callee1_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee2 i64 (i64.const 4729647296285769728)) ;; "calllee2"_n uint64 value
@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(multi_level_call_depth) { try {
 // Call "callee1"_n and "callee2"_n in sequence
 static const char seq_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee1 i64 (i64.const 4729647295748898816))
@@ -319,7 +319,7 @@ BOOST_AUTO_TEST_CASE(seq_sync_calls) { try {
 // Make a large number of sync calls in a loop
 static const char loop_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
@@ -385,7 +385,7 @@ BOOST_AUTO_TEST_CASE(large_number_of_sequential_test) { try {
 // Make sync calls from different actions
 static const char different_actions_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $doit_value i64 (i64.const 5556755844919459840))
@@ -492,7 +492,7 @@ BOOST_AUTO_TEST_CASE(calls_from_different_actions) { try {
 // Make recursive sync calls
 static const char recursive_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
    (memory $0 1)
    (export "memory" (memory $0))
@@ -527,7 +527,7 @@ static const char recursive_caller_wast[] = R"=====(
 
 static const char recursive_callee_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $caller i64 (i64.const 4729647518550327296))
@@ -596,7 +596,7 @@ BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
 // 3. saves the result in action trace for verification by test
 static const char basic_params_return_value_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32))) ;; memory
    (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32)))
    (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
@@ -611,6 +611,7 @@ static const char basic_params_return_value_caller_wast[] = R"=====(
       (call $read_action_data(i32.const 0)(i32.const 4))       ;; read action input into address 0
       set_local $input_size
       (call $call (get_global $callee) (i64.const 0)(i32.const 0)(get_local $input_size)) ;; make a sync call with data starting at address 0
+      i32.wrap/i64  ;; cast result of $call from i64 to i32
       set_local $return_value_size
       (drop (call $get_call_return_value (i32.const 8)(get_local $return_value_size))) ;; save return value at address 8
       (call $set_action_return_value (i32.const 8) (get_local $return_value_size))     ;; set the return value to action_return_value so test can check in action trace
@@ -979,7 +980,7 @@ BOOST_AUTO_TEST_CASE(set_call_return_value_not_in_sync_call_test) { try {
 static const char get_call_return_value_less_memory_wast[] = R"=====(
 (module
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32))) ;; memory
    (memory $0 1)
    (export "memory" (memory $0))
@@ -1069,16 +1070,44 @@ BOOST_AUTO_TEST_CASE(get_call_return_value_not_called_sync_call_test) { try {
 } FC_LOG_AND_RETHROW() }
 
 
-static const char no_sync_call_entry_point_wast[] = R"=====(
+void create_one_account_and_set_code(const char* wat, account_name& acct, validating_tester& t) {
+   acct = account_name("caller");
+   t.create_account(acct);
+   t.set_code(acct, wat);
+   t.set_abi(acct, doit_abi);
+}
+
+static const char entry_point_validation_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i64.const -1)  ;; callee does not export `sync_call`, $call should return -1
+      i64.ne
+      if             ;; assert if $call did not return -1
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (data (i32.const 16) "call host function did not return -1")
+)
+)=====";
+
+static const char no_entry_point_wast[] = R"=====(
 (module
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
 )
 )=====";
 
-// Verify sync call is abort if sync call entry point does not exist and the no-op-if-not-exist
-// is not set
-BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_no_op_flag_not_set_test)  { try {
+// Verify sync call return -1 if sync call entry point does not exist
+BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
@@ -1086,44 +1115,14 @@ BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_no_op_flag_not_set_test)  { try {
       return;
    }
 
-   create_accounts_and_set_code(caller_wast, no_sync_call_entry_point_wast, t);
+   create_accounts_and_set_code(entry_point_validation_caller_wast, no_entry_point_wast, t);
 
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
-                         sync_call_not_supported_by_receiver_exception,
-                         fc_exception_message_contains("receiver does not support sync calls"));
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
 } FC_LOG_AND_RETHROW() }
 
-static const char no_op_if_receiver_not_support_sync_call_caller_wast[] = R"=====(
-(module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
-   (memory $0 1)
-   (export "memory" (memory $0))
-   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
-
-   (export "apply" (func $apply))
-   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (drop (call $call (get_global $callee) (i64.const 0x02)(i32.const 0)(i32.const 8)))  ;; flags' bit 1 is set to 1, for no_op_if_receiver_not_support_sync_call
-   )
-)
-)=====";
-
-// Verify sync call is no-op if sync call entry point does not exist and the no-op-if-not-exist
-// is set
-BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_no_op_flag_set_test)  { try {
-   validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
-   create_accounts_and_set_code(no_op_if_receiver_not_support_sync_call_caller_wast, no_sync_call_entry_point_wast, t);
-
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
-} FC_LOG_AND_RETHROW() }
 
 // Wrong sync call signature (the type of data_size is wrong)
-static const char bad_entry_point_wast[] = R"=====(
+static const char invalid_entry_point_wast[] = R"=====(
 (module
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)) ;; data_size type should be i32
@@ -1133,8 +1132,8 @@ static const char bad_entry_point_wast[] = R"=====(
 )
 )=====";
 
-// Verify a contract with wrong sync call entry point cannot be deployed
-BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
+// Verify sync call return -1 if sync call entry point signature is invalid
+BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
@@ -1142,11 +1141,100 @@ BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
       return;
    }
 
-   const auto& callee = account_name("callee");
-   t.create_account(callee);
-   BOOST_CHECK_EXCEPTION(t.set_code(callee, bad_entry_point_wast),
-                         wasm_serialization_error,
-                         fc_exception_message_contains("sync call entry point has wrong function signature"));
+   create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+} FC_LOG_AND_RETHROW() }
+
+// The last LSB is set
+static const char valid_flags_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 1)(i32.const 0)(i32.const 8))) ;; flags 1
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(valid_flags_test) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(valid_flags_wast, acct, t);
+   BOOST_REQUIRE_NO_THROW(t.push_action(acct, "doit"_n, acct, {}));
+} FC_LOG_AND_RETHROW() }
+
+// The second LSB is set
+static const char invalid_flags_wast1[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 0X02)(i32.const 0)(i32.const 8))) ;; flags is set to 0X02
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(invalid_flags_test1) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(invalid_flags_wast1, acct, t);
+   BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("least significant bits of sync call"));
+} FC_LOG_AND_RETHROW() }
+
+// The last 2 LSBs are set
+static const char invalid_flags_wast2[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 0X03)(i32.const 0)(i32.const 8))) ;; flags is set to 0X03 (last two LSBs)
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(invalid_flags_wast2, acct, t);
+   BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("least significant bits of sync call"));
 } FC_LOG_AND_RETHROW() }
 
 // 1. reads an i32 value as an input from action

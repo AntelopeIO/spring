@@ -688,8 +688,6 @@ namespace eosio { namespace chain {
                                     3270002, "Sync call return value size is too large" )
       FC_DECLARE_DERIVED_EXCEPTION( sync_call_call_data_exception, sync_call_exception,
                                     3270003, "Sync call data size is too large" )
-      FC_DECLARE_DERIVED_EXCEPTION( sync_call_not_supported_by_receiver_exception, sync_call_exception,
-                                    3270004, "Sync call is not supported by the receiver" )
       FC_DECLARE_DERIVED_EXCEPTION( sync_call_depth_exception, sync_call_exception,
-                                    3270005, "max allowed sync call depth reached" )
+                                    3270004, "max allowed sync call depth reached" )
 } } // eosio::chain

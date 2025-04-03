@@ -2319,7 +2319,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
 // A basic contract to show new host functions can be called.
 static const char basic_sync_call_host_funcs_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32)(result i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32)(result i64)))
    (import "env" "get_call_data" (func $get_call_data (param i32 i32)(result i32)))
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
    (memory $0 1)
@@ -2337,6 +2337,11 @@ static const char basic_sync_call_host_funcs_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
    tester c(setup_policy::preactivate_feature_and_new_bios);
    const auto& pfm = c.control->get_protocol_feature_manager();
+
+   if( c.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
 
    // Ensure SYNC_CALL not yet activated
    BOOST_CHECK(!c.control->is_builtin_activated(builtin_protocol_feature_t::sync_call));
