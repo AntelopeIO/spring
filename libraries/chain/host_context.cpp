@@ -61,7 +61,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
       throw;
    };
 
-   last_sync_call_return_value = std::nullopt; // reset for current sync call
+   last_sync_call_return_value.clear(); // reset for current sync call
    uint32_t return_value_size  = 0;
 
    try {
@@ -84,7 +84,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
             // store return value
             last_sync_call_return_value = std::move(call_ctx.return_value);
-            return_value_size = last_sync_call_return_value->size();
+            return_value_size = last_sync_call_return_value.size();
          } catch( const wasm_exit&) {}
       } FC_RETHROW_EXCEPTIONS(warn, "sync call exception on ${receiver}", ("receiver", call_receiver))
    } catch (const std::bad_alloc&) {
@@ -103,11 +103,11 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
 // called from apply_context or sync_call_context
 uint32_t host_context::get_call_return_value(std::span<char> memory) const {
-   if (!last_sync_call_return_value.has_value()) {
+   if (last_sync_call_return_value.empty()) {
       return 0;
    }
 
-   const auto data_size = last_sync_call_return_value->size();
+   const auto data_size = last_sync_call_return_value.size();
    const auto copy_size = std::min(memory.size(), data_size);
 
    if (copy_size == 0) {
@@ -115,7 +115,7 @@ uint32_t host_context::get_call_return_value(std::span<char> memory) const {
    }
 
    // Copy up to the length of memory of data to memory
-   std::memcpy(memory.data(), last_sync_call_return_value->data(), copy_size);
+   std::memcpy(memory.data(), last_sync_call_return_value.data(), copy_size);
 
    // Return the number of bytes of the data that can be retrieved
    return data_size;
