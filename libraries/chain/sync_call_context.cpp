@@ -5,8 +5,8 @@
 
 namespace eosio::chain {
 
-sync_call_context::sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, uint32_t sync_call_depth, uint64_t flags, std::span<const char>data)
-   : host_context(con, trx_ctx, receiver, sync_call_depth)
+sync_call_context::sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, std::span<const char>data)
+   : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
    , sender(sender)
    , flags(flags)
    , data(data)
@@ -52,46 +52,14 @@ action_name sync_call_context::get_sender() const {
 }
 
 // Always return false in sync calls
-bool sync_call_context::has_authorization(const account_name& account) const {
-   return false;
-}
 bool sync_call_context::has_recipient(account_name account)const {
    return false;
 }
 bool sync_call_context::is_context_free()const {
    return false;
 }
-bool sync_call_context::is_privileged()const {
-   return false;
-}
 
-// EOS_ASSERTs and tests will be added for the following methods in next PR
-void sync_call_context::require_authorization(const account_name& account) {
-}
-void sync_call_context::require_authorization(const account_name& account, const permission_name& permission) {
-}
-void sync_call_context::require_recipient(account_name account) {
-}
-void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {
-}
-int sync_call_context::get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size)const {
-   return 0;
-}
-int sync_call_context::get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const {
-   return 0;
-}
-const action& sync_call_context::get_action()const {
-   static action t;
-   return t;
-}
-void sync_call_context::execute_inline( action&& a ) {
-}
-void sync_call_context::execute_context_free_inline( action&& a ) {
-}
-void sync_call_context::schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) {
-}
-bool sync_call_context::cancel_deferred_transaction( const uint128_t& sender_id) {
-   return false;
-}
+// This needs to be investigated further
+void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {}
 
 } /// eosio::chain
