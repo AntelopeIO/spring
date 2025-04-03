@@ -746,7 +746,7 @@ BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
 // Make a sync call without parameters (data size being 0)
 static const char no_parameters_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (memory (export "memory") 1)
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
@@ -797,7 +797,7 @@ BOOST_AUTO_TEST_CASE(no_parameters_test) { try {
 static const char no_return_value_caller_wast[] = R"=====(
 (module
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32)))
    (memory (export "memory") 1)
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
@@ -805,8 +805,8 @@ static const char no_return_value_caller_wast[] = R"=====(
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
       (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 0))
-      (i32.const 0)  ;; callee did not call set_call_return_value, $call shoud return 0
-      i32.ne
+      (i64.const 0)  ;; callee did not call set_call_return_value, $call shoud return 0
+      i64.ne
       if             ;; assert if $call did not return 0
          (call $assert (i32.const 0) (i32.const 16))
       end
@@ -1241,7 +1241,7 @@ BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
 // 2. makes a sync call to "callee"_n contract sync_call using the input as the argument
 static const char one_input_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
    (memory (export "memory") 1)
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
@@ -1258,7 +1258,7 @@ static const char one_input_caller_wast[] = R"=====(
 // by caller's `apply` entry point, total call depth is `n`.
 static const char direct_recursive_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
    (memory (export "memory") 1)
 
@@ -1319,7 +1319,7 @@ BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
 // 2. in `sync_call` entry point with `n` as the parameter, makes a further sync call to "callee"_n contract using `n` as the argument
 static const char indirect_recursive_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
    (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
 
@@ -1356,7 +1356,7 @@ static const char indirect_recursive_caller_wast[] = R"=====(
 // An indirect recursive function calling its sender and the sender calls back again.
 static const char indirect_recursive_callee_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
    (memory (export "memory") 1)
 
@@ -1417,7 +1417,7 @@ BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
 
 static const char constrains_enforcement_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
    (memory $0 1)
    (export "memory" (memory $0))

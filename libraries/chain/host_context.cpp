@@ -38,7 +38,7 @@ host_context::host_context(controller& con, transaction_context& trx_ctx, accoun
 host_context::~host_context() = default;
 
 // called from apply_context or sync_call_context
-uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std::span<const char> data) {
+int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std::span<const char> data) {
    const uint32_t depth = sync_call_depth + 1;
    const auto max_depth = control.get_global_properties().configuration.max_sync_call_depth;
    EOS_ASSERT(depth <= max_depth, sync_call_depth_exception,
@@ -52,8 +52,8 @@ uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std
    EOS_ASSERT(code != nullptr, sync_call_validate_exception,
               "sync call's receiver account ${r} does not exist", ("r", call_receiver));
 
-   EOS_ASSERT((flags & ~0b11) == 0, sync_call_validate_exception,  // all but last 2 bits are 0s
-              "only two least significant bits of sync call's flags (${flags}) can be set", ("flags", flags)); // bit 0 for read-only, bit 1 for no-op if no sync call entry point exists
+   EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::all_allowed_bits), sync_call_validate_exception,  // all but `std::bit_width(all_allowed_bits)` LSBs must be 0s
+              "only ${bits} least significant bits of sync call's flags (${flags}) can be set", ("bits", std::bit_width(static_cast<uint64_t>(sync_call_flags::all_allowed_bits)))("flags", flags));
 
    auto handle_exception = [&](const auto& e)
    {
@@ -77,7 +77,10 @@ uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std
             // use a new sync_call_context for next sync call
             sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
 
-            control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+            auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+            if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
+               return -1;
+            }
 
             // store return value
             last_sync_call_return_value = std::move(call_ctx.return_value);

@@ -152,12 +152,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      sync_call_return_code do_sync_call(apply_context& context) override {
-         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
-         assert(sync_call_ctx.has_value());
-         assert(!context.get_action_ptr());
-
-         if (!sync_call_ctx->receiver_supports_sync_call) {
+      sync_call_return_code do_sync_call(sync_call_context& context) override {
+         if (!context.receiver_supports_sync_call) {
             return sync_call_return_code::receiver_not_support_sync_call;
          }
 
@@ -283,7 +279,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          }
       }
 
-      sync_call_return_code do_sync_call(apply_context& context) override { __builtin_unreachable(); }
+      sync_call_return_code do_sync_call(sync_call_context& context) override { __builtin_unreachable(); }
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();

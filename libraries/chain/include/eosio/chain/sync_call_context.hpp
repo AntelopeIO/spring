@@ -4,10 +4,12 @@
 
 namespace eosio { namespace chain {
 
+// A bitmap. Only least significant bits can be set. Other bits must be 0.
+// When a new flag is added, its enum value must be 1 bit left shift from the last flag.
+// Update all_allowed_bits to include the newly added enum value.
 enum class sync_call_flags {
-   read_only                               = 1ull<<0,
-   no_op_if_receiver_not_support_sync_call = 1ull<<1,
-   last                                    = no_op_if_receiver_not_support_sync_call
+   read_only        = 1ull<<0,
+   all_allowed_bits = read_only
 };
 
 class sync_call_context : public host_context {
@@ -20,7 +22,6 @@ public:
    bool is_sync_call() const override { return true; }
 
    bool is_read_only()const;
-   bool no_op_if_receiver_not_support_sync_call()const;
    action_name get_sender() const override;
 
    account_name           sender{};
