@@ -519,7 +519,6 @@ public:
    [[eosio::action]]
    void bidrefund( name bidder, name newname );
 
-
 private:
 
    // Implementation details:
