@@ -8,6 +8,8 @@ peer_keys_db_t::peer_keys_db_t() : _active(false) {}
 peer_info_t peer_keys_db_t::get_peer_info(name n) const {
    fc::lock_guard g(_m);
    assert(_active);
+   if (auto it = _peer_info_map.find(n); it != _peer_info_map.end())
+      return it->second;
    return peer_info_t{};
 }
 
