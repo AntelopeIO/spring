@@ -12,7 +12,7 @@ enum class sync_call_flags {
 
 class sync_call_context : public host_context {
 public:
-   sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, uint32_t sync_call_depth, uint64_t flags, std::span<const char> data);
+   sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, std::span<const char> data);
 
    uint32_t get_call_data(std::span<char> memory) const override;
    void set_call_return_value(std::span<const char> return_value) override;
@@ -31,7 +31,6 @@ public:
    bool has_recipient(account_name account)const override;
    void update_db_usage( const account_name& payer, int64_t delta ) override;
    bool is_context_free()const override;
-   bool is_privileged()const override;
 };
 
 } } /// namespace eosio::chain

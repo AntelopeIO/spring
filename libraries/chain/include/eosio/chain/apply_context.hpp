@@ -80,7 +80,6 @@ class apply_context : public host_context {
       void finalize_trace( action_trace& trace, const fc::time_point& start );
 
       bool is_context_free()const override { return context_free; }
-      bool is_privileged()const override { return privileged; }
       const action& get_action()const override { return *act; }
       const action* get_action_ptr()const { return act; }
 
@@ -96,7 +95,6 @@ class apply_context : public host_context {
       uint32_t                      recurse_depth; ///< how deep inline actions can recurse
       uint32_t                      first_receiver_action_ordinal = 0;
       uint32_t                      action_ordinal = 0;
-      bool                          privileged   = false;
       bool                          context_free = false;
 
    private:

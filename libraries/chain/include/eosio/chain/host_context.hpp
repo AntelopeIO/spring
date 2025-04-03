@@ -484,8 +484,8 @@ public:
 
 public:
    /// Constructor and destructor:
-   host_context(controller& con, transaction_context& trx_ctx);
-   host_context(controller& con, transaction_context& trx_ctx, account_name receiver, uint32_t sync_call_depth );
+   host_context(controller& con, transaction_context& trx_ctx); // for actions
+   host_context(controller& con, transaction_context& trx_ctx, account_name receiver, bool privileged, uint32_t sync_call_depth);  // for sync calls
    virtual ~host_context();
 
    /// Authorization methods:
@@ -557,7 +557,7 @@ public:
    virtual int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size ) const { assert(false); __builtin_unreachable(); }
    virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const { assert(false); __builtin_unreachable(); }
    virtual bool is_context_free()const = 0;
-   virtual bool is_privileged()const = 0;
+   bool is_privileged()const { return privileged; }
    action_name get_receiver()const { return receiver; };
    virtual const action& get_action()const { assert(false); __builtin_unreachable(); }
    virtual action_name get_sender() const = 0;
@@ -587,6 +587,7 @@ public:
    transaction_context&             trx_context; ///< transaction context in which the action is running
    account_name                     receiver; ///< the code that is currently running
    std::vector<char>                action_return_value;
+   bool                             privileged = false;
 
    std::optional<std::vector<char>> last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
    const uint32_t                   sync_call_depth = 0; // depth for sync call
