@@ -19,7 +19,7 @@ peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(getpeerkeys_res_t v
    // ---------------------------------
    peer_key_map_t current;
    for (size_t i=0; i<v.size(); ++i)
-      current[v[i].first] = peer_info_t{static_cast<uint32_t>(i), v[i].second};
+      current[v[i].producer_name] = peer_info_t{static_cast<uint32_t>(i), v[i].peer_key};
 
    fc::lock_guard g(_m);
    new_peers_t res;

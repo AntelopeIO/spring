@@ -15,8 +15,6 @@
 
 using namespace eosio_system;
 
-using  getpeerkeys_res_t = std::vector<std::pair<name, std::optional<public_key_type>>>;
-
 class getpeerkeys_tester : public eosio_system_tester<validating_tester> {
 public:
    getpeerkeys_res_t getpeerkeys() {
@@ -42,7 +40,7 @@ BOOST_FIXTURE_TEST_CASE( getpeerkeys_test, getpeerkeys_tester ) { try {
       // auto res = getpeerkeys();                 // call action from tester (as regular, not readonly action)
       auto res = control->get_top_producer_keys(); // call readonly action from controller
       BOOST_REQUIRE(!res.empty());
-      BOOST_REQUIRE_EQUAL(res[0].first, "n1"_n); 
+      BOOST_REQUIRE_EQUAL(res[0].producer_name, "n1"_n); 
       
 } FC_LOG_AND_RETHROW() }
 
