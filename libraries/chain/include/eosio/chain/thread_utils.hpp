@@ -136,7 +136,7 @@ namespace eosio { namespace chain {
    class named_thread_pool {
    public:
       using on_except_t = std::function<void(const fc::exception& e)>;
-      using init_t = std::function<void()>;
+      using init_t = std::function<void(size_t)>; // init is passed the thread pool index
 
       named_thread_pool() = default;
 
@@ -217,7 +217,7 @@ namespace eosio { namespace chain {
             try {
                tn = set_current_thread_name_to_typename( typeid(this), i );
                if ( init )
-                  init();
+                  init(i);
             } FC_LOG_AND_RETHROW()
          }
          catch( ... ) {
