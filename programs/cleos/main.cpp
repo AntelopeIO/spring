@@ -2795,7 +2795,7 @@ int main( int argc, char** argv ) {
 
    wallet_url = default_wallet_url;
 
-   CLI::App app{"Command Line Interface to EOSIO Client"};
+   CLI::App app{"Command Line Interface to Spring Client"};
 
    // custom leap formatter
    auto fmt = std::make_shared<CLI::SpringFormatter>();

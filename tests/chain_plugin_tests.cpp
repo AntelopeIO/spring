@@ -140,31 +140,43 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
 
    auto parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
 
-   // verifying chain_config
-   BOOST_TEST(parms.chain_config.max_block_cpu_usage == t.control->get_global_properties().configuration.max_block_cpu_usage);
-   BOOST_TEST(parms.chain_config.target_block_net_usage_pct == t.control->get_global_properties().configuration.target_block_net_usage_pct);
-   BOOST_TEST(parms.chain_config.max_transaction_net_usage == t.control->get_global_properties().configuration.max_transaction_net_usage);
-   BOOST_TEST(parms.chain_config.base_per_transaction_net_usage == t.control->get_global_properties().configuration.base_per_transaction_net_usage);
-   BOOST_TEST(parms.chain_config.net_usage_leeway == t.control->get_global_properties().configuration.net_usage_leeway);
-   BOOST_TEST(parms.chain_config.context_free_discount_net_usage_num == t.control->get_global_properties().configuration.context_free_discount_net_usage_num);
-   BOOST_TEST(parms.chain_config.context_free_discount_net_usage_den == t.control->get_global_properties().configuration.context_free_discount_net_usage_den);
-   BOOST_TEST(parms.chain_config.max_block_cpu_usage == t.control->get_global_properties().configuration.max_block_cpu_usage);
-   BOOST_TEST(parms.chain_config.target_block_cpu_usage_pct == t.control->get_global_properties().configuration.target_block_cpu_usage_pct);
-   BOOST_TEST(parms.chain_config.max_transaction_cpu_usage == t.control->get_global_properties().configuration.max_transaction_cpu_usage);
-   BOOST_TEST(parms.chain_config.min_transaction_cpu_usage == t.control->get_global_properties().configuration.min_transaction_cpu_usage);
-   BOOST_TEST(parms.chain_config.max_transaction_lifetime == t.control->get_global_properties().configuration.max_transaction_lifetime);
-   BOOST_TEST(parms.chain_config.deferred_trx_expiration_window == t.control->get_global_properties().configuration.deferred_trx_expiration_window);
-   BOOST_TEST(parms.chain_config.max_transaction_delay == t.control->get_global_properties().configuration.max_transaction_delay);
-   BOOST_TEST(parms.chain_config.max_inline_action_size == t.control->get_global_properties().configuration.max_inline_action_size);
-   BOOST_TEST(parms.chain_config.max_inline_action_depth == t.control->get_global_properties().configuration.max_inline_action_depth);
-   BOOST_TEST(parms.chain_config.max_authority_depth == t.control->get_global_properties().configuration.max_authority_depth);
-   BOOST_TEST(parms.chain_config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
+   chain_config_v0 v0config;
+   from_variant(parms.chain_config, v0config);
 
+   // verifying chain_config
+   BOOST_TEST(v0config.max_block_cpu_usage == t.control->get_global_properties().configuration.max_block_cpu_usage);
+   BOOST_TEST(v0config.target_block_net_usage_pct == t.control->get_global_properties().configuration.target_block_net_usage_pct);
+   BOOST_TEST(v0config.max_transaction_net_usage == t.control->get_global_properties().configuration.max_transaction_net_usage);
+   BOOST_TEST(v0config.base_per_transaction_net_usage == t.control->get_global_properties().configuration.base_per_transaction_net_usage);
+   BOOST_TEST(v0config.net_usage_leeway == t.control->get_global_properties().configuration.net_usage_leeway);
+   BOOST_TEST(v0config.context_free_discount_net_usage_num == t.control->get_global_properties().configuration.context_free_discount_net_usage_num);
+   BOOST_TEST(v0config.context_free_discount_net_usage_den == t.control->get_global_properties().configuration.context_free_discount_net_usage_den);
+   BOOST_TEST(v0config.max_block_cpu_usage == t.control->get_global_properties().configuration.max_block_cpu_usage);
+   BOOST_TEST(v0config.target_block_cpu_usage_pct == t.control->get_global_properties().configuration.target_block_cpu_usage_pct);
+   BOOST_TEST(v0config.max_transaction_cpu_usage == t.control->get_global_properties().configuration.max_transaction_cpu_usage);
+   BOOST_TEST(v0config.min_transaction_cpu_usage == t.control->get_global_properties().configuration.min_transaction_cpu_usage);
+   BOOST_TEST(v0config.max_transaction_lifetime == t.control->get_global_properties().configuration.max_transaction_lifetime);
+   BOOST_TEST(v0config.deferred_trx_expiration_window == t.control->get_global_properties().configuration.deferred_trx_expiration_window);
+   BOOST_TEST(v0config.max_transaction_delay == t.control->get_global_properties().configuration.max_transaction_delay);
+   BOOST_TEST(v0config.max_inline_action_size == t.control->get_global_properties().configuration.max_inline_action_size);
+   BOOST_TEST(v0config.max_inline_action_depth == t.control->get_global_properties().configuration.max_inline_action_depth);
+   BOOST_TEST(v0config.max_authority_depth == t.control->get_global_properties().configuration.max_authority_depth);
+
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_action_return_value_size"));
    BOOST_TEST(!parms.wasm_config);
 
-   t.preactivate_all_builtin_protocol_features();
+   t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
    t.produce_block();
 
+   parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
+   chain_config_v1 v1config;
+   from_variant(parms.chain_config, v1config);
+
+   BOOST_TEST(v1config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
+   BOOST_TEST(!parms.wasm_config);
+
+   t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::configurable_wasm_limits} );
+   t.produce_block();
    parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
 
    BOOST_REQUIRE(!!parms.wasm_config);
