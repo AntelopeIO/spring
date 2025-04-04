@@ -80,6 +80,22 @@ namespace eosio::chain {
       class resource_limits_manager;
    };
 
+   // vector, sorted by rank, of the paid producer names and their peer key
+   // if populated on-chain.
+   // -----------------------------------------------------------------------
+   struct peerkeys_t {
+      name                           producer_name;
+      std::optional<public_key_type> peer_key;
+   };
+   using getpeerkeys_res_t = std::vector<peerkeys_t>;
+
+   struct peer_info_t {
+      uint32_t                       rank;
+      std::optional<public_key_type> key;
+
+      bool operator==(const peer_info_t&) const = default;
+   };
+
    struct controller_impl;
    using chainbase::database;
    using chainbase::pinnable_mapped_file;
@@ -428,7 +444,8 @@ namespace eosio::chain {
          chain_id_type get_chain_id()const;
 
          void set_peer_keys_retrieval_active(bool active);
-         std::optional<public_key_type> get_peer_key(name n) const; // thread safe
+         peer_info_t  get_peer_info(name n) const;  // thread safe
+         getpeerkeys_res_t get_top_producer_keys(); // must be called from main thread
 
          // thread safe
          db_read_mode get_read_mode()const;
@@ -515,3 +532,5 @@ namespace eosio::chain {
    }; // controller
 
 }  /// eosio::chain
+
+FC_REFLECT(eosio::chain::peerkeys_t, (producer_name)(peer_key))
