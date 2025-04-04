@@ -1053,7 +1053,15 @@ class Cluster(object):
         if Utils.Debug: Utils.Print("setfinalizers: %s" % (setFinStr))
         Utils.Print("Setting finalizers")
         opts = "--permission eosio@active"
-        trans = node.pushMessage("eosio", "setfinalizer", setFinStr, opts)
+        # setfinalizer can fail on ci/cd because it required too much CPU, try a few times
+        retries = 3
+        while retries > 0:
+            trans = node.pushMessage("eosio", "setfinalizer", setFinStr, opts, force=True)
+            if trans is None or not trans[0]:
+                retries = retries - 1
+                continue
+            else:
+                break
         if trans is None or not trans[0]:
             Utils.Print("ERROR: Failed to set finalizers")
             return None
