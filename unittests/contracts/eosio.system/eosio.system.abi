@@ -7,7 +7,7 @@
             "type": "pair_time_point_sec_int64"
         },
         {
-            "new_type_name": "getpeerkeys_response",
+            "new_type_name": "getpeerkeys_res_t",
             "type": "peerkeys_t[]"
         }
     ],
@@ -387,28 +387,6 @@
             ]
         },
         {
-            "name": "delegated_bandwidth",
-            "base": "",
-            "fields": [
-                {
-                    "name": "from",
-                    "type": "name"
-                },
-                {
-                    "name": "to",
-                    "type": "name"
-                },
-                {
-                    "name": "net_weight",
-                    "type": "asset"
-                },
-                {
-                    "name": "cpu_weight",
-                    "type": "asset"
-                }
-            ]
-        },
-        {
             "name": "deleteauth",
             "base": "",
             "fields": [
@@ -419,6 +397,20 @@
                 {
                     "name": "permission",
                     "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "delpeerkey",
+            "base": "",
+            "fields": [
+                {
+                    "name": "proposer_finalizer_name",
+                    "type": "name"
+                },
+                {
+                    "name": "key",
+                    "type": "public_key"
                 }
             ]
         },
@@ -591,12 +583,7 @@
         {
             "name": "getpeerkeys",
             "base": "",
-            "fields": [
-                {
-                    "name": "n",
-                    "type": "name"
-                }
-            ]
+            "fields": []
         },
         {
             "name": "init",
@@ -727,6 +714,20 @@
                 {
                     "name": "second",
                     "type": "int64"
+                }
+            ]
+        },
+        {
+            "name": "peer_key",
+            "base": "",
+            "fields": [
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "data",
+                    "type": "variant_v0_data"
                 }
             ]
         },
@@ -867,24 +868,16 @@
             ]
         },
         {
-            "name": "refund_request",
+            "name": "regpeerkey",
             "base": "",
             "fields": [
                 {
-                    "name": "owner",
+                    "name": "proposer_finalizer_name",
                     "type": "name"
                 },
                 {
-                    "name": "request_time",
-                    "type": "time_point_sec"
-                },
-                {
-                    "name": "net_amount",
-                    "type": "asset"
-                },
-                {
-                    "name": "cpu_amount",
-                    "type": "asset"
+                    "name": "key",
+                    "type": "public_key"
                 }
             ]
         },
@@ -1395,24 +1388,12 @@
             ]
         },
         {
-            "name": "user_resources",
+            "name": "v0_data",
             "base": "",
             "fields": [
                 {
-                    "name": "owner",
-                    "type": "name"
-                },
-                {
-                    "name": "net_weight",
-                    "type": "asset"
-                },
-                {
-                    "name": "cpu_weight",
-                    "type": "asset"
-                },
-                {
-                    "name": "ram_bytes",
-                    "type": "int64"
+                    "name": "pubkey",
+                    "type": "public_key?"
                 }
             ]
         },
@@ -1507,6 +1488,72 @@
                     "type": "asset"
                 }
             ]
+        },
+        {
+            "name": "delegated_bandwidth",
+            "base": "",
+            "fields": [
+                {
+                    "name": "from",
+                    "type": "name"
+                },
+                {
+                    "name": "to",
+                    "type": "name"
+                },
+                {
+                    "name": "net_weight",
+                    "type": "asset"
+                },
+                {
+                    "name": "cpu_weight",
+                    "type": "asset"
+                }
+            ]
+        },
+        {
+            "name": "refund_request",
+            "base": "",
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                },
+                {
+                    "name": "request_time",
+                    "type": "time_point_sec"
+                },
+                {
+                    "name": "net_amount",
+                    "type": "asset"
+                },
+                {
+                    "name": "cpu_amount",
+                    "type": "asset"
+                }
+            ]
+        },
+        {
+            "name": "user_resources",
+            "base": "",
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "name"
+                },
+                {
+                    "name": "net_weight",
+                    "type": "asset"
+                },
+                {
+                    "name": "cpu_weight",
+                    "type": "asset"
+                },
+                {
+                    "name": "ram_bytes",
+                    "type": "int64"
+                }
+            ]
         }
     ],
     "actions": [
@@ -1581,6 +1628,11 @@
             "ricardian_contract": ""
         },
         {
+            "name": "delpeerkey",
+            "type": "delpeerkey",
+            "ricardian_contract": ""
+        },
+        {
             "name": "deposit",
             "type": "deposit",
             "ricardian_contract": ""
@@ -1628,6 +1680,11 @@
         {
             "name": "refund",
             "type": "refund",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "regpeerkey",
+            "type": "regpeerkey",
             "ricardian_contract": ""
         },
         {
@@ -1774,13 +1831,6 @@
             "key_types": []
         },
         {
-            "name": "delband",
-            "type": "delegated_bandwidth",
-            "index_type": "i64",
-            "key_names": [],
-            "key_types": []
-        },
-        {
             "name": "global",
             "type": "eosio_global_state",
             "index_type": "i64",
@@ -1816,6 +1866,13 @@
             "key_types": []
         },
         {
+            "name": "peerkeys",
+            "type": "peer_key",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
             "name": "producers",
             "type": "producer_info",
             "index_type": "i64",
@@ -1832,13 +1889,6 @@
         {
             "name": "rammarket",
             "type": "exchange_state",
-            "index_type": "i64",
-            "key_names": [],
-            "key_types": []
-        },
-        {
-            "name": "refunds",
-            "type": "refund_request",
             "index_type": "i64",
             "key_names": [],
             "key_types": []
@@ -1872,26 +1922,45 @@
             "key_types": []
         },
         {
-            "name": "userres",
-            "type": "user_resources",
+            "name": "voters",
+            "type": "voter_info",
             "index_type": "i64",
             "key_names": [],
             "key_types": []
         },
         {
-            "name": "voters",
-            "type": "voter_info",
+            "name": "delband",
+            "type": "delegated_bandwidth",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "refunds",
+            "type": "refund_request",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "userres",
+            "type": "user_resources",
             "index_type": "i64",
             "key_names": [],
             "key_types": []
         }
     ],
     "ricardian_clauses": [],
-    "variants": [],
+    "variants": [
+        {
+            "name": "variant_v0_data",
+            "types": ["v0_data"]
+        }
+    ],
     "action_results": [
         {
             "name": "getpeerkeys",
-            "result_type": "getpeerkeys_response"
+            "result_type": "getpeerkeys_res_t"
         }
     ]
 }

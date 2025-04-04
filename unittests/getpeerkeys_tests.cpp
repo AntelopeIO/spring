@@ -17,31 +17,42 @@ using namespace eosio_system;
 
 class getpeerkeys_tester : public eosio_system_tester<validating_tester> {
 public:
-   getpeerkeys_res_t getpeerkeys() {
-      try {
-         auto trace =
-            base_tester::push_action(config::system_account_name, "getpeerkeys"_n, config::system_account_name, mvo());
-         auto&             retval = trace->action_traces[0].return_value;
-         getpeerkeys_res_t res;
-
-         fc::datastream<const char*> ds(retval.data(), retval.size());
-         fc::raw::unpack(ds, res);
-         return res;
-
-      } catch (const fc::exception& ex) {
-         return {};
-      }
+   action_result regpeerkey( const name& proposer, const fc::crypto::public_key& key  ) {
+      return push_action(proposer, "regpeerkey"_n, mvo()("proposer_finalizer_name", proposer)("key", key));
    }
 };
 
 BOOST_AUTO_TEST_SUITE(getpeerkeys_tests)
 
 BOOST_FIXTURE_TEST_CASE( getpeerkeys_test, getpeerkeys_tester ) { try {
-      // auto res = getpeerkeys();                 // call action from tester (as regular, not readonly action)
-      auto res = control->get_top_producer_keys(); // call readonly action from controller
-      BOOST_REQUIRE(!res.empty());
-      BOOST_REQUIRE_EQUAL(res[0].producer_name, "n1"_n); 
-      
+   std::vector<name> prod_names = active_and_vote_producers();
+
+   for (size_t i=0; i<prod_names.size(); ++i) {
+      auto n = prod_names[i];
+      if (i % 2 == 0)
+         BOOST_REQUIRE_EQUAL(success(), regpeerkey(n, get_public_key(n)));
+   }
+
+   auto peerkeys = control->get_top_producer_keys(); // call readonly action from controller
+   BOOST_REQUIRE_EQUAL(peerkeys.size(), 21);
+   //BOOST_REQUIRE(peerkeys == control->get_top_producer_keys()); // call readonly action from controller
+
+   for (size_t i=0; i<prod_names.size(); ++i) {
+      auto n = prod_names[i];
+      bool found = false;
+      for (auto& p : peerkeys) {
+         if (p.producer_name == n) {
+            found = true;
+            if (i % 2 == 0) {
+               BOOST_REQUIRE(!!p.peer_key);
+               BOOST_REQUIRE_EQUAL(get_public_key(n), *p.peer_key);
+            } else {
+               BOOST_REQUIRE(!p.peer_key);
+            }
+         }
+      }
+      BOOST_REQUIRE(found);
+   }
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
