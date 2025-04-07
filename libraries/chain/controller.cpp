@@ -4558,8 +4558,8 @@ struct controller_impl {
       // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
       // have limited run time already. This is to allow killing a long-running transaction in a block being
       // validated.
-      if (!replaying && applying_block) {
-         ilog("Interrupting apply block");
+      if (!replaying) {
+         ilog("Interrupting trx...");
          main_thread_timer.interrupt_timer();
       }
    }
