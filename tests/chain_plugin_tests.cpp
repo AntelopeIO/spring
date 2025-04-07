@@ -174,8 +174,8 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    chain_config_v1 v1config;
    from_variant(parms.chain_config, v1config);
 
-   BOOST_TEST(v1config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
    BOOST_TEST(parms.chain_config.get_object().contains("max_action_return_value_size"));
+   BOOST_TEST(v1config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
    BOOST_TEST(!parms.wasm_config);
    BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_depth"));
    BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_data_size"));
@@ -209,9 +209,10 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    chain_config_v2 v2config;
    from_variant(parms.chain_config, v2config);
 
-   BOOST_TEST(v2config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
    BOOST_TEST(parms.chain_config.get_object().contains("max_sync_call_depth"));
    BOOST_TEST(parms.chain_config.get_object().contains("max_sync_call_data_size"));
+   BOOST_TEST(v2config.max_sync_call_depth == t.control->get_global_properties().configuration.max_sync_call_depth);
+   BOOST_TEST(v2config.max_sync_call_data_size == t.control->get_global_properties().configuration.max_sync_call_data_size);
 } FC_LOG_AND_RETHROW() //get_consensus_parameters
 
 BOOST_FIXTURE_TEST_CASE( get_account, validating_tester ) try {
