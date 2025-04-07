@@ -70,6 +70,16 @@ expected_results = [
             "head_block_num": 3,
             "head_block_time": "2020-01-01T00:00:01.000"
         }
+    },
+    {
+        "file": "unittests/snapshots/snap_v9.bin.gz",
+        "result": {
+            "version": 9,
+            "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
+            "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
+            "head_block_num": 3,
+            "head_block_time": "2020-01-01T00:00:01.000"
+        }
     }
 ]
 
