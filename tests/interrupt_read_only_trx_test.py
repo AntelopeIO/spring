@@ -88,7 +88,7 @@ def startCluster():
     if args.eos_vm_oc_enable:
         if platform.system() != "Linux":
             Print("OC not run on Linux. Skip the test")
-            exit(True) # Do not fail the test
+            exit(0) # Do not fail the test
         specificExtraNodeosArgs[pnodes]+=" --eos-vm-oc-enable "
         specificExtraNodeosArgs[pnodes]+=args.eos_vm_oc_enable
     if args.wasm_runtime:
@@ -155,7 +155,7 @@ def timeoutTest():
     Print("Verify node not processing incoming blocks, blocks do not interrupt read-only trx")
     blockNum = apiNode.getHeadBlockNum()
     assert producerNode.waitForLibToAdvance(), "Producer node stopped advancing LIB after forever read-only trx"
-    assert blockNum == apiNode.getHeadBlockNum(), "Head still advancing when node whould be processing a read-only transaction"
+    assert blockNum == apiNode.getHeadBlockNum(), "Head still advancing when node should be processing a read-only transaction"
 
     Print("Verify ctrl-c will interrupt and shutdown node")
     assert apiNode.kill(signal.SIGTERM), "API Node not killed by SIGTERM"
