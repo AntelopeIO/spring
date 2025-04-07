@@ -3205,6 +3205,8 @@ inline std::pair<action_trace, std::string> generate_action_trace(const std::opt
       }
    }
    expected_json
+      << ",\"syc_call_traces\":null";
+   expected_json
       <<     "}"
       << "}";
 
