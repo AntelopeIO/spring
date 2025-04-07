@@ -1479,10 +1479,6 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
                  plugin_config_exception,
                  "read-only-read-window-time-us (${read}) must be at least greater than  ${min} us",
                  ("read", _ro_read_window_time_us)("min", _ro_read_window_minimum_time_us));
-      if (_ro_read_window_time_us > fc::milliseconds(200)) {
-         ilog("Reducing read-only-read-window-time-us to 200ms");
-         _ro_read_window_time_us = fc::milliseconds(200);
-      }
       _ro_read_window_effective_time_us = _ro_read_window_time_us;
       ilog("read-only-write-window-time-us: ${ww} us, read-only-read-window-time-us: ${rw} us, effective read window time to be used: ${w} us",
            ("ww", _ro_write_window_time_us)("rw", _ro_read_window_time_us)("w", _ro_read_window_effective_time_us));
