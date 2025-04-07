@@ -162,9 +162,10 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(v0config.max_inline_action_depth == t.control->get_global_properties().configuration.max_inline_action_depth);
    BOOST_TEST(v0config.max_authority_depth == t.control->get_global_properties().configuration.max_authority_depth);
 
-   // To be re-enabled when https://github.com/AntelopeIO/spring/issues/1289 is worked on
-   //BOOST_TEST(!parms.chain_config.get_object().contains("max_action_return_value_size"));
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_action_return_value_size"));
    BOOST_TEST(!parms.wasm_config);
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_depth"));
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_data_size"));
 
    t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
    t.produce_block();
@@ -174,7 +175,10 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    from_variant(parms.chain_config, v1config);
 
    BOOST_TEST(v1config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
+   BOOST_TEST(parms.chain_config.get_object().contains("max_action_return_value_size"));
    BOOST_TEST(!parms.wasm_config);
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_depth"));
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_data_size"));
 
    t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::configurable_wasm_limits} );
    t.produce_block();
@@ -194,7 +198,20 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(parms.wasm_config->max_code_bytes == t.control->get_global_properties().wasm_configuration.max_code_bytes);
    BOOST_TEST(parms.wasm_config->max_pages == t.control->get_global_properties().wasm_configuration.max_pages);
    BOOST_TEST(parms.wasm_config->max_call_depth == t.control->get_global_properties().wasm_configuration.max_call_depth);
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_depth"));
+   BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_data_size"));
 
+   // verifying max_sync_call_depth and max_sync_call_data_size
+   t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::sync_call} );
+   t.produce_block();
+
+   parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
+   chain_config_v2 v2config;
+   from_variant(parms.chain_config, v2config);
+
+   BOOST_TEST(v2config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
+   BOOST_TEST(parms.chain_config.get_object().contains("max_sync_call_depth"));
+   BOOST_TEST(parms.chain_config.get_object().contains("max_sync_call_data_size"));
 } FC_LOG_AND_RETHROW() //get_consensus_parameters
 
 BOOST_FIXTURE_TEST_CASE( get_account, validating_tester ) try {
