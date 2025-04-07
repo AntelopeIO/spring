@@ -504,6 +504,7 @@ namespace eosio::chain {
       private:
          const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).
 
+         friend class host_context;
          friend class apply_context;
          friend class transaction_context;
          friend class savanna_cluster::node_t;

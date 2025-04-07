@@ -7,15 +7,15 @@
 #include <boost/hana/string.hpp>
 
 namespace eosio { namespace chain {
-class apply_context;
+class host_context;
 namespace webassembly {
 
    class interface {
       public:
-         interface(apply_context& ctx) : context(ctx) {}
+         interface(host_context& ctx) : context(ctx) {}
 
-         inline apply_context& get_context() { return context; }
-         inline const apply_context& get_context() const { return context; }
+         inline host_context& get_context() { return context; }
+         inline const host_context& get_context() const { return context; }
 
          /**
           * Retrieve the signed_transaction.context_free_data[index].
@@ -2014,7 +2014,7 @@ namespace webassembly {
          int32_t __unordtf2(uint64_t, uint64_t, uint64_t, uint64_t) const;
 
       private:
-         apply_context& context;
+         host_context& context;
    };
 
 }}} // ns eosio::chain::webassembly

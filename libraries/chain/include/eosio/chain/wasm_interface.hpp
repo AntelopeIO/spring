@@ -3,19 +3,24 @@
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/whitelisted_intrinsics.hpp>
 #include <eosio/chain/exceptions.hpp>
-#include <eosio/chain/sync_call_context.hpp>
 #include <functional>
 
 namespace eosio { namespace chain {
 
    struct platform_timer;
    class apply_context;
+   class sync_call_context;
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
 
    struct wasm_exit {
       int32_t code = 0;
+   };
+
+   enum class sync_call_return_code : int64_t {
+      receiver_not_support_sync_call = -1,  // no sync_call entry point or its signature is invalid
+      success                        = 0
    };
 
    /**
@@ -77,7 +82,7 @@ namespace eosio { namespace chain {
          //Calls apply or error on a given code
          void apply(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context);
 
-         sync_call_return_code do_sync_call(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context);
+         sync_call_return_code do_sync_call(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context);
 
          //Returns true if the code is cached
          bool is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const;

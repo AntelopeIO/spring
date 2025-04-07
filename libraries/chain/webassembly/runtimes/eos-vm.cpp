@@ -2,6 +2,7 @@
 #include <eosio/chain/webassembly/interface.hpp>
 #include <eosio/chain/account_object.hpp>
 #include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/wasm_eosio_constraints.hpp>
@@ -151,12 +152,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      sync_call_return_code do_sync_call(apply_context& context) override {
-         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
-         assert(sync_call_ctx.has_value());
-         assert(!context.get_action_ptr());
-
-         if (!sync_call_ctx->receiver_supports_sync_call) {
+      sync_call_return_code do_sync_call(sync_call_context& context) override {
+         if (!context.receiver_supports_sync_call) {
             return sync_call_return_code::receiver_not_support_sync_call;
          }
 
@@ -174,9 +171,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             bkend.initialize(&iface, opts);
             bkend.call(
                 iface, "env", "sync_call",
-                sync_call_ctx->sender.to_uint64_t(),
-                sync_call_ctx->receiver.to_uint64_t(),
-                static_cast<uint32_t>(sync_call_ctx->data.size()));
+                context.sender.to_uint64_t(),
+                context.receiver.to_uint64_t(),
+                static_cast<uint32_t>(context.data.size()));
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
@@ -204,7 +201,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
       }
 
    private:
-      void execute(apply_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
+      void execute(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
          // set up backend to share the compiled mod in the instantiated
          // module of the contract
          bkend.share(*_instantiated_module);
@@ -230,7 +227,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          }
       }
 
-      apply_options get_apply_options(const apply_context& context) const {
+      apply_options get_apply_options(const host_context& context) const {
          apply_options opts;
          if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
             const wasm_config& config = context.control.get_global_properties().wasm_configuration;
@@ -282,7 +279,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          }
       }
 
-      sync_call_return_code do_sync_call(apply_context& context) override { __builtin_unreachable(); }
+      sync_call_return_code do_sync_call(sync_call_context& context) override { __builtin_unreachable(); }
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();
@@ -524,10 +521,10 @@ REGISTER_HOST_FUNCTION(get_permission_last_used);
 REGISTER_HOST_FUNCTION(get_account_creation_time);
 
 // authorization api
-REGISTER_HOST_FUNCTION(require_auth);
-REGISTER_HOST_FUNCTION(require_auth2);
-REGISTER_HOST_FUNCTION(has_auth);
-REGISTER_HOST_FUNCTION(require_recipient);
+REGISTER_HOST_FUNCTION(require_auth, action_check);
+REGISTER_HOST_FUNCTION(require_auth2, action_check);
+REGISTER_HOST_FUNCTION(has_auth, action_check);
+REGISTER_HOST_FUNCTION(require_recipient, action_check);
 REGISTER_HOST_FUNCTION(is_account);
 REGISTER_HOST_FUNCTION(get_code_hash);
 
@@ -545,16 +542,16 @@ REGISTER_CF_HOST_FUNCTION(eosio_assert_code)
 REGISTER_CF_HOST_FUNCTION(eosio_exit)
 
 // action api
-REGISTER_LEGACY_CF_HOST_FUNCTION(read_action_data);
-REGISTER_CF_HOST_FUNCTION(action_data_size);
+REGISTER_LEGACY_CF_HOST_FUNCTION(read_action_data, action_check);
+REGISTER_CF_HOST_FUNCTION(action_data_size, action_check);
 REGISTER_CF_HOST_FUNCTION(current_receiver);
-REGISTER_HOST_FUNCTION(set_action_return_value);
+REGISTER_HOST_FUNCTION(set_action_return_value, action_check);
 
 // sync call api. sync calls are not allowed in context-free actions
 REGISTER_HOST_FUNCTION(call);
 REGISTER_HOST_FUNCTION(get_call_return_value);
-REGISTER_HOST_FUNCTION(get_call_data);
-REGISTER_HOST_FUNCTION(set_call_return_value);
+REGISTER_HOST_FUNCTION(get_call_data, sync_call_check);
+REGISTER_HOST_FUNCTION(set_call_return_value, sync_call_check);
 
 // console api
 REGISTER_LEGACY_CF_HOST_FUNCTION(prints);
@@ -649,10 +646,10 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(memcmp);
 REGISTER_LEGACY_CF_HOST_FUNCTION(memset);
 
 // transaction api
-REGISTER_LEGACY_HOST_FUNCTION(send_inline);
-REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline);
-REGISTER_LEGACY_HOST_FUNCTION(send_deferred);
-REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred);
+REGISTER_LEGACY_HOST_FUNCTION(send_inline, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_deferred, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred, action_check);
 
 // context-free transaction api
 REGISTER_LEGACY_CF_HOST_FUNCTION(read_transaction);
@@ -660,7 +657,7 @@ REGISTER_CF_HOST_FUNCTION(transaction_size);
 REGISTER_CF_HOST_FUNCTION(expiration);
 REGISTER_CF_HOST_FUNCTION(tapos_block_num);
 REGISTER_CF_HOST_FUNCTION(tapos_block_prefix);
-REGISTER_LEGACY_CF_HOST_FUNCTION(get_action);
+REGISTER_LEGACY_CF_HOST_FUNCTION(get_action, action_check);
 
 // compiler builtins api
 REGISTER_LEGACY_CF_HOST_FUNCTION(__ashlti3);
