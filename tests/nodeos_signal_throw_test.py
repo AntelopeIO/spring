@@ -3,8 +3,8 @@ import os
 import shutil
 import signal
 
+from http.client import RemoteDisconnected
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
-from TestHarness.Node import BlockType
 
 ###############################################################
 # nodeos_signal_throw_test
@@ -43,7 +43,11 @@ def verifyExceptionDoesNotShutdown(node, sig, exception):
 def verifyExceptionShutsdown(node, sig, exception):
     if node.isProducer:
         node.waitForProducer("defproducera")
-    node.processUrllibRequest("test_control", "throw_on", {"signal":sig, "exception":exception})
+    try:
+        node.processUrllibRequest("test_control", "throw_on", {"signal":sig, "exception":exception})
+    except RemoteDisconnected as ex:
+        pass # ignore as node might shutdown before replying
+
     assert node.waitForNodeToExit(timeout=10), f"Node {node.nodeId} did not shutdown on {sig} exception {exception}"
     assert not node.verifyAlive(), f"Node {node.nodeId} did not shutdown on {sig} exception {exception}"
     assert node.relaunch(), f"Node {node.nodeId} relaunch failed after {sig} exception {exception}"

@@ -1,8 +1,15 @@
 #define RAPIDJSON_NAMESPACE eosio_rapidjson // This is ABSOLUTELY necessary anywhere that is using eosio_rapidjson
 
-#include <eosio/chain/snapshot.hpp>
+#include <eosio/chain/block_timestamp.hpp>
+#include <eosio/chain/chain_snapshot.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/chain/genesis_state.hpp>
+#include <eosio/chain/global_property_object.hpp>
+#include <eosio/chain/snapshot.hpp>
+#include <eosio/chain/snapshot_detail.hpp>
+
 #include <fc/scoped_exit.hpp>
+#include <fc/variant_object.hpp>
 #include <fc/io/json.hpp>
 
 #include <rapidjson/document.h>
@@ -588,6 +595,77 @@ void integrity_hash_snapshot_writer::write_end_section( ) {
 
 void integrity_hash_snapshot_writer::finalize() {
    // no-op for structural details
+}
+
+fc::variant snapshot_info(snapshot_reader& snapshot) {
+   chain_snapshot_header header;
+   snapshot.read_section<chain_snapshot_header>([&](auto &section){
+      section.read_row(header);
+   });
+   if(header.version < chain_snapshot_header::minimum_compatible_version || header.version > chain_snapshot_header::current_version)
+      wlog("Snapshot version ${v} is not supported by this version of spring-util, trying to parse anyways...");
+
+   chain_id_type chain_id = chain_id_type::empty_chain_id();
+   if(header.version <= 2) {
+      snapshot.read_section<genesis_state>([&]( auto &section ) {
+         genesis_state genesis;
+         section.read_row(genesis);
+         chain_id = genesis.compute_chain_id();
+      });
+   }
+   else if(header.version <= 4) {
+      snapshot.read_section<global_property_object>([&]( auto &section ) {
+         legacy::snapshot_global_property_object_v3 legacy_global_properties; //layout is same up to chain_id for v3 & v4
+         section.read_row(legacy_global_properties);
+         chain_id = legacy_global_properties.chain_id;
+      });
+   }
+   else {
+      snapshot.read_section<global_property_object>([&]( auto &section ) {
+         legacy::snapshot_global_property_object_v5 legacy_global_properties; //layout is same up to chain_id for v5+
+         section.read_row(legacy_global_properties);
+         chain_id = legacy_global_properties.chain_id;
+      });
+   }
+
+   block_id_type head_block;
+   block_timestamp_type head_block_time;
+   if(header.version <= snapshot_detail::snapshot_block_header_state_legacy_v2::maximum_version) {
+      snapshot.read_section("eosio::chain::block_state", [&]( auto &section ) {
+         snapshot_detail::snapshot_block_header_state_legacy_v2 header_state;
+         section.read_row(header_state);
+         head_block = header_state.id;
+         head_block_time = header_state.header.timestamp;
+      });
+   }
+   else if(header.version <= snapshot_detail::snapshot_block_header_state_legacy_v3::maximum_version) {
+      snapshot.read_section("eosio::chain::block_state", [&]( auto &section ) {
+         snapshot_detail::snapshot_block_header_state_legacy_v3 header_state;
+         section.read_row(header_state);
+         head_block = header_state.id;
+         head_block_time = header_state.header.timestamp;
+      });
+   }
+   else {
+      snapshot.read_section("eosio::chain::block_state", [&]( auto &section ) {
+         snapshot_detail::snapshot_block_state_data_v8 header_state;
+         section.read_row(header_state);
+         if(header_state.bs_l) {
+            head_block = header_state.bs_l->id;
+            head_block_time = header_state.bs_l->header.timestamp;
+         }
+         else if(header_state.bs) {
+            head_block = header_state.bs->block_id;
+            head_block_time = header_state.bs->header.timestamp;
+         }
+      });
+   }
+
+   return fc::mutable_variant_object()("version", header.version)
+                                      ("chain_id", chain_id)
+                                      ("head_block_id", head_block)
+                                      ("head_block_num", block_header::num_from_id(head_block))
+                                      ("head_block_time", head_block_time);
 }
 
 }}

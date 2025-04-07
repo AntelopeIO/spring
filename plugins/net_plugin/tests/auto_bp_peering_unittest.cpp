@@ -38,12 +38,12 @@ struct mock_connections_manager {
 
 struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_plugin, mock_connection> {
 
-   bool                         is_in_sync = false;
+   bool                         lib_catchup = true;
    mock_connections_manager     connections;
    std::vector<std::string>     p2p_addresses{"0.0.0.0:9876"};
    const std::string&           get_first_p2p_address() const { return *p2p_addresses.begin(); }
 
-   bool in_sync() { return is_in_sync; }
+   bool is_lib_catchup() { return lib_catchup; }
 
    void setup_test_peers() {
       set_bp_peers({ "proda,127.0.0.1:8001:blk"s, "prodb,127.0.0.1:8002:trx"s, "prodc,127.0.0.1:8003"s,
@@ -57,6 +57,16 @@ struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_
 
    fc::logger get_logger() { return fc::logger::get(DEFAULT_LOGGER); }
 };
+
+const std::vector<std::string> peer_addresses{
+   "127.0.0.1:8001:blk"s, "127.0.0.1:8002:trx"s, "127.0.0.1:8003"s,
+   "127.0.0.1:8004"s, "127.0.0.1:8005"s, "127.0.0.1:8006"s, "127.0.0.1:8007"s,
+   "127.0.0.1:8008"s, "127.0.0.1:8009"s, "127.0.0.1:8010"s,
+   // prodk is intentionally skipped
+   "127.0.0.1:8012"s, "127.0.0.1:8013"s, "127.0.0.1:8014"s, "127.0.0.1:8015"s,
+   "127.0.0.1:8016"s, "127.0.0.1:8017"s, "127.0.0.1:8018"s, "127.0.0.1:8019"s,
+   // "prodt,127.0.0.1:8020"s - prodt is not included in the schedules
+   "127.0.0.1:8021"s};
 
 BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
 
@@ -121,78 +131,59 @@ const eosio::chain::producer_authority_schedule test_schedule1{
    { { "proda"_n, {} }, { "prodb"_n, {} }, { "prodc"_n, {} }, { "prodd"_n, {} }, { "prode"_n, {} }, { "prodf"_n, {} },
      { "prodg"_n, {} }, { "prodh"_n, {} }, { "prodi"_n, {} }, { "prodj"_n, {} }, { "prodk"_n, {} }, { "prodl"_n, {} },
      { "prodm"_n, {} }, { "prodn"_n, {} }, { "prodo"_n, {} }, { "prodp"_n, {} }, { "prodq"_n, {} }, { "prodr"_n, {} },
-     { "prods"_n, {} }, { "prodt"_n, {} }, { "produ"_n, {} } }
+     { "prods"_n, {} },
+     // { "prodt"_n, {} }, pick one to skip so not a full schedule
+     { "produ"_n, {} } }
 };
 
 const eosio::chain::producer_authority_schedule test_schedule2{
    2,
    { { "proda"_n, {} }, { "prode"_n, {} }, { "prodi"_n, {} }, { "prodm"_n, {} }, { "prodp"_n, {} }, { "prods"_n, {} },
-     { "prodb"_n, {} }, { "prodf"_n, {} }, { "prodj"_n, {} }, { "prodn"_n, {} }, { "prodq"_n, {} }, { "prodt"_n, {} },
+     { "prodb"_n, {} }, { "prodf"_n, {} }, { "prodj"_n, {} }, { "prodn"_n, {} }, { "prodq"_n, {} },
+     // { "prodt"_n, {} }, pick one to skip so not a full schedule
      { "prodc"_n, {} }, { "prodg"_n, {} }, { "prodk"_n, {} }, { "prodo"_n, {} }, { "prodr"_n, {} }, { "produ"_n, {} },
      { "prodd"_n, {} }, { "prodh"_n, {} }, { "prodl"_n, {} } }
 };
 
+const fc::flat_set<eosio::chain::account_name> producers_minus_prodkt{
+   "proda"_n, "prodb"_n, "prodc"_n, "prodd"_n, "prode"_n, "prodf"_n,
+   "prodg"_n, "prodh"_n, "prodi"_n, "prodj"_n,
+   // "prodk"_n, not part of the peer addresses
+   "prodl"_n,
+   "prodm"_n, "prodn"_n, "prodo"_n, "prodp"_n, "prodq"_n, "prodr"_n,
+   "prods"_n,
+   // "prodt"_n, not part of the schedules, see above
+   "produ"_n };
+
 const eosio::chain::producer_authority_schedule reset_schedule1{ 1, {} };
-
-BOOST_AUTO_TEST_CASE(test_neighbor_finder) {
-
-   {
-      mock_net_plugin plugin;
-      plugin.setup_test_peers();
-
-      plugin.config.my_bp_accounts = { "prodd"_n, "produ"_n };
-      BOOST_CHECK_EQUAL(plugin.neighbor_finder(test_schedule1.producers).downstream_neighbors(),
-                        (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodb"_n, "prode"_n, "prodf"_n }));
-
-      BOOST_CHECK_EQUAL(plugin.neighbor_finder(test_schedule1.producers).neighbors(),
-                        (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodb"_n, "prodc"_n, "prode"_n,
-                                                                   "prodf"_n, "prods"_n, "prodt"_n }));
-   }
-   {
-      mock_net_plugin plugin;
-      plugin.setup_test_peers();
-
-      plugin.config.my_bp_accounts = { "prodj"_n };
-      // make sure it doesn't return any producer not on the bp peer list
-      BOOST_CHECK_EQUAL(plugin.neighbor_finder(test_schedule1.producers).downstream_neighbors(),
-                        (fc::flat_set<eosio::chain::account_name>{ "prodl"_n }));
-
-      BOOST_CHECK_EQUAL(plugin.neighbor_finder(test_schedule1.producers).neighbors(),
-                        (fc::flat_set<eosio::chain::account_name>{ "prodh"_n, "prodi"_n, "prodl"_n }));
-   }
-}
 
 BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
 
    mock_net_plugin plugin;
    plugin.setup_test_peers();
-   plugin.config.my_bp_accounts = { "prodd"_n, "produ"_n };
-   plugin.pending_neighbors     = { "prodj"_n, "prodm"_n };
+   plugin.pending_configured_bps = { "prodj"_n, "prodm"_n };
 
    std::vector<std::string> connected_hosts;
 
    plugin.connections.resolve_and_connect = [&connected_hosts](std::string host, std::string p2p_address) { connected_hosts.push_back(host); };
 
    // make sure nothing happens when it is not in_sync
-   plugin.is_in_sync = false;
+   plugin.lib_catchup = true;
    plugin.on_pending_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.pending_neighbors, (fc::flat_set<eosio::chain::account_name>{ "prodj"_n, "prodm"_n }));
+   BOOST_CHECK_EQUAL(plugin.pending_configured_bps, (fc::flat_set<eosio::chain::account_name>{ "prodj"_n, "prodm"_n }));
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
 
    // when it is in sync and on_pending_schedule is called
-   plugin.is_in_sync = true;
+   plugin.lib_catchup = false;
    plugin.on_pending_schedule(test_schedule1);
 
-   // the downstream neighbors
-   BOOST_CHECK_EQUAL(plugin.pending_neighbors,
-                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodb"_n, "prodc"_n, "prode"_n, "prodf"_n,
-                                                                "prods"_n, "prodt"_n }));
+   // the pending are connected to
+   BOOST_CHECK_EQUAL(plugin.pending_configured_bps, producers_minus_prodkt);
 
-   // all connect to downstream bp peers should be invoked
-   BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{ "127.0.0.1:8001:blk"s, "127.0.0.1:8002:trx"s,
-                                                                 "127.0.0.1:8005"s, "127.0.0.1:8006"s }));
+   // all connect to bp peers should be invoked
+   BOOST_CHECK_EQUAL(connected_hosts, peer_addresses);
 
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 1u);
 
@@ -205,40 +196,37 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
 
    plugin.on_pending_schedule(reset_schedule1);
-   BOOST_CHECK_EQUAL(plugin.pending_neighbors, (fc::flat_set<eosio::chain::account_name>{}));
+   BOOST_CHECK_EQUAL(plugin.pending_configured_bps, (fc::flat_set<eosio::chain::account_name>{}));
 }
 
 BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
 
    mock_net_plugin plugin;
    plugin.setup_test_peers();
-   plugin.config.my_bp_accounts = { "prodd"_n, "produ"_n };
 
-   plugin.active_neighbors = { "proda"_n, "prodh"_n, "prodn"_n };
+   plugin.active_configured_bps = { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n };
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
 
    std::vector<std::string> disconnected_hosts;
    plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
 
    // make sure nothing happens when it is not in_sync
-   plugin.is_in_sync = false;
+   plugin.lib_catchup = true;
    plugin.on_active_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.active_neighbors,
-                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodh"_n, "prodn"_n }));
+   BOOST_CHECK_EQUAL(plugin.active_configured_bps,
+                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 0u);
 
    // when it is in sync and on_active_schedule is called
-   plugin.is_in_sync = true;
+   plugin.lib_catchup = false;
    plugin.on_pending_schedule(test_schedule1);
    plugin.on_active_schedule(test_schedule1);
-   // then disconnect to prodh and prodn should be invoked
-   BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8008"s, "127.0.0.1:8014"s }));
+   // then disconnect to prodt
+   BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.active_neighbors,
-                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodb"_n, "prodc"_n, "prode"_n, "prodf"_n,
-                                                                "prods"_n, "prodt"_n }));
+   BOOST_CHECK_EQUAL(plugin.active_configured_bps, producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);
@@ -248,24 +236,20 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
 
    mock_net_plugin plugin;
    plugin.setup_test_peers();
-   plugin.config.my_bp_accounts = { "prodd"_n, "produ"_n };
 
-   plugin.active_neighbors = { "proda"_n, "prodh"_n, "prodn"_n };
+   plugin.active_configured_bps = { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n };
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
    std::vector<std::string> disconnected_hosts;
    plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
 
-   // when pending and active schedules are changed simultaneosly
-   plugin.is_in_sync = true;
+   // when pending and active schedules are changed simultaneously
+   plugin.lib_catchup = false;
    plugin.on_pending_schedule(test_schedule2);
    plugin.on_active_schedule(test_schedule1);
-   // then disconnect to  prodn should be invoked while prodh shouldn't, because prodh is in the
-   // pending_neighbors
-   BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8014"s }));
+   // then disconnect prodt
+   BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.active_neighbors,
-                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodb"_n, "prodc"_n, "prode"_n, "prodf"_n,
-                                                                "prods"_n, "prodt"_n }));
+   BOOST_CHECK_EQUAL(plugin.active_configured_bps, producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);
@@ -274,7 +258,6 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
 BOOST_AUTO_TEST_CASE(test_exceeding_connection_limit) {
    mock_net_plugin plugin;
    plugin.setup_test_peers();
-   plugin.config.my_bp_accounts = { "prodd"_n, "produ"_n };
    plugin.connections.max_client_count = 1;
    plugin.connections.connections = {
       std::make_shared<mock_connection>( true, true, true ),   // 0
