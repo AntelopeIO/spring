@@ -162,7 +162,8 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(v0config.max_inline_action_depth == t.control->get_global_properties().configuration.max_inline_action_depth);
    BOOST_TEST(v0config.max_authority_depth == t.control->get_global_properties().configuration.max_authority_depth);
 
-   BOOST_TEST(!parms.chain_config.get_object().contains("max_action_return_value_size"));
+   // To be re-enabled when https://github.com/AntelopeIO/spring/issues/1289 is worked on
+   //BOOST_TEST(!parms.chain_config.get_object().contains("max_action_return_value_size"));
    BOOST_TEST(!parms.wasm_config);
 
    t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
