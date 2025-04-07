@@ -42,7 +42,7 @@ namespace eosio {
    };
 
 
-  enum go_away_reason {
+  enum class go_away_reason {
     no_reason, ///< no reason to go away
     self, ///< the connection is to itself
     duplicate, ///< the connection is redundant
@@ -59,25 +59,24 @@ namespace eosio {
 
   constexpr auto reason_str( go_away_reason rsn ) {
     switch (rsn ) {
-    case no_reason : return "no reason";
-    case self : return "self connect";
-    case duplicate : return "duplicate";
-    case wrong_chain : return "wrong chain";
-    case wrong_version : return "wrong version";
-    case forked : return "chain is forked";
-    case unlinkable : return "unlinkable block received";
-    case bad_transaction : return "bad transaction";
-    case validation : return "invalid block";
-    case authentication : return "authentication failure";
-    case fatal_other : return "some other failure";
-    case benign_other : return "some other non-fatal condition, possibly unknown block";
+    case go_away_reason::no_reason : return "no reason";
+    case go_away_reason::self : return "self connect";
+    case go_away_reason::duplicate : return "duplicate";
+    case go_away_reason::wrong_chain : return "wrong chain";
+    case go_away_reason::wrong_version : return "wrong version";
+    case go_away_reason::forked : return "chain is forked";
+    case go_away_reason::unlinkable : return "unlinkable block received";
+    case go_away_reason::bad_transaction : return "bad transaction";
+    case go_away_reason::validation : return "invalid block";
+    case go_away_reason::authentication : return "authentication failure";
+    case go_away_reason::fatal_other : return "some other failure";
+    case go_away_reason::benign_other : return "some other non-fatal condition, possibly unknown block";
     default : return "some crazy reason";
     }
   }
 
   struct go_away_message {
-    go_away_message(go_away_reason r = no_reason) : reason(r), node_id() {}
-    go_away_reason reason{no_reason};
+    go_away_reason reason{go_away_reason::no_reason};
     fc::sha256 node_id; ///< for duplicate notification
   };
 

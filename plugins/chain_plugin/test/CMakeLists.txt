@@ -6,4 +6,4 @@ add_executable( test_chain_plugin
         main.cpp
         )
 target_link_libraries( test_chain_plugin chain_plugin eosio_testing eosio_chain_wrap )
-add_test(NAME test_chain_plugin COMMAND plugins/chain_plugin/test/test_chain_plugin WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_p_test(NAME test_chain_plugin COMMAND plugins/chain_plugin/test/test_chain_plugin)

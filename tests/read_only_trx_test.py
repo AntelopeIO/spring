@@ -108,7 +108,7 @@ def startCluster():
     specificExtraNodeosArgs[pnodes]+=" --read-only-write-window-time-us "
     specificExtraNodeosArgs[pnodes]+=" 10000 "
     specificExtraNodeosArgs[pnodes]+=" --read-only-read-window-time-us "
-    specificExtraNodeosArgs[pnodes]+=" 490000 "
+    specificExtraNodeosArgs[pnodes]+=" 510000 " # larger than block time to test Spring Issue #1286
     specificExtraNodeosArgs[pnodes]+=" --eos-vm-oc-cache-size-mb "
     specificExtraNodeosArgs[pnodes]+=" 1 " # set small so there is churn
     specificExtraNodeosArgs[pnodes]+=" --read-only-threads "

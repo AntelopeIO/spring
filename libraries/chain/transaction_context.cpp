@@ -120,7 +120,12 @@ namespace eosio::chain {
 
       net_limit = rl.get_block_net_limit();
 
-      objective_duration_limit = fc::microseconds( rl.get_block_cpu_limit() );
+      if (is_read_only() && !control.is_write_window()) { // if in write window then honor objective block limit
+         // this is not objective, but plays the same role for read-only trxs
+         objective_duration_limit = block_deadline - start; // read-only window size
+      } else {
+         objective_duration_limit = fc::microseconds( rl.get_block_cpu_limit() );
+      }
       _deadline = start + objective_duration_limit;
 
       // Possibly lower net_limit to the maximum net usage a transaction is allowed to be billed
