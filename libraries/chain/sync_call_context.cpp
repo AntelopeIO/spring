@@ -5,8 +5,19 @@
 
 namespace eosio::chain {
 
-sync_call_context::sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, std::span<const char>data)
+sync_call_context::sync_call_context(controller&           con,
+                                     transaction_context&  trx_ctx,
+                                     uint32_t              ordinal,
+                                     action_trace&         root_action_trace,
+                                     account_name          sender,
+                                     account_name          receiver,
+                                     bool                  privileged,
+                                     uint32_t              sync_call_depth,
+                                     uint64_t              flags,
+                                     std::span<const char> data)
    : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
+   , ordinal(ordinal)
+   , root_action_trace(root_action_trace)
    , sender(sender)
    , flags(flags)
    , data(data)

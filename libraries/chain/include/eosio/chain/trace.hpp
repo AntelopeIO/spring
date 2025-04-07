@@ -19,6 +19,30 @@ namespace eosio::chain {
    struct transaction_trace;
    using transaction_trace_ptr = std::shared_ptr<transaction_trace>;
 
+   struct sync_call_trace {
+      sync_call_trace(uint32_t sender_ordinal, account_name sender, account_name receiver, uint64_t flags, std::span<const char> data)
+         : sender_ordinal(sender_ordinal)
+         , sender(sender)
+         , receiver(receiver)
+         , flags(flags)
+         , data(data.begin(), data.end())
+      {
+      }
+
+      uint32_t                      ordinal = 1;
+      const uint32_t                sender_ordinal = 0;
+      const account_name            sender;
+      const account_name            receiver;
+      const uint64_t                flags = 0;
+      const std::vector<char>       data;
+      fc::microseconds              elapsed;
+      string                        console;
+      std::optional<fc::exception>  except;
+      std::optional<uint64_t>       error_code;
+      int64_t                       return_value_size_or_error_id = 0; // if >=0: return value size, if -1: receiver not supporting sync calls
+      std::vector<char>             return_value;
+   };
+
    struct action_trace {
       action_trace(  const transaction_trace& trace, const action& act, account_name receiver, bool context_free,
                      uint32_t action_ordinal, uint32_t creator_action_ordinal,
@@ -45,6 +69,7 @@ namespace eosio::chain {
       std::optional<fc::exception>    except;
       std::optional<uint64_t>         error_code;
       std::vector<char>               return_value;
+      std::optional<std::vector<sync_call_trace>>  call_traces;
 
       //savanna_witness_hash can be computed separately, since it is not relevant to IBC action proofs
       digest_type savanna_witness_hash() const {
@@ -129,10 +154,16 @@ namespace eosio::chain {
 FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
 
+FC_REFLECT( eosio::chain::sync_call_trace,
+              (ordinal)(sender_ordinal)(sender)(receiver)(flags)(data)(elapsed)
+              (console)(except) (error_code)
+              (return_value_size_or_error_id)(return_value) )
+
 FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
                (receiver)(act)(context_free)(elapsed)(console)(trx_id)(block_num)(block_time)
-               (producer_block_id)(account_ram_deltas)(except)(error_code)(return_value) )
+               (producer_block_id)(account_ram_deltas)(except)(error_code)(return_value)
+               (call_traces) )
 
 // @ignore except_ptr
 FC_REFLECT( eosio::chain::transaction_trace, (id)(block_num)(block_time)(producer_block_id)

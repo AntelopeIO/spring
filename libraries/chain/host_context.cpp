@@ -39,26 +39,40 @@ host_context::~host_context() = default;
 
 // called from apply_context or sync_call_context
 int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std::span<const char> data) {
-   const uint32_t depth = sync_call_depth + 1;
-   const auto max_depth = control.get_global_properties().configuration.max_sync_call_depth;
-   EOS_ASSERT(depth <= max_depth, sync_call_depth_exception,
-              "reached sync call max call depth ${max_depth}", ("max_depth", max_depth));
+   auto start = fc::time_point::now();
 
-   const auto max_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
-   EOS_ASSERT(data.size() <= max_data_size, sync_call_call_data_exception,
-              "sync call call data size must be less or equal to ${max_data_size} bytes", ("max_data_size", max_data_size));
+   // As early as possible, create the call trace of this new sync call in the parent's
+   // (sender's) trace to record entire trace of the sync call, including any exceptions
+   auto&    trace   = get_root_action_trace();
+   uint32_t ordinal = 1;
+   sync_call_trace trace_obj(get_sync_call_ordinal(), get_sync_call_sender(), call_receiver, flags, data);
 
-   const auto* code = control.db().find<account_object, by_name>(call_receiver);
-   EOS_ASSERT(code != nullptr, sync_call_validate_exception,
-              "sync call's receiver account ${r} does not exist", ("r", call_receiver));
-
-   EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::all_allowed_bits), sync_call_validate_exception,  // all but `std::bit_width(all_allowed_bits)` LSBs must be 0s
-              "only ${bits} least significant bits of sync call's flags (${flags}) can be set", ("bits", std::bit_width(static_cast<uint64_t>(sync_call_flags::all_allowed_bits)))("flags", flags));
+   if (trace.call_traces) {
+      ordinal = trace.call_traces->size() + 1;
+      trace.call_traces->push_back(std::move(trace_obj));
+   } else {
+      trace.call_traces.emplace({trace_obj});
+   }
+   get_call_trace(ordinal).ordinal = ordinal;
 
    auto handle_exception = [&](const auto& e)
    {
-      // TBD need to store the exception in the sync call trace
+      auto& call_trace = get_call_trace(ordinal);
+      call_trace.error_code = controller::convert_exception_to_error_code(e);
+      call_trace.except = e;
+      finalize_call_trace(call_trace, start);
       throw;
+   };
+
+   auto handle_call_failure = [&]()
+   {
+      auto& call_trace = get_call_trace(ordinal);
+
+      call_trace.return_value_size_or_error_id = -1;
+      finalize_call_trace(call_trace, start);
+      trx_context.checktime();
+
+      return -1;
    };
 
    last_sync_call_return_value.clear(); // reset for current sync call
@@ -66,20 +80,34 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
    try {
       try {
+         const uint32_t depth = sync_call_depth + 1;
+         const auto max_depth = control.get_global_properties().configuration.max_sync_call_depth;
+         EOS_ASSERT(depth <= max_depth, sync_call_depth_exception,
+                    "reached sync call max call depth ${max_depth}", ("max_depth", max_depth));
+
+         const auto max_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+         EOS_ASSERT(data.size() <= max_data_size, sync_call_call_data_exception,
+                    "sync call call data size must be less or equal to ${max_data_size} bytes", ("max_data_size", max_data_size));
+
+         const auto* code = control.db().find<account_object, by_name>(call_receiver);
+         EOS_ASSERT(code != nullptr, sync_call_validate_exception,
+                    "sync call's receiver account ${r} does not exist", ("r", call_receiver));
+
+         EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::all_allowed_bits), sync_call_validate_exception,  // all but `std::bit_width(all_allowed_bits)` LSBs must be 0s
+                    "only ${bits} least significant bits of sync call's flags (${flags}) can be set", ("bits", std::bit_width(static_cast<uint64_t>(sync_call_flags::all_allowed_bits)))("flags", flags));
+
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( call_receiver);
          if (receiver_account->code_hash.empty()) {
-            // TBD store the info in sync call trace
-            ilog("receiver_account->code_hash empty");
-            return return_value_size;
+            return handle_call_failure();
          }
 
          try {
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
+            sync_call_context call_ctx(control, trx_context, ordinal, get_root_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
 
             auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
             if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
-               return -1;
+               return handle_call_failure();
             }
 
             // store return value
@@ -97,8 +125,32 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
       auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
       handle_exception(wrapper);
    }
-   trx_context.checktime(); // protect against the case where during the removal of the callback, the timer expires.
+
+   auto& call_trace = get_call_trace(ordinal);  // call_traces vector can be resized. Get the updated reference to the call trace
+
+   call_trace.return_value_size_or_error_id = return_value_size;
+   call_trace.return_value = last_sync_call_return_value;
+   finalize_call_trace(call_trace, start);
+
+   // protect against the case where during the removal of the callback, the timer expires.
+   trx_context.checktime();
+
    return return_value_size;
+}
+
+sync_call_trace& host_context::get_call_trace(uint32_t ordinal) {
+   auto& act_trace = get_root_action_trace();
+
+   assert(act_trace.call_traces.has_value());
+   assert(0 < ordinal && ordinal <= act_trace.call_traces->size());
+
+   return (*act_trace.call_traces)[ordinal - 1];
+}
+
+void host_context::finalize_call_trace(sync_call_trace& trace, const fc::time_point& start) {
+   // Will copy console text in next PR
+
+   trace.elapsed = fc::time_point::now() - start;
 }
 
 // called from apply_context or sync_call_context

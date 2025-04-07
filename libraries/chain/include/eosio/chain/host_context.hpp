@@ -503,6 +503,10 @@ public:
    virtual bool has_authorization(const account_name& account) const { assert(false); __builtin_unreachable(); }
    virtual void require_authorization(const account_name& account, const permission_name& permission) { assert(false); }
 
+private:
+   void finalize_call_trace(sync_call_trace& trace, const fc::time_point& start);
+
+public:
    /**
     * @return true if account exists, false if it does not
     */
@@ -563,16 +567,21 @@ public:
    virtual action_name get_sender() const = 0;
    account_name get_sync_call_sender() const { return receiver; } // current action or sync call's receiver is next call's sender
 
-   /// Execution methods:
+   /// Sync call methods:
 
    // sync calls can be initiated from actions or other sync calls
    int64_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
    uint32_t get_call_return_value(std::span<char> memory) const;
+
    virtual bool is_action() const { return false; }
    virtual bool is_sync_call() const { return false; }
-
    virtual uint32_t get_call_data(std::span<char> memory) const { return 0; };
    virtual void set_call_return_value(std::span<const char> return_value) {};
+   virtual action_trace& get_root_action_trace() = 0;
+   virtual uint32_t get_sync_call_ordinal() = 0;
+   sync_call_trace& get_call_trace(uint32_t ordinal);
+
+   /// Execution methods:
 
    virtual void execute_inline( action&& a ) { assert(false); }
    virtual void execute_context_free_inline( action&& a ) { assert(false); }
@@ -582,16 +591,17 @@ public:
    /// Fields:
 public:
 
-   controller&                      control;
-   chainbase::database&             db;  ///< database where state is stored
-   transaction_context&             trx_context; ///< transaction context in which the action is running
-   account_name                     receiver; ///< the code that is currently running
-   std::vector<char>                action_return_value;
-   bool                             privileged = false;
+   controller&              control;
+   chainbase::database&     db;  ///< database where state is stored
+   transaction_context&     trx_context; ///< transaction context in which the action is running
+   account_name             receiver; ///< the code that is currently running
+   std::vector<char>        action_return_value;
+   bool                     privileged = false;
 
-   std::vector<char>                last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
-   const uint32_t                   sync_call_depth = 0; // depth for sync call
-   bool                             receiver_supports_sync_call = false;  // whether or not the receiver contract has valid sync_call entry point
+   std::vector<char>        last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
+   const uint32_t           sync_call_depth = 0; // depth for sync call
+   uint32_t                 sync_call_ordinal = 1;  // the order of a sync call
+   bool                     receiver_supports_sync_call = false;  // whether or not the receiver contract has valid sync_call entry point
 
    generic_index<index64_object>                                  idx64;
    generic_index<index128_object>                                 idx128;

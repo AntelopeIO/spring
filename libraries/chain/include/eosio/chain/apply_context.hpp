@@ -89,6 +89,9 @@ class apply_context : public host_context {
       bool is_eos_vm_oc_whitelisted() const;
       bool should_use_eos_vm_oc()const;
 
+      action_trace& get_root_action_trace() override { return trx_context.get_action_trace( action_ordinal ); }
+      uint32_t get_sync_call_ordinal() override { return 0; }
+
    private:
       const action*                 act = nullptr; ///< action being applied
       // act pointer may be invalidated on call to trx_context.schedule_action

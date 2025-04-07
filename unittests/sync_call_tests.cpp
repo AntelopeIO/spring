@@ -684,6 +684,7 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    auto trx_trace1 = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "1000"));
    auto &atrace1   = trx_trace1->action_traces;
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace1[0].return_value), 2000u);
+   ilog("trace: ${t}", ("t", atrace1));
 
    // double 5000
    auto trx_trace2 = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "5000"));
@@ -1099,7 +1100,7 @@ static const char entry_point_validation_caller_wast[] = R"=====(
 )
 )=====";
 
-static const char no_entry_point_wast[] = R"=====(
+static const char no_sync_call_entry_point_wast[] = R"=====(
 (module
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
@@ -1115,7 +1116,7 @@ BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
       return;
    }
 
-   create_accounts_and_set_code(entry_point_validation_caller_wast, no_entry_point_wast, t);
+   create_accounts_and_set_code(entry_point_validation_caller_wast, no_sync_call_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
 } FC_LOG_AND_RETHROW() }
@@ -1667,6 +1668,360 @@ BOOST_AUTO_TEST_CASE(privilege_call_test)  { try {
 
    // With privilege, sync call should succeed
    BOOST_CHECK_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
+// Verify the action trace of an action without sync calls does not have `call_traces`
+BOOST_AUTO_TEST_CASE(trace_without_sync_call_test) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(no_sync_call_entry_point_wast, acct, t);
+   auto  trx_trace = t.push_action(acct, "doit"_n, acct, {});
+   auto& atrace    = trx_trace->action_traces;
+   BOOST_REQUIRE_EQUAL(atrace[0].call_traces.has_value(), false);
+} FC_LOG_AND_RETHROW() }
+
+static const char basic_trace_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      i32.const 128
+      i32.const 10
+      i32.store       ;; store 10 into memory[128]
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 128)(i32.const 4))) ;; input is from memory[128] size 4
+   )
+)
+)=====";
+
+// The sync call returns the same value as the input
+static const char basic_trace_callee_wast[] = R"=====(
+(module
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32))) ;; memory
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read parameter into memory[0]
+
+      (call $set_call_return_value (i32.const 0)(get_local $data_size)) ;; returns the value of the parameter
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify call trace for a single sync call. Every field is validated
+BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(basic_trace_caller_wast, basic_trace_callee_wast, t);
+
+   auto  trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
+   auto& atrace    = trx_trace->action_traces;
+   ilog("action trace: ${t}", ("t", atrace));
+   BOOST_REQUIRE_EQUAL(atrace[0].call_traces.has_value(), true);
+   auto& call_traces = atrace[0].call_traces;
+   auto& call_trace  = (*call_traces)[0];
+
+   BOOST_REQUIRE_EQUAL(call_trace.ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(call_trace.sender_ordinal, 0u);
+   BOOST_REQUIRE_EQUAL(call_trace.sender.to_string(), "caller");    // hardcodied in test contracts
+   BOOST_REQUIRE_EQUAL(call_trace.receiver.to_string(), "callee");  // hardcodied
+   BOOST_REQUIRE_EQUAL(call_trace.flags, 0ull);                     // hardcodied
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(call_trace.data), 10u); // test contract passes in 10
+   BOOST_REQUIRE_GT(call_trace.elapsed.count(), 0u);                // elpased should be at least greater than 0 microsecond
+   BOOST_REQUIRE_EQUAL(call_trace.console.empty(), true);           // No prints in test contracts
+   BOOST_REQUIRE_EQUAL(call_trace.except.has_value(), false);       // No exception happened
+   BOOST_REQUIRE_EQUAL(call_trace.error_code.has_value(), false);   // No exception happened
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(call_trace.return_value),
+                       fc::raw::unpack<uint32_t>(call_trace.data)); // sync calls just returns the same input data
+} FC_LOG_AND_RETHROW() }
+
+// "caller"_n calls "callee1"_n and "callee2"_n sequentially
+static const char trace_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+   (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
+   (global $callee2 i64 (i64.const 4729647296285769728)) ;; "calllee2"_n uint64 value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 0)))
+      (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+)
+)=====";
+
+// "callee1"_n calls "callee11"_n
+static const char trace_callee1_wast[] = R"=====(
+(module
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
+
+   (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
+      (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee1" 12
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0) "I am callee1")
+)
+)=====";
+
+// "callee11"_n just returns `I am callee11`
+static const char trace_callee11_wast[] = R"=====(
+(module
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $set_call_return_value (i32.const 0)(i32.const 13)) ;; size of "I am callee11" 13
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0) "I am callee11")
+)
+)=====";
+
+// "callee2"_n just returns `I am callee2`
+static const char trace_callee2_wast[] = R"=====(
+(module
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee2" 12
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0) "I am callee2")
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, trace_caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee1 = account_name("callee1");
+   t.create_account(callee1);
+   t.set_code(callee1, trace_callee1_wast);
+
+   const auto& callee11 = account_name("callee11");
+   t.create_account(callee11);
+   t.set_code(callee11, trace_callee11_wast);
+
+   const auto& callee2 = account_name("callee2");
+   t.create_account(callee2);
+   t.set_code(callee2, trace_callee2_wast);
+
+   auto  trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
+   auto& atrace    = trx_trace->action_traces;
+   ilog("action trace: ${t}", ("t", atrace));
+
+   BOOST_REQUIRE_EQUAL(atrace[0].call_traces.has_value(), true);
+   auto& call_traces  = atrace[0].call_traces;
+
+   BOOST_REQUIRE_EQUAL((*call_traces).size(), 3u);
+
+   auto& trace_1 = (*call_traces)[0];
+   BOOST_REQUIRE_EQUAL(trace_1.ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(trace_1.sender_ordinal, 0u);
+   BOOST_REQUIRE_EQUAL(std::string(trace_1.return_value.begin(), trace_1.return_value.end()), "I am callee1");
+
+   auto& trace_11 = (*call_traces)[1];
+   BOOST_REQUIRE_EQUAL(trace_11.ordinal, 2u);
+   BOOST_REQUIRE_EQUAL(trace_11.sender_ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(std::string(trace_11.return_value.begin(), trace_11.return_value.end()), "I am callee11");
+
+   auto& trace_2 = (*call_traces)[2];
+   BOOST_REQUIRE_EQUAL(trace_2.ordinal, 3u);
+   BOOST_REQUIRE_EQUAL(trace_2.sender_ordinal, 0u);
+   BOOST_REQUIRE_EQUAL(std::string(trace_2.return_value.begin(), trace_2.return_value.end()), "I am callee2");
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_one_level_test) { try {
+   validating_tester t;
+   account_name      acct;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_one_account_and_set_code(invalid_flags_wast1, acct, t);
+
+   signed_transaction trx;
+   trx.actions.emplace_back( vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
+   t.set_transaction_headers(trx);
+   trx.sign(t.get_private_key( "caller"_n, "active" ), t.get_chain_id());
+
+   // Invalid call flags trigger sync_call_validate_exception
+   auto trx_trace = t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, true); // set no_throw to true so that tester can return trace without throwing
+   auto& action_trace = trx_trace->action_traces;
+   ilog("action trace: ${t}", ("t", action_trace));
+   BOOST_REQUIRE(action_trace[0].call_traces);
+
+   // exception originated at sycn call level
+   auto& call_trace = (*action_trace[0].call_traces)[0];
+   BOOST_REQUIRE(call_trace.error_code);
+   BOOST_REQUIRE_EQUAL(*call_trace.error_code, static_cast<uint64_t>(system_error_code::generic_system_error));
+   BOOST_REQUIRE(call_trace.except);
+   BOOST_REQUIRE_EQUAL(call_trace.except->code(), sync_call_validate_exception::code_enum::code_value);
+
+   // propagated to action level
+   BOOST_REQUIRE(action_trace[0].error_code);
+   BOOST_REQUIRE(action_trace[0].except);
+   BOOST_REQUIRE_EQUAL(*call_trace.error_code, *action_trace[0].error_code);
+   BOOST_REQUIRE_EQUAL(call_trace.except->code(), action_trace[0].except->code());
+
+} FC_LOG_AND_RETHROW() }
+
+// "caller"_n calls "callee1"_n
+static const char trace_except_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (memory (export "memory") 1)
+   (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+)
+)=====";
+
+// "callee1"_n calls "callee11"_n
+static const char trace_except_callee1_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
+
+   (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+)
+)=====";
+
+// "callee11"_n raises an exception.
+static const char trace_except_callee11_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $assert (i32.const 0) (i32.const 0))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0) "eosio_assert by callee11")
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
+   validating_tester t;
+
+   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, trace_except_caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee1 = account_name("callee1");
+   t.create_account(callee1);
+   t.set_code(callee1, trace_except_callee1_wast);
+
+   const auto& callee11 = account_name("callee11");
+   t.create_account(callee11);
+   t.set_code(callee11, trace_except_callee11_wast);
+
+   signed_transaction trx;
+   trx.actions.emplace_back( vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
+   t.set_transaction_headers(trx);
+   trx.sign(t.get_private_key( "caller"_n, "active" ), t.get_chain_id());
+
+   // "callee11"_n calls eosio_assert
+   auto trx_trace = t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, true); // set no_throw to true so that tester can return trace without throwing
+   auto& action_trace = trx_trace->action_traces;
+   ilog("action trace: ${t}", ("t", action_trace));
+   BOOST_REQUIRE(action_trace[0].call_traces);
+
+   // exception originated in the sync call "callee1"_n --> "callee11"_n
+   auto& call_trace2 = (*action_trace[0].call_traces)[1];
+   BOOST_REQUIRE_EQUAL(call_trace2.ordinal, 2u);
+   BOOST_REQUIRE(call_trace2.error_code);
+   BOOST_REQUIRE(call_trace2.except);
+   BOOST_REQUIRE_EQUAL(*call_trace2.error_code, static_cast<uint64_t>(system_error_code::generic_system_error));
+   BOOST_REQUIRE_EQUAL(call_trace2.except->code(), eosio_assert_message_exception::code_enum::code_value);
+
+   // propagated the sync call "callee"_n --> "callee1"_n
+   auto& call_trace1 = (*action_trace[0].call_traces)[0];
+   BOOST_REQUIRE_EQUAL(call_trace1.ordinal, 1u);
+   BOOST_REQUIRE(call_trace1.error_code);
+   BOOST_REQUIRE(call_trace1.except);
+   BOOST_REQUIRE_EQUAL(*call_trace1.error_code, *call_trace2.error_code);
+   BOOST_REQUIRE_EQUAL(call_trace1.except->code(), call_trace2.except->code());
+
+   // propagated to action level
+   BOOST_REQUIRE(action_trace[0].error_code);
+   BOOST_REQUIRE(action_trace[0].except);
+   BOOST_REQUIRE_EQUAL(*action_trace[0].error_code, *call_trace1.error_code);
+   BOOST_REQUIRE_EQUAL(action_trace[0].except->code(), call_trace1.except->code());
+
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
