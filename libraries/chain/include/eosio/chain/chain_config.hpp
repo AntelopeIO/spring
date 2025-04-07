@@ -207,10 +207,6 @@ struct chain_config_v2 : chain_config_v1 {
       return static_cast<const Base&>(*this);
    }
 
-   inline const chain_config_v0& v0() const {
-      return static_cast<const chain_config_v0&>(*this);
-   }
-
    void validate() const;
 
    template<typename Stream>
