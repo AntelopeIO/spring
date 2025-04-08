@@ -577,7 +577,7 @@ namespace impl {
             }
          } catch(...) {}
 
-         mvo("syc_call_traces", act_trace.call_traces);
+         mvo("call_traces", act_trace.call_traces);
 
          out(name, std::move(mvo));
       }
