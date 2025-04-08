@@ -4560,7 +4560,7 @@ struct controller_impl {
       // This is to allow killing a long-running transaction in a block being validated during apply block.
       // This also allows killing a trx when a block is received to prioritize block validation.
       if (!replaying) {
-         ilog("Interrupting trx...");
+         dlog("Interrupting trx...");
          main_thread_timer.interrupt_timer();
       }
    }
