@@ -1286,7 +1286,7 @@ struct controller_impl {
       }
    }
 
-   getpeerkeys_res_t get_top_producer_keys() {
+   getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline) {
       try {
          auto get_getpeerkeys_transaction = [&]() {
             auto perms = vector<permission_level>{};
@@ -1303,10 +1303,7 @@ struct controller_impl {
             std::make_shared<packed_transaction>(get_getpeerkeys_transaction()),
             transaction_metadata::trx_type::read_only);
 
-         const auto& gpo = db.get<global_property_object>();
-
-         auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::microseconds::maximum(),
-                                       gpo.configuration.min_transaction_cpu_usage, true, 0);
+         auto trace = push_transaction(metadata, deadline, fc::microseconds::maximum(), 0, false, 0);
 
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
@@ -3387,12 +3384,14 @@ struct controller_impl {
       return onblock_trace;
    } /// start_block
 
-   void run_readonly_transactions() {
-      // update peer public keys from chainbase db using a readonly trx
-      auto block_num = chain_head.block_num();
-      if (block_num % 120 == 0) {
-         peer_keys_db.update_peer_keys(get_top_producer_keys()); // update once/minute
-      }
+   void run_readonly_transactions(fc::time_point deadline) {
+      try {
+         // update peer public keys from chainbase db using a readonly trx
+         auto block_num = chain_head.block_num();
+         if (block_num % 120 == 0) { // update once/minute
+            peer_keys_db.update_peer_keys(get_top_producer_keys(deadline));
+         }
+      } FC_LOG_AND_DROP()
    }
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
@@ -5339,8 +5338,8 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
                            bs, std::optional<block_id_type>(), deadline );
 }
 
-void controller::run_readonly_transactions() {
-   my->run_readonly_transactions();
+void controller::run_readonly_transactions(fc::time_point deadline) {
+   my->run_readonly_transactions(deadline);
 }
 
 void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
@@ -5847,8 +5846,8 @@ peer_info_t controller::get_peer_info(name n) const {
    return my->peer_keys_db.get_peer_info(n);
 }
 
-getpeerkeys_res_t controller::get_top_producer_keys() {
-   return my->get_top_producer_keys();
+getpeerkeys_res_t controller::get_top_producer_keys(fc::time_point deadline) {
+   return my->get_top_producer_keys(deadline);
 }
 
 db_read_mode controller::get_read_mode()const {
