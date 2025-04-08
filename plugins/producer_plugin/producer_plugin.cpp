@@ -3067,6 +3067,7 @@ void producer_plugin::interrupt() {
 }
 
 void producer_plugin_impl::interrupt_read_only() {
+   // if read-only trx is going to finish in less than 250ms then might as well let it finish
    if (!_ro_timers.empty() && _ro_max_trx_time_us > fc::milliseconds(250)) {
       fc_ilog(_log, "interrupting read-only trxs");
       for (auto& t : _ro_timers) {

@@ -150,6 +150,8 @@ def timeoutTest():
     trxThread = threading.Thread(target = sendReadOnlyForeverPayloadless)
     trxThread.start()
 
+    # give plenty of time for thread to send read-only trx
+    assert producerNode.waitForHeadToAdvance(blocksToAdvance=5)
     assert producerNode.waitForLibToAdvance(), "Producer node stopped advancing LIB"
 
     Print("Verify node not processing incoming blocks, blocks do not interrupt read-only trx")
