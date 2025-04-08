@@ -2347,6 +2347,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
             return start_block_result::exhausted;
          }
 
+         chain.run_readonly_transactions();
+
          if (!process_incoming_trxs(preprocess_deadline, incoming_itr))
             return start_block_result::exhausted;
 

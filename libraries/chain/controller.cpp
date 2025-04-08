@@ -1316,6 +1316,7 @@ struct controller_impl {
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
             const auto& retval = act_trace.return_value;
+            assert(!retval.empty());
             
             fc::datastream<const char*> ds(retval.data(), retval.size());
             fc::raw::unpack(ds, res);
@@ -3238,12 +3239,6 @@ struct controller_impl {
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
-      // update peer public keys from chainbase db using a readonly trx
-      auto block_num = chain_head.block_num();
-      if (block_num % 120 == 0) {
-         peer_keys_db.update_peer_keys(get_top_producer_keys()); // update once/minute
-      }
-
       transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
@@ -3387,8 +3382,17 @@ struct controller_impl {
       }
 
       guard_pending.cancel();
+
       return onblock_trace;
    } /// start_block
+
+   void run_readonly_transactions() {
+      // update peer public keys from chainbase db using a readonly trx
+      auto block_num = chain_head.block_num();
+      if (block_num % 120 == 0) {
+         peer_keys_db.update_peer_keys(get_top_producer_keys()); // update once/minute
+      }
+   }
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
    {
@@ -5332,6 +5336,10 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
 
    return my->start_block( when, confirm_block_count, new_protocol_feature_activations,
                            bs, std::optional<block_id_type>(), deadline );
+}
+
+void controller::run_readonly_transactions() {
+   my->run_readonly_transactions();
 }
 
 void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
