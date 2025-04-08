@@ -43,16 +43,10 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
-   auto&    trace   = get_root_action_trace();
-   uint32_t ordinal = 1;
-   sync_call_trace trace_obj(get_sync_call_ordinal(), get_sync_call_sender(), call_receiver, flags, data);
+   auto& trace = get_root_action_trace();
+   trace.call_traces.emplace_back(get_sync_call_ordinal(), get_sync_call_sender(), call_receiver, flags, data);
 
-   if (trace.call_traces) {
-      ordinal = trace.call_traces->size() + 1;
-      trace.call_traces->push_back(std::move(trace_obj));
-   } else {
-      trace.call_traces.emplace({trace_obj});
-   }
+   uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).ordinal = ordinal;
 
    auto handle_exception = [&](const auto& e)
@@ -67,11 +61,9 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    auto handle_call_failure = [&]()
    {
       auto& call_trace = get_call_trace(ordinal);
-
       call_trace.return_value_size_or_error_id = -1;
       finalize_call_trace(call_trace, start);
       trx_context.checktime();
-
       return -1;
    };
 
@@ -141,10 +133,9 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 sync_call_trace& host_context::get_call_trace(uint32_t ordinal) {
    auto& act_trace = get_root_action_trace();
 
-   assert(act_trace.call_traces.has_value());
-   assert(0 < ordinal && ordinal <= act_trace.call_traces->size());
+   assert(0 < ordinal && ordinal <= act_trace.call_traces.size());
 
-   return (*act_trace.call_traces)[ordinal - 1];
+   return act_trace.call_traces[ordinal - 1];
 }
 
 void host_context::finalize_call_trace(sync_call_trace& trace, const fc::time_point& start) {

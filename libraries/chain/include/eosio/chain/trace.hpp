@@ -69,7 +69,7 @@ namespace eosio::chain {
       std::optional<fc::exception>    except;
       std::optional<uint64_t>         error_code;
       std::vector<char>               return_value;
-      std::optional<std::vector<sync_call_trace>>  call_traces;
+      std::vector<sync_call_trace>    call_traces;
 
       //savanna_witness_hash can be computed separately, since it is not relevant to IBC action proofs
       digest_type savanna_witness_hash() const {

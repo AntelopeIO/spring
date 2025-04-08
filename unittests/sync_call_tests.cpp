@@ -551,7 +551,6 @@ BOOST_AUTO_TEST_CASE(recursive_calls) { try {
       // skip eos_vm_oc for now.
       return;
    }
-   ilog("!!! caller: ${c}", ("c", "caller"_n.to_uint64_t()));
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -684,7 +683,6 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    auto trx_trace1 = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "1000"));
    auto &atrace1   = trx_trace1->action_traces;
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace1[0].return_value), 2000u);
-   ilog("trace: ${t}", ("t", atrace1));
 
    // double 5000
    auto trx_trace2 = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "5000"));
@@ -1670,7 +1668,8 @@ BOOST_AUTO_TEST_CASE(privilege_call_test)  { try {
    BOOST_CHECK_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
-// Verify the action trace of an action without sync calls does not have `call_traces`
+// Verify `call_traces` in the action trace of an action without sync calls
+// is empty
 BOOST_AUTO_TEST_CASE(trace_without_sync_call_test) { try {
    validating_tester t;
    account_name      acct;
@@ -1683,7 +1682,7 @@ BOOST_AUTO_TEST_CASE(trace_without_sync_call_test) { try {
    create_one_account_and_set_code(no_sync_call_entry_point_wast, acct, t);
    auto  trx_trace = t.push_action(acct, "doit"_n, acct, {});
    auto& atrace    = trx_trace->action_traces;
-   BOOST_REQUIRE_EQUAL(atrace[0].call_traces.has_value(), false);
+   BOOST_REQUIRE(atrace[0].call_traces.empty());
 } FC_LOG_AND_RETHROW() }
 
 static const char basic_trace_caller_wast[] = R"=====(
@@ -1734,10 +1733,9 @@ BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
 
    auto  trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
    auto& atrace    = trx_trace->action_traces;
-   ilog("action trace: ${t}", ("t", atrace));
-   BOOST_REQUIRE_EQUAL(atrace[0].call_traces.has_value(), true);
    auto& call_traces = atrace[0].call_traces;
-   auto& call_trace  = (*call_traces)[0];
+   BOOST_REQUIRE_EQUAL(call_traces.size(), 1u);
+   auto& call_trace  = call_traces[0];
 
    BOOST_REQUIRE_EQUAL(call_trace.ordinal, 1u);
    BOOST_REQUIRE_EQUAL(call_trace.sender_ordinal, 0u);
@@ -1856,24 +1854,21 @@ BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
 
    auto  trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
    auto& atrace    = trx_trace->action_traces;
-   ilog("action trace: ${t}", ("t", atrace));
 
-   BOOST_REQUIRE_EQUAL(atrace[0].call_traces.has_value(), true);
    auto& call_traces  = atrace[0].call_traces;
+   BOOST_REQUIRE_EQUAL(call_traces.size(), 3u);
 
-   BOOST_REQUIRE_EQUAL((*call_traces).size(), 3u);
-
-   auto& trace_1 = (*call_traces)[0];
+   auto& trace_1 = call_traces[0];
    BOOST_REQUIRE_EQUAL(trace_1.ordinal, 1u);
    BOOST_REQUIRE_EQUAL(trace_1.sender_ordinal, 0u);
    BOOST_REQUIRE_EQUAL(std::string(trace_1.return_value.begin(), trace_1.return_value.end()), "I am callee1");
 
-   auto& trace_11 = (*call_traces)[1];
+   auto& trace_11 = call_traces[1];
    BOOST_REQUIRE_EQUAL(trace_11.ordinal, 2u);
    BOOST_REQUIRE_EQUAL(trace_11.sender_ordinal, 1u);
    BOOST_REQUIRE_EQUAL(std::string(trace_11.return_value.begin(), trace_11.return_value.end()), "I am callee11");
 
-   auto& trace_2 = (*call_traces)[2];
+   auto& trace_2 = call_traces[2];
    BOOST_REQUIRE_EQUAL(trace_2.ordinal, 3u);
    BOOST_REQUIRE_EQUAL(trace_2.sender_ordinal, 0u);
    BOOST_REQUIRE_EQUAL(std::string(trace_2.return_value.begin(), trace_2.return_value.end()), "I am callee2");
@@ -1898,11 +1893,10 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_one_level_test) { try {
    // Invalid call flags trigger sync_call_validate_exception
    auto trx_trace = t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, true); // set no_throw to true so that tester can return trace without throwing
    auto& action_trace = trx_trace->action_traces;
-   ilog("action trace: ${t}", ("t", action_trace));
-   BOOST_REQUIRE(action_trace[0].call_traces);
+   BOOST_REQUIRE_EQUAL(action_trace[0].call_traces.size(), 1u);
 
    // exception originated at sycn call level
-   auto& call_trace = (*action_trace[0].call_traces)[0];
+   auto& call_trace = action_trace[0].call_traces[0];
    BOOST_REQUIRE(call_trace.error_code);
    BOOST_REQUIRE_EQUAL(*call_trace.error_code, static_cast<uint64_t>(system_error_code::generic_system_error));
    BOOST_REQUIRE(call_trace.except);
@@ -1997,11 +1991,10 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
    // "callee11"_n calls eosio_assert
    auto trx_trace = t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, true); // set no_throw to true so that tester can return trace without throwing
    auto& action_trace = trx_trace->action_traces;
-   ilog("action trace: ${t}", ("t", action_trace));
-   BOOST_REQUIRE(action_trace[0].call_traces);
+   BOOST_REQUIRE_EQUAL(action_trace[0].call_traces.size(), 2u);
 
    // exception originated in the sync call "callee1"_n --> "callee11"_n
-   auto& call_trace2 = (*action_trace[0].call_traces)[1];
+   auto& call_trace2 = action_trace[0].call_traces[1];
    BOOST_REQUIRE_EQUAL(call_trace2.ordinal, 2u);
    BOOST_REQUIRE(call_trace2.error_code);
    BOOST_REQUIRE(call_trace2.except);
@@ -2009,7 +2002,7 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
    BOOST_REQUIRE_EQUAL(call_trace2.except->code(), eosio_assert_message_exception::code_enum::code_value);
 
    // propagated the sync call "callee"_n --> "callee1"_n
-   auto& call_trace1 = (*action_trace[0].call_traces)[0];
+   auto& call_trace1 = action_trace[0].call_traces[0];
    BOOST_REQUIRE_EQUAL(call_trace1.ordinal, 1u);
    BOOST_REQUIRE(call_trace1.error_code);
    BOOST_REQUIRE(call_trace1.except);
