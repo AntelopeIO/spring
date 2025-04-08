@@ -1374,12 +1374,6 @@ struct controller_impl {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
-
-         // update peer public keys from chainbase db using a readonly trx
-         auto block_num = block->block_num();
-         if (block_num % 120 == 0) {
-            peer_keys_db.update_peer_keys(get_top_producer_keys()); // update once/minute
-         }
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
@@ -3243,6 +3237,12 @@ struct controller_impl {
       pending->_producer_block_id = producer_block_id;
 
       auto& bb = std::get<building_block>(pending->_block_stage);
+
+      // update peer public keys from chainbase db using a readonly trx
+      auto block_num = chain_head.block_num();
+      if (block_num % 120 == 0) {
+         peer_keys_db.update_peer_keys(get_top_producer_keys()); // update once/minute
+      }
 
       transaction_trace_ptr onblock_trace;
 
