@@ -1316,10 +1316,11 @@ struct controller_impl {
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
             const auto& retval = act_trace.return_value;
-            assert(!retval.empty());
-            
-            fc::datastream<const char*> ds(retval.data(), retval.size());
-            fc::raw::unpack(ds, res);
+            if (!retval.empty()) {
+               // in some tests, the system contract is not set and the return value is empty.
+               fc::datastream<const char*> ds(retval.data(), retval.size());
+               fc::raw::unpack(ds, res);
+            }
          }
 
          return res;

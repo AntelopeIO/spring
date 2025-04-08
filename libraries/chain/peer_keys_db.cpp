@@ -14,7 +14,7 @@ peer_info_t peer_keys_db_t::get_peer_info(name n) const {
 }
 
 peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_res_t& v) {
-   if (!_active)
+   if (!_active || v.empty())
       return {};
    
    // create hash_map of current top-60

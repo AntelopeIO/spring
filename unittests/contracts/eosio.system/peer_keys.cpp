@@ -50,7 +50,7 @@ peer_keys::getpeerkeys_res_t peer_keys::getpeerkeys() {
 
    auto idx = producers.get_index<"prototalvote"_n>();
 
-   for( auto it = idx.cbegin(); it != idx.cend() && resp.size() < max_return && it->total_votes > 0 && it->active(); ++it ) {
+   for( auto it = idx.cbegin(); it != idx.cend() && resp.size() < max_return; ++it ) {
       auto peers_itr = peer_keys_table.find(it->owner.value);
       if (peers_itr == peer_keys_table.end())
          resp.push_back(peerkeys_t{it->owner, {}});
