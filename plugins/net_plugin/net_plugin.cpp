@@ -3755,7 +3755,7 @@ namespace eosio {
       if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
-         enqueue( go_away_message( fatal_other ) );
+         enqueue( go_away_message( go_away_reason::fatal_other ) );
          return;
       }
 
@@ -3780,7 +3780,7 @@ namespace eosio {
       if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
-      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
+      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
    }
 
 
@@ -3789,7 +3789,7 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       gossip_buffer_factory factory;
       const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
-      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
+      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
    }
 
    // called from connection strand, thread safe
@@ -3800,7 +3800,7 @@ namespace eosio {
          if (this != c.get() && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
             const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
             boost::asio::post(c->strand, [sb, c]() {
-               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
+               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
             });
          }
       });
