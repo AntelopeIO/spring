@@ -259,6 +259,9 @@ namespace eosio { namespace chain { namespace webassembly {
       fc::datastream<const char*> ds( packed_parameters.data(), packed_parameters.size() );
 
       chain::chain_config cfg = context.control.get_global_properties().configuration;
+#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+      auto old_max_sync_call_depth = cfg.max_sync_call_depth;
+#endif
       config_range config_range(cfg, {context.control});
 
       fc::raw::unpack(ds, config_range);
@@ -268,6 +271,14 @@ namespace eosio { namespace chain { namespace webassembly {
          [&]( auto& gprops ) {
               gprops.configuration = config_range.config;
       });
+
+#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+      // only update wasm_allocator pool size when new max_sync_call_depth
+      // is greater than existing one
+      if (config_range.config.max_sync_call_depth > old_max_sync_call_depth) {
+         context.control.set_wasm_alloc_pool_max_call_depth(config_range.config.max_sync_call_depth);
+      }
+#endif
    }
 
    bool interface::is_privileged( account_name n ) const {
