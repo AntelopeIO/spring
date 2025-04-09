@@ -3054,10 +3054,10 @@ void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fo
    // Since a better fork is available, interrupt current block validation and allow a fork switch to the better branch.
    if (my->_is_savanna_active) { // interrupt during transition causes issues, so only allow after transition
       if (fork_db_add_result == fork_db_add_t::appended_to_head) {
-         fc_tlog(_log, "new head block received");
+         fc_tlog(_log, "new head block received, interrupting trx");
          my->chain_plug->chain().interrupt_transaction();
       } else if (fork_db_add_result == fork_db_add_t::fork_switch) {
-         fc_ilog(_log, "new best fork received");
+         fc_ilog(_log, "new best fork received, interrupting trx");
          my->chain_plug->chain().interrupt_transaction();
       }
    }
