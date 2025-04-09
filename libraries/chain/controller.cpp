@@ -3303,6 +3303,10 @@ struct controller_impl {
             onblock_trace = push_transaction( onbtrx, fc::time_point::maximum(), fc::microseconds::maximum(),
                                       gpo.configuration.min_transaction_cpu_usage, true, 0 );
             if( onblock_trace->except ) {
+               if (onblock_trace->except->code() == interrupt_exception::code_value) {
+                  ilog("Interrupt of onblock ${bn}", ("bn", chain_head.block_num() + 1));
+                  throw *onblock_trace->except;
+               }
                wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
                     ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
             }
@@ -3316,10 +3320,12 @@ struct controller_impl {
             wlog( "on block transaction failed due to controller_emit_signal_exception: ${e}", ("e", e.to_detail_string()) );
             throw;
          } catch( const fc::exception& e ) {
-            wlog( "on block transaction failed, but shouldn't impact block generation, system contract needs update" );
+            if (e.code() == interrupt_exception::code_value)
+               throw;
+            wlog( "on block transaction failed due to unexpected fc::exception" );
             edump((e.to_detail_string()));
          } catch( const std::exception& e ) {
-            wlog( "on block transaction failed due to unexpected exception" );
+            wlog( "on block transaction failed due to unexpected std::exception" );
             edump((e.what()));
          } catch( ... ) {
             elog( "on block transaction failed due to unknown exception" );

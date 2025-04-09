@@ -93,7 +93,7 @@ try:
     for nodeId in range(0, producerNodes):
         # retrieve the connections in each node and check if each connects to the other bps in the schedule
         connections = cluster.nodes[nodeId].processUrllibRequest("net", "connections")
-        if Utils.Debug: Utils.Print(f"v1/net/connections: {connections}")
+        if Utils.Debug: Utils.Print(f"Node {nodeId} connections {connections}")
         peers = []
         for conn in connections["payload"]:
             peer_addr = conn["peer"]
