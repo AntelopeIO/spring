@@ -395,6 +395,8 @@ class Transactions(NodeosQueries):
                     Utils.Print("ERROR: Failed to preactive digest {}".format(digest))
                     return None
             self.waitForTransactionInBlock(trans['transaction_id'])
+            # protocol features are activated in the next start_block, wait one more block
+            self.waitForHeadToAdvance()
 
     # Require PREACTIVATE_FEATURE to be activated and require eosio.bios with preactivate_feature
     def preactivateAllBuiltinProtocolFeature(self):
