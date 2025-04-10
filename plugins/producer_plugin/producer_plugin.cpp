@@ -1631,11 +1631,9 @@ void producer_plugin_impl::plugin_startup() {
       }
 
       if (_ro_thread_pool_size > 0) {
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
          // inform controller's wasm_alloc_pool of number of updated total threads
          // (number of main plus read only threads)
          chain.set_wasm_alloc_pool_num_threads(1 + _ro_thread_pool_size);
-#endif
 
          _ro_thread_pool.start(
             _ro_thread_pool_size,

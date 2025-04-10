@@ -1014,10 +1014,8 @@ struct controller_impl {
    peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
    wasm_alloc_pool wasm_allocator_pool;
-#endif
    wasm_interface  wasmif;
    app_window_type app_window = app_window_type::write;
 
@@ -5087,9 +5085,7 @@ struct controller_impl {
 }; /// controller_impl
 
 thread_local platform_timer controller_impl::timer;
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 thread_local eosio::vm::wasm_allocator controller_impl::wasm_alloc;
-#endif
 
 const resource_limits_manager&   controller::get_resource_limits_manager()const
 {
@@ -6001,7 +5997,6 @@ uint32_t controller::earliest_available_block_num() const{
    return my->earliest_available_block_num();
 }
 
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
@@ -6021,7 +6016,6 @@ void controller::set_wasm_alloc_pool_num_threads(uint32_t num_threads) {
 void controller::set_wasm_alloc_pool_max_call_depth(uint32_t depth) {
    my->wasm_allocator_pool.set_max_call_depth(depth);
 }
-#endif
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
 bool controller::is_eos_vm_oc_enabled() const {
@@ -6358,10 +6352,8 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
    } );
 
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
    wasm_allocator_pool.set_max_call_depth(max_call_depth);
-#endif
 }
 
 /// End of protocol feature activation handlers
