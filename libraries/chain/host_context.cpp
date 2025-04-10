@@ -61,7 +61,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    auto handle_call_failure = [&]()
    {
       auto& call_trace = get_call_trace(ordinal);
-      call_trace.return_value_size_or_error_id = -1;
+      call_trace.error_id = -1;
       finalize_call_trace(call_trace, start);
       trx_context.checktime();
       return -1;
@@ -120,7 +120,6 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
    auto& call_trace = get_call_trace(ordinal);  // call_traces vector can be resized. Get the updated reference to the call trace
 
-   call_trace.return_value_size_or_error_id = return_value_size;
    call_trace.return_value = last_sync_call_return_value;
    finalize_call_trace(call_trace, start);
 

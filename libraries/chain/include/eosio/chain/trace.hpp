@@ -37,7 +37,7 @@ namespace eosio::chain {
       string                        console;
       std::optional<fc::exception>  except;
       std::optional<uint64_t>       error_code;
-      int64_t                       return_value_size_or_error_id = 0; // if >=0: return value size, if -1: receiver not supporting sync calls
+      std::optional<int64_t>        error_id;   // -1: receiver not supporting sync calls, other values: not used
       std::vector<char>             return_value;
    };
 
@@ -155,7 +155,7 @@ FC_REFLECT( eosio::chain::account_delta,
 FC_REFLECT( eosio::chain::sync_call_trace,
               (ordinal)(sender_ordinal)(receiver)(flags)(data)(elapsed)
               (console)(except) (error_code)
-              (return_value_size_or_error_id)(return_value) )
+              (error_id)(return_value) )
 
 FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
