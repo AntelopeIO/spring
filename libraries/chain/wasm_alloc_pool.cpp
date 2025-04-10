@@ -58,35 +58,20 @@ void wasm_alloc_pool::set_max_call_depth(uint32_t new_depth) {
    resize(num_threads, new_depth);
 }
 
+// called on main thread (it is called by set_threads or set_max_call_depth).
 void wasm_alloc_pool::resize(uint32_t new_num_thread, uint32_t new_depth) {
-   auto old_pool_size  = num_threads * max_call_depth; // take a note of old size
-
-   // save allocators not being in use into a temporary place
-   std::vector<vm::wasm_allocator*> temp;
-   vm::wasm_allocator* alloc;
-   while (stack->pop(alloc)) {
-      temp.push_back(alloc);
-   }
-
-   // update with new values
-   num_threads         = new_num_thread;
-   max_call_depth      = new_depth;
-   auto new_pool_size  = num_threads * max_call_depth;
-
-   // recreate the internal stack with the new capacity
-   stack = std::make_unique<boost::lockfree::stack<vm::wasm_allocator*>>(new_pool_size);
-
-   // put back existing allocators not in use to the pool.
-   // allocators in use by the main thread will be released back to the pool eventually
-   for (const auto& alloc: temp) {
-      stack->push(alloc);
-   }
-
-   // add new ones
+   auto old_pool_size  = num_threads * max_call_depth;
+   auto new_pool_size  = new_num_thread * new_depth;
+   assert(new_pool_size > old_pool_size);  // Do not allow shrinking
    auto num_new_allocs = new_pool_size - old_pool_size;
+
+   // add new allocators
    for (uint32_t i = 0u; i < num_new_allocs ; ++i) {
       stack->push(new vm::wasm_allocator);
    }
+
+   num_threads    = new_num_thread;
+   max_call_depth = new_depth;
 } 
 
 } /// eosio::chain
