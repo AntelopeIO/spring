@@ -1739,7 +1739,6 @@ BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
 
    BOOST_REQUIRE_EQUAL(call_trace.ordinal, 1u);
    BOOST_REQUIRE_EQUAL(call_trace.sender_ordinal, 0u);
-   BOOST_REQUIRE_EQUAL(call_trace.sender.to_string(), "caller");    // hardcodied in test contracts
    BOOST_REQUIRE_EQUAL(call_trace.receiver.to_string(), "callee");  // hardcodied
    BOOST_REQUIRE_EQUAL(call_trace.flags, 0ull);                     // hardcodied
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(call_trace.data), 10u); // test contract passes in 10

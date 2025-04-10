@@ -20,9 +20,8 @@ namespace eosio::chain {
    using transaction_trace_ptr = std::shared_ptr<transaction_trace>;
 
    struct sync_call_trace {
-      sync_call_trace(uint32_t sender_ordinal, account_name sender, account_name receiver, uint64_t flags, std::span<const char> data)
+      sync_call_trace(uint32_t sender_ordinal, account_name receiver, uint64_t flags, std::span<const char> data)
          : sender_ordinal(sender_ordinal)
-         , sender(sender)
          , receiver(receiver)
          , flags(flags)
          , data(data.begin(), data.end())
@@ -31,7 +30,6 @@ namespace eosio::chain {
 
       uint32_t                      ordinal = 1;
       const uint32_t                sender_ordinal = 0;
-      const account_name            sender;
       const account_name            receiver;
       const uint64_t                flags = 0;
       const std::vector<char>       data;
@@ -155,7 +153,7 @@ FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
 
 FC_REFLECT( eosio::chain::sync_call_trace,
-              (ordinal)(sender_ordinal)(sender)(receiver)(flags)(data)(elapsed)
+              (ordinal)(sender_ordinal)(receiver)(flags)(data)(elapsed)
               (console)(except) (error_code)
               (return_value_size_or_error_id)(return_value) )
 
