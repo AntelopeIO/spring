@@ -134,6 +134,22 @@ extern const char* const state_history_plugin_abi = R"({
             ]
         },
         {
+            "name": "sync_call_trace", "fields": [
+                { "name": "ordinal", "type": "varuint32" },
+                { "name": "sender_ordinal", "type": "varuint32" },
+                { "name": "sender", "type": "name" },
+                { "name": "receiver", "type": "name" },
+                { "name": "flags", "type": "uint64" },
+                { "name": "data", "type": "bytes" },
+                { "name": "elapsed", "type": "int64" },
+                { "name": "console", "type": "string" },
+                { "name": "except", "type": "string?" },
+                { "name": "error_code", "type": "uint64?" },
+                { "name": "return_value_size_or_error_id", "type": "int64" },
+                { "name": "return_value", "type": "bytes" }
+            ]
+        },
+        {
             "name": "action_trace_v0", "fields": [
                 { "name": "action_ordinal", "type": "varuint32" },
                 { "name": "creator_action_ordinal", "type": "varuint32" },
@@ -162,6 +178,23 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "except", "type": "string?" },
                 { "name": "error_code", "type": "uint64?" },
                 { "name": "return_value", "type": "bytes"}
+            ]
+        },
+        {
+            "name": "action_trace_v2", "fields": [
+                { "name": "action_ordinal", "type": "varuint32" },
+                { "name": "creator_action_ordinal", "type": "varuint32" },
+                { "name": "receipt", "type": "action_receipt?" },
+                { "name": "receiver", "type": "name" },
+                { "name": "act", "type": "action" },
+                { "name": "context_free", "type": "bool" },
+                { "name": "elapsed", "type": "int64" },
+                { "name": "console", "type": "string" },
+                { "name": "account_ram_deltas", "type": "account_delta[]" },
+                { "name": "except", "type": "string?" },
+                { "name": "error_code", "type": "uint64?" },
+                { "name": "return_value", "type": "bytes"},
+                { "name": "call_traces", "type": "sync_call_trace[]"}
             ]
         },
         {
@@ -706,7 +739,7 @@ extern const char* const state_history_plugin_abi = R"({
         { "name": "result", "types": ["get_status_result_v0", "get_blocks_result_v0", "get_blocks_result_v1", "get_status_result_v1"] },
 
         { "name": "action_receipt", "types": ["action_receipt_v0"] },
-        { "name": "action_trace", "types": ["action_trace_v0", "action_trace_v1"] },
+        { "name": "action_trace", "types": ["action_trace_v0", "action_trace_v1", "action_trace_v2"] },
         { "name": "partial_transaction", "types": ["partial_transaction_v0"] },
         { "name": "transaction_trace", "types": ["transaction_trace_v0"] },
         { "name": "transaction_variant", "types": ["transaction_id", "packed_transaction"] },

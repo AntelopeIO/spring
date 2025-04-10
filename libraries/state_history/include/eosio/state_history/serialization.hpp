@@ -605,7 +605,7 @@ inline std::optional<uint64_t> cap_error_code(const std::optional<uint64_t>& err
 template <typename ST>
 datastream<ST>& operator<<(datastream<ST>& ds, const history_context_wrapper_stateless<bool, eosio::chain::action_trace>& obj) {
    bool debug_mode = obj.context;
-   fc::raw::pack(ds, fc::unsigned_int(1));
+   fc::raw::pack(ds, fc::unsigned_int(2));
    fc::raw::pack(ds, as_type<fc::unsigned_int>(obj.obj.action_ordinal));
    fc::raw::pack(ds, as_type<fc::unsigned_int>(obj.obj.creator_action_ordinal));
    fc::raw::pack(ds, bool(obj.obj.receipt));
@@ -632,6 +632,7 @@ datastream<ST>& operator<<(datastream<ST>& ds, const history_context_wrapper_sta
    fc::raw::pack(ds, as_type<std::optional<std::string>>(e));
    fc::raw::pack(ds, as_type<std::optional<uint64_t>>(debug_mode ? obj.obj.error_code : cap_error_code(obj.obj.error_code)));
    fc::raw::pack(ds, as_type<eosio::chain::bytes>(obj.obj.return_value));
+   fc::raw::pack(ds, as_type<std::vector<eosio::chain::sync_call_trace>>(obj.obj.call_traces));
 
    return ds;
 }
