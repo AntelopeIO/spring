@@ -1,5 +1,5 @@
+#include <eosio/chain/config.hpp>
 #include <eosio/chain/wasm_alloc_pool.hpp>
-#include <fc/log/logger.hpp>
 
 namespace eosio::chain {
 
@@ -9,7 +9,7 @@ wasm_alloc_pool::wasm_alloc_pool()
    , max_call_depth(1)
 {
    // create 1 wasm allocator for the main thread
-   stack = std::make_unique<boost::lockfree::stack<vm::wasm_allocator*>>(1);
+   stack = std::make_unique<boost::lockfree::stack<vm::wasm_allocator*>>(config::default_max_sync_call_depth);
    stack->push(new vm::wasm_allocator);
 }
 
