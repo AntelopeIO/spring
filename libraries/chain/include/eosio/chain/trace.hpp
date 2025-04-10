@@ -19,13 +19,6 @@ namespace eosio::chain {
    struct transaction_trace;
    using transaction_trace_ptr = std::shared_ptr<transaction_trace>;
 
-   // Identify the starting position of a sync call in the call's console log.
-   // This is used for pretty printing console logs.
-   struct console_marker {
-      uint32_t call_ordinal     = 0;
-      uint32_t console_position = 0;
-   };
-
    struct sync_call_trace {
       sync_call_trace(uint32_t sender_ordinal, account_name receiver, bool read_only, std::span<const char> data)
          : sender_ordinal(sender_ordinal)
@@ -61,13 +54,11 @@ namespace eosio::chain {
 
       // for each call directly made by the current sync call, identify the starting
       // position in `console`.
-      // For example, suppose current sync call: prints 10 chars; calls
-      // sync1 (ordinal 2); prints 50 chars; calls sycn2 (ordinal 3)
-      // console_markers would look like
-      // { {2, 10}, {3, 60} }
-      // This is used for pretty printing console logs to show relative positions
-      // of all logs.
-      std::vector<console_marker>   console_markers;
+      // For example, suppose current sync call:
+      //    prints 10 chars; calls sync1; prints 50 chars; calls sycn2,
+      // console_markers would look like { 10, 60 }
+      // This is used for pretty printing console logs to show hierachy of all logs.
+      std::vector<fc::unsigned_int>  console_markers;
 
       // exception details if an exception happens during the call or its children
       std::optional<fc::exception>  except;
@@ -116,8 +107,8 @@ namespace eosio::chain {
       std::vector<sync_call_trace>    call_traces;
 
       // similar to console_markers in sync_call_trace, identify positions
-      // of sync calls made by the action in console
-      std::vector<console_marker>     call_console_markers;
+      // of sync calls made by the action in console log
+      std::vector<fc::unsigned_int>   call_console_markers;
 
       //savanna_witness_hash can be computed separately, since it is not relevant to IBC action proofs
       digest_type savanna_witness_hash() const {
@@ -201,9 +192,6 @@ namespace eosio::chain {
 
 FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
-
-FC_REFLECT( eosio::chain::console_marker,
-            (call_ordinal)(console_position) )
 
 FC_REFLECT( eosio::chain::sync_call_trace,
               (ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
