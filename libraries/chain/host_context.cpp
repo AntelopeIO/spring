@@ -44,7 +44,8 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
    auto& trace = get_root_action_trace();
-   trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, flags, data);
+   const bool read_only = flags & static_cast<uint64_t>(sync_call_flags::read_only);
+   trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
 
    uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).ordinal = ordinal;

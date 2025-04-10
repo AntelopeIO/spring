@@ -1740,7 +1740,7 @@ BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
    BOOST_REQUIRE_EQUAL(call_trace.ordinal, 1u);
    BOOST_REQUIRE_EQUAL(call_trace.sender_ordinal, 0u);
    BOOST_REQUIRE_EQUAL(call_trace.receiver.to_string(), "callee");  // hardcodied
-   BOOST_REQUIRE_EQUAL(call_trace.flags, 0ull);                     // hardcodied
+   BOOST_REQUIRE_EQUAL(call_trace.read_only, false);                     // hardcodied
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(call_trace.data), 10u); // test contract passes in 10
    BOOST_REQUIRE_GT(call_trace.elapsed.count(), 0u);                // elpased should be at least greater than 0 microsecond
    BOOST_REQUIRE_EQUAL(call_trace.console.empty(), true);           // No prints in test contracts
