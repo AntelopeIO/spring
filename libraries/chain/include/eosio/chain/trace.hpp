@@ -19,6 +19,11 @@ namespace eosio::chain {
    struct transaction_trace;
    using transaction_trace_ptr = std::shared_ptr<transaction_trace>;
 
+   struct console_marker {
+      uint32_t call_ordinal     = 0;
+      uint32_t console_position = 0;
+   };
+
    struct sync_call_trace {
       sync_call_trace(uint32_t sender_ordinal, account_name receiver, bool read_only, std::span<const char> data)
          : sender_ordinal(sender_ordinal)
@@ -34,6 +39,7 @@ namespace eosio::chain {
       const bool                    read_only = false;
       const std::vector<char>       data;
       fc::microseconds              elapsed;
+      std::vector<console_marker>   console_markers;
       string                        console;
       std::optional<fc::exception>  except;
       std::optional<uint64_t>       error_code;
@@ -67,6 +73,7 @@ namespace eosio::chain {
       std::optional<fc::exception>    except;
       std::optional<uint64_t>         error_code;
       std::vector<char>               return_value;
+      std::vector<console_marker>     call_console_markers;
       std::vector<sync_call_trace>    call_traces;
 
       //savanna_witness_hash can be computed separately, since it is not relevant to IBC action proofs
@@ -152,16 +159,19 @@ namespace eosio::chain {
 FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
 
+FC_REFLECT( eosio::chain::console_marker,
+            (call_ordinal)(console_position) )
+
 FC_REFLECT( eosio::chain::sync_call_trace,
               (ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
-              (console)(except) (error_code)
+              (console_markers)(console)(except) (error_code)
               (error_id)(return_value) )
 
 FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
                (receiver)(act)(context_free)(elapsed)(console)(trx_id)(block_num)(block_time)
                (producer_block_id)(account_ram_deltas)(except)(error_code)(return_value)
-               (call_traces) )
+               (call_console_markers)(call_traces) )
 
 // @ignore except_ptr
 FC_REFLECT( eosio::chain::transaction_trace, (id)(block_num)(block_time)(producer_block_id)
