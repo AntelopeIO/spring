@@ -38,10 +38,10 @@ namespace eosio::chain {
       // receiver's ordinal. A sequence number starting with 1, unique within
       // an action. It can be used to reference `call_trace` struct in `call_traces`
       // vector in `action_trace` struct.
-      uint32_t                      ordinal = 1;
+      fc::unsigned_int              ordinal = 1;
 
       // sender's ordinal. If the caller is the action, sender_ordinal is 0.
-      const uint32_t                sender_ordinal = 0;
+      fc::unsigned_int              sender_ordinal = 0;
 
       // receiver's account name
       const account_name            receiver;
