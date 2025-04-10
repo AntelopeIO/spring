@@ -3171,13 +3171,11 @@ void producer_plugin_impl::switch_to_read_window() {
             for (auto& task : _ro_exec_tasks_fut) {
                task.get();
             }
-            _ro_exec_tasks_fut.clear();
-            // will be executed from the main app thread because all read-only threads are idle now
-            switch_to_write_window();
-         } else {
-            _ro_exec_tasks_fut.clear();
          }
-      });
+         _ro_exec_tasks_fut.clear();
+         // will be executed from the main app thread because all read-only threads are idle now
+         switch_to_write_window();
+   });
    });
 }
 
