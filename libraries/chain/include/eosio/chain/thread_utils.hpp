@@ -189,12 +189,14 @@ namespace eosio { namespace chain {
       /// not thread safe, expected to only be called from thread that called start()
       void stop() {
          if (_thread_pool.size() > 0) {
+            tlog("stopping");
             _ioc_work.reset();
             _ioc.stop();
             for( auto& t : _thread_pool ) {
                t.join();
             }
             _thread_pool.clear();
+            tlog("stoppped");
          }
       }
 
