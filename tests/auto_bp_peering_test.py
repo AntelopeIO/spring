@@ -49,8 +49,6 @@ for nodeId in range(0, producerNodes):
     port = cluster.p2pBasePort + nodeId
     if producer_name == 'defproducerf':
         hostname = 'ext-ip0:9999'
-    elif producer_name == 'defproducerk':
-        hostname = socket.gethostname() + ':9886'
     else:
         hostname = "localhost:" + str(port)
     peer_names[hostname] = producer_name
@@ -66,7 +64,6 @@ try:
         specificNodeosArgs[nodeId] = auto_bp_peer_args
 
     specificNodeosArgs[5] = specificNodeosArgs[5] + ' --p2p-server-address ext-ip0:9999'
-    specificNodeosArgs[10] = specificNodeosArgs[10] + ' --p2p-server-address ""'
 
     TestHelper.printSystemInfo("BEGIN")
     cluster.launch(
