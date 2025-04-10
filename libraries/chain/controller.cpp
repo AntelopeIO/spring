@@ -6010,7 +6010,7 @@ void controller::release_sync_call_wasm_allocator(vm::wasm_allocator* alloc) {
 }
 
 void controller::set_wasm_alloc_pool_num_threads(uint32_t num_threads) {
-   my->wasm_allocator_pool.set_threads(num_threads);
+   my->wasm_allocator_pool.set_num_threads(num_threads);
 }
 
 void controller::set_wasm_alloc_pool_max_call_depth(uint32_t depth) {

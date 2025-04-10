@@ -35,7 +35,7 @@ public:
    void release(vm::wasm_allocator* alloc);
 
    // called on main thread from producer_plugin startup after number of read-only threads is determined
-   void set_threads(uint32_t num_threads);
+   void set_num_threads(uint32_t num_threads);
 
    // called on main thread from sync_call protocol feature activation or set_packed_parameters
    void set_max_call_depth(uint32_t depth);

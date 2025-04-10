@@ -39,7 +39,7 @@ void wasm_alloc_pool::release(vm::wasm_allocator* alloc) {
 }
 
 // called on main thread from producer_plugin startup number of read-only threads is determined
-void wasm_alloc_pool::set_threads(uint32_t new_num_thread) {
+void wasm_alloc_pool::set_num_threads(uint32_t new_num_thread) {
    if (new_num_thread <= num_threads) {
       // For simplicity, we don't shrink the pool
       return;
@@ -58,7 +58,7 @@ void wasm_alloc_pool::set_max_call_depth(uint32_t new_depth) {
    resize(num_threads, new_depth);
 }
 
-// called on main thread (it is called by set_threads or set_max_call_depth).
+// called on main thread (it is called by set_num_threads or set_max_call_depth).
 void wasm_alloc_pool::resize(uint32_t new_num_thread, uint32_t new_depth) {
    auto old_pool_size  = num_threads * max_call_depth;
    auto new_pool_size  = new_num_thread * new_depth;
