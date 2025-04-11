@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
 
    std::thread th( [&c=*other.control]() {
       std::this_thread::sleep_for( std::chrono::milliseconds(50) );
-      c.interrupt_apply_block_transaction();
+      c.interrupt_transaction();
    } );
 
    // apply block, caught in an "infinite" loop
