@@ -17,7 +17,7 @@ peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_r
    if (!_active || v.empty())
       return {};
    
-   // create hash_map of current top-60
+   // create hash_map of current top-50
    // ---------------------------------
    peer_key_map_t current;
    for (size_t i=0; i<v.size(); ++i)
@@ -26,7 +26,7 @@ peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_r
    fc::lock_guard g(_m);
    new_peers_t res;
 
-   // update ranking of those removed from top-60
+   // update ranking of those removed from top-50
    // -------------------------------------------
    for (auto& pi : _peer_info_map) {
       if (!current.contains(pi.first)) {

@@ -80,9 +80,9 @@ namespace eosio::chain {
       class resource_limits_manager;
    };
 
-   // vector, sorted by rank, of the paid producer names and their peer key
-   // if populated on-chain.
-   // -----------------------------------------------------------------------
+   // vector, sorted by rank, of the top-50 producers by `total_votes` (whether
+   // active or not) and their peer key if populated on-chain.
+   // -------------------------------------------------------------------------
    struct peerkeys_t {
       name                           producer_name;
       std::optional<public_key_type> peer_key;
@@ -90,7 +90,7 @@ namespace eosio::chain {
    using getpeerkeys_res_t = std::vector<peerkeys_t>;
 
    struct peer_info_t {
-      uint32_t                       rank;
+      uint32_t                       rank; // rank by `total_votes` of all producers, active or not, may not match schedule rank
       std::optional<public_key_type> key;
 
       bool operator==(const peer_info_t&) const = default;
