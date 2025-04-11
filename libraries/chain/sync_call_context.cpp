@@ -5,8 +5,19 @@
 
 namespace eosio::chain {
 
-sync_call_context::sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, std::span<const char>data)
+sync_call_context::sync_call_context(controller&           con,
+                                     transaction_context&  trx_ctx,
+                                     uint32_t              ordinal,
+                                     action_trace&         root_action_trace,
+                                     account_name          sender,
+                                     account_name          receiver,
+                                     bool                  privileged,
+                                     uint32_t              sync_call_depth,
+                                     uint64_t              flags,
+                                     std::span<const char> data)
    : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
+   , ordinal(ordinal)
+   , root_action_trace(root_action_trace)
    , sender(sender)
    , flags(flags)
    , data(data)
@@ -45,6 +56,19 @@ action_name sync_call_context::get_sender() const {
    // The sync call is initiated by this apply_context or its sync_call_ctx.
    // That's why the context's receiver is the sender of the sync call.
    return receiver;
+}
+
+void sync_call_context::console_append(std::string_view val) {
+   // save into call trace's console directly
+   sync_call_trace& trace = get_call_trace(ordinal);
+   trace.console += val;
+}
+
+void sync_call_context::store_console_marker() {
+   // Mark the starting point of upcoming sync call's console log
+   // when constructing coonsole log hierarchy in pretty printing
+   sync_call_trace& trace = get_call_trace(ordinal);
+   trace.console_markers.emplace_back(trace.console.size());
 }
 
 // Always return false in sync calls
