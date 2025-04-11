@@ -132,17 +132,7 @@ void snapshot_scheduler::execute_snapshot(uint32_t srid, chain::controller& chai
    _inflight_sid = srid;
    auto next = [srid, this](const chain::next_function_variant<snapshot_information>& result) {
       if(std::holds_alternative<fc::exception_ptr>(result)) {
-         try {
-            throw *std::get<fc::exception_ptr>(result);
-         } catch(const fc::exception& e) {
-            EOS_THROW(snapshot_execution_exception,
-                     "Snapshot creation error: ${details}",
-                     ("details", e.to_detail_string()));
-         } catch(const std::exception& e) {
-            EOS_THROW(snapshot_execution_exception,
-                     "Snapshot creation error: ${details}",
-                     ("details", e.what()));
-         }
+         wlog("Snapshot creation error: ${d}", ("d", std::get<fc::exception_ptr>(result)->to_detail_string()));
       } else {
          // success, snapshot finalized
          auto snapshot_info = std::get<snapshot_information>(result);
