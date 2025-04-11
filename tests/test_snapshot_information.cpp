@@ -63,7 +63,7 @@ void test_snapshot_information() {
    write_snapshot( pending_path );
    next_t next;
    pending_snapshot pending{ block2->previous, next, pending_path.generic_string(), final_path.generic_string() };
-   test_snap_info = pending.finalize(*chain.control);
+   test_snap_info = pending.finalize(block2->previous, *chain.control);
    BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, base_block_num);
    BOOST_REQUIRE_EQUAL(test_snap_info.version, chain_snapshot_header::current_version);
 }
