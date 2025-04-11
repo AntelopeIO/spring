@@ -363,7 +363,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
-         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{{"xsat"}}),
+         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{"xsat", "vaulta"}),
           "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")

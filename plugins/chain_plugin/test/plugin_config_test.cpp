@@ -22,6 +22,14 @@ BOOST_AUTO_TEST_CASE(chain_plugin_default_tests) {
 
    // test default eos-vm-oc-whitelist
    BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xsat"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"vaulta"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"core.vaulta"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xs.vaulta"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xsat.vaulta"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"vaulta.xsat"}));
+   BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"vault"}));
+   BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xs"}));
+   BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{""}));
 }
 
 BOOST_AUTO_TEST_CASE(chain_plugin_eos_vm_oc_whitelist) {
@@ -38,4 +46,5 @@ BOOST_AUTO_TEST_CASE(chain_plugin_eos_vm_oc_whitelist) {
    BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"hello"}));
    BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xs.hello"}));
    BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xsat"}));
+   BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"vaulta"}));
 }

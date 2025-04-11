@@ -321,7 +321,7 @@ class Cluster(object):
             argsArr.append("--max-block-cpu-usage")
             argsArr.append(str(400000))
             argsArr.append("--max-transaction-cpu-usage")
-            argsArr.append(str(250000))
+            argsArr.append(str(375000))
         else:
             argsArr.append("--genesis")
             argsArr.append(str(genesisPath))
