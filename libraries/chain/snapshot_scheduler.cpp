@@ -45,7 +45,7 @@ void snapshot_scheduler::on_start_block(uint32_t height, chain::controller& chai
    }
 }
 
-void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, const chain::controller& chain) {
+void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, const block_id_type& block_id, const chain::controller& chain) {
    auto& snapshots_by_height = _pending_snapshot_index.get<by_height>();
    uint32_t lib_height = lib->block_num();
 
@@ -54,7 +54,7 @@ void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, cons
       auto next = pending->next;
 
       try {
-         next(pending->finalize(chain));
+         next(pending->finalize(block_id, chain));
       }
       CATCH_AND_CALL(next);
 

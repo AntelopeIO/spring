@@ -33,9 +33,16 @@ public:
       return snapshots_dir / fc::format_string(".incomplete-snapshot-${id}.bin", fc::mutable_variant_object()("id", block_id));
    }
 
-   T finalize(const chain::controller& chain) const {
+   T finalize(const block_id_type& lib_id, const chain::controller& chain) const {
+      auto lib_num = chain::block_header::num_from_id(lib_id);
+      auto block_num = chain::block_header::num_from_id(block_id);
+
+      EOS_ASSERT(lib_num >= block_num, chain::snapshot_finalization_exception,
+                 "finalize called for non-irreversible block ${bn}:${bid}", ("bn", block_num)("bid", block_id));
+
+      // finalize called before forkdb is pruned of non-irreversible blocks, so this can find a non-irreversible block
       auto block_ptr = chain.fetch_block_by_id(block_id);
-      auto in_chain = (bool) block_ptr;
+      auto in_chain = static_cast<bool>(block_ptr) && (lib_num > block_num || lib_id == block_id);
       std::error_code ec;
 
       if(!in_chain) {
