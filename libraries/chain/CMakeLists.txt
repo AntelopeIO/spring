@@ -106,6 +106,7 @@ add_library( eosio_chain
               wasm_eosio_validation.cpp
               wasm_eosio_injection.cpp
               wasm_config.cpp
+              wasm_alloc_pool.cpp
               host_context.cpp
               apply_context.cpp
               abi_serializer.cpp

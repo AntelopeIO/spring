@@ -159,10 +159,12 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
 
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
-         vm::wasm_allocator&                      wasm_alloc = context.control.get_sync_call_wasm_allocator(); // get the top free wasm allocator from the pool
+         vm::wasm_allocator*                      wasm_alloc = context.control.acquire_sync_call_wasm_allocator();
 
-         // always return the wasm_allocator obtainded by get_sync_wasm_allocator back to the pool
-         auto ensure = fc::make_scoped_exit([&]() { context.control.return_sync_call_wasm_allocator(); });
+         // always return the wasm_allocator obtainded back to the pool when exiting
+         auto ensure = fc::make_scoped_exit([&]() {
+            context.control.release_sync_call_wasm_allocator(wasm_alloc);
+         });
 
          apply_options opts = get_apply_options(context);
 
@@ -176,7 +178,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
                 static_cast<uint32_t>(context.data.size()));
          };
 
-         execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
+         execute(context, bkend, exec_ctx, *wasm_alloc, fn, true);
 
          return sync_call_return_code::success;
       }
