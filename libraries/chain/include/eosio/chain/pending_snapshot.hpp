@@ -42,7 +42,7 @@ public:
 
       // finalize called before forkdb is pruned of non-irreversible blocks, so this can find a non-irreversible block
       auto block_ptr = chain.fetch_block_by_id(block_id);
-      auto in_chain = static_cast<bool>(block_ptr) && (lib_num > block_num || lib_id == block_id);
+      auto in_chain = !!block_ptr && (lib_num > block_num || lib_id == block_id);
       std::error_code ec;
 
       if(!in_chain) {
