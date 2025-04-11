@@ -578,7 +578,7 @@ namespace impl {
          } catch(...) {}
 
          mvo("call_traces", act_trace.call_traces);
-         mvo("call_console_markers", act_trace.call_console_markers);
+         mvo("console_markers", act_trace.console_markers);
 
          out(name, std::move(mvo));
       }

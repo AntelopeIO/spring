@@ -58,6 +58,19 @@ action_name sync_call_context::get_sender() const {
    return receiver;
 }
 
+void sync_call_context::console_append(std::string_view val) {
+   // save into call trace's console directly
+   sync_call_trace& trace = get_call_trace(ordinal);
+   trace.console += val;
+}
+
+void sync_call_context::store_console_marker() {
+   // Mark the starting point of upcoming sync call's console log
+   // when constructing coonsole log hierarchy in pretty printing
+   sync_call_trace& trace = get_call_trace(ordinal);
+   trace.console_markers.emplace_back(trace.console.size());
+}
+
 // Always return false in sync calls
 bool sync_call_context::has_recipient(account_name account)const {
    return false;

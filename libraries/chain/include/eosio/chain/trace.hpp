@@ -108,7 +108,7 @@ namespace eosio::chain {
 
       // similar to console_markers in sync_call_trace, identify positions
       // of sync calls made by the action in console log
-      std::vector<fc::unsigned_int>   call_console_markers;
+      std::vector<fc::unsigned_int>   console_markers;
 
       //savanna_witness_hash can be computed separately, since it is not relevant to IBC action proofs
       digest_type savanna_witness_hash() const {
@@ -202,7 +202,7 @@ FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
                (receiver)(act)(context_free)(elapsed)(console)(trx_id)(block_num)(block_time)
                (producer_block_id)(account_ram_deltas)(except)(error_code)(return_value)
-               (call_traces)(call_console_markers) )
+               (call_traces)(console_markers) )
 
 // @ignore except_ptr
 FC_REFLECT( eosio::chain::transaction_trace, (id)(block_num)(block_time)(producer_block_id)

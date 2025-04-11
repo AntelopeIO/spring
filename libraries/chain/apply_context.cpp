@@ -121,7 +121,7 @@ void apply_context::exec_one()
                }
             }
          }
-      } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} pending console output: ${console}", ("console", _pending_console_output)("account", act->account)("action", act->name)("receiver", receiver) )
+      } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} console output: ${console}", ("console", trx_context.get_action_trace( action_ordinal ).console)("account", act->account)("action", act->name)("receiver", receiver) )
 
       if( control.is_builtin_activated( builtin_protocol_feature_t::action_return_value ) ) {
          act_digest =   generate_action_digest(
@@ -193,10 +193,19 @@ void apply_context::finalize_trace( action_trace& trace, const fc::time_point& s
    trace.account_ram_deltas = std::move( _account_ram_deltas );
    _account_ram_deltas.clear();
 
-   trace.console = std::move( _pending_console_output );
-   _pending_console_output.clear();
-
    trace.elapsed = fc::time_point::now() - start;
+}
+
+void apply_context::console_append(std::string_view val) {
+   action_trace& trace = trx_context.get_action_trace(action_ordinal);
+   trace.console += val;
+}
+
+void apply_context::store_console_marker() {
+   action_trace& trace = trx_context.get_action_trace(action_ordinal);
+   // Mark the starting point of upcoming sync call's console log
+   // when constructing coonsole log hierarchy in pretty printing
+   trace.console_markers.emplace_back(trace.console.size());
 }
 
 void apply_context::exec()

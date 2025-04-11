@@ -25,6 +25,8 @@ public:
 
    bool is_read_only()const;
    action_name get_sender() const override;
+   void console_append(std::string_view val) override;
+   void store_console_marker() override;
 
    uint32_t               ordinal = 1;
    action_trace&          root_action_trace;
