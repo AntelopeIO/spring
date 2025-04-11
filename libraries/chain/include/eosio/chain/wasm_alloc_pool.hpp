@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eosio/chain/config.hpp>
 #include <eosio/vm/allocator.hpp>
 #include <boost/lockfree/stack.hpp>
 
@@ -46,7 +47,7 @@ private:
    uint32_t num_threads    = 1; // `1` for the main thread
    uint32_t max_call_depth = 1; // prior to sync call protocol feature activated
 
-   std::unique_ptr<boost::lockfree::stack<vm::wasm_allocator*>> stack;
+   boost::lockfree::stack<vm::wasm_allocator*> stack {config::default_max_sync_call_depth};
 };
 
 }  /// namespace eosio::chain

@@ -1,4 +1,3 @@
-#include <eosio/chain/config.hpp>
 #include <eosio/chain/wasm_alloc_pool.hpp>
 
 namespace eosio::chain {
@@ -9,13 +8,12 @@ wasm_alloc_pool::wasm_alloc_pool()
    , max_call_depth(1)
 {
    // create 1 wasm allocator for the main thread
-   stack = std::make_unique<boost::lockfree::stack<vm::wasm_allocator*>>(config::default_max_sync_call_depth);
-   stack->push(new vm::wasm_allocator);
+   stack.push(new vm::wasm_allocator);
 }
 
 wasm_alloc_pool::~wasm_alloc_pool() {
    vm::wasm_allocator* alloc;
-   while (stack->pop(alloc)) {
+   while (stack.pop(alloc)) {
       delete alloc;
    }
 }
@@ -24,10 +22,10 @@ wasm_alloc_pool::~wasm_alloc_pool() {
 vm::wasm_allocator* wasm_alloc_pool::acquire() {
    // Each thread can use at most `max_sync_call_depth` wasm allocators
    // The stack would never be empty for a new acquire request
-   assert(!stack->empty());
+   assert(!stack.empty());
 
    vm::wasm_allocator* alloc;
-   stack->pop(alloc);
+   stack.pop(alloc);
 
    assert(alloc);
    return alloc;
@@ -35,7 +33,7 @@ vm::wasm_allocator* wasm_alloc_pool::acquire() {
 
 // called on any threads
 void wasm_alloc_pool::release(vm::wasm_allocator* alloc) {
-   stack->push(alloc);
+   stack.push(alloc);
 }
 
 // called on main thread from producer_plugin startup number of read-only threads is determined
@@ -67,7 +65,7 @@ void wasm_alloc_pool::resize(uint32_t new_num_thread, uint32_t new_depth) {
 
    // add new allocators
    for (uint32_t i = 0u; i < num_new_allocs ; ++i) {
-      stack->push(new vm::wasm_allocator);
+      stack.push(new vm::wasm_allocator);
    }
 
    num_threads    = new_num_thread;
