@@ -3066,6 +3066,7 @@ void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fo
 // thread-safe, called when ctrl-c/SIGINT/SIGTERM/SIGPIPE is received
 void producer_plugin::interrupt() {
    fc_ilog(_log, "interrupt");
+   app().executor().stop(); // shutdown any blocking read_only_execution_task
    my->interrupt_read_only();
    if (my->_is_savanna_active) // interrupt during transition causes issues, so only allow after transition
       my->chain_plug->chain().interrupt_transaction();
@@ -3179,12 +3180,10 @@ void producer_plugin_impl::switch_to_read_window() {
             for (auto& task : _ro_exec_tasks_fut) {
                task.get();
             }
-            _ro_exec_tasks_fut.clear();
-            // will be executed from the main app thread because all read-only threads are idle now
-            switch_to_write_window();
-         } else {
-            _ro_exec_tasks_fut.clear();
          }
+         _ro_exec_tasks_fut.clear();
+         // will be executed from the main app thread because all read-only threads are idle now
+         switch_to_write_window();
       });
    });
 }
