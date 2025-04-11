@@ -126,8 +126,19 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    // Re-sign the block
    copy_b->producer_signature = t.get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
 
-   std::thread th( [&c=*other.control]() {
-      std::this_thread::sleep_for( std::chrono::milliseconds(50) );
+   std::promise<bool> block_start_promise;
+   std::future<bool> block_start_future = block_start_promise.get_future();
+   other.control->accepted_block_header().connect([&](const block_signal_params& t) {
+      block_start_promise.set_value(true);
+   });
+
+   std::thread th( [&c=*other.control, &block_start_future]() {
+      // wait for controller to accept block
+      if (block_start_future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+         elog("Timed out waiting for block start");
+         BOOST_FAIL("Timed out waiting for block start");
+      }
+      std::this_thread::sleep_for( std::chrono::milliseconds(100) );
       c.interrupt_apply_block_transaction();
    } );
 
