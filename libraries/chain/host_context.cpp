@@ -44,7 +44,8 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
    auto& trace = get_root_action_trace();
-   trace.call_traces.emplace_back(get_sync_call_ordinal(), get_sync_call_sender(), call_receiver, flags, data);
+   const bool read_only = flags & static_cast<uint64_t>(sync_call_flags::read_only);
+   trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
 
    uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).ordinal = ordinal;
@@ -61,7 +62,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    auto handle_call_failure = [&]()
    {
       auto& call_trace = get_call_trace(ordinal);
-      call_trace.return_value_size_or_error_id = -1;
+      call_trace.error_id = -1;
       finalize_call_trace(call_trace, start);
       trx_context.checktime();
       return -1;
@@ -97,7 +98,15 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             // use a new sync_call_context for next sync call
             sync_call_context call_ctx(control, trx_context, ordinal, get_root_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
 
+            if (control.contracts_console()) {
+               // only do this when console log is enabled; otherwise
+               // we will have a non-empty console markers vector with an empty console string
+               store_console_marker();
+            }
+
+            // execute the sync call
             auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+
             if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
                return handle_call_failure();
             }
@@ -106,7 +115,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             last_sync_call_return_value = std::move(call_ctx.return_value);
             return_value_size = last_sync_call_return_value.size();
          } catch( const wasm_exit&) {}
-      } FC_RETHROW_EXCEPTIONS(warn, "sync call exception on ${receiver}", ("receiver", call_receiver))
+      } FC_RETHROW_EXCEPTIONS(warn, "sync call exception ${receiver} <= ${sender} console output: ${console}", ("receiver", call_receiver)("sender", get_sync_call_sender())("console", get_call_trace(ordinal).console))
    } catch (const std::bad_alloc&) {
       throw;
    } catch (const boost::interprocess::bad_alloc&) {
@@ -120,7 +129,6 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
    auto& call_trace = get_call_trace(ordinal);  // call_traces vector can be resized. Get the updated reference to the call trace
 
-   call_trace.return_value_size_or_error_id = return_value_size;
    call_trace.return_value = last_sync_call_return_value;
    finalize_call_trace(call_trace, start);
 
@@ -139,8 +147,6 @@ sync_call_trace& host_context::get_call_trace(uint32_t ordinal) {
 }
 
 void host_context::finalize_call_trace(sync_call_trace& trace, const fc::time_point& start) {
-   // Will copy console text in next PR
-
    trace.elapsed = fc::time_point::now() - start;
 }
 

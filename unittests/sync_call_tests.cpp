@@ -1739,9 +1739,8 @@ BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
 
    BOOST_REQUIRE_EQUAL(call_trace.ordinal, 1u);
    BOOST_REQUIRE_EQUAL(call_trace.sender_ordinal, 0u);
-   BOOST_REQUIRE_EQUAL(call_trace.sender.to_string(), "caller");    // hardcodied in test contracts
    BOOST_REQUIRE_EQUAL(call_trace.receiver.to_string(), "callee");  // hardcodied
-   BOOST_REQUIRE_EQUAL(call_trace.flags, 0ull);                     // hardcodied
+   BOOST_REQUIRE_EQUAL(call_trace.read_only, false);                     // hardcodied
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(call_trace.data), 10u); // test contract passes in 10
    BOOST_REQUIRE_GT(call_trace.elapsed.count(), 0u);                // elpased should be at least greater than 0 microsecond
    BOOST_REQUIRE_EQUAL(call_trace.console.empty(), true);           // No prints in test contracts
@@ -2015,6 +2014,258 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
    BOOST_REQUIRE_EQUAL(*action_trace[0].error_code, *call_trace1.error_code);
    BOOST_REQUIRE_EQUAL(action_trace[0].except->code(), call_trace1.except->code());
 
+} FC_LOG_AND_RETHROW() }
+
+// Call prints hierachy:
+//    action (caller) {
+//       print("action: before callee1, ");
+//       callee1() {
+//          print("callee1: before callee11, ");
+//          callee11() {
+//             print("this is callee11");
+//          }
+//          print("callee1: after callee11");
+//       }
+//       print("action: after callee1, before callee2, ")
+//       callee2() {
+//          print("this is callee2");
+//       }
+//       print("action: after callee2")
+//    }
+static const char console_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
+
+   (global $callee1  i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
+   (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
+   (global $callee2  i64 (i64.const 4729647296285769728)) ;; "calllee2"_n uint64 value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $prints_l (i32.const 0)(i32.const 24))  ;; prints the first string
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 0)))
+      (call $prints_l (i32.const 24)(i32.const 34)) ;; the second one
+      (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 0)))
+      (call $prints_l (i32.const 58)(i32.const 21)) ;; the third one
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 0)
+      "action: before callee1, "           ;; length 24
+      "action: after and before callee2, " ;; length 34
+      "action: after callee2"              ;; length 21
+   )
+)
+)=====";
+
+static const char console_callee1_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
+
+   (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 26))
+      (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 0)))
+      (call $prints_l (i32.const 26)(i32.const 23))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0)
+      "callee1: before callee11, " ;; length 26
+      "callee1: after callee11"    ;; length 23
+   )
+)
+)=====";
+
+static const char console_callee11_wast[] = R"=====(
+(module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 16))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0)
+      "this is callee11"
+   )
+)
+)=====";
+
+static const char console_callee2_wast[] = R"=====(
+(module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 15))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0)
+      "this is callee2"
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(console_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   account_name caller;
+   create_one_account_and_set_code(console_caller_wast, caller, t);
+
+   const auto& callee1 = account_name("callee1");
+   t.create_account(callee1);
+   t.set_code(callee1, console_callee1_wast);
+
+   const auto& callee11 = account_name("callee11");
+   t.create_account(callee11);
+   t.set_code(callee11, console_callee11_wast);
+
+   const auto& callee2 = account_name("callee2");
+   t.create_account(callee2);
+   t.set_code(callee2, console_callee2_wast);
+
+   auto  trx_trace    = t.push_action(caller, "doit"_n, caller, {});
+   auto& action_trace = trx_trace->action_traces[0];
+
+   BOOST_REQUIRE_EQUAL(action_trace.console, "action: before callee1, action: after and before callee2, action: after callee2");
+   BOOST_REQUIRE((action_trace.console_markers == std::vector<fc::unsigned_int>{24, 58})); // console position is 24 when callee1 starts, 58 when callee2 starts
+
+   auto& call_traces  = action_trace.call_traces;
+
+   auto& call_trace1 = call_traces[0];
+   BOOST_REQUIRE_EQUAL(call_trace1.console, "callee1: before callee11, callee1: after callee11");
+   BOOST_REQUIRE((call_trace1.console_markers == std::vector<fc::unsigned_int>{26}));
+
+   auto& call_trace11 = call_traces[1];
+   BOOST_REQUIRE_EQUAL(call_trace11.console, "this is callee11");
+   BOOST_REQUIRE(call_trace11.console_markers.empty());
+
+   auto& call_trace2 = call_traces[2];
+   BOOST_REQUIRE_EQUAL(call_trace2.console, "this is callee2");
+   BOOST_REQUIRE(call_trace2.console_markers.empty());
+} FC_LOG_AND_RETHROW() }
+
+// There are no prints before the sync call. The value of marker should be 0.
+static const char no_prints_before_synccall_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
+
+   (global $callee1  i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 0)))
+      (call $prints_l (i32.const 0)(i32.const 21))
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 0)
+      "action: after callee1"  ;; length 21
+   )
+)
+)=====";
+
+static const char no_prints_before_synccall_callee_wast[] = R"=====(
+(module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 12))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0) "I am callee1")  ;; length 12
+)
+)=====";
+
+// Verify the value of marker should be 0 it there are no prints before the sync call.
+BOOST_AUTO_TEST_CASE(no_prints_before_synccall_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   account_name caller;
+   create_one_account_and_set_code(no_prints_before_synccall_caller_wast, caller, t);
+
+   const auto& callee1 = account_name("callee1");
+   t.create_account(callee1);
+   t.set_code(callee1, no_prints_before_synccall_callee_wast);
+
+   auto  trx_trace    = t.push_action(caller, "doit"_n, caller, {});
+   auto& action_trace = trx_trace->action_traces[0];
+
+   BOOST_REQUIRE_EQUAL(action_trace.console, "action: after callee1");
+   BOOST_REQUIRE((action_trace.console_markers == std::vector<fc::unsigned_int>{0}));  // no prints prior to the sync call, the marker should be 0
+
+   auto& call_traces  = action_trace.call_traces;
+
+   auto& call_trace1 = call_traces[0];
+   BOOST_REQUIRE_EQUAL(call_trace1.console, "I am callee1");
+   BOOST_REQUIRE(call_trace1.console_markers.empty());
+} FC_LOG_AND_RETHROW() }
+
+// Verify console markers are empty if `contracts-console` is not enabled
+BOOST_AUTO_TEST_CASE(contract_console_not_enabled_test) { try {
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+   auto& cfg = conf_genesis.first;
+
+   // disable contracts_console
+   cfg.contracts_console  = false;
+
+   tester t( conf_genesis.first, conf_genesis.second );
+
+   t.execute_setup_policy( setup_policy::full );
+   t.produce_block();
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, no_prints_before_synccall_caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee1 = account_name("callee1");
+   t.create_account(callee1);
+   t.set_code(callee1, no_prints_before_synccall_callee_wast);
+
+   auto  trx_trace    = t.push_action(caller, "doit"_n, caller, {});
+   auto& action_trace = trx_trace->action_traces[0];
+
+   BOOST_REQUIRE(action_trace.console.empty());
+   BOOST_REQUIRE(action_trace.console_markers.empty());
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

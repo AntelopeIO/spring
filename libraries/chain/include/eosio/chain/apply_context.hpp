@@ -59,10 +59,8 @@ class apply_context : public host_context {
    /// Console methods:
    public:
 
-      void console_append( std::string_view val ) override {
-         _pending_console_output += val;
-      }
-
+      void console_append( std::string_view val ) override;
+      void store_console_marker() override;
       void update_db_usage( const account_name& payer, int64_t delta ) override;
 
    /// Misc methods:
@@ -104,7 +102,6 @@ class apply_context : public host_context {
       vector< std::pair<account_name, uint32_t> > _notified; ///< keeps track of new accounts to be notifed of current message
       vector<uint32_t>                    _inline_actions; ///< action_ordinals of queued inline actions
       vector<uint32_t>                    _cfa_inline_actions; ///< action_ordinals of queued inline context-free actions
-      std::string                         _pending_console_output;
       flat_set<account_delta>             _account_ram_deltas; ///< flat_set of account_delta so json is an array of objects
 
       //bytes                               _cached_trx;

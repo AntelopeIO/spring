@@ -528,9 +528,7 @@ public:
 
    /// Console methods:
    
-   virtual void console_append( std::string_view val ) {
-      _pending_console_output += val;
-   }
+   virtual void console_append( std::string_view val ) = 0;
 
    /// Database methods:
 
@@ -580,6 +578,7 @@ public:
    virtual action_trace& get_root_action_trace() = 0;
    virtual uint32_t get_sync_call_ordinal() = 0;
    sync_call_trace& get_call_trace(uint32_t ordinal);
+   virtual void store_console_marker() = 0;
 
    /// Execution methods:
 
@@ -612,7 +611,6 @@ public:
 private:
    // act pointer may be invalidated on call to trx_context.schedule_action
    iterator_cache<key_value_object>    keyval_cache;
-   std::string                         _pending_console_output;
 };
 
 } } // namespace eosio::chain
