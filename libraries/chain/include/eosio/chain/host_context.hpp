@@ -504,7 +504,7 @@ public:
    virtual void require_authorization(const account_name& account, const permission_name& permission) { assert(false); }
 
 private:
-   void finalize_call_trace(sync_call_trace& trace, const fc::time_point& start);
+   void finalize_call_trace(call_trace& trace, const fc::time_point& start);
 
 public:
    /**
@@ -577,7 +577,7 @@ public:
    virtual void set_call_return_value(std::span<const char> return_value) {};
    virtual action_trace& get_root_action_trace() = 0;
    virtual uint32_t get_sync_call_ordinal() = 0;
-   sync_call_trace& get_call_trace(uint32_t ordinal);
+   call_trace& get_call_trace(uint32_t ordinal);
    virtual void store_console_marker() = 0;
 
    /// Execution methods:
