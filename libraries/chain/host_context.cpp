@@ -138,7 +138,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    return return_value_size;
 }
 
-sync_call_trace& host_context::get_call_trace(uint32_t ordinal) {
+call_trace& host_context::get_call_trace(uint32_t ordinal) {
    auto& act_trace = get_root_action_trace();
 
    assert(0 < ordinal && ordinal <= act_trace.call_traces.size());
@@ -146,7 +146,7 @@ sync_call_trace& host_context::get_call_trace(uint32_t ordinal) {
    return act_trace.call_traces[ordinal - 1];
 }
 
-void host_context::finalize_call_trace(sync_call_trace& trace, const fc::time_point& start) {
+void host_context::finalize_call_trace(call_trace& trace, const fc::time_point& start) {
    trace.elapsed = fc::time_point::now() - start;
 }
 

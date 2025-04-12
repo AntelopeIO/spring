@@ -19,8 +19,8 @@ namespace eosio::chain {
    struct transaction_trace;
    using transaction_trace_ptr = std::shared_ptr<transaction_trace>;
 
-   struct sync_call_trace {
-      sync_call_trace(uint32_t sender_ordinal, account_name receiver, bool read_only, std::span<const char> data)
+   struct call_trace {
+      call_trace(uint32_t sender_ordinal, account_name receiver, bool read_only, std::span<const char> data)
          : sender_ordinal(sender_ordinal)
          , receiver(receiver)
          , read_only(read_only)
@@ -103,10 +103,10 @@ namespace eosio::chain {
       std::optional<uint64_t>         error_code;
       std::vector<char>               return_value;
 
-      // sync calls made by the action
-      std::vector<sync_call_trace>    call_traces;
+      // all the traces of sync calls made by the action
+      std::vector<call_trace>    call_traces;
 
-      // similar to console_markers in sync_call_trace, identify positions
+      // similar to console_markers in call_trace, identify positions
       // of sync calls made by the action in console log
       std::vector<fc::unsigned_int>   console_markers;
 
@@ -193,10 +193,10 @@ namespace eosio::chain {
 FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
 
-FC_REFLECT( eosio::chain::sync_call_trace,
-              (ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
-              (console)(console_markers)(except) (error_code)
-              (error_id)(return_value) )
+FC_REFLECT( eosio::chain::call_trace,
+            (ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
+            (console)(console_markers)(except) (error_code)
+            (error_id)(return_value) )
 
 FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
