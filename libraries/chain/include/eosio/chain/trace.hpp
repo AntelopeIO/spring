@@ -31,7 +31,7 @@ namespace eosio::chain {
       // receiver's ordinal. A sequence number starting with 1, unique within
       // an action. It can be used to reference `call_trace` struct in `call_traces`
       // vector in `action_trace` struct.
-      fc::unsigned_int              ordinal = 1;
+      fc::unsigned_int              call_ordinal = 1;
 
       // sender's ordinal. If the caller is the action, sender_ordinal is 0.
       fc::unsigned_int              sender_ordinal = 0;
@@ -104,7 +104,7 @@ namespace eosio::chain {
       std::vector<char>               return_value;
 
       // all the traces of sync calls made by the action
-      std::vector<call_trace>    call_traces;
+      std::vector<call_trace>         call_traces;
 
       // similar to console_markers in call_trace, identify positions
       // of sync calls made by the action in console log
@@ -194,9 +194,8 @@ FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
 
 FC_REFLECT( eosio::chain::call_trace,
-            (ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
-            (console)(console_markers)(except) (error_code)
-            (error_id)(return_value) )
+            (call_ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
+            (console)(console_markers)(except)(error_code)(error_id)(return_value) )
 
 FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
