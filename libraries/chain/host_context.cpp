@@ -48,7 +48,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
 
    uint32_t ordinal = trace.call_traces.size();
-   get_call_trace(ordinal).ordinal = ordinal;
+   get_call_trace(ordinal).call_ordinal = ordinal;
 
    auto handle_exception = [&](const auto& e)
    {

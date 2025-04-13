@@ -1737,7 +1737,7 @@ BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
    BOOST_REQUIRE_EQUAL(call_traces.size(), 1u);
    auto& call_trace  = call_traces[0];
 
-   BOOST_REQUIRE_EQUAL(call_trace.ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(call_trace.call_ordinal, 1u);
    BOOST_REQUIRE_EQUAL(call_trace.sender_ordinal, 0u);
    BOOST_REQUIRE_EQUAL(call_trace.receiver.to_string(), "callee");  // hardcodied
    BOOST_REQUIRE_EQUAL(call_trace.read_only, false);                     // hardcodied
@@ -1858,17 +1858,17 @@ BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
    BOOST_REQUIRE_EQUAL(call_traces.size(), 3u);
 
    auto& trace_1 = call_traces[0];
-   BOOST_REQUIRE_EQUAL(trace_1.ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(trace_1.call_ordinal, 1u);
    BOOST_REQUIRE_EQUAL(trace_1.sender_ordinal, 0u);
    BOOST_REQUIRE_EQUAL(std::string(trace_1.return_value.begin(), trace_1.return_value.end()), "I am callee1");
 
    auto& trace_11 = call_traces[1];
-   BOOST_REQUIRE_EQUAL(trace_11.ordinal, 2u);
+   BOOST_REQUIRE_EQUAL(trace_11.call_ordinal, 2u);
    BOOST_REQUIRE_EQUAL(trace_11.sender_ordinal, 1u);
    BOOST_REQUIRE_EQUAL(std::string(trace_11.return_value.begin(), trace_11.return_value.end()), "I am callee11");
 
    auto& trace_2 = call_traces[2];
-   BOOST_REQUIRE_EQUAL(trace_2.ordinal, 3u);
+   BOOST_REQUIRE_EQUAL(trace_2.call_ordinal, 3u);
    BOOST_REQUIRE_EQUAL(trace_2.sender_ordinal, 0u);
    BOOST_REQUIRE_EQUAL(std::string(trace_2.return_value.begin(), trace_2.return_value.end()), "I am callee2");
 } FC_LOG_AND_RETHROW() }
@@ -1994,7 +1994,7 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
 
    // exception originated in the sync call "callee1"_n --> "callee11"_n
    auto& call_trace2 = action_trace[0].call_traces[1];
-   BOOST_REQUIRE_EQUAL(call_trace2.ordinal, 2u);
+   BOOST_REQUIRE_EQUAL(call_trace2.call_ordinal, 2u);
    BOOST_REQUIRE(call_trace2.error_code);
    BOOST_REQUIRE(call_trace2.except);
    BOOST_REQUIRE_EQUAL(*call_trace2.error_code, static_cast<uint64_t>(system_error_code::generic_system_error));
@@ -2002,7 +2002,7 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
 
    // propagated the sync call "callee"_n --> "callee1"_n
    auto& call_trace1 = action_trace[0].call_traces[0];
-   BOOST_REQUIRE_EQUAL(call_trace1.ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(call_trace1.call_ordinal, 1u);
    BOOST_REQUIRE(call_trace1.error_code);
    BOOST_REQUIRE(call_trace1.except);
    BOOST_REQUIRE_EQUAL(*call_trace1.error_code, *call_trace2.error_code);
