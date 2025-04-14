@@ -43,7 +43,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
-   auto& trace = get_root_action_trace();
+   auto& trace = get_current_action_trace();
    const bool read_only = flags & static_cast<uint64_t>(sync_call_flags::read_only);
    trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
 
@@ -96,7 +96,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, ordinal, get_root_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
+            sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
 
             if (control.contracts_console()) {
                // only do this when console log is enabled; otherwise
@@ -139,7 +139,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 }
 
 call_trace& host_context::get_call_trace(uint32_t ordinal) {
-   auto& act_trace = get_root_action_trace();
+   auto& act_trace = get_current_action_trace();
 
    assert(0 < ordinal && ordinal <= act_trace.call_traces.size());
 

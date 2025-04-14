@@ -44,7 +44,7 @@ apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint
 ,first_receiver_action_ordinal(action_ordinal)
 ,action_ordinal(action_ordinal)
 {
-   action_trace& trace = trx_ctx.get_action_trace(action_ordinal);
+   action_trace& trace = get_current_action_trace();
    act = &trace.act;
    receiver = trace.receiver;
    context_free = trace.context_free;
@@ -60,7 +60,7 @@ void apply_context::exec_one()
 
    auto handle_exception = [&](const auto& e)
    {
-      action_trace& trace = trx_context.get_action_trace( action_ordinal );
+      action_trace& trace = get_current_action_trace();
       trace.error_code = controller::convert_exception_to_error_code( e );
       trace.except = e;
       finalize_trace( trace, start );
@@ -121,7 +121,7 @@ void apply_context::exec_one()
                }
             }
          }
-      } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} console output: ${console}", ("console", trx_context.get_action_trace( action_ordinal ).console)("account", act->account)("action", act->name)("receiver", receiver) )
+      } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} console output: ${console}", ("console", get_current_action_trace().console)("account", act->account)("action", act->name)("receiver", receiver) )
 
       if( control.is_builtin_activated( builtin_protocol_feature_t::action_return_value ) ) {
          act_digest =   generate_action_digest(
@@ -150,7 +150,7 @@ void apply_context::exec_one()
    //    * a pointer to an object in a chainbase index is not invalidated if the fields of that object are modified;
    //    * and, the *receiver_account object itself cannot be removed because accounts cannot be deleted in EOSIO.
 
-   action_trace& trace = trx_context.get_action_trace( action_ordinal );
+   action_trace& trace = get_current_action_trace();
    trace.return_value  = std::move(action_return_value);
    trace.receipt.emplace();
 
@@ -197,12 +197,12 @@ void apply_context::finalize_trace( action_trace& trace, const fc::time_point& s
 }
 
 void apply_context::console_append(std::string_view val) {
-   action_trace& trace = trx_context.get_action_trace(action_ordinal);
+   action_trace& trace = get_current_action_trace();
    trace.console += val;
 }
 
 void apply_context::store_console_marker() {
-   action_trace& trace = trx_context.get_action_trace(action_ordinal);
+   action_trace& trace = get_current_action_trace();
    // Mark the starting point of upcoming sync call's console log
    // when constructing coonsole log hierarchy in pretty printing
    trace.console_markers.emplace_back(trace.console.size());
@@ -630,7 +630,7 @@ uint32_t apply_context::schedule_action( uint32_t ordinal_of_action_to_schedule,
                                                                     receiver, context_free,
                                                                     action_ordinal, first_receiver_action_ordinal );
 
-   act = &trx_context.get_action_trace( action_ordinal ).act;
+   act = &get_current_action_trace().act;
    return scheduled_action_ordinal;
 }
 
@@ -640,7 +640,7 @@ uint32_t apply_context::schedule_action( action&& act_to_schedule, account_name 
                                                                     receiver, context_free,
                                                                     action_ordinal, first_receiver_action_ordinal );
 
-   act = &trx_context.get_action_trace( action_ordinal ).act;
+   act = &get_current_action_trace().act;
    return scheduled_action_ordinal;
 }
 
@@ -741,7 +741,7 @@ void apply_context::add_ram_usage( account_name account, int64_t ram_delta ) {
 }
 
 action_name apply_context::get_sender() const {
-   const action_trace& trace = trx_context.get_action_trace( action_ordinal );
+   const action_trace& trace = get_current_action_trace();
    if (trace.creator_action_ordinal > 0) {
       const action_trace& creator_trace = trx_context.get_action_trace( trace.creator_action_ordinal );
       return creator_trace.receiver;

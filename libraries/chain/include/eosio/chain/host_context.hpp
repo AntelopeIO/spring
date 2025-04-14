@@ -575,7 +575,7 @@ public:
    virtual bool is_sync_call() const { return false; }
    virtual uint32_t get_call_data(std::span<char> memory) const { return 0; };
    virtual void set_call_return_value(std::span<const char> return_value) {};
-   virtual action_trace& get_root_action_trace() = 0;
+   virtual action_trace& get_current_action_trace() const = 0;
    virtual uint32_t get_sync_call_ordinal() = 0;
    call_trace& get_call_trace(uint32_t ordinal);
    virtual void store_console_marker() = 0;
