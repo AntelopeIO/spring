@@ -35,7 +35,6 @@ BOOST_FIXTURE_TEST_CASE( getpeerkeys_test, getpeerkeys_tester ) { try {
 
    auto peerkeys = control->get_top_producer_keys(fc::time_point::maximum()); // call readonly action from controller
    BOOST_REQUIRE_EQUAL(peerkeys.size(), 21);
-   //BOOST_REQUIRE(peerkeys == control->get_top_producer_keys()); // call readonly action from controller
 
    size_t num_found = 0;
    for (size_t i=0; i<prod_names.size(); ++i) {
