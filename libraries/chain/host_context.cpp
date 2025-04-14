@@ -47,6 +47,15 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    const bool read_only = flags & static_cast<uint64_t>(sync_call_flags::read_only);
    trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
 
+   // Only do this when console log is enabled; otherwise we will have a non-empty
+   // console markers vector with an empty console string.
+   // But if we do need to have markers, the number of markers must be the same as
+   // the number of sync call traces. That's why we store the marker right after
+   // the sync call trace was created.
+   if (control.contracts_console()) {
+      store_console_marker();
+   }
+
    uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).call_ordinal = ordinal;
 
@@ -97,12 +106,6 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
          try {
             // use a new sync_call_context for next sync call
             sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
-
-            if (control.contracts_console()) {
-               // only do this when console log is enabled; otherwise
-               // we will have a non-empty console markers vector with an empty console string
-               store_console_marker();
-            }
 
             // execute the sync call
             auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
