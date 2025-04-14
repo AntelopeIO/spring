@@ -1769,6 +1769,7 @@ static const char trace_caller_wast[] = R"=====(
 // "callee1"_n calls "callee11"_n
 static const char trace_callee1_wast[] = R"=====(
 (module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
@@ -1776,6 +1777,7 @@ static const char trace_callee1_wast[] = R"=====(
 
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 12))
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
       (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee1" 12
    )
@@ -1791,11 +1793,13 @@ static const char trace_callee1_wast[] = R"=====(
 // "callee11"_n just returns `I am callee11`
 static const char trace_callee11_wast[] = R"=====(
 (module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 13))
       (call $set_call_return_value (i32.const 0)(i32.const 13)) ;; size of "I am callee11" 13
    )
 
@@ -1810,11 +1814,13 @@ static const char trace_callee11_wast[] = R"=====(
 // "callee2"_n just returns `I am callee2`
 static const char trace_callee2_wast[] = R"=====(
 (module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $prints_l (i32.const 0)(i32.const 12))
       (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee2" 12
    )
 
