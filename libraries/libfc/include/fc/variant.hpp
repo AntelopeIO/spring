@@ -595,7 +595,7 @@ namespace fc
       variants vars(2);
       vars[0] = fc::variant(t.first);
       vars[1] = fc::variant(t.second);
-       v = std::move(vars);
+      v = std::move(vars);
    }
 
    /** @ingroup Serializable */
