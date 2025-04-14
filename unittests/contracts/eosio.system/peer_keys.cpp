@@ -50,6 +50,10 @@ peer_keys::getpeerkeys_res_t peer_keys::getpeerkeys() {
 
    auto idx = producers.get_index<"prototalvote"_n>();
 
+   // this is a simpler implementation than the one in `eos-system-contracts`.
+   // the one in `eos-system-contracts` iterates over both ends of the "prototalvote"_n index
+   // (to take into account non-active producers)
+   // ----------------------------------------------------------------------------------------
    for( auto it = idx.cbegin(); it != idx.cend() && resp.size() < max_return; ++it ) {
       auto peers_itr = peer_keys_table.find(it->owner.value);
       if (peers_itr == peer_keys_table.end())
