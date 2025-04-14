@@ -224,7 +224,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
                     ("t", temp_path.generic_string())("p", pending_path.generic_string())
                     ("bn", head_block_num)("ec", ec.value())("message", ec.message()));
          ilog("Snapshot creation at block ${bn} complete; snapshot will be available once block becomes irreversible", ("bn", head_block_num));
-         _pending_snapshot_index.emplace(head_id, next, pending_path.generic_string(), snapshot_path.generic_string());
+         _pending_snapshot_index.emplace(head_id, head_block_time, next, pending_path.generic_string(), snapshot_path.generic_string());
          add_pending_snapshot_info(snapshot_information{head_id, head_block_num, head_block_time, chain_snapshot_header::current_version, pending_path.generic_string()});
       }
       CATCH_AND_CALL(next);
