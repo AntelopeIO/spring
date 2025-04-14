@@ -376,7 +376,7 @@ namespace impl {
       static void add( mutable_variant_object &mvo, const char* name, const vector<M>& v, const Resolver& resolver, abi_traverse_context& ctx )
       {
          auto h = ctx.enter_scope();
-         vector<fc::variant> array;
+         fc::variants array;
          array.reserve(v.size());
 
          for (const auto& iter: v) {
@@ -664,7 +664,7 @@ namespace impl {
          flat_multimap<uint16_t, block_header_extension> header_exts = block.validate_and_extract_header_extensions();
          if (auto it = header_exts.find(protocol_feature_activation::extension_id()); it != header_exts.end()) {
             const auto& new_protocol_features = std::get<protocol_feature_activation>(it->second).protocol_features;
-            vector<fc::variant> pf_array;
+            fc::variants pf_array;
             pf_array.reserve(new_protocol_features.size());
             for (auto feature : new_protocol_features) {
                mutable_variant_object feature_mvo;

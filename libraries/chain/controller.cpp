@@ -6202,6 +6202,10 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
+platform_timer& controller::get_thread_local_timer() {
+    return my->timer;
+}
+
 void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
    my->set_node_finalizer_keys(finalizer_keys);
 }
