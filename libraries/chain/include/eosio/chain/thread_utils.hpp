@@ -319,7 +319,7 @@ namespace eosio { namespace chain {
 
    // async on io_context and return future
    template<typename F>
-   std::future<std::invoke_result_t<std::decay_t<F>>> post_async_task( boost::asio::io_context& ioc, F&& f ) {
+   auto post_async_task( boost::asio::io_context& ioc, F&& f ) {
       return boost::asio::post( ioc, boost::asio::use_future(std::forward<F>(f)) );
    }
 
