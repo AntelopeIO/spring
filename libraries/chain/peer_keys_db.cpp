@@ -17,8 +17,8 @@ peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_r
    if (!_active || v.empty())
       return {};
    
-   // create hash_map of current top-50
-   // ---------------------------------
+   // create hash_map of current top selected producers (according to "getpeerkeys"_n in system contracts)
+   // ----------------------------------------------------------------------------------------------------
    peer_key_map_t current;
    for (size_t i=0; i<v.size(); ++i)
       current[v[i].producer_name] = peer_info_t{static_cast<uint32_t>(i), v[i].peer_key};
@@ -26,8 +26,8 @@ peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_r
    fc::lock_guard g(_m);
    new_peers_t res;
 
-   // update ranking of those removed from top-50
-   // -------------------------------------------
+   // update ranking of those removed from top selected producers
+   // -----------------------------------------------------------
    for (auto& pi : _peer_info_map) {
       if (!current.contains(pi.first)) {
          pi.second.rank = std::numeric_limits<uint32_t>::max();

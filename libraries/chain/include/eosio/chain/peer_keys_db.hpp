@@ -22,15 +22,15 @@ public:
 
    // must be called from main thread
    // return the new peers either:
-   //  - added to the top-50
-   //  - removed from the top-50
+   //  - added to the top selected producers (according to "getpeerkeys"_n in system contracts)
+   //  - removed from the top selected producers
    //  - whose key changed
    // since the last call to update_peer_keys
    // ---------------------------------------
    new_peers_t update_peer_keys(const getpeerkeys_res_t& v);
 
    // safe to be called from any thread
-   // peers no longer in top-50 will have a rank of std::numeric_limits<uint32_t>::max()
+   // peers no longer in top selected producers will have a rank of std::numeric_limits<uint32_t>::max()
    // ----------------------------------------------------------------------------------
    peer_info_t get_peer_info(name n) const;
 
