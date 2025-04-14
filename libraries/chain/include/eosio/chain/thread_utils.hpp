@@ -137,7 +137,7 @@ namespace eosio { namespace chain {
    class named_thread_pool {
    public:
       using on_except_t = std::function<void(const fc::exception& e)>;
-      using init_t = std::function<void()>;
+      using init_t = std::function<void(size_t)>; // init is passed the thread pool index
 
       named_thread_pool() = default;
 
@@ -190,12 +190,14 @@ namespace eosio { namespace chain {
       /// not thread safe, expected to only be called from thread that called start()
       void stop() {
          if (_thread_pool.size() > 0) {
+            tlog("stoping ${i}", ("i", boost::core::demangle(typeid(this).name())));
             _ioc_work.reset();
             _ioc.stop();
             for( auto& t : _thread_pool ) {
                t.join();
             }
             _thread_pool.clear();
+            tlog("stopped ${i}", ("i", boost::core::demangle(typeid(this).name())));
          }
       }
 
@@ -218,7 +220,7 @@ namespace eosio { namespace chain {
             try {
                tn = set_current_thread_name_to_typename( typeid(this), i );
                if ( init )
-                  init();
+                  init(i);
             } FC_LOG_AND_RETHROW()
          }
          catch( ... ) {
