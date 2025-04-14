@@ -3385,7 +3385,7 @@ struct controller_impl {
       return onblock_trace;
    } /// start_block
 
-   void run_readonly_transactions(fc::time_point deadline) {
+   void update_nodeos_state_from_chainbase_using_readonly_transactions(fc::time_point deadline) {
       try {
          // update peer public keys from chainbase db using a readonly trx
          auto block_num = chain_head.block_num();
@@ -5339,8 +5339,8 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
                            bs, std::optional<block_id_type>(), deadline );
 }
 
-void controller::run_readonly_transactions(fc::time_point deadline) {
-   my->run_readonly_transactions(deadline);
+void controller::update_nodeos_state_from_chainbase_using_readonly_transactions(fc::time_point deadline) {
+   my->update_nodeos_state_from_chainbase_using_readonly_transactions(deadline);
 }
 
 void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
