@@ -6,6 +6,7 @@
 #include <fc/scoped_exit.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/use_future.hpp>
 #include <future>
 #include <memory>
 #include <optional>
@@ -319,9 +320,7 @@ namespace eosio { namespace chain {
    // async on io_context and return future
    template<typename F>
    auto post_async_task( boost::asio::io_context& ioc, F&& f ) {
-      auto task = std::make_shared<std::packaged_task<decltype( f() )()>>( std::forward<F>( f ) );
-      boost::asio::post( ioc, [task]() { (*task)(); } );
-      return task->get_future();
+      return boost::asio::post( ioc, boost::asio::use_future(std::forward<F>(f)) );
    }
 
 } } // eosio::chain
