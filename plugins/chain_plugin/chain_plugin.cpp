@@ -2145,9 +2145,9 @@ void read_write::push_transaction(const read_write::push_transaction_params& par
                                              act_trace.get_object() );
                   }
 
-                  std::function<vector<fc::variant>(uint32_t)> convert_act_trace_to_tree_struct =
+                  std::function<fc::variants(uint32_t)> convert_act_trace_to_tree_struct =
                   [&](uint32_t closest_unnotified_ancestor_action_ordinal) {
-                     vector<fc::variant> restructured_act_traces;
+                     fc::variants restructured_act_traces;
                      auto it = act_traces_map.lower_bound(
                                  std::make_pair( closest_unnotified_ancestor_action_ordinal, 0)
                      );
