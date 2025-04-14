@@ -37,8 +37,7 @@ public:
       auto lib_num = chain::block_header::num_from_id(lib_id);
       auto block_num = chain::block_header::num_from_id(block_id);
 
-      EOS_ASSERT(lib_num >= block_num, chain::snapshot_finalization_exception,
-                 "finalize called for non-irreversible block ${bn}:${bid}", ("bn", block_num)("bid", block_id));
+      assert(lib_num >= block_num);
 
       // finalize called before forkdb is pruned of non-irreversible blocks, so this can find a non-irreversible block
       auto block_ptr = chain.fetch_block_by_id(block_id);
