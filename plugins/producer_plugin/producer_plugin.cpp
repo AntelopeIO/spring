@@ -10,6 +10,7 @@
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/unapplied_transaction_queue.hpp>
 #include <eosio/chain/fork_database.hpp>
+#include <eosio/chain/platform_timer.hpp>
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
 #include <fc/io/json.hpp>
@@ -679,6 +680,7 @@ public:
    void plugin_shutdown();
    void plugin_startup();
    void plugin_initialize(const boost::program_options::variables_map& options);
+   void interrupt_read_only();
 
    boost::program_options::variables_map _options;
    bool                                  _production_enabled = false;
@@ -795,6 +797,7 @@ public:
    static constexpr uint32_t         _ro_max_threads_allowed{128};
    static constexpr uint32_t         _ro_default_threads_nonproducer{3};
    named_thread_pool<struct read>    _ro_thread_pool;
+   std::vector<platform_timer*>      _ro_timers;
    fc::microseconds                  _ro_write_window_time_us{200000};
    fc::microseconds                  _ro_read_window_time_us{60000};
    static constexpr fc::microseconds _ro_read_window_minimum_time_us{10000};
@@ -863,11 +866,11 @@ public:
       }
    }
 
-   void on_irreversible_block(const signed_block_ptr& lib) {
+   void on_irreversible_block(const signed_block_ptr& lib, const block_id_type& block_id) {
       const chain::controller& chain = chain_plug->chain();
       EOS_ASSERT(chain.is_write_window(), producer_exception, "write window is expected for on_irreversible_block signal");
       _irreversible_block_time = lib->timestamp.to_time_point();
-      _snapshot_scheduler.on_irreversible_block(lib, chain);
+      _snapshot_scheduler.on_irreversible_block(lib, block_id, chain);
       if (!_is_savanna_active) {
          _is_savanna_active = lib->is_proper_svnn_block();
       }
@@ -1586,8 +1589,8 @@ void producer_plugin_impl::plugin_startup() {
          on_accepted_block_header(block);
       }));
       _irreversible_block_connection.emplace(chain.irreversible_block().connect([this](const block_signal_params& t) {
-         const auto& [ block, _ ] = t;
-         on_irreversible_block(block);
+         const auto& [ block, block_id ] = t;
+         on_irreversible_block(block, block_id);
       }));
 
       _block_start_connection.emplace(chain.block_start().connect([this, &chain](uint32_t bs) {
@@ -1610,10 +1613,9 @@ void producer_plugin_impl::plugin_startup() {
          _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
       }
 
-      const auto fork_db_root_num = chain.fork_db_root().block_num();
-      const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
-      if (fork_db_root) {
-         on_irreversible_block(fork_db_root);
+      const auto fork_db_root = chain.fork_db_root();
+      if (fork_db_root.block()) { // not available if starting from a snapshot
+         on_irreversible_block(fork_db_root.block(), fork_db_root.id());
 
          if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
             wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
@@ -1633,14 +1635,16 @@ void producer_plugin_impl::plugin_startup() {
       }
 
       if (_ro_thread_pool_size > 0) {
+         _ro_timers.resize(_ro_thread_pool_size);
          _ro_thread_pool.start(
             _ro_thread_pool_size,
             [](const fc::exception& e) {
                fc_elog(_log, "Exception in read-only thread pool, exiting: ${e}", ("e", e.to_detail_string()));
                app().quit();
             },
-            [&]() {
+            [&](size_t i) {
                chain.init_thread_local_data();
+               _ro_timers[i] = &chain.get_thread_local_timer();
             });
 
          _time_tracker.pause(); // start_write_window assumes time_tracker is paused
@@ -3053,6 +3057,25 @@ void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fo
    }
 }
 
+// thread-safe, called when ctrl-c/SIGINT/SIGTERM/SIGPIPE is received
+void producer_plugin::interrupt() {
+   fc_ilog(_log, "interrupt");
+   app().executor().stop(); // shutdown any blocking read_only_execution_task
+   my->interrupt_read_only();
+   my->chain_plug->chain().interrupt_apply_block_transaction();
+}
+
+void producer_plugin_impl::interrupt_read_only() {
+   // if read-only trx is going to finish in less than 250ms then might as well let it finish
+   if (!_ro_timers.empty() && _ro_max_trx_time_us > fc::milliseconds(250)) {
+      fc_ilog(_log, "interrupting read-only trxs");
+      for (auto& t : _ro_timers) {
+         assert(t);
+         t->interrupt_timer();
+      }
+   }
+}
+
 void producer_plugin::log_failed_transaction(const transaction_id_type&    trx_id,
                                              const packed_transaction_ptr& packed_trx_ptr,
                                              const char*                   reason) const {
@@ -3150,12 +3173,10 @@ void producer_plugin_impl::switch_to_read_window() {
             for (auto& task : _ro_exec_tasks_fut) {
                task.get();
             }
-            _ro_exec_tasks_fut.clear();
-            // will be executed from the main app thread because all read-only threads are idle now
-            switch_to_write_window();
-         } else {
-            _ro_exec_tasks_fut.clear();
          }
+         _ro_exec_tasks_fut.clear();
+         // will be executed from the main app thread because all read-only threads are idle now
+         switch_to_write_window();
       });
    });
 }
