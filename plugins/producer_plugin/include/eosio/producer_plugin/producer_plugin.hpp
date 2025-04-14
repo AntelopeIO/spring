@@ -58,7 +58,7 @@ public:
    };
 
    struct get_account_ram_corrections_result {
-      std::vector<fc::variant>     rows;
+      fc::variants                 rows;
       std::optional<account_name>  more;
    };
 
