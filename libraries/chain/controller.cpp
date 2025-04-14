@@ -1303,7 +1303,8 @@ struct controller_impl {
             std::make_shared<packed_transaction>(get_getpeerkeys_transaction()),
             transaction_metadata::trx_type::read_only);
 
-         auto trace = push_transaction(metadata, deadline, fc::microseconds::maximum(), 0, false, 0);
+         // allow a max of 20ms for getpeerkeys
+         auto trace = push_transaction(metadata, deadline, fc::milliseconds(20), 0, false, 0);
 
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
