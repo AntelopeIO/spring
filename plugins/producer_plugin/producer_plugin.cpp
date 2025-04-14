@@ -2356,7 +2356,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          // (typically every minute or so).
          // Currently the only update is the peer public_keys db (updated via "getpeerkeys"_n trx)
          // ---------------------------------------------------------------------------------------------
-         chain.update_nodeos_state_from_chainbase_using_readonly_transactions(preprocess_deadline);
+         chain.update_peer_keys(preprocess_deadline);
 
          if (!process_incoming_trxs(preprocess_deadline, incoming_itr))
             return start_block_result::exhausted;
