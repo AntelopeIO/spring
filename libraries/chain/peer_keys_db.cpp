@@ -26,12 +26,14 @@ peer_keys_db_t::new_peers_t peer_keys_db_t::update_peer_keys(const getpeerkeys_r
    fc::lock_guard g(_m);
    new_peers_t res;
 
-   // update ranking of those removed from top selected producers
-   // -----------------------------------------------------------
-   for (auto& pi : _peer_info_map) {
-      if (!current.contains(pi.first)) {
-         pi.second.rank = std::numeric_limits<uint32_t>::max();
-         res.insert(pi.first);
+   // remove those that aren't among the top producers anymore
+   // --------------------------------------------------------
+   for (auto it = _peer_info_map.begin(); it != _peer_info_map.end(); ) {
+      if (!current.contains(it->first)) {
+         res.insert(it->first);
+         it = _peer_info_map.erase(it);
+      } else {
+         ++it;
       }
    }
 
