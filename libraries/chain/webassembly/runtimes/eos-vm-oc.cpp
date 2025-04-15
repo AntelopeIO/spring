@@ -35,11 +35,16 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
          EOS_ASSERT(cd, wasm_execution_error, "EOS VM OC instantiation failed");
 
          if ( is_main_thread() ) {
+            auto cleanup = fc::make_scoped_exit([&](){
+               _eosvmoc_runtime.release_main_thread_exec_mem_index();
+            });
             auto i = _eosvmoc_runtime.acquire_main_thread_exec_mem_index();
             _eosvmoc_runtime.exec[i]->execute(*cd, *(_eosvmoc_runtime.mem[i]), context);
-            _eosvmoc_runtime.release_main_thread_exec_mem_index();
          }
          else {
+            auto cleanup = fc::make_scoped_exit([&](){
+               _eosvmoc_runtime.release_ro_thread_exec_mem_index();
+            });
             auto i = _eosvmoc_runtime.acquire_ro_thread_exec_mem_index();
             _eosvmoc_runtime.exec_thread_local[i]->execute(*cd, *(_eosvmoc_runtime.mem_thread_local[i]), context);
             _eosvmoc_runtime.release_ro_thread_exec_mem_index();
