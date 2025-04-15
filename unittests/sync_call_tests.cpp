@@ -1753,15 +1753,24 @@ BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
 // "caller"_n calls "callee1"_n and "callee2"_n sequentially
 static const char trace_caller_wast[] = R"=====(
 (module
+   (import "env" "prints_l" (func $prints_l (param i32 i32)))
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
-   (memory (export "memory") 1)
+
    (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
    (global $callee2 i64 (i64.const 4729647296285769728)) ;; "calllee2"_n uint64 value
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $prints_l (i32.const 0)(i32.const 22))
       (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 0)))
+      (call $prints_l (i32.const 22)(i32.const 22))
       (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 0)
+      "before calling callee1"
+      "before calling callee2"
    )
 )
 )=====";
