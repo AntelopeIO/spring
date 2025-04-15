@@ -85,14 +85,8 @@ namespace eosio { namespace chain {
       my->current_lib(lib);
    }
 
-   void wasm_interface::apply( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
-      if (substitute_apply && substitute_apply(code_hash, vm_type, vm_version, context))
-         return;
-      my->apply( code_hash, vm_type, vm_version, context );
-   }
-
-   sync_call_return_code wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
-      return my->do_sync_call( code_hash, vm_type, vm_version, context );
+   execution_status wasm_interface::execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
+      return my->execute( code_hash, vm_type, vm_version, context );
    }
 
    bool wasm_interface::is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const {

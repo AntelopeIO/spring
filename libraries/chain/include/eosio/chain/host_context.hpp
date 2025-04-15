@@ -599,6 +599,10 @@ public:
    generic_index<index_double_object>                             idx_double;
    generic_index<index_long_double_object>                        idx_long_double;
 
+   bool is_applying_block() const { return trx_context.explicit_billed_cpu_time; }
+   bool is_eos_vm_oc_whitelisted() const;
+   bool should_use_eos_vm_oc()const;
+
 private:
    // act pointer may be invalidated on call to trx_context.schedule_action
    iterator_cache<key_value_object>    keyval_cache;

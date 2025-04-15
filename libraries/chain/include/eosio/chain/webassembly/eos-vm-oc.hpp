@@ -3,7 +3,7 @@
 #include <eosio/chain/webassembly/common.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/webassembly/runtime_interface.hpp>
-#include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/host_context.hpp>
 #include <softfloat.hpp>
 #include "IR/Types.h"
 
@@ -33,15 +33,22 @@ class eosvmoc_runtime : public eosio::chain::wasm_runtime_interface {
                                                                              const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& ) override;
 
       void init_thread_local_data() override;
+      uint32_t acquire_main_thread_exec_mem_index();
+      void     release_main_thread_exec_mem_index();
+      uint32_t acquire_ro_thread_exec_mem_index();
+      void     release_ro_thread_exec_mem_index();
+
 
       friend eosvmoc_instantiated_module;
       eosvmoc::code_cache_sync cc;
-      eosvmoc::executor exec;
-      eosvmoc::memory mem;
+      std::vector<std::unique_ptr<eosvmoc::executor>> exec;
+      std::vector<std::unique_ptr<eosvmoc::memory>> mem;
+      uint32_t main_thread_index = 0;
 
       // Defined in eos-vm-oc.cpp. Used for non-main thread in multi-threaded execution
-      thread_local static std::unique_ptr<eosvmoc::executor> exec_thread_local;
-      thread_local static std::unique_ptr<eosvmoc::memory> mem_thread_local;
+      thread_local static std::vector<std::unique_ptr<eosvmoc::executor>> exec_thread_local;
+      thread_local static std::vector<std::unique_ptr<eosvmoc::memory>> mem_thread_local;
+      thread_local static uint32_t ro_thread_index;
 };
 
 /**
@@ -360,10 +367,10 @@ auto fn(A... a) {
 #pragma GCC diagnostic pop
 
       constexpr int cb_ctx_ptr_offset = OFFSET_OF_CONTROL_BLOCK_MEMBER(ctx);
-      apply_context* ctx;
-      asm("mov %%gs:%c[applyContextOffset], %[cPtr]\n"
+      host_context* ctx;
+      asm("mov %%gs:%c[hostContextOffset], %[cPtr]\n"
           : [cPtr] "=r" (ctx)
-          : [applyContextOffset] "i" (cb_ctx_ptr_offset)
+          : [hostContextOffset] "i" (cb_ctx_ptr_offset)
           );
       Interface host(*ctx);
       eos_vm_oc_type_converter tc{&host, eos_vm_oc_execution_interface{stack + sizeof...(A)}};

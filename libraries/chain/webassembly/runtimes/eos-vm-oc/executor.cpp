@@ -6,6 +6,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc/eos-vm-oc.h>
 #include <eosio/chain/wasm_eosio_constraints.hpp>
 #include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/types.hpp>
@@ -164,7 +165,7 @@ executor::executor(const code_cache_base& cc) {
    mapping_is_executable = true;
 }
 
-void executor::execute(const code_descriptor& code, memory& mem, apply_context& context) {
+execution_status executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
    if(mapping_is_executable == false) {
       mprotect(code_mapping, code_mapping_size, PROT_EXEC|PROT_READ);
       mapping_is_executable = true;
@@ -226,11 +227,12 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
    cb->is_running = true;
    cb->globals = globals;
 
+   bool append_callback = context.is_sync_call() ? true : false; // for sync calls, callbacks are appended to the timer's callback queue
    context.trx_context.transaction_timer.set_expiration_callback([](void* user) {
       executor* self = (executor*)user;
       syscall(SYS_mprotect, self->code_mapping, self->code_mapping_size, PROT_NONE);
       self->mapping_is_executable = false;
-   }, this);
+   }, this, append_callback);
 
    auto cleanup = fc::make_scoped_exit([cb, &tt=context.trx_context.transaction_timer, &mem=mem](){
       cb->is_running = false;
@@ -245,8 +247,7 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
    });
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
-
-   void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
+   eosio::chain::execution_status status = eosio::chain::execution_status::executed;
 
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
@@ -262,7 +263,17 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
                   start_func();
                }
             }, code.start);
-            apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
+
+            if (context.is_action()) {
+               void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
+               apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
+            } else if (code.call_offset) {
+               ilog("here");
+               int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
+               call_func(context.get_sender().to_uint64_t(), context.get_receiver().to_uint64_t(), static_cast<uint32_t>(static_cast<eosio::chain::sync_call_context&>(context).data.size()));
+            } else {
+               status = eosio::chain::execution_status::receiver_not_support_sync_call;
+            }
          });
          break;
       //case 1: clean eosio_exit
@@ -276,6 +287,8 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
          std::rethrow_exception(*cb->eptr);
          break;
    }
+
+   return status;
 }
 
 executor::~executor() {

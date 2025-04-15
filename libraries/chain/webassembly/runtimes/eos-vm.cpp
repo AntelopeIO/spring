@@ -152,9 +152,19 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      sync_call_return_code do_sync_call(sync_call_context& context) override {
+      execution_status execute(host_context& context) override {
+         if (context.is_action()) {
+            apply(static_cast<apply_context&>(context));
+            return execution_status::executed;
+         } else {
+            return do_sync_call(static_cast<sync_call_context&>(context));
+         }
+      }
+
+   private:
+      execution_status do_sync_call(sync_call_context& context) {
          if (!context.receiver_supports_sync_call) {
-            return sync_call_return_code::receiver_not_support_sync_call;
+            return execution_status::receiver_not_support_sync_call;
          }
 
          backend_t                                bkend;
@@ -176,12 +186,11 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
                 static_cast<uint32_t>(context.data.size()));
          };
 
-         execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
-
-         return sync_call_return_code::success;
+         exe(context, bkend, exec_ctx, wasm_alloc, fn, true);
+         return execution_status::executed;
       }
 
-      void apply(apply_context& context) override {
+      execution_status apply(apply_context& context) {
          auto& bkend      = _runtime->_bkend;
          auto& exec_ctx   = _runtime->_exec_ctx;
          auto& wasm_alloc = context.control.get_wasm_allocator();
@@ -197,11 +206,11 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
                 context.get_action().name.to_uint64_t());
          };
 
-         execute(context, bkend, exec_ctx, wasm_alloc, fn, false);
+         exe(context, bkend, exec_ctx, wasm_alloc, fn, false);
+         return execution_status::executed;
       }
 
-   private:
-      void execute(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
+      void exe(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
          // set up backend to share the compiled mod in the instantiated
          // module of the contract
          bkend.share(*_instantiated_module);
@@ -249,7 +258,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          _original_code(code, code + code_size) {}
 
 
-      void apply(apply_context& context) override {
+      execution_status execute(host_context& context) override {
          _instantiated_module->set_wasm_allocator(&context.control.get_wasm_allocator());
          apply_options opts;
          if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
@@ -265,7 +274,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
                 context.get_action().account.to_uint64_t(),
                 context.get_action().name.to_uint64_t());
          };
-         profile_data* prof = start(context);
+         profile_data* prof = start(static_cast<apply_context&>(context));
          try {
             scoped_profile profile_runner(prof);
             checktime_watchdog wd(context.trx_context.transaction_timer, false);
@@ -277,9 +286,8 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          } catch(eosio::vm::exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure");
          }
+         return execution_status::executed;
       }
-
-      sync_call_return_code do_sync_call(sync_call_context& context) override { __builtin_unreachable(); }
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();

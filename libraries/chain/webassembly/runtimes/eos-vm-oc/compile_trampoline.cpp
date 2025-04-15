@@ -51,6 +51,8 @@ void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t st
    for(const Export& exprt : module.exports) {
       if(exprt.name == "apply")
          result_message.apply_offset = function_to_offsets.at(exprt.index-module.functions.imports.size());
+      else if(exprt.name == "sync_call")
+         result_message.call_offset = function_to_offsets.at(exprt.index-module.functions.imports.size());
    }
 
    result_message.starting_memory_pages = -1;

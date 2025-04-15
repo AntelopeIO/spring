@@ -8,15 +8,16 @@ namespace IR {
 
 namespace eosio { namespace chain {
 
-class apply_context;
+class host_context;
 
-enum class sync_call_return_code : int64_t;  // full definition is in wasm_interface.hpp
+enum class execution_status : int64_t;  // full definition is in wasm_interface.hpp
 
 class wasm_instantiated_module_interface {
    public:
-      virtual void apply(apply_context& context) = 0;
+      //virtual void apply(apply_context& context) = 0;
 
-      virtual sync_call_return_code do_sync_call(sync_call_context& context) = 0;
+      //virtual execution_status do_sync_call(sync_call_context& context) = 0;
+      virtual execution_status execute(host_context& context) = 0;
 
       virtual ~wasm_instantiated_module_interface();
 };

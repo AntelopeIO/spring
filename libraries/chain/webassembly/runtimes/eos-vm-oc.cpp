@@ -1,7 +1,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc.hpp>
 #include <eosio/chain/wasm_eosio_constraints.hpp>
 #include <eosio/chain/wasm_eosio_injection.hpp>
-#include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/host_context.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/global_property_object.hpp>
 
@@ -27,21 +27,25 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
 
       bool is_main_thread() { return _main_thread_id == std::this_thread::get_id(); };
 
-      void apply(apply_context& context) override {
+      eosio::chain::execution_status execute(host_context& context) override {
          eosio::chain::eosvmoc::code_cache_sync::mode m;
          m.whitelisted = context.is_eos_vm_oc_whitelisted();
          m.write_window = context.control.is_write_window();
          const code_descriptor* const cd = _eosvmoc_runtime.cc.get_descriptor_for_code_sync(m, _code_hash, _vm_version);
          EOS_ASSERT(cd, wasm_execution_error, "EOS VM OC instantiation failed");
 
-         if ( is_main_thread() )
-            _eosvmoc_runtime.exec.execute(*cd, _eosvmoc_runtime.mem, context);
-         else
-            _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
-      }
+         if ( is_main_thread() ) {
+            auto i = _eosvmoc_runtime.acquire_main_thread_exec_mem_index();
+            _eosvmoc_runtime.exec[i]->execute(*cd, *(_eosvmoc_runtime.mem[i]), context);
+            _eosvmoc_runtime.release_main_thread_exec_mem_index();
+         }
+         else {
+            auto i = _eosvmoc_runtime.acquire_ro_thread_exec_mem_index();
+            _eosvmoc_runtime.exec_thread_local[i]->execute(*cd, *(_eosvmoc_runtime.mem_thread_local[i]), context);
+            _eosvmoc_runtime.release_ro_thread_exec_mem_index();
+         }
 
-      sync_call_return_code do_sync_call(sync_call_context& context) override {
-         __builtin_unreachable();
+         return eosio::chain::execution_status::executed;
       }
 
       const digest_type              _code_hash;
@@ -51,7 +55,11 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
 };
 
 eosvmoc_runtime::eosvmoc_runtime(const std::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, const chainbase::database& db)
-   : cc(data_dir, eosvmoc_config, db), exec(cc), mem(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size) {
+   : cc(data_dir, eosvmoc_config, db) {
+   for (auto i = 0; i < 14; ++i) {
+      exec.emplace_back(std::make_unique<eosvmoc::executor>(cc));
+      mem.emplace_back(std::make_unique<eosvmoc::memory>(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size));
+   }
 }
 
 eosvmoc_runtime::~eosvmoc_runtime() {
@@ -62,12 +70,31 @@ std::unique_ptr<wasm_instantiated_module_interface> eosvmoc_runtime::instantiate
    return std::make_unique<eosvmoc_instantiated_module>(code_hash, vm_type, *this);
 }
 
-void eosvmoc_runtime::init_thread_local_data() {
-   exec_thread_local = std::make_unique<eosvmoc::executor>(cc);
-   mem_thread_local  = std::make_unique<eosvmoc::memory>(eosvmoc::memory::sliced_pages_for_ro_thread);
+uint32_t eosvmoc_runtime::acquire_main_thread_exec_mem_index() {
+   return main_thread_index++;
 }
 
-thread_local std::unique_ptr<eosvmoc::executor> eosvmoc_runtime::exec_thread_local{};
-thread_local std::unique_ptr<eosvmoc::memory> eosvmoc_runtime::mem_thread_local{};
+void eosvmoc_runtime::release_main_thread_exec_mem_index() {
+   --main_thread_index;
+}
+
+uint32_t eosvmoc_runtime::acquire_ro_thread_exec_mem_index() {
+   return ro_thread_index++;
+}
+
+void eosvmoc_runtime::release_ro_thread_exec_mem_index() {
+   --ro_thread_index;
+}
+
+void eosvmoc_runtime::init_thread_local_data() {
+   for (auto i = 0; i < 14; ++i) {
+      exec_thread_local.emplace_back(std::make_unique<eosvmoc::executor>(cc));
+      mem_thread_local.emplace_back(std::make_unique<eosvmoc::memory>(eosvmoc::memory::sliced_pages_for_ro_thread));
+   }
+}
+
+thread_local std::vector<std::unique_ptr<eosvmoc::executor>> eosvmoc_runtime::exec_thread_local{};
+thread_local std::vector<std::unique_ptr<eosvmoc::memory>> eosvmoc_runtime::mem_thread_local{};
+thread_local uint32_t eosvmoc_runtime::ro_thread_index = 0;
 
 }}}}

@@ -94,7 +94,7 @@ void apply_context::exec_one()
                   control.check_action_list( act->account, act->name );
                }
                try {
-                  control.get_wasm_interface().apply( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
+                  control.get_wasm_interface().execute( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
                } catch( const wasm_exit& ) {}
             }
 
@@ -738,25 +738,6 @@ action_name apply_context::get_sender() const {
       return creator_trace.receiver;
    }
    return action_name();
-}
-
-bool apply_context::is_eos_vm_oc_whitelisted() const {
-   return receiver.prefix() == config::system_account_name || // "eosio"_n
-          control.is_eos_vm_oc_whitelisted(receiver);
-}
-
-// Context             |    OC?
-//-------------------------------------------------------------------------------
-// Building block      | baseline, OC for whitelisted
-// Applying block      | OC unless a producer, OC for whitelisted including producers
-// Speculative API trx | baseline, OC for whitelisted
-// Speculative P2P trx | baseline, OC for whitelisted
-// Compute trx         | baseline, OC for whitelisted
-// Read only trx       | OC
-bool apply_context::should_use_eos_vm_oc()const {
-   return is_eos_vm_oc_whitelisted() // all whitelisted accounts use OC always
-          || (is_applying_block() && !control.is_producer_node()) // validating/applying block
-          || trx_context.is_read_only();
 }
 
 } /// eosio::chain

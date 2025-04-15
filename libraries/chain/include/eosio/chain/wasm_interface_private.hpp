@@ -133,7 +133,7 @@ struct eosvmoc_tier {
       }
 #endif
 
-      void apply( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+      execution_status execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
          bool attempt_tierup = false;
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
@@ -161,8 +161,7 @@ struct eosvmoc_tier {
             if (cd) {
                if (!context.is_applying_block()) // read_only_trx_test.py looks for this log statement
                   tlog("${a} speculatively executing ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
-               eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
-               return;
+               return eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
             }
          }
 #endif
@@ -183,7 +182,7 @@ struct eosvmoc_tier {
          if (allow_oc_interrupt)
             executing_code_hash.store(code_hash);
          try {
-            get_instantiated_module(code_hash, vm_type, vm_version, context)->apply(context);
+               return get_instantiated_module(code_hash, vm_type, vm_version, context)->execute(context);
          } catch (const interrupt_exception& e) {
             if (allow_oc_interrupt && eos_vm_oc_compile_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
@@ -196,10 +195,8 @@ struct eosvmoc_tier {
             }
             throw;
          }
-      }
 
-      sync_call_return_code do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
-         return get_instantiated_module(code_hash, vm_type, vm_version, context)->do_sync_call(context);
+         return execution_status::executed;
       }
 
       // used for testing

@@ -9,7 +9,7 @@ namespace eosio { namespace chain {
 
    struct platform_timer;
    class apply_context;
-   class sync_call_context;
+   class host_context;
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
@@ -18,9 +18,9 @@ namespace eosio { namespace chain {
       int32_t code = 0;
    };
 
-   enum class sync_call_return_code : int64_t {
-      receiver_not_support_sync_call = -1,  // no sync_call entry point or its signature is invalid
-      success                        = 0
+   enum class execution_status : int64_t {
+      receiver_not_support_sync_call = -1,  // entry point does not exist or its signature is invalid
+      executed                       = 0    // action/call executed
    };
 
    /**
@@ -79,10 +79,8 @@ namespace eosio { namespace chain {
          //indicate the current LIB. evicts old cache entries
          void current_lib(const uint32_t lib);
 
-         //Calls apply or error on a given code
-         void apply(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context);
-
-         sync_call_return_code do_sync_call(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context);
+         //Calls apply/sync_call or error on a given code
+         execution_status execute(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context);
 
          //Returns true if the code is cached
          bool is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const;
