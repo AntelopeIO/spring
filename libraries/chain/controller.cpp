@@ -6001,11 +6001,11 @@ vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
 
-vm::wasm_allocator* controller::acquire_sync_call_wasm_allocator() {
+std::shared_ptr<vm::wasm_allocator> controller::acquire_sync_call_wasm_allocator() {
    return my->wasm_allocator_pool.acquire();
 }
 
-void controller::release_sync_call_wasm_allocator(vm::wasm_allocator* alloc) {
+void controller::release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc) {
    my->wasm_allocator_pool.release(alloc);
 }
 

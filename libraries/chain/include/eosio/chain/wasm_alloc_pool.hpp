@@ -27,13 +27,12 @@ class wasm_alloc_pool {
 
 public:
    wasm_alloc_pool();
-   ~wasm_alloc_pool();
 
    // request a wasm allocator from the pool, called on any threads
-   vm::wasm_allocator* acquire();
+   std::shared_ptr<vm::wasm_allocator> acquire();
 
    // release a wasm allocator back to the pool, called on any threads
-   void release(vm::wasm_allocator* alloc);
+   void release(std::shared_ptr<vm::wasm_allocator> alloc);
 
    // called on main thread from producer_plugin startup after number of read-only threads is determined
    void set_num_threads(uint32_t num_threads);
@@ -47,7 +46,7 @@ private:
    uint32_t num_threads    = 1; // `1` for the main thread
    uint32_t max_call_depth = 1; // prior to sync call protocol feature activated
 
-   boost::lockfree::stack<vm::wasm_allocator*> stack {config::default_max_sync_call_depth};
+   boost::lockfree::stack<std::shared_ptr<vm::wasm_allocator>> stack {config::default_max_sync_call_depth};
 };
 
 }  /// namespace eosio::chain

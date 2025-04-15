@@ -8,23 +8,16 @@ wasm_alloc_pool::wasm_alloc_pool()
    , max_call_depth(1)
 {
    // create 1 wasm allocator for the main thread
-   stack.push(new vm::wasm_allocator);
-}
-
-wasm_alloc_pool::~wasm_alloc_pool() {
-   vm::wasm_allocator* alloc;
-   while (stack.pop(alloc)) {
-      delete alloc;
-   }
+   stack.push(std::make_shared<vm::wasm_allocator>());
 }
 
 // called on any threads
-vm::wasm_allocator* wasm_alloc_pool::acquire() {
+std::shared_ptr<vm::wasm_allocator> wasm_alloc_pool::acquire() {
    // Each thread can use at most `max_sync_call_depth` wasm allocators
    // The stack would never be empty for a new acquire request
    assert(!stack.empty());
 
-   vm::wasm_allocator* alloc;
+   std::shared_ptr<vm::wasm_allocator> alloc;
    stack.pop(alloc);
 
    assert(alloc);
@@ -32,7 +25,7 @@ vm::wasm_allocator* wasm_alloc_pool::acquire() {
 }
 
 // called on any threads
-void wasm_alloc_pool::release(vm::wasm_allocator* alloc) {
+void wasm_alloc_pool::release(std::shared_ptr<vm::wasm_allocator> alloc) {
    stack.push(alloc);
 }
 
@@ -65,7 +58,7 @@ void wasm_alloc_pool::resize(uint32_t new_num_thread, uint32_t new_depth) {
 
    // add new allocators
    for (uint32_t i = 0u; i < num_new_allocs ; ++i) {
-      stack.push(new vm::wasm_allocator);
+      stack.push(std::make_shared<vm::wasm_allocator>());
    }
 
    num_threads    = new_num_thread;
