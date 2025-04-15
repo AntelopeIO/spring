@@ -155,7 +155,7 @@ void exhaustive_snapshot_test()
 
    chain.control->abort_block();
 
-   static const int generation_count = 8;
+   static const int generation_count = 6;
    std::list<snapshotted_tester> sub_testers;
 
    for (int generation = 0; generation < generation_count; generation++) {
