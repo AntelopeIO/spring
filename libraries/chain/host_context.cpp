@@ -43,9 +43,18 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
-   auto& trace = get_root_action_trace();
+   auto& trace = get_current_action_trace();
    const bool read_only = flags & static_cast<uint64_t>(sync_call_flags::read_only);
    trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
+
+   // Only do this when console log is enabled; otherwise we will have a non-empty
+   // console markers vector with an empty console string.
+   // But if we do need to have markers, the number of markers must be the same as
+   // the number of sync call traces. That's why we store the marker right after
+   // the sync call trace was created.
+   if (control.contracts_console()) {
+      store_console_marker();
+   }
 
    uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).call_ordinal = ordinal;
@@ -96,13 +105,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, ordinal, get_root_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
-
-            if (control.contracts_console()) {
-               // only do this when console log is enabled; otherwise
-               // we will have a non-empty console markers vector with an empty console string
-               store_console_marker();
-            }
+            sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
 
             // execute the sync call
             auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
@@ -139,7 +142,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 }
 
 call_trace& host_context::get_call_trace(uint32_t ordinal) {
-   auto& act_trace = get_root_action_trace();
+   auto& act_trace = get_current_action_trace();
 
    assert(0 < ordinal && ordinal <= act_trace.call_traces.size());
 
