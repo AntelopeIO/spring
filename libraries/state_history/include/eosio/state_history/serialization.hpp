@@ -578,13 +578,6 @@ datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stat
    return ds;
 }
 
-template <typename ST>
-datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stateless<eosio::chain::account_delta>& obj) {
-   fc::raw::pack(ds, as_type<uint64_t>(obj.obj.account.to_uint64_t()));
-   fc::raw::pack(ds, as_type<int64_t>(obj.obj.delta));
-   return ds;
-}
-
 inline std::optional<uint64_t> cap_error_code(const std::optional<uint64_t>& error_code) {
    std::optional<uint64_t> result;
 
@@ -603,9 +596,47 @@ inline std::optional<uint64_t> cap_error_code(const std::optional<uint64_t>& err
 }
 
 template <typename ST>
+datastream<ST>& operator<<(datastream<ST>& ds, const history_context_wrapper_stateless<bool, eosio::chain::call_trace>& obj) {
+   bool debug_mode = obj.context;
+   fc::raw::pack(ds, fc::unsigned_int(0));
+   fc::raw::pack(ds, as_type<fc::unsigned_int>(obj.obj.call_ordinal));
+   fc::raw::pack(ds, as_type<fc::unsigned_int>(obj.obj.sender_ordinal));
+   fc::raw::pack(ds, as_type<uint64_t>(obj.obj.receiver.to_uint64_t()));
+   fc::raw::pack(ds, as_type<bool>(obj.obj.read_only));
+   fc::raw::pack(ds, as_type<eosio::chain::bytes>(obj.obj.data));
+   fc::raw::pack(ds, as_type<int64_t>(debug_mode ? obj.obj.elapsed.count() : 0));
+   if (debug_mode) {
+      fc::raw::pack(ds, as_type<std::string>(obj.obj.console));
+      fc::raw::pack(ds, as_type<std::vector<fc::unsigned_int>>(obj.obj.console_markers));
+   } else {
+      fc::raw::pack(ds, as_type<std::string>({}));
+      fc::raw::pack(ds, as_type<std::vector<fc::unsigned_int>>({}));
+   }
+   std::optional<std::string> e;
+   if (obj.obj.except) {
+      if (debug_mode)
+         e = obj.obj.except->to_string();
+      else
+         e = "Y";
+   }
+   fc::raw::pack(ds, as_type<std::optional<std::string>>(e));
+   fc::raw::pack(ds, as_type<std::optional<uint64_t>>(debug_mode ? obj.obj.error_code : cap_error_code(obj.obj.error_code)));
+   fc::raw::pack(ds, as_type<std::optional<int64_t>>( obj.obj.error_id ));
+   fc::raw::pack(ds, as_type<eosio::chain::bytes>(obj.obj.return_value));
+   return ds;
+}
+
+template <typename ST>
+datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stateless<eosio::chain::account_delta>& obj) {
+   fc::raw::pack(ds, as_type<uint64_t>(obj.obj.account.to_uint64_t()));
+   fc::raw::pack(ds, as_type<int64_t>(obj.obj.delta));
+   return ds;
+}
+
+template <typename ST>
 datastream<ST>& operator<<(datastream<ST>& ds, const history_context_wrapper_stateless<bool, eosio::chain::action_trace>& obj) {
    bool debug_mode = obj.context;
-   fc::raw::pack(ds, fc::unsigned_int(1));
+   fc::raw::pack(ds, fc::unsigned_int(2));
    fc::raw::pack(ds, as_type<fc::unsigned_int>(obj.obj.action_ordinal));
    fc::raw::pack(ds, as_type<fc::unsigned_int>(obj.obj.creator_action_ordinal));
    fc::raw::pack(ds, bool(obj.obj.receipt));
@@ -632,7 +663,12 @@ datastream<ST>& operator<<(datastream<ST>& ds, const history_context_wrapper_sta
    fc::raw::pack(ds, as_type<std::optional<std::string>>(e));
    fc::raw::pack(ds, as_type<std::optional<uint64_t>>(debug_mode ? obj.obj.error_code : cap_error_code(obj.obj.error_code)));
    fc::raw::pack(ds, as_type<eosio::chain::bytes>(obj.obj.return_value));
-
+   history_context_serialize_container(ds, debug_mode, as_type<std::vector<eosio::chain::call_trace>>(obj.obj.call_traces));
+   if (debug_mode) {
+      fc::raw::pack(ds, as_type<std::vector<fc::unsigned_int>>(obj.obj.console_markers));
+   } else {
+      fc::raw::pack(ds, as_type<std::vector<fc::unsigned_int>>({}));
+   }
    return ds;
 }
 
