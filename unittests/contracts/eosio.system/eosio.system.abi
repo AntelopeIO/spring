@@ -882,20 +882,6 @@
             ]
         },
         {
-            "name": "regpeerkey",
-            "base": "",
-            "fields": [
-                {
-                    "name": "proposer_finalizer_name",
-                    "type": "name"
-                },
-                {
-                    "name": "key",
-                    "type": "public_key"
-                }
-            ]
-        },
-        {
             "name": "regproducer",
             "base": "",
             "fields": [
@@ -1398,16 +1384,6 @@
                 {
                     "name": "revision",
                     "type": "uint8"
-                }
-            ]
-        },
-        {
-            "name": "v0_data",
-            "base": "",
-            "fields": [
-                {
-                    "name": "pubkey",
-                    "type": "public_key?"
                 }
             ]
         },
