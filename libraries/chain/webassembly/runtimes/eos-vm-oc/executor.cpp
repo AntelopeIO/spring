@@ -181,6 +181,8 @@ execution_status executor::execute(const code_descriptor& code, memory& mem, hos
    stack.reset(max_call_depth);
    EOS_ASSERT(code.starting_memory_pages <= (int)max_pages, wasm_execution_error, "Initial memory out of range");
 
+   const uint64_t prior_gs = eos_vm_oc_getgs();
+
    //prepare initial memory, mutable globals, and table data
    if(code.starting_memory_pages > 0 ) {
       uint64_t initial_page_offset = std::min(static_cast<std::size_t>(code.starting_memory_pages), mem.size_of_memory_slice_mapping()/memory::stride - 1);
@@ -234,10 +236,11 @@ execution_status executor::execute(const code_descriptor& code, memory& mem, hos
       self->mapping_is_executable = false;
    }, this, append_callback);
 
-   auto cleanup = fc::make_scoped_exit([cb, &tt=context.trx_context.transaction_timer, &mem=mem](){
+   auto cleanup = fc::make_scoped_exit([cb, &tt=context.trx_context.transaction_timer, &mem=mem, &prior_gs](){
       cb->is_running = false;
       cb->bounce_buffers->clear();
       tt.set_expiration_callback(nullptr, nullptr);
+      eos_vm_oc_setgs(prior_gs);
 
       int64_t base_pages = mem.size_of_memory_slice_mapping()/memory::stride - 1;
       if(cb->current_linear_memory_pages > base_pages) {
