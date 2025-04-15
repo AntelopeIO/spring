@@ -4026,11 +4026,13 @@ namespace eosio {
 
          if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
             ++c->unique_blocks_rcvd_count;
-            fc_dlog(logger, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
-            my_impl->producer_plug->process_blocks();
 
             // ready to process immediately, so signal producer to interrupt start_block
+            // call before process_blocks to avoid interrupting process_blocks
             my_impl->producer_plug->received_block(block_num, fork_db_add_result);
+
+            fc_dlog(logger, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
+            my_impl->producer_plug->process_blocks();
          }
       });
    }
