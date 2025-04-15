@@ -72,6 +72,16 @@ void blocklog_actions::setup(CLI::App& app) {
    print_log->add_flag("--no-pretty-print", opt->no_pretty_print, "Do not pretty print the output.  Useful if piping to jq to improve performance.");
    print_log->add_flag("--as-json-array", opt->as_json_array, "Print out json blocks wrapped in json array (otherwise the output is free-standing json objects).");
 
+   std::map<std::string, print_from_t> print_from_map{
+      {"both",      print_from_t::both     },
+      {"block_log", print_from_t::block_log},
+      {"fork_db",   print_from_t::fork_db  }
+   };
+   print_log
+      ->add_flag("--print-from", opt->print_from,
+                 "Whether to print blocks from the block log, fork database, or both. Default is both.")
+      ->transform(CLI::CheckedTransformer(print_from_map, CLI::ignore_case));
+
    // subcommand - make index
    auto* make_index = sub->add_subcommand("make-index", "Create blocks.index from blocks.log. Must give 'blocks-dir'. Give 'output-file' relative to current directory or absolute path (default is <blocks-dir>/blocks.index).")->callback([err_guard]() { err_guard(&blocklog_actions::make_index); });
    make_index->add_option("--output-file,-o", opt->output_file, "The file to write the output to (absolute or relative path).  If not specified then output is to stdout.");
@@ -268,24 +278,26 @@ int blocklog_actions::read_log() {
 
    block_branch_t fork_db_branch;
 
-   if(std::filesystem::exists(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name / config::fork_db_filename)) {
-      ilog("opening fork_db");
-      fork_database fork_db(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name);
+   if (opt->print_from == print_from_t::both || opt->print_from == print_from_t::fork_db) {
+      if (std::filesystem::exists(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name /
+                                  config::fork_db_filename)) {
+         ilog("opening fork_db");
+         fork_database fork_db(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name);
 
-      fork_db.open([](block_timestamp_type timestamp,
-                      const flat_set<digest_type>& cur_features,
-                      const vector<digest_type>& new_features) {});
+         fork_db.open([](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
+                         const vector<digest_type>& new_features) {});
 
-      fork_db_branch = fork_db.fetch_branch_from_head();
-      if(fork_db_branch.empty()) {
-         elog("no blocks available in reversible block database: only block_log blocks are available");
-      } else {
-         auto first = fork_db_branch.rbegin();
-         auto last = fork_db_branch.rend() - 1;
-         ilog("existing reversible fork_db block num ${first} through block num ${last} ",
-              ("first", (*first)->block_num())("last", (*last)->block_num()));
-         EOS_ASSERT(end->block_num() + 1 == (*first)->block_num(), block_log_exception,
-                    "fork_db does not start at end of block log");
+         fork_db_branch = fork_db.fetch_branch_from_head();
+         if (fork_db_branch.empty()) {
+            elog("no blocks available in reversible block database: only block_log blocks are available");
+         } else {
+            auto first = fork_db_branch.rbegin();
+            auto last  = fork_db_branch.rend() - 1;
+            ilog("existing reversible fork_db block num ${first} through block num ${last} ",
+                 ("first", (*first)->block_num())("last", (*last)->block_num()));
+            EOS_ASSERT(end->block_num() + 1 == (*first)->block_num(), block_log_exception,
+                       "fork_db does not start at end of block log");
+         }
       }
    }
 
@@ -323,12 +335,15 @@ int blocklog_actions::read_log() {
          *out << fc::json::to_pretty_string(v) << "\n";
    };
    bool contains_obj = false;
-   while((block_num <= opt->last_block) && (next = block_logger.read_block_by_num(block_num))) {
-      if(opt->as_json_array && contains_obj)
-         *out << ",";
-      print_block(next);
-      ++block_num;
-      contains_obj = true;
+
+   if (opt->print_from == print_from_t::both || opt->print_from == print_from_t::block_log) {
+      while ((block_num <= opt->last_block) && (next = block_logger.read_block_by_num(block_num))) {
+         if (opt->as_json_array && contains_obj)
+            *out << ",";
+         print_block(next);
+         ++block_num;
+         contains_obj = true;
+      }
    }
 
    if(!fork_db_branch.empty()) {
