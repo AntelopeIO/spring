@@ -56,7 +56,7 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
 
 eosvmoc_runtime::eosvmoc_runtime(const std::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, const chainbase::database& db)
    : cc(data_dir, eosvmoc_config, db) {
-   for (auto i = 0; i < 14; ++i) {
+   for (auto i = 0; i < 4; ++i) {
       exec.emplace_back(std::make_unique<eosvmoc::executor>(cc));
       mem.emplace_back(std::make_unique<eosvmoc::memory>(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size));
    }
@@ -87,7 +87,7 @@ void eosvmoc_runtime::release_ro_thread_exec_mem_index() {
 }
 
 void eosvmoc_runtime::init_thread_local_data() {
-   for (auto i = 0; i < 14; ++i) {
+   for (auto i = 0; i < 4; ++i) {
       exec_thread_local.emplace_back(std::make_unique<eosvmoc::executor>(cc));
       mem_thread_local.emplace_back(std::make_unique<eosvmoc::memory>(eosvmoc::memory::sliced_pages_for_ro_thread));
    }
