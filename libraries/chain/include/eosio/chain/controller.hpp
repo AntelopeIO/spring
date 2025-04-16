@@ -90,7 +90,8 @@ namespace eosio::chain {
    using getpeerkeys_res_t = std::vector<peerkeys_t>;
 
    struct peer_info_t {
-      uint32_t                       rank; // rank by `total_votes` of all producers, active or not, may not match schedule rank
+      // rank by `total_votes` of all producers, active or not, may not match schedule rank
+      uint32_t                       rank{std::numeric_limits<uint32_t>::max()};
       std::optional<public_key_type> key;
 
       bool operator==(const peer_info_t&) const = default;
