@@ -188,7 +188,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
                 static_cast<uint32_t>(context.data.size()));
          };
 
-         execute(context, bkend, exec_ctx, *wasm_alloc, fn, true);
+         exe(context, bkend, exec_ctx, *wasm_alloc, fn, true);
          return execution_status::executed;
       }
 
