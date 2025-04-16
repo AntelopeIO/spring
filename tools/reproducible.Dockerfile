@@ -28,7 +28,7 @@ RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-g
                                                                                               zstd \
                                                                                               ;
 
-ARG _SPRING_CLANG_VERSION=18.1.8
+ARG _SPRING_CLANG_VERSION=20.1.3
 ARG _SPRING_LLVM_VERSION=11.1.0
 ARG _SPRING_CMAKE_VERSION=3.27.6
 
