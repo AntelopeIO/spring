@@ -121,7 +121,7 @@ try:
         node = cluster.getNode(nodeId)
         node.kill(signal.SIGTERM)
         producer_name = "defproducer" + chr(ord('a') + nodeId)
-        if not node.relaunch(chainArg=" --p2p-producer-peer " + producer_name):
+        if not node.relaunch(chainArg=" --enable-stale-production --p2p-producer-peer " + producer_name):
             errorExit(f"Failed to relaunch node {nodeId}")
 
     # give time for messages to be gossiped around
