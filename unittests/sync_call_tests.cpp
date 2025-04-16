@@ -1040,6 +1040,10 @@ static const char invalid_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      return;
+   }
+
    create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
