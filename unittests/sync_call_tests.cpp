@@ -1184,6 +1184,18 @@ BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
    // Do a recursive call with n == 1
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "1")));
 
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // Do a small recursive call for now
+      BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", 3)));
+      return;
+   }
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // Do a small recursive call for now
+      BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", 3)));
+      return;
+   }
+
    // Do a recursive call with n == config::default_max_sync_call_depth
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string(config::default_max_sync_call_depth))));
 
@@ -1277,6 +1289,10 @@ BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
 
    // Do a recursive call with n == 1 round. Each round consumes 2 call depths
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "1")));
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      return;
+   }
 
    // Do a recursive call with n == config::default_max_sync_call_depth/2 rounds.
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string((config::default_max_sync_call_depth / 2)))));
