@@ -263,43 +263,6 @@ int blocklog_actions::do_vacuum() {
 
 int blocklog_actions::read_log() {
    initialize();
-   report_time rt("reading log");
-   block_log block_logger(opt->blocks_dir, opt->blog_conf);
-   const auto end = block_logger.read_head();
-   EOS_ASSERT(end, block_log_exception, "No blocks found in block log");
-   EOS_ASSERT(end->block_num() > 1, block_log_exception, "Only one block found in block log");
-
-   //fix message below, first block might not be 1, first_block_num is not set yet
-   ilog("existing block log contains block num ${first} through block num ${n}",
-        ("first", block_logger.first_block_num())("n", end->block_num()));
-   if(opt->first_block < block_logger.first_block_num()) {
-      opt->first_block = block_logger.first_block_num();
-   }
-
-   block_branch_t fork_db_branch;
-
-   if (opt->print_from == print_from_t::both || opt->print_from == print_from_t::fork_db) {
-      if (std::filesystem::exists(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name /
-                                  config::fork_db_filename)) {
-         ilog("opening fork_db");
-         fork_database fork_db(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name);
-
-         fork_db.open([](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
-                         const vector<digest_type>& new_features) {});
-
-         fork_db_branch = fork_db.fetch_branch_from_head();
-         if (fork_db_branch.empty()) {
-            elog("no blocks available in reversible block database: only block_log blocks are available");
-         } else {
-            auto first = fork_db_branch.rbegin();
-            auto last  = fork_db_branch.rend() - 1;
-            ilog("existing reversible fork_db block num ${first} through block num ${last} ",
-                 ("first", (*first)->block_num())("last", (*last)->block_num()));
-            EOS_ASSERT(end->block_num() + 1 == (*first)->block_num(), block_log_exception,
-                       "fork_db does not start at end of block log");
-         }
-      }
-   }
 
    std::ofstream output_blocks;
    std::ostream* out;
@@ -336,7 +299,24 @@ int blocklog_actions::read_log() {
    };
    bool contains_obj = false;
 
-   if (opt->print_from == print_from_t::both || opt->print_from == print_from_t::block_log) {
+   bool print_log     = opt->print_from == print_from_t::both || opt->print_from == print_from_t::block_log;
+   bool print_fork_db = opt->print_from == print_from_t::both || opt->print_from == print_from_t::fork_db;
+
+   signed_block_ptr end;
+
+   report_time rt(print_log && print_fork_db ? "reading both log and fork_db"
+                                             : (print_log ? "reading log" : "reading fork_db"));
+   if (print_log) {
+      block_log   block_logger(opt->blocks_dir, opt->blog_conf);
+      end = block_logger.read_head();
+      EOS_ASSERT(end, block_log_exception, "No blocks found in block log");
+      EOS_ASSERT(end->block_num() > 1, block_log_exception, "Only one block found in block log");
+
+      ilog("existing block log contains block num ${first} through block num ${n}",
+           ("first", block_logger.first_block_num())("n", end->block_num()));
+      
+      block_num = std::max(block_num, block_logger.first_block_num());
+
       while ((block_num <= opt->last_block) && (next = block_logger.read_block_by_num(block_num))) {
          if (opt->as_json_array && contains_obj)
             *out << ",";
@@ -346,19 +326,46 @@ int blocklog_actions::read_log() {
       }
    }
 
-   if(!fork_db_branch.empty()) {
-      for(auto bitr = fork_db_branch.rbegin(); bitr != fork_db_branch.rend() && block_num <= opt->last_block; ++bitr) {
-         if(opt->as_json_array && contains_obj)
-            *out << ",";
-         auto& next = *bitr;
-         print_block(next);
-         ++block_num;
-         contains_obj = true;
+   if (print_fork_db) {
+      block_branch_t fork_db_branch;
+      if (std::filesystem::exists(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name /
+                                  config::fork_db_filename)) {
+         ilog("opening fork_db");
+         fork_database fork_db(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name);
+
+         fork_db.open([](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
+                         const vector<digest_type>& new_features) {});
+
+         fork_db_branch = fork_db.fetch_branch_from_head();
+         if (fork_db_branch.empty()) {
+            elog("no blocks available in reversible block database: only block_log blocks are available");
+         } else {
+            auto first = fork_db_branch.rbegin();
+            auto last  = fork_db_branch.rend() - 1;
+            ilog("existing reversible fork_db block num ${first} through block num ${last} ",
+                 ("first", (*first)->block_num())("last", (*last)->block_num()));
+            if (print_log) {
+               EOS_ASSERT(end->block_num() + 1 == (*first)->block_num(), block_log_exception,
+                          "fork_db does not start at end of block log");
+            } else {
+               block_num = (*first)->block_num();
+            }
+
+            for (auto bitr = fork_db_branch.rbegin(); bitr != fork_db_branch.rend() && block_num <= opt->last_block;
+                 ++bitr) {
+               if (opt->as_json_array && contains_obj)
+                  *out << ",";
+               auto& next = *bitr;
+               print_block(next);
+               ++block_num;
+               contains_obj = true;
+            }
+         }
       }
    }
 
    if(opt->as_json_array)
-      *out << "]";
+      *out << "]" << '\n';
    rt.report();
 
    return 0;
