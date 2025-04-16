@@ -1294,7 +1294,6 @@ struct controller_impl {
             signed_transaction trx;
 
             trx.actions.emplace_back(std::move(act));
-            trx.set_reference_block(chain_head.id());
             set_trx_expiration(trx);
             return trx;
          };
