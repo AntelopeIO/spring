@@ -866,11 +866,11 @@ public:
       }
    }
 
-   void on_irreversible_block(const signed_block_ptr& lib) {
+   void on_irreversible_block(const signed_block_ptr& lib, const block_id_type& block_id) {
       const chain::controller& chain = chain_plug->chain();
       EOS_ASSERT(chain.is_write_window(), producer_exception, "write window is expected for on_irreversible_block signal");
       _irreversible_block_time = lib->timestamp.to_time_point();
-      _snapshot_scheduler.on_irreversible_block(lib, chain);
+      _snapshot_scheduler.on_irreversible_block(lib, block_id, chain);
       if (!_is_savanna_active) {
          _is_savanna_active = lib->is_proper_svnn_block();
       }
@@ -1587,8 +1587,8 @@ void producer_plugin_impl::plugin_startup() {
          on_accepted_block_header(block);
       }));
       _irreversible_block_connection.emplace(chain.irreversible_block().connect([this](const block_signal_params& t) {
-         const auto& [ block, _ ] = t;
-         on_irreversible_block(block);
+         const auto& [ block, block_id ] = t;
+         on_irreversible_block(block, block_id);
       }));
 
       _block_start_connection.emplace(chain.block_start().connect([this, &chain](uint32_t bs) {
@@ -1611,10 +1611,9 @@ void producer_plugin_impl::plugin_startup() {
          _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
       }
 
-      const auto fork_db_root_num = chain.fork_db_root().block_num();
-      const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
-      if (fork_db_root) {
-         on_irreversible_block(fork_db_root);
+      const auto fork_db_root = chain.fork_db_root();
+      if (fork_db_root.block()) { // not available if starting from a snapshot
+         on_irreversible_block(fork_db_root.block(), fork_db_root.id());
 
          if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
             wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
