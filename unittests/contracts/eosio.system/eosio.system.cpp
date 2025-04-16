@@ -7,7 +7,6 @@
 #include "voting.cpp"
 #include "exchange_state.cpp"
 #include "rex.cpp"
-#include "peer_keys.hpp"
 
 namespace eosiosystem {
 
@@ -23,8 +22,7 @@ system_contract::system_contract( name s, name code, datastream<const char*> ds 
        _rexpool(_self, _self.value),
        _rexfunds(_self, _self.value),
        _rexbalance(_self, _self.value),
-       _rexorders(_self, _self.value),
-       _peer_keys(_self, _self.value)
+       _rexorders(_self, _self.value)
 {
    //print( "construct system\n" );
    _gstate  = _global.exists() ? _global.get() : get_default_parameters();
