@@ -246,7 +246,6 @@ namespace eosio::chain {
          void assemble_and_complete_block( const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block();
-         void update_peer_keys(fc::time_point deadline);
          void testing_allow_voting(bool val);
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
@@ -444,9 +443,11 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
-         void set_peer_keys_retrieval_active(bool active);
-         peer_info_t  get_peer_info(name n) const;  // thread safe
-         getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline); // must be called from main thread
+         void set_peer_keys_retrieval_active(flat_set<account_name> configured_bp_peers);
+         std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
+         bool configured_peer_keys_updated(); // thread safe
+         // used for testing, only call with an active pending block from main thread
+         getpeerkeys_res_t get_top_producer_keys();
 
          // thread safe
          db_read_mode get_read_mode()const;

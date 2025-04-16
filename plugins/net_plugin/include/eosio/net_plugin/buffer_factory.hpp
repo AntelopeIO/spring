@@ -184,9 +184,8 @@ namespace eosio {
          send_buffer = create_initial_send_buffer(signed_empty);
       }
 
-      /// requires set_initial_send_buffer to be called first
+      /// returns nullptr if set_initial_send_buffer not called yet
       send_buffer_type get_initial_send_buffer() {
-         assert(send_buffer);
          return send_buffer;
       }
 

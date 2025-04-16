@@ -94,6 +94,8 @@ class bp_connection_manager {
 public:
    bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() || !config.my_bp_peer_accounts.empty(); }
    bool bp_gossip_enabled() const { return !config.my_bp_peer_accounts.empty(); }
+   flat_set<account_name> configured_bp_peer_accounts() const { return config.my_bp_peer_accounts; }
+   bool bp_gossip_initialized() { return !!get_gossip_bp_initial_send_buffer(); }
 
    // Only called at plugin startup
    void set_producer_accounts(const std::set<account_name>& accounts) {
@@ -149,33 +151,27 @@ public:
       }
    }
 
-   // Called at startup and when peer key changes
-   // empty modified_keys means to update all
-   void update_bp_producer_peers(const chain::controller& cc, const flat_set<account_name>& modified_keys, const std::string& server_address)
-   {
-      if (config.my_bp_peer_accounts.empty())
-         return;
+   // Called when configured bp peer key changes
+   void update_bp_producer_peers(const chain::controller& cc, const std::string& server_address) {
+      assert(!config.my_bp_peer_accounts.empty());
       fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
       // normally only one bp peer account except in testing scenarios or test chains
       for (const auto& e : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
-         if (modified_keys.empty() || modified_keys.contains(e)) {
-            std::optional<public_key_type> pk = cc.get_peer_key(e);
-            // EOS_ASSERT can only be hit on plugin startup, otherwise this method called with modified_keys that are in cc.get_peer_key()
-            EOS_ASSERT(pk, chain::plugin_config_exception, "No on-chain peer key found for ${n}", ("n", e));
-            fc_dlog(self()->get_logger(), "Signing with producer_name ${p} key ${k}", ("p", e)("k", *pk));
-            if (e == *config.my_bp_peer_accounts.begin()) { // use the first one of the set, doesn't matter which one is used, just need one
-               gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
-               signed_empty.sig = self()->sign_compact(*pk, signed_empty.digest());
-               EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
-                          "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", pk->to_string({})));
-               initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
-            }
+         std::optional<peer_info_t> peer_info = cc.get_peer_info(e);
+         if (peer_info && peer_info->key) {
+            // update initial so always an active one
+            gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
+            signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
+            EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
+                       "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
+            initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
+            // update gossip_bps
             auto& prod_idx = gossip_bps.index.get<by_producer>();
             gossip_bp_peers_message::bp_peer peer{.producer_name = e, .server_address = server_address};
-            peer.sig = self()->sign_compact(*pk, peer.digest());
+            peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
             EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
-                       "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", pk->to_string({})));
+                       "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
             if (auto i = prod_idx.find(boost::make_tuple(e, boost::cref(server_address))); i != prod_idx.end()) {
                gossip_bps.index.modify(i, [&peer](auto& v) {
                   v.sig = peer.sig;
@@ -274,11 +270,12 @@ public:
       const controller& cc = self()->chain_plug->chain();
       auto is_peer_key_valid = [&](const gossip_bp_peers_message::bp_peer& peer) -> bool {
          try {
-            if (std::optional<public_key_type> peer_key = cc.get_peer_key(peer.producer_name)) {
+            std::optional<peer_info_t> peer_info = cc.get_peer_info(peer.producer_name);
+            if (peer_info && peer_info->key) {
                public_key_type pk(peer.sig, peer.digest());
-               if (pk != *peer_key) {
+               if (pk != *peer_info->key) {
                   fc_dlog(self()->get_logger(), "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
-                          ("p", peer.producer_name)("pk", pk)("k", *peer_key));
+                          ("p", peer.producer_name)("pk", pk)("k", *peer_info->key));
                   return false;
                }
             } else { // unknown key

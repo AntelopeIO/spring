@@ -912,6 +912,7 @@ namespace eosio {
       void send_gossip_bp_peers_message();
       void send_gossip_bp_peers_message_to_bp_peers();
    public:
+      static void send_gossip_bp_peers_initial_message_to_peers();
 
       bool populate_handshake( handshake_message& hello ) const;
 
@@ -3752,6 +3753,11 @@ namespace eosio {
       if (!my_impl->bp_gossip_enabled())
          return;
 
+      if (!my_impl->bp_gossip_initialized()) {
+         peer_dlog(this, "received gossip_bp_peers_message before bp gossip initialized");
+         return;
+      }
+
       if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
@@ -3780,9 +3786,25 @@ namespace eosio {
       if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
-      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
+      if (sb)
+         enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
    }
 
+   // thread safe, called from main thread
+   void connection::send_gossip_bp_peers_initial_message_to_peers() {
+      assert(my_impl->bp_gossip_enabled());
+      const send_buffer_type& sb = my_impl->get_gossip_bp_initial_send_buffer();
+      if (!sb)
+         return;
+      my_impl->connections.for_each_connection([sb](const connection_ptr& c) {
+         gossip_buffer_factory factory;
+         if (c->bp_connection != bp_connection_type::bp_gossip && c->socket_is_open()) {
+            boost::asio::post(c->strand, [sb, c]() {
+               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
+            });
+         }
+      });
+   }
 
    // called from connection strand
    void connection::send_gossip_bp_peers_message() {
@@ -4015,10 +4037,10 @@ namespace eosio {
       }
 
       // update peer public keys from chainbase db
-      flat_set<name> modified = cc.update_peer_keys(block->block_num());
-      if (!modified.empty()) {
+      if (cc.configured_peer_keys_updated()) {
          try {
-            update_bp_producer_peers(cc, modified, get_first_p2p_address());
+            update_bp_producer_peers(cc, get_first_p2p_address());
+            connection::send_gossip_bp_peers_initial_message_to_peers();
          } catch (fc::exception& e) {
             fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
          }
@@ -4527,11 +4549,7 @@ namespace eosio {
          cc.voted_block().connect( broadcast_vote );
 
          if (bp_gossip_enabled()) {
-            cc.set_peer_keys_retrieval_active(true);
-            // update peer public keys from chainbase db
-            cc.update_peer_keys(cc.head().irreversible_blocknum());
-            // pass in empty set so validation that peer key exists is enforced
-            update_bp_producer_peers(cc, flat_set<chain::account_name>{}, get_first_p2p_address());
+            cc.set_peer_keys_retrieval_active(configured_bp_peer_accounts());
          }
       }
 
