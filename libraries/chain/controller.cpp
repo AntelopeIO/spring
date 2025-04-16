@@ -26,6 +26,7 @@
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
+#include <eosio/chain/wasm_alloc_pool.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finalizer.hpp>
@@ -1013,12 +1014,9 @@ struct controller_impl {
    peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
-   thread_local static std::vector<vm::wasm_allocator> sync_call_wasm_alloc; // used for sync call. expensive to create one for each call
-   thread_local static uint32_t sync_call_wasm_alloc_index;
-#endif
-   wasm_interface wasmif;
+   wasm_alloc_pool wasm_allocator_pool;
+   wasm_interface  wasmif;
    app_window_type app_window = app_window_type::write;
 
    typedef pair<scope_name,action_name>                   handler_key;
@@ -1304,11 +1302,6 @@ struct controller_impl {
          elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
          if( shutdown ) shutdown();
       } );
-
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
-      sync_call_wasm_alloc.resize(16); // Will change to use max_sync_call_depth of global property object in future version
-      sync_call_wasm_alloc_index = 0;
-#endif
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
@@ -4939,10 +4932,6 @@ struct controller_impl {
    // Only called from read-only trx execution threads when producer_plugin
    // starts them.
    void init_thread_local_data() {
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
-      sync_call_wasm_alloc.resize(16);
-      sync_call_wasm_alloc_index = 0;
-#endif
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       if ( is_eos_vm_oc_enabled() ) {
          wasmif.init_thread_local_data();
@@ -5096,11 +5085,7 @@ struct controller_impl {
 }; /// controller_impl
 
 thread_local platform_timer controller_impl::timer;
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 thread_local eosio::vm::wasm_allocator controller_impl::wasm_alloc;
-thread_local std::vector<eosio::vm::wasm_allocator> controller_impl::sync_call_wasm_alloc;
-thread_local uint32_t controller_impl::sync_call_wasm_alloc_index = 0;
-#endif
 
 const resource_limits_manager&   controller::get_resource_limits_manager()const
 {
@@ -6011,20 +5996,27 @@ void controller::enable_deep_mind(deep_mind_handler* logger) {
 uint32_t controller::earliest_available_block_num() const{
    return my->earliest_available_block_num();
 }
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+
 vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
 
-vm::wasm_allocator& controller::get_sync_call_wasm_allocator() {
-   EOS_ASSERT( my->sync_call_wasm_alloc_index < 16, misc_exception, "sync_call_wasm_alloc_index ${i} must be less than ${m}", ("i", my->sync_call_wasm_alloc_index) ("m", 16) ); // will change to use max_sync_call_depth
-   return my->sync_call_wasm_alloc[my->sync_call_wasm_alloc_index++];
+std::shared_ptr<vm::wasm_allocator> controller::acquire_sync_call_wasm_allocator() {
+   return my->wasm_allocator_pool.acquire();
 }
 
-void controller::return_sync_call_wasm_allocator() {
-   --my->sync_call_wasm_alloc_index;
+void controller::release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc) {
+   my->wasm_allocator_pool.release(alloc);
 }
-#endif
+
+void controller::set_wasm_alloc_pool_num_threads(uint32_t num_threads) {
+   my->wasm_allocator_pool.set_num_threads(num_threads);
+}
+
+void controller::set_wasm_alloc_pool_max_call_depth(uint32_t depth) {
+   my->wasm_allocator_pool.set_max_call_depth(depth);
+}
+
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
 bool controller::is_eos_vm_oc_enabled() const {
    return my->is_eos_vm_oc_enabled();
@@ -6359,6 +6351,9 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_data" );
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
    } );
+
+   auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
+   wasm_allocator_pool.set_max_call_depth(max_call_depth);
 }
 
 /// End of protocol feature activation handlers

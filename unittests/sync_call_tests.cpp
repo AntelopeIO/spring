@@ -1553,4 +1553,99 @@ BOOST_AUTO_TEST_CASE(privilege_call_test)  { try {
    BOOST_CHECK_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
+// If the action input is 0, set max_sync_call_depth to 20,
+// If the action input is 1, set max_sync_call_depth to 10,
+// Otherwise, make the sync call with call depth of the input
+static const char max_call_depth_update_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
+   (import "env" "set_parameters_packed" (func $set_parameters_packed (param i32 i32)))
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (local $input i32)
+
+      (drop (call $read_action_data(i32.const 0)(i32.const 4)))  ;; read action input into memory[0]
+
+     (set_local $input (i32.load (i32.const 0)))  ;; load input
+
+     (if (i32.eq (get_local $input) (i32.const 0))
+        (then
+           (call $set_parameters_packed (i32.const 4) (i32.const 6))  ;; set max_sync_call_depth to 20
+        )
+        (else
+           (if (i32.eq (get_local $input) (i32.const 1))
+              (then
+                 (call $set_parameters_packed (i32.const 10) (i32.const 6))  ;; set max_sync_call_depth to 10
+              )
+              (else
+                 (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data starting at address 0, size 4
+              )
+           )
+        )
+     )
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 4) ;; memory[4]
+      "\01"           ;; 1:  sequence_length
+      "\12"           ;; 18: max_sync_call_depth id
+      "\14\00\00\00"  ;; 20: new max_sync_call_depth value
+      "\01"           ;; 1:  sequence_length, memory[10]
+      "\12"           ;; 18: max_sync_call_depth id
+      "\0A\00\00\00"  ;; 10: another max_sync_call_depth value
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(max_call_depth_update_caller_wast, direct_recursive_wast, t);
+
+   // Add privilege to caller account so it can call set_parameters_packed
+   t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
+                 mvo()("account", "caller"_n)("is_priv", 1));
+   t.produce_block();
+
+   // Verify `config::default_max_sync_call_depth + 1` (17) recursive calls will fail
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth + 1))),
+                         sync_call_depth_exception,
+                         fc_exception_message_contains("reached sync call max call depth"));
+
+   // Increase max_sync_call_depth to 20
+   t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", "0"));
+   t.produce_block();
+
+   // Now `config::default_max_sync_call_depth + 1` (17) recursive calls should pass
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth + 1))));
+
+   // 20 recursive calls should also pass
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", "20")));
+
+   // But `21` recursive calls should fail
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", "21")),
+                         sync_call_depth_exception,
+                         fc_exception_message_contains("reached sync call max call depth"));
+
+   // Reduce max_sync_call_depth to 10
+   t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", "1"));
+   t.produce_block();
+
+   // Now `10` recursive calls should pass
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", "10")));
+
+   // But `11` recursive calls should fail
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", "11")),
+                         sync_call_depth_exception,
+                         fc_exception_message_contains("reached sync call max call depth"));
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
