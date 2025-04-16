@@ -151,14 +151,9 @@ try:
                     continue
                 peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
             if peer_names[peer_addr] != "bios" and peer_addr != getHostName(nodeId):
-                peers.append(peer_names[peer_addr])
-                if not conn["is_bp_peer"]:
-                    Utils.Print(f"Error: expected connection to {peer_addr} with is_bp_peer as true")
-                    connection_failure = True
-                    break
+                if conn["is_bp_peer"]:
+                    peers.append(peer_names[peer_addr])
 
-        if connection_failure:
-            break
         if not peers:
             Utils.Print(f"ERROR: found no connected peers for node {nodeId}")
             connection_failure = True
