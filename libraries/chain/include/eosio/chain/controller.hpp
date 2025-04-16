@@ -80,6 +80,23 @@ namespace eosio::chain {
       class resource_limits_manager;
    };
 
+   // vector, sorted by rank, of the top-50 producers by `total_votes` (whether
+   // active or not) and their peer key if populated on-chain.
+   // -------------------------------------------------------------------------
+   struct peerkeys_t {
+      name                           producer_name;
+      std::optional<public_key_type> peer_key;
+   };
+   using getpeerkeys_res_t = std::vector<peerkeys_t>;
+
+   struct peer_info_t {
+      // rank by `total_votes` of all producers, active or not, may not match schedule rank
+      uint32_t                       rank{std::numeric_limits<uint32_t>::max()};
+      std::optional<public_key_type> key;
+
+      bool operator==(const peer_info_t&) const = default;
+   };
+
    struct controller_impl;
    using chainbase::database;
    using chainbase::pinnable_mapped_file;
@@ -209,7 +226,7 @@ namespace eosio::chain {
          deque<transaction_metadata_ptr> abort_block();
 
          /// Expected to be called from signal handler, or producer_plugin
-         void interrupt_apply_block_transaction();
+         void interrupt_transaction();
 
        /**
         *
@@ -230,6 +247,7 @@ namespace eosio::chain {
          void assemble_and_complete_block( const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block();
+         void update_peer_keys(fc::time_point deadline);
          void testing_allow_voting(bool val);
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
@@ -428,7 +446,8 @@ namespace eosio::chain {
          chain_id_type get_chain_id()const;
 
          void set_peer_keys_retrieval_active(bool active);
-         std::optional<public_key_type> get_peer_key(name n) const; // thread safe
+         peer_info_t  get_peer_info(name n) const;  // thread safe
+         getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline); // must be called from main thread
 
          // thread safe
          db_read_mode get_read_mode()const;
@@ -518,3 +537,5 @@ namespace eosio::chain {
    }; // controller
 
 }  /// eosio::chain
+
+FC_REFLECT(eosio::chain::peerkeys_t, (producer_name)(peer_key))
