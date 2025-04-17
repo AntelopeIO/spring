@@ -268,6 +268,8 @@ namespace eosio { namespace chain { namespace webassembly {
          [&]( auto& gprops ) {
               gprops.configuration = config_range.config;
       });
+
+      context.control.set_wasm_alloc_pool_max_call_depth(config_range.config.max_sync_call_depth);
    }
 
    bool interface::is_privileged( account_name n ) const {
