@@ -1,11 +1,5 @@
 #pragma once
 
-#pragma GCC diagnostic push
-// avoid warnings from issue https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105329 when building with gcc 12
-#pragma GCC diagnostic ignored "-Wrestrict" 
-#include <boost/test/data/test_case.hpp>
-#pragma GCC diagnostic pop
-
 #include <boost/test/data/monomorphic/generators/xrange.hpp>
 #include <eosio/testing/tester.hpp>
 #include <contracts.hpp>
