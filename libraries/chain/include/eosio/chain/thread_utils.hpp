@@ -286,13 +286,7 @@ namespace eosio { namespace chain {
       template<typename Rep, typename Period, typename F>
       void run(const unsigned num_threads, const std::chrono::duration<Rep, Period>& ping_interval, F&& ping) {
          std::vector<std::promise<void>> thread_promises(num_threads);
-         std::list<std::thread> threads;
-
-         //this scoped_exit can go away with jthread; but still marked experimental in libc++18
-         auto join = fc::make_scoped_exit([&threads]() {
-            for(std::thread& t : threads)
-               t.join();
-         });
+         std::list<std::jthread> threads;
 
          for(unsigned i = 0; i < num_threads; ++i)
             threads.emplace_back([this, i, &prom = thread_promises[i]] {

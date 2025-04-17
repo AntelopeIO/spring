@@ -564,7 +564,7 @@ public:
                              )
          );
       }
-      T::produce_block();
+      T::produce_blocks( 2 * 21 );
       T::produce_block(fc::seconds(1000));
 
       auto producer_keys = T::control->active_producers().producers;
