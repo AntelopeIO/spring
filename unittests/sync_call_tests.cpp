@@ -1040,6 +1040,7 @@ static const char invalid_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
+   // validating entry point signature on OC not done yet.
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
       return;
    }
@@ -1188,18 +1189,6 @@ BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
    // Do a recursive call with n == 1
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "1")));
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // Do a small recursive call for now
-      BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", 3)));
-      return;
-   }
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // Do a small recursive call for now
-      BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", 3)));
-      return;
-   }
-
    // Do a recursive call with n == config::default_max_sync_call_depth
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string(config::default_max_sync_call_depth))));
 
@@ -1293,10 +1282,6 @@ BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
 
    // Do a recursive call with n == 1 round. Each round consumes 2 call depths
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "1")));
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      return;
-   }
 
    // Do a recursive call with n == config::default_max_sync_call_depth/2 rounds.
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string((config::default_max_sync_call_depth / 2)))));
@@ -1602,11 +1587,6 @@ static const char max_call_depth_update_caller_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(max_call_depth_update_caller_wast, direct_recursive_wast, t);
 
