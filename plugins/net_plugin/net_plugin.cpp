@@ -3954,7 +3954,7 @@ namespace eosio {
    void connection::handle_message( const block_id_type& id, signed_block_ptr ptr ) {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
-      my_impl->dispatcher.strand.dispatch([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+      boost::asio::dispatch(my_impl->dispatcher.strand, [id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
          if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
             return;
          controller& cc = my_impl->chain_plug->chain();
@@ -4101,7 +4101,7 @@ namespace eosio {
 
       if (chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
+         boost::asio::post(dispatcher.strand, [sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4121,7 +4121,7 @@ namespace eosio {
 
       if (chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
+         boost::asio::post(dispatcher.strand, [sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
