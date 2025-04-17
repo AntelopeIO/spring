@@ -528,7 +528,7 @@ BOOST_FIXTURE_TEST_CASE(valid_category_addresses, http_plugin_test_fixture) {
    bool ip_v6_enabled = [] {
       try {
          net::io_context ioc;
-         tcp::socket     s(ioc, tcp::endpoint{net::ip::address::from_string("::1"), 9999});
+         tcp::socket     s(ioc, tcp::endpoint{net::ip::make_address("::1"), 9999});
          return true;
       } catch (...) {
          return false;
