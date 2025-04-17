@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/test/data/test_case.hpp>
 #include <boost/test/data/monomorphic/generators/xrange.hpp>
 #include <eosio/testing/tester.hpp>
 #include <contracts.hpp>
