@@ -1218,9 +1218,9 @@ public:
    bool in_producing_mode()   const { return _pending_block_mode == pending_block_mode::producing; }
    bool in_speculating_mode() const { return _pending_block_mode == pending_block_mode::speculating; }
 
-   void interrupt_transaction() {
+   void interrupt_transaction(controller::interrupt_t interrupt) {
       if (_is_savanna_active) // interrupt during transition causes issues, so only allow after transition
-         chain_plug->chain().interrupt_transaction();
+         chain_plug->chain().interrupt_transaction(interrupt);
    }
 };
 
@@ -2854,7 +2854,7 @@ void producer_plugin_impl::schedule_production_loop() {
       // we failed to start a block, so try again later?
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-            interrupt_transaction();
+            interrupt_transaction(controller::interrupt_t::all_trx);
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -2940,7 +2940,7 @@ void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<
       _timer.expires_at(epoch + boost::posix_time::microseconds(wake_up_time->time_since_epoch().count()));
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-            interrupt_transaction();
+            interrupt_transaction(controller::interrupt_t::all_trx);
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -3063,10 +3063,10 @@ void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fo
    if (my->_is_savanna_active) { // interrupt during transition causes issues, so only allow after transition
       if (fork_db_add_result == fork_db_add_t::appended_to_head) {
          fc_tlog(_log, "new head block received, interrupting trx");
-         my->interrupt_transaction();
+         my->interrupt_transaction(controller::interrupt_t::speculative_block_trx);
       } else if (fork_db_add_result == fork_db_add_t::fork_switch) {
          fc_ilog(_log, "new best fork received, interrupting trx");
-         my->interrupt_transaction();
+         my->interrupt_transaction(controller::interrupt_t::all_trx);
       }
    }
 }
@@ -3076,7 +3076,7 @@ void producer_plugin::interrupt() {
    fc_ilog(_log, "interrupt");
    app().executor().stop(); // shutdown any blocking read_only_execution_task
    my->interrupt_read_only();
-   my->interrupt_transaction();
+   my->interrupt_transaction(controller::interrupt_t::all_trx);
 }
 
 void producer_plugin_impl::interrupt_read_only() {

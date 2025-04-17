@@ -4606,14 +4606,23 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_transaction() {
+   void interrupt_transaction(controller::interrupt_t interrupt) {
       // Do not interrupt during replay. ctrl-c during replay is handled at block boundaries.
       // Interrupt both speculative trxs and trxs while applying a block.
       // This is to allow killing a long-running transaction in a block being validated during apply block.
       // This also allows killing a trx when a block is received to prioritize block validation.
       if (!replaying) {
-         dlog("Interrupting trx...");
-         main_thread_timer.interrupt_timer();
+         if (applying_block) {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::apply_block_trx) {
+               dlog("Interrupting apply block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         } else {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::speculative_block_trx) {
+               dlog("Interrupting speculative block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         }
       }
    }
 
@@ -5388,8 +5397,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_transaction() {
-   my->interrupt_transaction();
+void controller::interrupt_transaction(interrupt_t interrupt) {
+   my->interrupt_transaction(interrupt);
 }
 
 boost::asio::io_context& controller::get_thread_pool() {
