@@ -600,7 +600,7 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
          //we can't control http_plugin's send buffer, but at least we can control our receive buffer size to help increase
          // chance of server blocking
          s.set_option(boost::asio::socket_base::receive_buffer_size(8*1024));
-         s.connect(resolver.resolve("127.0.0.1", "8891")->endpoint());
+         boost::asio::connect(s, resolver.resolve("127.0.0.1", "8891"));
          boost::beast::http::request<boost::beast::http::empty_body> req(boost::beast::http::verb::get, "/4megabyte", 11);
          req.keep_alive(true);
          req.set(http::field::host, "127.0.0.1:8891");
