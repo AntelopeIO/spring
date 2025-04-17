@@ -748,12 +748,12 @@ struct building_block {
                auto [transaction_mroot, action_mroot] = std::visit(
                   overloaded{[&](digests_t& trx_receipts) {
                                 // calculate_merkle takes 3.2ms for 50,000 digests (legacy version took 11.1ms)
-                                return std::make_pair(calculate_merkle(trx_receipts),
-                                                      calculate_merkle(*action_receipts.digests_s));
+                                return std::make_pair(calculate_merkle(trx_receipts, ioc),
+                                                      calculate_merkle(*action_receipts.digests_s, ioc));
                              },
                              [&](const checksum256_type& trx_checksum) {
                                 return std::make_pair(trx_checksum,
-                                                      calculate_merkle(*action_receipts.digests_s));
+                                                      calculate_merkle(*action_receipts.digests_s, ioc));
                              }},
                   trx_mroot_or_receipt_digests());
 
@@ -3904,7 +3904,7 @@ struct controller_impl {
                ab.apply_legacy<void>([&](assembled_block::assembled_block_legacy& abl) {
                   assert(abl.action_receipt_digests_savanna);
                   const auto& digests = *abl.action_receipt_digests_savanna;
-                  bsp->action_mroot_savanna = calculate_merkle(digests);
+                  bsp->action_mroot_savanna = calculate_merkle(digests, thread_pool.get_executor());
                });
             }
             auto& ab = std::get<assembled_block>(pending->_block_stage);
@@ -4256,7 +4256,7 @@ struct controller_impl {
          }
       }
 
-      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
+      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block, thread_pool.get_executor() );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
                   block_validate_exception,
                   "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
@@ -4618,20 +4618,20 @@ struct controller_impl {
    }
 
    // @param if_active true if instant finality is active
-   static checksum256_type calc_merkle( deque<digest_type>&& digests, bool if_active ) {
+   static checksum256_type calc_merkle( deque<digest_type>&& digests, bool if_active, boost::asio::io_context& ioc ) {
       if (if_active) {
-         return calculate_merkle( digests );
+         return calculate_merkle( digests, ioc );
       } else {
          return calculate_merkle_legacy( std::move(digests) );
       }
    }
 
-   static checksum256_type calculate_trx_merkle( const deque<transaction_receipt>& trxs, bool if_active ) {
+   static checksum256_type calculate_trx_merkle( const deque<transaction_receipt>& trxs, bool if_active, boost::asio::io_context& ioc ) {
       deque<digest_type> trx_digests;
       for( const auto& a : trxs )
          trx_digests.emplace_back( a.digest() );
 
-      return calc_merkle(std::move(trx_digests), if_active);
+      return calc_merkle(std::move(trx_digests), if_active, ioc);
    }
 
    void update_producers_authority() {
