@@ -152,8 +152,10 @@ def verifyOcVirtualMemory():
             actualVmSize = vmPages * pageSize
 
             # In OC tierup a memory slice is 8GB;
-            # The main thread uses 529 slices; each read-only thread uses 11 slices.
-            # Total virtual memory is around:
+            # For actions, the main thread uses 529 slices; each read-only thread uses 11 slices.
+            # For sync calls, 1 slice per call depth for a total of max_sync_call_depth on
+            # each thread
+            # Total virtual memory allocated by OC is around:
             # 529 slices * 8GB (for main thread) + numReadOnlyThreads * 11 slices * 8GB
             #
             # In addition, main thread and each read-only thread pre-allocates
@@ -161,12 +163,15 @@ def verifyOcVirtualMemory():
             #
             # This test verifies virtual memory does not grow by the number
             # of read-only threads in the order of TB.
+            totalThreads = args.read_only_threads + 1
             GB = 1024 * 1024 * 1024
-            memoryByWasmAllocators = (args.read_only_threads + 1) * 16 * 8 * GB # use 16 for now. change to use actual configured max_sync_call_depth in PR https://github.com/AntelopeIO/spring/pull/1257
-            memoryByOC             = (529 + (args.read_only_threads * 11)) * 8 * GB
+            virtualMemoryPerSlice = 8 * GB * 2  # It is observed virtual memory grows by 16GB per slice
+            memoryByWasmAllocators = totalThreads * 16 * 8 * GB # use 16 for now. change to use actual configured max_sync_call_depth in PR https://github.com/AntelopeIO/spring/pull/1257
+            syncCallSlices       = totalThreads * 16
+            memoryByOC           = (529 + (args.read_only_threads * 11) + syncCallSlices) * virtualMemoryPerSlice
             memoryForOthers        = 1000 * GB # add 1TB for virtual memory used by others
             expectedVmSize         = memoryByOC + memoryByWasmAllocators + memoryForOthers
-            Utils.Print(f"pid: {apiNode.pid}, memoryByWasmAllocators: {memoryByWasmAllocators}, memoryByOC: {memoryByOC}, memoryForOthers: {memoryForOthers}, actualVmSize: {actualVmSize}, expectedVmSize: {expectedVmSize}")
+            Utils.Print(f"pid: {apiNode.pid}, totalThreads: {totalThreads}, memoryByWasmAllocators: {memoryByWasmAllocators}, memoryByOC: {memoryByOC}, memoryForOthers: {memoryForOthers}, actualVmSize: {actualVmSize}, expectedVmSize: {expectedVmSize}")
             assert(actualVmSize < expectedVmSize)
     except FileNotFoundError:
         Utils.Print(f"/proc/{apiNode.pid}/statm not found")
