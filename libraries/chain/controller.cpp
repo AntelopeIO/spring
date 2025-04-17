@@ -3774,6 +3774,9 @@ struct controller_impl {
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
+            applying_block = true;
+            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
+
             const signed_block_ptr& b = bsp->block;
             fc::scoped_set_value prod_light_validation(trusted_producer_light_validation, is_trusted_producer(b->producer));
 
@@ -3830,9 +3833,6 @@ struct controller_impl {
                   }
                }
             }
-
-            applying_block = true;
-            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
 
             transaction_trace_ptr trace;
 
