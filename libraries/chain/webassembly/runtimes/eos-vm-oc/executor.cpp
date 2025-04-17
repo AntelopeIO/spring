@@ -271,8 +271,9 @@ execution_status executor::execute(const code_descriptor& code, memory& mem, hos
                void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
                apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
             } else if (code.call_offset) {
+               const auto& ctx = static_cast<eosio::chain::sync_call_context&>(context);
                int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
-               call_func(context.get_sender().to_uint64_t(), context.get_receiver().to_uint64_t(), static_cast<uint32_t>(static_cast<eosio::chain::sync_call_context&>(context).data.size()));
+               call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
             } else {
                status = eosio::chain::execution_status::receiver_not_support_sync_call;
             }
