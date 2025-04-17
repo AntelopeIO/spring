@@ -40,10 +40,10 @@ class eosvmoc_runtime : public eosio::chain::wasm_runtime_interface {
       void     release_ro_thread_exec_mem_index();
 
       // For sync calls
-      std::shared_ptr<eosvmoc::executor> acquire_call_exec();
-      void release_call_exec(std::shared_ptr<eosvmoc::executor> e);
-      std::shared_ptr<eosvmoc::memory> acquire_call_mem();
-      void release_call_mem(std::shared_ptr<eosvmoc::memory> m);
+      eosvmoc::executor* acquire_call_exec();
+      void release_call_exec(eosvmoc::executor* e);
+      eosvmoc::memory* acquire_call_mem();
+      void release_call_mem(eosvmoc::memory* m);
       void set_num_threads_for_call_res_pools(uint32_t num_threads);
       void set_max_call_depth_for_call_res_pools(uint32_t depth);
 

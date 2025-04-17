@@ -451,8 +451,8 @@ namespace eosio::chain {
          uint32_t earliest_available_block_num() const;
 
          vm::wasm_allocator&  get_wasm_allocator();
-         std::shared_ptr<vm::wasm_allocator> acquire_sync_call_wasm_allocator();
-         void                 release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc);
+         vm::wasm_allocator*  acquire_sync_call_wasm_allocator();
+         void                 release_sync_call_wasm_allocator(vm::wasm_allocator* alloc);
          void                 set_num_threads_for_call_res_pools(uint32_t num_threads);
          void                 set_max_call_depth_for_call_res_pools(uint32_t depth);
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED

@@ -169,11 +169,11 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
 
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
-         std::shared_ptr<vm::wasm_allocator>      wasm_alloc = std::move(context.control.acquire_sync_call_wasm_allocator());
+         vm::wasm_allocator*                      wasm_alloc = context.control.acquire_sync_call_wasm_allocator();
 
          // always return the wasm_allocator obtainded back to the pool when exiting
          auto ensure = fc::make_scoped_exit([&]() {
-            context.control.release_sync_call_wasm_allocator(std::move(wasm_alloc));
+            context.control.release_sync_call_wasm_allocator(wasm_alloc);
          });
 
          apply_options opts = get_apply_options(context);

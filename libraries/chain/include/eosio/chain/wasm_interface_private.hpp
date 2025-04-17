@@ -54,8 +54,8 @@ struct eosvmoc_tier {
    eosvmoc_tier(const std::filesystem::path& d, const eosvmoc::config& c, const chainbase::database& db,
                 eosvmoc::code_cache_async::compile_complete_callback cb)
       : cc(d, c, db, std::move(cb))
-      , exec_pool([&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); })
-      , mem_pool([]() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); })
+      , exec_pool([&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); })
+      , mem_pool([]() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); })
    {
       // Construct exec and mem for the main thread
       exec = std::make_unique<eosvmoc::executor>(cc);
@@ -69,13 +69,13 @@ struct eosvmoc_tier {
    }
 
    void set_num_threads_for_call_res_pools(uint32_t num_threads) {
-      exec_pool.set_num_threads(num_threads, [&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); });
-      mem_pool.set_num_threads(num_threads, []() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); });
+      exec_pool.set_num_threads(num_threads, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+      mem_pool.set_num_threads(num_threads, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
    }
 
    void set_max_call_depth_for_call_res_pools(uint32_t depth) {
-      exec_pool.set_max_call_depth(depth, [&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); });
-      mem_pool.set_max_call_depth(depth, []() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); });
+      exec_pool.set_max_call_depth(depth, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+      mem_pool.set_max_call_depth(depth, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
    }
 
    eosvmoc::code_cache_async cc;

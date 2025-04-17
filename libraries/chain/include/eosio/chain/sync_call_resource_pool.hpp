@@ -25,7 +25,7 @@ template <typename T>
 class call_resource_pool {
 
 public:
-   using resource_creator = std::function<std::shared_ptr<T>()>;  // customized function to create a resource
+   using resource_creator = std::function<T* ()>;  // customized function to create a resource
 
    explicit call_resource_pool(resource_creator creator)
       : num_threads(1)
@@ -35,13 +35,21 @@ public:
       stack.push(creator());
    }
 
+   ~call_resource_pool() {
+      T* res;
+
+      while (stack.pop(res)) {
+         delete res;
+      }
+   }
+
    // request a resource from the pool, called on any threads
-   std::shared_ptr<T> acquire() {
+   T* acquire() {
       // Each thread can use at most `max_sync_call_depth` resources
       // The stack would never be empty for a new acquire request
       assert(!stack.empty());
 
-      std::shared_ptr<T> res;
+      T* res;
       stack.pop(res);
 
       assert(res);
@@ -49,7 +57,7 @@ public:
    }
 
    // release a resource back to the pool, called on any threads
-   void release(std::shared_ptr<T> res) {
+   void release(T* res) {
       stack.push(res);
    }
 
@@ -93,7 +101,7 @@ private:
    uint32_t num_threads    = 1; // `1` for the main thread
    uint32_t max_call_depth = 1; // prior to sync call protocol feature activated
 
-   boost::lockfree::stack<std::shared_ptr<T>> stack {config::default_max_sync_call_depth};
+   boost::lockfree::stack<T*> stack {config::default_max_sync_call_depth};
 };
 
 }  /// namespace eosio::chain

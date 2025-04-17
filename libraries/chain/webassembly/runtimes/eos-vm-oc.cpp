@@ -64,8 +64,8 @@ eosvmoc_runtime::eosvmoc_runtime(const std::filesystem::path data_dir, const eos
    : cc(data_dir, eosvmoc_config, db)
    , exec(cc)
    , mem(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size)
-   , exec_pool([&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); })
-   , mem_pool([]() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); })
+   , exec_pool([&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); })
+   , mem_pool([]() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); })
 {
 }
 
@@ -77,30 +77,30 @@ std::unique_ptr<wasm_instantiated_module_interface> eosvmoc_runtime::instantiate
    return std::make_unique<eosvmoc_instantiated_module>(code_hash, vm_type, *this);
 }
 
-std::shared_ptr<eosvmoc::executor> eosvmoc_runtime::acquire_call_exec() {
+eosvmoc::executor* eosvmoc_runtime::acquire_call_exec() {
    return exec_pool.acquire();
 }
 
-void eosvmoc_runtime::release_call_exec(std::shared_ptr<eosvmoc::executor> e) {
+void eosvmoc_runtime::release_call_exec(eosvmoc::executor* e) {
    exec_pool.release(e);
 }
 
-std::shared_ptr<eosvmoc::memory> eosvmoc_runtime::acquire_call_mem() {
+eosvmoc::memory* eosvmoc_runtime::acquire_call_mem() {
    return mem_pool.acquire();
 }
 
-void eosvmoc_runtime::release_call_mem(std::shared_ptr<eosvmoc::memory> m) {
+void eosvmoc_runtime::release_call_mem(eosvmoc::memory* m) {
    mem_pool.release(m);
 }
 
 void eosvmoc_runtime::set_num_threads_for_call_res_pools(uint32_t num_threads) {
-   exec_pool.set_num_threads(num_threads, [&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); });
-   mem_pool.set_num_threads(num_threads, []() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); });
+   exec_pool.set_num_threads(num_threads, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+   mem_pool.set_num_threads(num_threads, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
 }
 
 void eosvmoc_runtime::set_max_call_depth_for_call_res_pools(uint32_t depth) {
-   exec_pool.set_max_call_depth(depth, [&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); });
-   mem_pool.set_max_call_depth(depth, []() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); });
+   exec_pool.set_max_call_depth(depth, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+   mem_pool.set_max_call_depth(depth, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
 }
 
 void eosvmoc_runtime::init_thread_local_data() {

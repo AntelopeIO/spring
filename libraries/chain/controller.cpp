@@ -1291,7 +1291,7 @@ struct controller_impl {
     thread_pool(),
     my_finalizers(cfg.finalizers_dir / config::safety_filename),
     main_thread_timer(timer), // assumes constructor is called from main thread
-    wasm_allocator_pool([]() -> std::shared_ptr<vm::wasm_allocator> { return std::make_shared<vm::wasm_allocator>(); }),
+    wasm_allocator_pool([]() -> vm::wasm_allocator* { return new vm::wasm_allocator; }),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, main_thread_timer, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -4941,8 +4941,8 @@ struct controller_impl {
    }
 
    void set_num_threads_for_call_res_pools(uint32_t num_threads) {
-      wasm_allocator_pool.set_num_threads(num_threads, []() -> std::shared_ptr<vm::wasm_allocator> {
-         return std::make_shared<vm::wasm_allocator>();
+      wasm_allocator_pool.set_num_threads(num_threads, []() -> vm::wasm_allocator* {
+         return new vm::wasm_allocator;
       });
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
@@ -4953,8 +4953,8 @@ struct controller_impl {
    }
 
    void set_max_call_depth_for_call_res_pools(uint32_t max_call_depth) {
-      wasm_allocator_pool.set_max_call_depth(max_call_depth, []() -> std::shared_ptr<vm::wasm_allocator> {
-         return std::make_shared<vm::wasm_allocator>();
+      wasm_allocator_pool.set_max_call_depth(max_call_depth, []() -> vm::wasm_allocator* {
+         return new vm::wasm_allocator;
       });
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
@@ -6026,11 +6026,11 @@ vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
 
-std::shared_ptr<vm::wasm_allocator> controller::acquire_sync_call_wasm_allocator() {
+vm::wasm_allocator* controller::acquire_sync_call_wasm_allocator() {
    return my->wasm_allocator_pool.acquire();
 }
 
-void controller::release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc) {
+void controller::release_sync_call_wasm_allocator(vm::wasm_allocator* alloc) {
    my->wasm_allocator_pool.release(alloc);
 }
 
