@@ -60,6 +60,9 @@ namespace eosio { namespace chain {
          // initialize exec per thread
          void init_thread_local_data();
 
+         void set_num_threads_for_call_res_pools(uint32_t num_threads);
+         void set_max_call_depth_for_call_res_pools(uint32_t depth);
+
          // returns true if EOS VM OC is enabled
          bool is_eos_vm_oc_enabled() const;
 

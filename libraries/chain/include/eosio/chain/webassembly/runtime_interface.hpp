@@ -31,6 +31,9 @@ class wasm_runtime_interface {
 
       // eosvmoc_runtime needs this
       virtual void init_thread_local_data() {};
+
+      virtual void set_num_threads_for_call_res_pools(uint32_t num_threads) {};
+      virtual void set_max_call_depth_for_call_res_pools(uint32_t depth) {};
 };
 
 }}

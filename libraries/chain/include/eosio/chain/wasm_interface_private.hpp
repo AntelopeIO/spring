@@ -53,7 +53,10 @@ struct eosvmoc_tier {
    // Called from main thread
    eosvmoc_tier(const std::filesystem::path& d, const eosvmoc::config& c, const chainbase::database& db,
                 eosvmoc::code_cache_async::compile_complete_callback cb)
-      : cc(d, c, db, std::move(cb)) {
+      : cc(d, c, db, std::move(cb))
+      , exec_pool([&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); })
+      , mem_pool([]() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); })
+   {
       // Construct exec and mem for the main thread
       exec = std::make_unique<eosvmoc::executor>(cc);
       mem  = std::make_unique<eosvmoc::memory>(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size);
@@ -65,7 +68,21 @@ struct eosvmoc_tier {
       mem  = std::make_unique<eosvmoc::memory>(eosvmoc::memory::sliced_pages_for_ro_thread);
    }
 
+   void set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      exec_pool.set_num_threads(num_threads, [&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); });
+      mem_pool.set_num_threads(num_threads, []() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); });
+   }
+
+   void set_max_call_depth_for_call_res_pools(uint32_t depth) {
+      exec_pool.set_max_call_depth(depth, [&]() -> std::shared_ptr<eosvmoc::executor>{ return std::make_shared<eosvmoc::executor>(cc); });
+      mem_pool.set_max_call_depth(depth, []() -> std::shared_ptr<eosvmoc::memory>{ return std::make_shared<eosvmoc::memory>(eosvmoc::memory::sliced_pages_sync_call); });
+   }
+
    eosvmoc::code_cache_async cc;
+
+   // For sync calls
+   call_resource_pool<eosvmoc::executor> exec_pool;
+   call_resource_pool<eosvmoc::memory> mem_pool;
 
    // Each thread requires its own exec and mem. Defined in wasm_interface.cpp
    thread_local static std::unique_ptr<eosvmoc::executor> exec;
@@ -161,7 +178,18 @@ struct eosvmoc_tier {
             if (cd) {
                if (!context.is_applying_block()) // read_only_trx_test.py looks for this log statement
                   tlog("${a} speculatively executing ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
-               return eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
+
+               if (context.is_sync_call()) {
+                  auto exec = eosvmoc->exec_pool.acquire();
+                  auto mem  = eosvmoc->mem_pool.acquire();
+                  auto cleanup = fc::make_scoped_exit([&](){
+                     eosvmoc->exec_pool.release(exec);
+                     eosvmoc->mem_pool.release(mem);
+                  });
+                  return exec->execute(*cd, *mem, context);
+               } else {
+                  return eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
+               }
             }
          }
 #endif

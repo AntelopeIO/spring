@@ -47,6 +47,24 @@ namespace eosio { namespace chain {
          my->runtime_interface->init_thread_local_data();
       }
    }
+
+   void wasm_interface::set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      // OC tierup and OC runtime are mutually exclusive
+      if (my->eosvmoc) {
+         my->eosvmoc->set_num_threads_for_call_res_pools(num_threads);
+      } else if (my->wasm_runtime_time == wasm_interface::vm_type::eos_vm_oc && my->runtime_interface) {
+         my->runtime_interface->set_num_threads_for_call_res_pools(num_threads);
+      }
+   }
+
+   void wasm_interface::set_max_call_depth_for_call_res_pools(uint32_t depth) {
+      // OC tierup and OC runtime are mutually exclusive
+      if (my->eosvmoc) {
+         my->eosvmoc->set_max_call_depth_for_call_res_pools(depth);
+      } else if (my->wasm_runtime_time == wasm_interface::vm_type::eos_vm_oc && my->runtime_interface) {
+         my->runtime_interface->set_max_call_depth_for_call_res_pools(depth);
+      }
+   }
 #endif
 
    void wasm_interface::validate(const controller& control, const bytes& code) {
