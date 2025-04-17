@@ -450,11 +450,11 @@ namespace eosio::chain {
          void enable_deep_mind( deep_mind_handler* logger );
          uint32_t earliest_available_block_num() const;
 
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
-         vm::wasm_allocator&  get_wasm_allocator();
-         vm::wasm_allocator&  get_sync_call_wasm_allocator();
-         void                 return_sync_call_wasm_allocator();
-#endif
+         vm::wasm_allocator&                 get_wasm_allocator();
+         std::shared_ptr<vm::wasm_allocator> acquire_sync_call_wasm_allocator();
+         void                                release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc);
+         void                                set_wasm_alloc_pool_num_threads(uint32_t num_threads);
+         void                                set_wasm_alloc_pool_max_call_depth(uint32_t depth);
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          bool is_eos_vm_oc_enabled() const;
 #endif
