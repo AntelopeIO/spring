@@ -202,6 +202,12 @@ void apply_context::console_append(std::string_view val) {
 }
 
 void apply_context::store_console_marker() {
+   // Only do this when console log is enabled; otherwise we will end up with  a non-empty
+   // console markers vector with an empty console string.
+   if (!control.contracts_console()) {
+      return;
+   }
+
    action_trace& trace = get_current_action_trace();
    // Mark the starting point of upcoming sync call's console log
    // when constructing console log hierarchy in pretty printing

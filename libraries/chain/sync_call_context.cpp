@@ -65,6 +65,12 @@ void sync_call_context::console_append(std::string_view val) {
 }
 
 void sync_call_context::store_console_marker() {
+   // Only do this when console log is enabled; otherwise we will end up with  a non-empty
+   // console markers vector with an empty console string.
+   if (!control.contracts_console()) {
+      return;
+   }
+
    // Mark the starting point of upcoming sync call's console log
    // when constructing coonsole log hierarchy in pretty printing
    call_trace& trace = get_call_trace(ordinal);
