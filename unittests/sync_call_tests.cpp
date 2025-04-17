@@ -1676,6 +1676,10 @@ static const char max_call_depth_update_caller_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
    (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
    (import "env" "set_parameters_packed" (func $set_parameters_packed (param i32 i32)))
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
       (local $input i32)
 
       (drop (call $read_action_data(i32.const 0)(i32.const 4)))  ;; read action input into memory[0]
@@ -1712,6 +1716,8 @@ static const char max_call_depth_update_caller_wast[] = R"=====(
 )=====";
 
 BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
+   validating_tester t;
+
    create_accounts_and_set_code(max_call_depth_update_caller_wast, direct_recursive_wast, t);
 
    // Add privilege to caller account so it can call set_parameters_packed
