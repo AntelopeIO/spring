@@ -1630,10 +1630,11 @@ void producer_plugin_impl::plugin_startup() {
          }
       }
 
+      // inform controller's wasm_alloc_pool of number of updated total threads
+      // (number of main plus read only threads)
+      chain.set_num_threads_for_call_res_pools(1 + _ro_thread_pool_size);
+
       if (_ro_thread_pool_size > 0) {
-         // inform controller's wasm_alloc_pool of number of updated total threads
-         // (number of main plus read only threads)
-         chain.set_num_threads_for_call_res_pools(1 + _ro_thread_pool_size);
 
          _ro_thread_pool.start(
             _ro_thread_pool_size,
