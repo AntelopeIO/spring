@@ -26,7 +26,7 @@
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
-#include <eosio/chain/wasm_alloc_pool.hpp>
+#include <eosio/chain/sync_call_resource_pool.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finalizer.hpp>
@@ -1015,7 +1015,7 @@ struct controller_impl {
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
-   wasm_alloc_pool wasm_allocator_pool;
+   call_resource_pool<vm::wasm_allocator> wasm_allocator_pool;
    wasm_interface  wasmif;
    app_window_type app_window = app_window_type::write;
 
@@ -1291,6 +1291,7 @@ struct controller_impl {
     thread_pool(),
     my_finalizers(cfg.finalizers_dir / config::safety_filename),
     main_thread_timer(timer), // assumes constructor is called from main thread
+    wasm_allocator_pool([]() -> std::shared_ptr<vm::wasm_allocator> { return std::make_shared<vm::wasm_allocator>(); }),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, main_thread_timer, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -4939,6 +4940,30 @@ struct controller_impl {
 #endif
    }
 
+   void set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      wasm_allocator_pool.set_num_threads(num_threads, []() -> std::shared_ptr<vm::wasm_allocator> {
+         return std::make_shared<vm::wasm_allocator>();
+      });
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+      if ( is_eos_vm_oc_enabled() ) {
+         wasmif.set_num_threads_for_call_res_pools(num_threads);
+      }
+#endif
+   }
+
+   void set_max_call_depth_for_call_res_pools(uint32_t max_call_depth) {
+      wasm_allocator_pool.set_max_call_depth(max_call_depth, []() -> std::shared_ptr<vm::wasm_allocator> {
+         return std::make_shared<vm::wasm_allocator>();
+      });
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+      if ( is_eos_vm_oc_enabled() ) {
+         wasmif.set_max_call_depth_for_call_res_pools(max_call_depth);
+      }
+#endif
+   }
+
    wasm_interface& get_wasm_interface() {
       return wasmif;
    }
@@ -6009,12 +6034,12 @@ void controller::release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_alloc
    my->wasm_allocator_pool.release(alloc);
 }
 
-void controller::set_wasm_alloc_pool_num_threads(uint32_t num_threads) {
-   my->wasm_allocator_pool.set_num_threads(num_threads);
+void controller::set_num_threads_for_call_res_pools(uint32_t num_threads) {
+   my->set_num_threads_for_call_res_pools(num_threads);
 }
 
-void controller::set_wasm_alloc_pool_max_call_depth(uint32_t depth) {
-   my->wasm_allocator_pool.set_max_call_depth(depth);
+void controller::set_max_call_depth_for_call_res_pools(uint32_t depth) {
+   my->set_max_call_depth_for_call_res_pools(depth);
 }
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
@@ -6352,8 +6377,8 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
    } );
 
-   auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
-   wasm_allocator_pool.set_max_call_depth(max_call_depth);
+   const auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
+   set_max_call_depth_for_call_res_pools(max_call_depth);
 }
 
 /// End of protocol feature activation handlers
