@@ -1790,7 +1790,7 @@ namespace eosio {
                block_sync_throttling = true;
                peer_dlog( this, "throttling block sync to peer ${host}:${port}", ("host", log_remote_endpoint_ip)("port", log_remote_endpoint_port));
                std::shared_ptr<boost::asio::steady_timer> throttle_timer = std::make_shared<boost::asio::steady_timer>(my_impl->thread_pool.get_executor());
-               throttle_timer->expires_from_now(std::chrono::milliseconds(100));
+               throttle_timer->expires_after(std::chrono::milliseconds(100));
                throttle_timer->async_wait(boost::asio::bind_executor(strand, [c=shared_from_this(), throttle_timer](const boost::system::error_code& ec) {
                   if (!ec)
                     c->enqueue_sync_block();
@@ -2016,7 +2016,7 @@ namespace eosio {
    void connection::sync_wait() {
       connection_ptr c(shared_from_this());
       fc::lock_guard g( sync_response_expected_timer_mtx );
-      sync_response_expected_timer.expires_from_now( my_impl->resp_expected_period );
+      sync_response_expected_timer.expires_after( my_impl->resp_expected_period );
       my_impl->sync_master->sync_wait(c);
       sync_response_expected_timer.async_wait(
             boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
@@ -4040,7 +4040,7 @@ namespace eosio {
    // thread safe
    void net_plugin_impl::start_expire_timer() {
       fc::lock_guard g( expire_timer_mtx );
-      expire_timer.expires_from_now( txn_exp_period);
+      expire_timer.expires_after( txn_exp_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
@@ -4051,7 +4051,7 @@ namespace eosio {
    // thread safe
    void net_plugin_impl::ticker() {
       fc::lock_guard g( keepalive_timer_mtx );
-      keepalive_timer.expires_from_now(keepalive_interval);
+      keepalive_timer.expires_after(keepalive_interval);
       keepalive_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
             my->ticker();
             if( ec ) {
@@ -4945,7 +4945,7 @@ namespace eosio {
       if (!timer) {
          timer = std::make_unique<boost::asio::steady_timer>( my_impl->thread_pool.get_executor() );
       }
-      timer->expires_from_now( du );
+      timer->expires_after( du );
       timer->async_wait( [this, from_connection{std::move(from_connection)}, f = func](boost::system::error_code ec) mutable {
          if( !ec ) {
             (this->*f)(from_connection);
