@@ -204,7 +204,7 @@ void apply_context::console_append(std::string_view val) {
 void apply_context::store_console_marker() {
    action_trace& trace = get_current_action_trace();
    // Mark the starting point of upcoming sync call's console log
-   // when constructing coonsole log hierarchy in pretty printing
+   // when constructing console log hierarchy in pretty printing
    trace.console_markers.emplace_back(trace.console.size());
 }
 
