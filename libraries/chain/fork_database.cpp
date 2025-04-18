@@ -251,15 +251,20 @@ namespace eosio::chain {
       if constexpr (std::is_same_v<BSP, block_state_ptr>) {
          auto qc_claim = n->extract_qc_claim();
          if (qc_claim.is_strong_qc) {
-            // claim has already been verified, update LIB even if unable to verify block
-            // We evaluate a block extension qc and advance lib if strong.
-            // This is done before evaluating the block. It is possible the block
-            // will not be valid or forked out. This is safe because the block is
-            // just acting as a carrier of this info. It doesn't matter if the block
-            // is actually valid as it simply is used as a network message for this data.
-            if (auto claimed = search_on_branch_impl(n->previous(), qc_claim.block_num, include_root_t::no)) {
-               auto& latest_qc_claim__block_ref = claimed->core.get_block_reference(claimed->core.latest_qc_claim().block_num);
-               set_pending_savanna_lib_id_impl(latest_qc_claim__block_ref.block_id);
+            // it is not possible to claim a future block, skip if pending is already a higher height
+            block_num_type current_lib = block_header::num_from_id(pending_savanna_lib_id);
+            block_num_type block_num = n->block_num();
+            if (block_num > current_lib) {
+               // claim has already been verified, update LIB even if unable to verify block
+               // We evaluate a block extension qc and advance lib if strong.
+               // This is done before evaluating the block. It is possible the block
+               // will not be valid or forked out. This is safe because the block is
+               // just acting as a carrier of this info. It doesn't matter if the block
+               // is actually valid as it simply is used as a network message for this data.
+               if (auto claimed = search_on_branch_impl(n->previous(), qc_claim.block_num, include_root_t::no)) {
+                  auto& latest_qc_claim__block_ref = claimed->core.get_block_reference(claimed->core.latest_qc_claim().block_num);
+                  set_pending_savanna_lib_id_impl(latest_qc_claim__block_ref.block_id);
+               }
             }
          }
       }
