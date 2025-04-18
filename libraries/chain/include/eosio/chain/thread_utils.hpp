@@ -6,6 +6,7 @@
 #include <fc/scoped_exit.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/use_future.hpp>
 #include <future>
 #include <memory>
 #include <optional>
@@ -136,7 +137,7 @@ namespace eosio { namespace chain {
    class named_thread_pool {
    public:
       using on_except_t = std::function<void(const fc::exception& e)>;
-      using init_t = std::function<void()>;
+      using init_t = std::function<void(size_t)>; // init is passed the thread pool index
 
       named_thread_pool() = default;
 
@@ -189,12 +190,14 @@ namespace eosio { namespace chain {
       /// not thread safe, expected to only be called from thread that called start()
       void stop() {
          if (_thread_pool.size() > 0) {
+            tlog("stoping ${i}", ("i", boost::core::demangle(typeid(this).name())));
             _ioc_work.reset();
             _ioc.stop();
             for( auto& t : _thread_pool ) {
                t.join();
             }
             _thread_pool.clear();
+            tlog("stopped ${i}", ("i", boost::core::demangle(typeid(this).name())));
          }
       }
 
@@ -217,7 +220,7 @@ namespace eosio { namespace chain {
             try {
                tn = set_current_thread_name_to_typename( typeid(this), i );
                if ( init )
-                  init();
+                  init(i);
             } FC_LOG_AND_RETHROW()
          }
          catch( ... ) {
@@ -316,12 +319,14 @@ namespace eosio { namespace chain {
       boost::asio::io_context ctx;
    };
 
-   // async on io_context and return future
-   template<typename F>
-   auto post_async_task( boost::asio::io_context& ioc, F&& f ) {
-      auto task = std::make_shared<std::packaged_task<decltype( f() )()>>( std::forward<F>( f ) );
-      boost::asio::post( ioc, [task]() { (*task)(); } );
-      return task->get_future();
+   template<typename T>
+   concept SupportsASIOPost = boost::asio::execution::is_executor<std::decay_t<T>>::value ||
+                              std::is_same_v<std::decay_t<T>, boost::asio::io_context>;
+
+   // async on executor and return future
+   template<SupportsASIOPost E, typename F>
+   auto post_async_task( E&& ioc, F&& f ) {
+      return boost::asio::post( std::forward<E>(ioc), boost::asio::use_future(std::forward<F>(f)) );
    }
 
 } } // eosio::chain
