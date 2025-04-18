@@ -253,8 +253,7 @@ namespace eosio::chain {
          if (qc_claim.is_strong_qc) {
             // it is not possible to claim a future block, skip if pending is already a higher height
             block_num_type current_lib = block_header::num_from_id(pending_savanna_lib_id);
-            block_num_type block_num = n->block_num();
-            if (block_num > current_lib) {
+            if (qc_claim.block_num > current_lib) {
                // claim has already been verified, update LIB even if unable to verify block
                // We evaluate a block extension qc and advance lib if strong.
                // This is done before evaluating the block. It is possible the block
