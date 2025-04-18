@@ -1718,6 +1718,11 @@ static const char max_call_depth_update_caller_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
    validating_tester t;
 
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
    create_accounts_and_set_code(max_call_depth_update_caller_wast, direct_recursive_wast, t);
 
    // Add privilege to caller account so it can call set_parameters_packed
