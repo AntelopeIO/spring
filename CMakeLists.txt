@@ -1,8 +1,4 @@
-cmake_minimum_required( VERSION 3.16 )
-
-if(POLICY CMP0144)
-  cmake_policy(SET CMP0144 NEW)   # avoid cmake warning, accept both lowercase and uppercase `<PackageName>_ROOT`
-endif()
+cmake_minimum_required( VERSION 3.16...4.0 )
 
 project( antelope-spring )
 include(CTest)
