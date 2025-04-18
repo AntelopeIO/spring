@@ -2064,6 +2064,10 @@ producer_plugin_impl::determine_pending_block_mode(const fc::time_point& now,
    // If the next block production opportunity is in the present or future, we're synced.
    if (!_production_enabled) {
       _pending_block_mode = pending_block_mode::speculating;
+      if (_producers.find(scheduled_producer.producer_name) != _producers.end()) {
+         fc_elog(_log, "Not producing block because stale production not enabled, block ${t}", ("t", block_time));
+         not_producing_when_time = true;
+      }
    } else if (_producers.find(scheduled_producer.producer_name) == _producers.end()) {
       _pending_block_mode = pending_block_mode::speculating;
    } else if (num_relevant_signatures == 0) {
