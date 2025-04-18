@@ -419,6 +419,7 @@ def timeoutTest():
       }
     )
     '''
+    if Utils.Debug: Utils.Print(f"result: {results}")
     assert(results[0] == False)
     assert('except' in results[1]['processed'])
     assert(results[1]['processed']['except']['code'] == 3080004)
