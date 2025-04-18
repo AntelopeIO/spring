@@ -2047,4 +2047,23 @@ static const char read_only_pass_along_callee1_wast[] = R"=====(
 )
 )=====";
 
+// Verify that in a sequence of sync calls, once the read_only flag is set,
+// all subsequent calls will honor the read only request, even if their own
+// call flags do not have read_only set.
+BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
+   call_tester t({ {"caller"_n,  read_only_pass_along_caller_wast},
+                   {"callee"_n,  read_only_pass_along_callee_wast},
+                   {"callee1"_n, read_only_pass_along_callee1_wast} });
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
+                         unaccessible_api,
+                         fc_exception_message_contains("this API is not allowed in read only action/call"));
+
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
