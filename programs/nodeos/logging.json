@@ -43,7 +43,7 @@
       "name": "net",
       "type": "gelf",
       "args": {
-        "endpoint": "my_server.example.com:12201",
+        "endpoint": "my_server.example.invalid:12201",
         "host": "host_name",
         "_network": "jungle"
       },
