@@ -6,7 +6,6 @@ using namespace eosio::testing;
 
 using mvo = fc::mutable_variant_object;
 
-BOOST_AUTO_TEST_SUITE(sync_call_tests)
 
 // Generic ABI
 static const char* doit_abi = R"=====(
@@ -28,6 +27,27 @@ static const char* doit_abi = R"=====(
    "ricardian_clauses": []
 }
 )=====";
+
+struct acct_code {
+   const        account_name name;
+   const char*  wast;
+};
+
+// The first account in accounts vector must be the caller initiating a sync call
+struct call_tester: validating_tester {
+   call_tester(const std::vector<acct_code>& accounts) {
+      for (auto i = 0u; i < accounts.size(); ++i) {
+         create_account(accounts[i].name);
+         set_code(accounts[i].name, accounts[i].wast);
+
+         if (i == 0) {
+            set_abi(accounts[i].name, doit_abi);
+         }
+      }
+   }
+};
+
+BOOST_AUTO_TEST_SUITE(sync_call_tests)
 
 // A common helper function
 void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat, validating_tester& t) {
