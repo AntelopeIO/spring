@@ -117,7 +117,7 @@ struct eosvmoc_tier {
             auto elapsed = fc::time_point::now() - queued_time;
             auto expire_in = std::max(fc::microseconds(0), fc::milliseconds(500) - elapsed);
             std::shared_ptr<boost::asio::steady_timer> timer = std::make_shared<boost::asio::steady_timer>(ctx);
-            timer->expires_from_now(std::chrono::microseconds(expire_in.count()));
+            timer->expires_after(std::chrono::microseconds(expire_in.count()));
             timer->async_wait([timer, this, code_id](const boost::system::error_code& ec) {
                if (ec)
                   return;

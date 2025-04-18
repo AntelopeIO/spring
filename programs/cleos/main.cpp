@@ -93,9 +93,10 @@ Options:
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
 #include <boost/process.hpp>
-#include <boost/process/spawn.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
 #include <boost/range/adaptor/transformed.hpp>
-#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/range/algorithm/copy.hpp>
 #define BOOST_DLL_USE_STD_FS
 #include <boost/dll/runtime_symbol_info.hpp>
@@ -1145,7 +1146,7 @@ void ensure_keosd_running(CLI::App* app) {
     }
 
     if (std::filesystem::exists(binPath)) {
-        namespace bp = boost::process;
+        namespace bp = boost::process::v1;
         binPath = std::filesystem::canonical(binPath);
 
         vector<std::string> pargs;
@@ -1154,10 +1155,10 @@ void ensure_keosd_running(CLI::App* app) {
         pargs.push_back("--unix-socket-path");
         pargs.push_back(string(key_store_executable_name) + ".sock");
 
-        ::boost::process::child keos(binPath.string(), pargs,
-                                     bp::std_in.close(),
-                                     bp::std_out > bp::null,
-                                     bp::std_err > bp::null);
+        bp::child keos(binPath.string(), pargs,
+                       bp::std_in.close(),
+                       bp::std_out > bp::null,
+                       bp::std_err > bp::null);
         if (keos.running()) {
             std::cerr << binPath << " launched" << std::endl;
             keos.detach();

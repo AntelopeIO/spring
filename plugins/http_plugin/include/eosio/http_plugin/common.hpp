@@ -199,7 +199,7 @@ inline bool host_is_valid(const http_plugin_state& plugin_state,
    if (ec)
       return plugin_state.valid_hosts.count(hostname);
    if (header_addr.is_v4() && addr.is_v6()) {
-      header_addr = boost::asio::ip::address_v6::v4_mapped(header_addr.to_v4());
+      header_addr = boost::asio::ip::make_address_v6(boost::asio::ip::v4_mapped_t(), header_addr.to_v4());
    }
    return header_addr == addr;
 }

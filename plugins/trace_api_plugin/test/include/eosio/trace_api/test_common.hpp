@@ -20,15 +20,15 @@ namespace eosio::trace_api {
     */
 
    namespace test_common {
-      inline fc::sha256 operator"" _h(const char* input, std::size_t) {
+      inline fc::sha256 operator""_h(const char* input, std::size_t) {
          return fc::sha256(input);
       }
 
-      inline chain::name operator"" _n(const char* input, std::size_t) {
+      inline chain::name operator""_n(const char* input, std::size_t) {
          return chain::name(input);
       }
 
-      inline chain::asset operator"" _t(const char* input, std::size_t) {
+      inline chain::asset operator""_t(const char* input, std::size_t) {
          return chain::asset::from_string(input);
       }
 

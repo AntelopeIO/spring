@@ -294,7 +294,7 @@ struct catalog_type {
    void register_update_handlers(boost::asio::io_context::strand& strand) {
       auto& http = app().get_plugin<http_plugin>();
       http.register_update_metrics(
-          [&strand, this](http_plugin::metrics metrics) { strand.post([metrics = std::move(metrics), this]() { update(metrics); }); });
+         [&strand, this](http_plugin::metrics metrics) { boost::asio::post(strand, [metrics = std::move(metrics), this]() { update(metrics); }); });
 
       auto& net = app().get_plugin<net_plugin>();
 
@@ -314,17 +314,17 @@ struct catalog_type {
       auto& producer = app().get_plugin<producer_plugin>();
       producer.register_update_speculative_block_metrics(
               [&strand, this](const speculative_block_metrics& metrics) {
-                 strand.post([metrics, this]() { update(metrics); });
+                 boost::asio::post(strand, [metrics, this]() { update(metrics); });
               });
 
       auto& chain = app().get_plugin<chain_plugin>().chain();
       chain.register_update_produced_block_metrics(
           [&strand, this](const produced_block_metrics& metrics) {
-             strand.post([metrics, this]() { update(metrics); });
+             boost::asio::post(strand, [metrics, this]() { update(metrics); });
           });
       chain.register_update_incoming_block_metrics(
           [&strand, this](const incoming_block_metrics& metrics) {
-             strand.post([metrics, this]() { update(metrics); });
+             boost::asio::post(strand, [metrics, this]() { update(metrics); });
           });
    }
 };

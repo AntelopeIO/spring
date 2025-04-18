@@ -40,7 +40,7 @@ namespace eosio {
       }
 
       void metrics(const fc::variant_object&, chain::plugin_interface::next_function<std::string> results) {
-         _impl->_prometheus_strand.post([this, results=std::move(results)]() {
+         boost::asio::post(_impl->_prometheus_strand, [this, results=std::move(results)]() {
             results(_impl->_catalog.report());
          });
       }

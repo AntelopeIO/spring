@@ -167,7 +167,7 @@ struct compile_monitor_session {
          write_message_with_fds(_nodeos_instance_socket, reply);
 
          //either way, we are done
-         _ctx.post([this, current_compile_it]() {
+         boost::asio::post(_ctx, [this, current_compile_it]() {
             current_compiles.erase(current_compile_it);
          });
       });
@@ -216,7 +216,7 @@ struct compile_monitor {
             _socket_for_comm.assign(local::datagram_protocol(), fds[0].release());
             _compile_sessions.emplace_front(ctx, std::move(_socket_for_comm), std::move(fds[1]), _trampoline_socket);
             _compile_sessions.front().connection_dead_signal.connect([&, it = _compile_sessions.begin()]() {
-               ctx.post([&]() {
+               boost::asio::post(ctx, [&]() {
                   _compile_sessions.erase(it);
                });
             });
