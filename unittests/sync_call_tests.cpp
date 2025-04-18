@@ -2066,4 +2066,30 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
 
 } FC_LOG_AND_RETHROW() }
 
+// Verify that if the transaction is a read-only transaction,
+// all sync calls it initiates will honor the read only request, even if their own
+// call flags do not have read_only set.
+BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
+   call_tester t({ {"caller"_n,  caller_wast},
+                   {"callee"_n,  read_only_pass_along_callee1_wast} });
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   // Construct a read_only transaction
+   action act;
+   signed_transaction trx;
+   act.account = "caller"_n;
+   act.name    = "doit"_n;
+   trx.actions.push_back(act);
+   t.set_transaction_headers(trx);
+
+   BOOST_CHECK_EXCEPTION(
+      t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::read_only),
+      unaccessible_api,
+      fc_exception_message_contains("this API is not allowed in read only action/call"));
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
