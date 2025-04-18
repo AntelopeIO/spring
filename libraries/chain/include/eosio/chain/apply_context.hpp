@@ -89,6 +89,8 @@ class apply_context : public host_context {
       bool is_eos_vm_oc_whitelisted() const;
       bool should_use_eos_vm_oc()const;
 
+      bool is_read_only() const override { return trx_context.is_read_only(); }
+
    private:
       const action*                 act = nullptr; ///< action being applied
       // act pointer may be invalidated on call to trx_context.schedule_action
