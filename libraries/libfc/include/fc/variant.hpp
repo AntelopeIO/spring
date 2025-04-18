@@ -168,7 +168,7 @@ namespace fc
    template<typename T>
    void from_variant( const fc::variant& var,  std::shared_ptr<T>& vo );
 
-   typedef std::vector<fc::variant>   variants;
+   using variants = std::vector<fc::variant>;
    template<typename A, typename B>
    void to_variant( const std::pair<A,B>& t, fc::variant& v );
    template<typename A, typename B>
@@ -399,11 +399,11 @@ namespace fc
    void to_variant( const std::unordered_set<T>& var,  fc::variant& vo )
    {
        if( var.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-       std::vector<fc::variant> vars(var.size());
+       variants vars(var.size());
        size_t i = 0;
        for( auto itr = var.begin(); itr != var.end(); ++itr, ++i )
           vars[i] = fc::variant(*itr);
-       vo = vars;
+       vo = std::move(vars);
    }
    template<typename T>
    void from_variant( const fc::variant& var,  std::unordered_set<T>& vo )
@@ -482,11 +482,11 @@ namespace fc
    void to_variant( const std::set<T>& var,  fc::variant& vo )
    {
        if( var.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-       std::vector<fc::variant> vars(var.size());
+       variants vars(var.size());
        size_t i = 0;
        for( auto itr = var.begin(); itr != var.end(); ++itr, ++i )
           vars[i] = fc::variant(*itr);
-       vo = vars;
+       vo = std::move(vars);
    }
    template<typename T>
    void from_variant( const fc::variant& var,  std::set<T>& vo )
@@ -515,7 +515,7 @@ namespace fc
    void to_variant( const std::deque<T>& t, fc::variant& v )
    {
       if( t.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-      std::vector<fc::variant> vars(t.size());
+      variants vars(t.size());
       for( size_t i = 0; i < t.size(); ++i )
          vars[i] = fc::variant(t[i]);
       v = std::move(vars);
@@ -563,7 +563,7 @@ namespace fc
    void to_variant( const std::vector<T>& t, fc::variant& v )
    {
       if( t.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-      std::vector<fc::variant> vars(t.size());
+      variants vars(t.size());
        for( size_t i = 0; i < t.size(); ++i )
           vars[i] = fc::variant(t[i]);
        v = std::move(vars);
@@ -582,7 +582,7 @@ namespace fc
    template<typename T, std::size_t S>
    void to_variant( const std::array<T,S>& t, fc::variant& v )
    {
-      std::vector<fc::variant> vars(S);
+      variants vars(S);
       for( std::size_t i = 0; i < S; ++i )
          vars[i] = fc::variant(t[i]);
       v = std::move(vars);
@@ -592,10 +592,10 @@ namespace fc
    template<typename A, typename B>
    void to_variant( const std::pair<A,B>& t, fc::variant& v )
    {
-      std::vector<fc::variant> vars(2);
+      variants vars(2);
       vars[0] = fc::variant(t.first);
       vars[1] = fc::variant(t.second);
-       v = vars;
+      v = std::move(vars);
    }
 
    /** @ingroup Serializable */
@@ -668,7 +668,7 @@ namespace fc
 
    template<typename T, typename... Args> void to_variant( const boost::multi_index_container<T,Args...>& c, fc::variant& v )
    {
-       std::vector<fc::variant> vars;
+       variants vars;
        vars.reserve( c.size() );
        for( const auto& item : c )
           vars.emplace_back( fc::variant(item) );

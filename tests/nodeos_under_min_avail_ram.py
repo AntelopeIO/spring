@@ -43,6 +43,8 @@ try:
     maxRAMFlag="--chain-state-db-size-mb"
     maxRAMValue=1010
     extraNodeosArgs=" %s %d %s %d  --http-max-response-time-ms 990000 " % (minRAMFlag, minRAMValue, maxRAMFlag, maxRAMValue)
+    # test relies on production continuing on restart
+    extraNodeosArgs+=" --production-pause-vote-timeout-ms 0 "
     if cluster.launch(onlyBios=False, pnodes=pNodes, totalNodes=totalNodes, totalProducers=totalNodes, activateIF=activateIF, extraNodeosArgs=extraNodeosArgs) is False:
         Utils.cmdError("launcher")
         errorExit("Failed to stand up eos cluster.")
