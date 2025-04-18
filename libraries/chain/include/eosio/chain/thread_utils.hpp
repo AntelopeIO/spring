@@ -319,10 +319,14 @@ namespace eosio { namespace chain {
       boost::asio::io_context ctx;
    };
 
-   // async on io_context and return future
-   template<typename F>
-   auto post_async_task( boost::asio::io_context& ioc, F&& f ) {
-      return boost::asio::post( ioc, boost::asio::use_future(std::forward<F>(f)) );
+   template<typename T>
+   concept SupportsASIOPost = boost::asio::execution::is_executor<std::decay_t<T>>::value ||
+                              std::is_same_v<std::decay_t<T>, boost::asio::io_context>;
+
+   // async on executor and return future
+   template<SupportsASIOPost E, typename F>
+   auto post_async_task( E&& ioc, F&& f ) {
+      return boost::asio::post( std::forward<E>(ioc), boost::asio::use_future(std::forward<F>(f)) );
    }
 
 } } // eosio::chain

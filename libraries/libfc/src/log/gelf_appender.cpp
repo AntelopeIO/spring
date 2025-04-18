@@ -147,6 +147,10 @@ namespace fc
       });
 
     }
+    catch (std::exception& ex)
+    {
+      std::cerr << "error opening GELF socket to endpoint " << my->cfg.endpoint << ", " << ex.what() << "\n";
+    }
     catch (...)
     {
       std::cerr << "error opening GELF socket to endpoint " << my->cfg.endpoint << "\n";
