@@ -95,7 +95,7 @@ struct random_access_file_context {
    ssize_t read_from(const MutableBufferSequence& mbs, ssize_t offs) {
       struct iovec iov[IOV_MAX];
       int i = 0;
-      for(const boost::asio::mutable_buffer& b : mbs) {
+      for(const auto& b : boost::beast::buffers_range(mbs)) {
          iov[i].iov_base = b.data();
          iov[i].iov_len = b.size();
          if(++i == IOV_MAX)
@@ -381,19 +381,6 @@ public:
       ssize_t                                  next_pos;
    };
 
-   // Adapts a single modifiable buffer so that it meets the requirements of the MutableBufferSequence concept.
-   class mutable_buffers_1 : public boost::asio::mutable_buffer {
-   public:
-      typedef mutable_buffer value_type;
-      typedef const mutable_buffer* const_iterator;
-
-      mutable_buffers_1(void* data, std::size_t size) noexcept : mutable_buffer(data, size) {}
-      explicit mutable_buffers_1(const mutable_buffer& b) noexcept : mutable_buffer(b) {}
-
-      const_iterator begin() const noexcept { return this; }
-      const_iterator end()   const noexcept { return begin() + 1; }
-   };
-
    class device {
    public:
       friend class random_access_file;
@@ -407,7 +394,7 @@ public:
       std::streamsize read(char* s, std::streamsize n) {
          ssize_t total_red = 0;
          while(n - total_red) {
-            ssize_t red = ctx->read_from(mutable_buffers_1(s+total_red, n-total_red), pos);
+            ssize_t red = ctx->read_from(boost::asio::buffer(s+total_red, n-total_red), pos);
             if(red == 0)
                break;
             pos += red;
