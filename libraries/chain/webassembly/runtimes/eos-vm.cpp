@@ -425,7 +425,7 @@ REGISTER_LEGACY_CF_ONLY_HOST_FUNCTION(get_context_free_data)
 
 // privileged api
 REGISTER_HOST_FUNCTION(is_feature_active, privileged_check);
-REGISTER_HOST_FUNCTION(activate_feature, privileged_check);
+REGISTER_HOST_FUNCTION(activate_feature, privileged_check, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(preactivate_feature, privileged_check, read_only_check);
 REGISTER_HOST_FUNCTION(set_resource_limits, privileged_check, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(get_resource_limits, privileged_check);
