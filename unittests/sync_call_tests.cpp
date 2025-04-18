@@ -1784,4 +1784,267 @@ BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
                          fc_exception_message_contains("reached sync call max call depth"));
 } FC_LOG_AND_RETHROW() }
 
+// Make a read only call (flags being 1)
+static const char read_only_general_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
+   (memory $0 1)
+   (export "memory" (memory $0))
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $read_action_data(i32.const 0)(i32.const 4)))  ;; read action input (index) into address 0
+      (drop (call $call (get_global $callee) (i64.const 1)(i32.const 0)(i32.const 4))) ;; make a sync call with flags 1 (read-only), data starting at address 0, size 4 (we know index is an i32)
+   )
+)
+)=====";
+
+// Calls each state modified host function
+static const char read_only_general_callee_wast[] = R"=====(
+(module
+   (import "env" "db_store_i64" (func $db_store_i64 (param i64 i64 i64 i64 i32 i32) (result i32)))   ;; index 0
+   (import "env" "db_update_i64" (func $db_update_i64 (param i32 i64 i32 i32)))  ;; index 1
+   (import "env" "db_remove_i64" (func $db_remove_i64 (param i32)))              ;; index 2
+   (import "env" "db_idx64_store" (func $db_idx64_store (param i64 i64 i64 i64 i32) (result i32)))   ;; index 3
+   (import "env" "db_idx64_update" (func $db_idx64_update (param i32 i64 i32)))  ;; index 4
+   (import "env" "db_idx64_remove" (func $db_idx64_remove (param i32)))          ;; index 5
+   (import "env" "db_idx128_store" (func $db_idx128_store (param i64 i64 i64 i64 i32) (result i32)))   ;; index 6
+   (import "env" "db_idx128_update" (func $db_idx128_update (param i32 i64 i32)));; index 7
+   (import "env" "db_idx128_remove" (func $db_idx128_remove (param i32)))        ;; index 8
+   (import "env" "db_idx256_store" (func $db_idx256_store (param i64 i64 i64 i64 i32 i32) (result i32)))   ;; index 9
+   (import "env" "db_idx256_update" (func $db_idx256_update (param i32 i64 i32 i32)))  ;; index 10
+   (import "env" "db_idx256_remove" (func $db_idx256_remove (param i32)))              ;; index 11
+   (import "env" "db_idx_double_store" (func $db_idx_double_store (param i64 i64 i64 i64 i32) (result i32)))   ;; index 12
+   (import "env" "db_idx_double_update" (func $db_idx_double_update (param i32 i64 i32))) ;; index 13
+   (import "env" "db_idx_double_remove" (func $db_idx_double_remove (param i32)))         ;; index 14
+   (import "env" "db_idx_long_double_store" (func $db_idx_long_double_store (param i64 i64 i64 i64 i32) (result i32)))   ;; index 15
+   (import "env" "db_idx_long_double_update" (func $db_idx_long_double_update (param i32 i64 i32)))  ;; index 16
+   (import "env" "db_idx_long_double_remove" (func $db_idx_long_double_remove (param i32))) ;; index 17
+   (import "env" "preactivate_feature" (func $preactivate_feature (param i32)))           ;; index 18
+   (import "env" "set_resource_limits" (func $set_resource_limits (param i64 i64 i64 i64) )) ;; index 19
+   (import "env" "set_parameters_packed" (func $set_parameters_packed (param i32 i32)))   ;; index 20
+   (import "env" "set_wasm_parameters_packed" (func $set_wasm_parameters_packed (param i32 i32))) ;; index 21
+   (import "env" "set_proposed_producers" (func $set_proposed_producers (param i32 i32) (result i64)))  ;; index 22
+   (import "env" "set_proposed_producers_ex" (func $set_proposed_producers_ex (param i64 i32 i32) (result i64))) ;; index 23
+   (import "env" "set_blockchain_parameters_packed" (func $set_blockchain_parameters_packed (param i32 i32)))  ;; index 24
+   (import "env" "set_privileged" (func $set_privileged (param i64 i32)))              ;; index 25
+   (import "env" "set_finalizers" (func $set_finalizers (param i64 i32 i32)))          ;; index 26
+
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
+
+   ;; function table definition. Update the number of entries below when a new function is added
+   ;; the index of each function must match with the index above
+   (table 27 anyfunc)
+
+   (elem (i32.const 0) $case_db_store_i64)
+   (elem (i32.const 1) $case_db_update_i64)
+   (elem (i32.const 2) $case_db_remove_i64)
+   (elem (i32.const 3) $case_db_idx64_store)
+   (elem (i32.const 4) $case_db_idx64_update)
+   (elem (i32.const 5) $case_db_idx64_remove)
+   (elem (i32.const 6) $case_db_idx128_store)
+   (elem (i32.const 7) $case_db_idx128_update)
+   (elem (i32.const 8) $case_db_idx128_remove)
+   (elem (i32.const 9) $case_db_idx256_store)
+   (elem (i32.const 10) $case_db_idx256_update)
+   (elem (i32.const 11) $case_db_idx256_remove)
+   (elem (i32.const 12) $case_db_idx_double_store)
+   (elem (i32.const 13) $case_db_idx_double_update)
+   (elem (i32.const 14) $case_db_idx_double_remove)
+   (elem (i32.const 15) $case_db_idx_long_double_store)
+   (elem (i32.const 16) $case_db_idx_long_double_update)
+   (elem (i32.const 17) $case_db_idx_long_double_remove)
+   (elem (i32.const 18) $case_preactivate_feature)
+   (elem (i32.const 19) $case_set_resource_limits)
+   (elem (i32.const 20) $case_set_parameters_packed)
+   (elem (i32.const 21) $case_set_wasm_parameters_packed)
+   (elem (i32.const 22) $case_set_proposed_producers)
+   (elem (i32.const 23) $case_set_proposed_producers_ex)
+   (elem (i32.const 24) $case_set_blockchain_parameters_packed)
+   (elem (i32.const 25) $case_set_privileged)
+   (elem (i32.const 26) $case_set_finalizers)
+
+   (type $ftable (func))      ;; function table instantiation
+   (func $case_db_store_i64
+      (drop (call $db_store_i64 (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+   (func $case_db_update_i64
+      (call $db_update_i64 (i32.const 0)(i64.const 0)(i32.const 0)(i32.const 0))
+   )
+   (func $case_db_remove_i64
+      (call $db_remove_i64 (i32.const 0))
+   )
+   (func $case_db_idx64_store
+      (drop (call $db_idx64_store (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 4))) ;; 4 creates a pointer
+   )
+   (func $case_db_idx64_update
+      (call $db_idx64_update (i32.const 0)(i64.const 0)(i32.const 4))
+   )
+   (func $case_db_idx64_remove
+      (call $db_idx64_remove (i32.const 0))
+   )
+   (func $case_db_idx128_store
+      (drop (call $db_idx128_store (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 4)))
+   )
+   (func $case_db_idx128_update
+      (call $db_idx128_update (i32.const 0)(i64.const 0)(i32.const 4))
+   )
+   (func $case_db_idx128_remove
+      (call $db_idx128_remove (i32.const 0))
+   )
+   (func $case_db_idx256_store
+      (drop (call $db_idx256_store (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+   (func $case_db_idx256_update
+      (call $db_idx256_update (i32.const 0)(i64.const 0)(i32.const 0)(i32.const 0))
+   )
+   (func $case_db_idx256_remove
+      (call $db_idx256_remove (i32.const 0))
+   )
+   (func $case_db_idx_double_store
+      (drop (call $db_idx_double_store (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 4)))
+   )
+   (func $case_db_idx_double_update
+      (call $db_idx_double_update (i32.const 0)(i64.const 0)(i32.const 4))
+   )
+   (func $case_db_idx_double_remove
+      (call $db_idx_double_remove (i32.const 0))
+   )
+   (func $case_db_idx_long_double_store
+      (drop (call $db_idx_long_double_store (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 4)))
+   )
+   (func $case_db_idx_long_double_update
+      (call $db_idx_long_double_update (i32.const 0)(i64.const 0)(i32.const 4))
+   )
+   (func $case_db_idx_long_double_remove
+      (call $db_idx_long_double_remove (i32.const 0))
+   )
+   (func $case_preactivate_feature
+      (call $preactivate_feature (i32.const 4))
+   )
+
+   (func $case_set_resource_limits
+      (call $set_resource_limits (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0))
+   )
+   (func $case_set_parameters_packed
+      (call $set_parameters_packed (i32.const 0)(i32.const 0))
+   )
+   (func $case_set_wasm_parameters_packed
+      (call $set_wasm_parameters_packed (i32.const 0)(i32.const 0))
+   )
+   (func $case_set_proposed_producers
+      (drop (call $set_proposed_producers (i32.const 0)(i32.const 0)))
+   )
+   (func $case_set_proposed_producers_ex
+      (drop (call $set_proposed_producers_ex (i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+   (func $case_set_blockchain_parameters_packed
+      (call $set_blockchain_parameters_packed (i32.const 0)(i32.const 0))
+   )
+   (func $case_set_privileged
+      (call $set_privileged (i64.const 0)(i32.const 0))
+   )
+   (func $case_set_finalizers
+      (call $set_finalizers (i64.const 0)(i32.const 0)(i32.const 0))
+   )
+
+   (func $callee (param $index i32)
+      get_local $index
+      call_indirect (type $ftable)  ;; switch on function table
+   )
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read the argument: index
+      i32.const 0       ;; address of index (stored by get_call_data)
+      i32.load          ;; load index
+      call $callee
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Verify when `read_only` flag is set in the flags parameter of a sync call,
+// an EOS_ASSERT is raised for each state modified host function
+BOOST_AUTO_TEST_CASE(read_only_general_test)  { try {
+   call_tester t({{"caller"_n, read_only_general_caller_wast},
+                  {"callee"_n, read_only_general_callee_wast}});
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   // Add privilege to callee account so we can test read-only check on privileged api
+   t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
+                 mvo()("account", "callee"_n)("is_priv", 1));
+   t.produce_block();
+
+   // Goes over each of the state modified functions
+   for (auto i = 0; i < 27; ++i) {
+      BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", std::to_string(i))),
+                            unaccessible_api,
+                            fc_exception_message_contains("this API is not allowed in read only action/call"));
+   }
+
+} FC_LOG_AND_RETHROW() }
+
+// Make the first level of sync call with read_only flag set
+static const char read_only_pass_along_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_global $callee) (i64.const 1)(i32.const 0)(i32.const 0)))
+   )
+
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Make the second level of sync call without read_only flag set
+static const char read_only_pass_along_callee_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 1)))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+)
+)=====";
+
+// The called function invokes db_store_i64 which would modify the state
+static const char read_only_pass_along_callee1_wast[] = R"=====(
+(module
+   (import "env" "db_store_i64" (func $db_store_i64 (param i64 i64 i64 i64 i32 i32) (result i32)))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $db_store_i64 (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 0)(i32.const 0)))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+)
+)=====";
+
 BOOST_AUTO_TEST_SUITE_END()
