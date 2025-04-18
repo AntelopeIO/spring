@@ -10,6 +10,7 @@
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/unapplied_transaction_queue.hpp>
 #include <eosio/chain/fork_database.hpp>
+#include <eosio/chain/platform_timer.hpp>
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
 #include <fc/io/json.hpp>
@@ -679,6 +680,7 @@ public:
    void plugin_shutdown();
    void plugin_startup();
    void plugin_initialize(const boost::program_options::variables_map& options);
+   void interrupt_read_only();
 
    boost::program_options::variables_map _options;
    bool                                  _production_enabled = false;
@@ -710,7 +712,7 @@ public:
    bool                                              _disable_subjective_p2p_billing              = true;
    bool                                              _disable_subjective_api_billing              = true;
    fc::time_point                                    _irreversible_block_time;
-   bool                                              _is_savanna_active                           = false;
+   std::atomic<bool>                                 _is_savanna_active                           = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
    bool                            _protocol_features_signaled = false; // to mark whether it has been signaled in start_block
@@ -795,6 +797,7 @@ public:
    static constexpr uint32_t         _ro_max_threads_allowed{128};
    static constexpr uint32_t         _ro_default_threads_nonproducer{3};
    named_thread_pool<struct read>    _ro_thread_pool;
+   std::vector<platform_timer*>      _ro_timers;
    fc::microseconds                  _ro_write_window_time_us{200000};
    fc::microseconds                  _ro_read_window_time_us{60000};
    static constexpr fc::microseconds _ro_read_window_minimum_time_us{10000};
@@ -863,11 +866,11 @@ public:
       }
    }
 
-   void on_irreversible_block(const signed_block_ptr& lib) {
+   void on_irreversible_block(const signed_block_ptr& lib, const block_id_type& block_id) {
       const chain::controller& chain = chain_plug->chain();
       EOS_ASSERT(chain.is_write_window(), producer_exception, "write window is expected for on_irreversible_block signal");
       _irreversible_block_time = lib->timestamp.to_time_point();
-      _snapshot_scheduler.on_irreversible_block(lib, chain);
+      _snapshot_scheduler.on_irreversible_block(lib, block_id, chain);
       if (!_is_savanna_active) {
          _is_savanna_active = lib->is_proper_svnn_block();
       }
@@ -1214,6 +1217,11 @@ public:
 
    bool in_producing_mode()   const { return _pending_block_mode == pending_block_mode::producing; }
    bool in_speculating_mode() const { return _pending_block_mode == pending_block_mode::speculating; }
+
+   void interrupt_transaction() {
+      if (_is_savanna_active) // interrupt during transition causes issues, so only allow after transition
+         chain_plug->chain().interrupt_transaction();
+   }
 };
 
 void new_chain_banner(const eosio::chain::controller& db)
@@ -1584,8 +1592,8 @@ void producer_plugin_impl::plugin_startup() {
          on_accepted_block_header(block);
       }));
       _irreversible_block_connection.emplace(chain.irreversible_block().connect([this](const block_signal_params& t) {
-         const auto& [ block, _ ] = t;
-         on_irreversible_block(block);
+         const auto& [ block, block_id ] = t;
+         on_irreversible_block(block, block_id);
       }));
 
       _block_start_connection.emplace(chain.block_start().connect([this, &chain](uint32_t bs) {
@@ -1608,10 +1616,9 @@ void producer_plugin_impl::plugin_startup() {
          _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
       }
 
-      const auto fork_db_root_num = chain.fork_db_root().block_num();
-      const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
-      if (fork_db_root) {
-         on_irreversible_block(fork_db_root);
+      const auto fork_db_root = chain.fork_db_root();
+      if (fork_db_root.block()) { // not available if starting from a snapshot
+         on_irreversible_block(fork_db_root.block(), fork_db_root.id());
 
          if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
             wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
@@ -1635,14 +1642,16 @@ void producer_plugin_impl::plugin_startup() {
          // (number of main plus read only threads)
          chain.set_wasm_alloc_pool_num_threads(1 + _ro_thread_pool_size);
 
+         _ro_timers.resize(_ro_thread_pool_size);
          _ro_thread_pool.start(
             _ro_thread_pool_size,
             [](const fc::exception& e) {
                fc_elog(_log, "Exception in read-only thread pool, exiting: ${e}", ("e", e.to_detail_string()));
                app().quit();
             },
-            [&]() {
+            [&](size_t i) {
                chain.init_thread_local_data();
+               _ro_timers[i] = &chain.get_thread_local_timer();
             });
 
          _time_tracker.pause(); // start_write_window assumes time_tracker is paused
@@ -2351,6 +2360,12 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
             return start_block_result::exhausted;
          }
 
+         // Here we use readonly transactions to update our internal data structures from chainbase data
+         // (typically every minute or so).
+         // Currently the only update is the peer public_keys db (updated via "getpeerkeys"_n trx)
+         // ---------------------------------------------------------------------------------------------
+         chain.update_peer_keys(preprocess_deadline);
+
          if (!process_incoming_trxs(preprocess_deadline, incoming_itr))
             return start_block_result::exhausted;
 
@@ -2843,7 +2858,7 @@ void producer_plugin_impl::schedule_production_loop() {
       // we failed to start a block, so try again later?
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-            chain_plug->chain().interrupt_apply_block_transaction();
+            interrupt_transaction();
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -2929,7 +2944,7 @@ void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<
       _timer.expires_at(epoch + boost::posix_time::microseconds(wake_up_time->time_since_epoch().count()));
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-            chain_plug->chain().interrupt_apply_block_transaction();
+            interrupt_transaction();
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -3049,9 +3064,33 @@ void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fo
    my->_received_block = block_num;
    // fork_db_add_t::fork_switch means head block of best fork (different from the current branch) is received.
    // Since a better fork is available, interrupt current block validation and allow a fork switch to the better branch.
-   if (fork_db_add_result == fork_db_add_t::fork_switch) {
-      fc_ilog(_log, "new best fork received");
-      my->chain_plug->chain().interrupt_apply_block_transaction();
+   if (my->_is_savanna_active) { // interrupt during transition causes issues, so only allow after transition
+      if (fork_db_add_result == fork_db_add_t::appended_to_head) {
+         fc_tlog(_log, "new head block received, interrupting trx");
+         my->interrupt_transaction();
+      } else if (fork_db_add_result == fork_db_add_t::fork_switch) {
+         fc_ilog(_log, "new best fork received, interrupting trx");
+         my->interrupt_transaction();
+      }
+   }
+}
+
+// thread-safe, called when ctrl-c/SIGINT/SIGTERM/SIGPIPE is received
+void producer_plugin::interrupt() {
+   fc_ilog(_log, "interrupt");
+   app().executor().stop(); // shutdown any blocking read_only_execution_task
+   my->interrupt_read_only();
+   my->interrupt_transaction();
+}
+
+void producer_plugin_impl::interrupt_read_only() {
+   // if read-only trx is going to finish in less than 250ms then might as well let it finish
+   if (!_ro_timers.empty() && _ro_max_trx_time_us > fc::milliseconds(250)) {
+      fc_ilog(_log, "interrupting read-only trxs");
+      for (auto& t : _ro_timers) {
+         assert(t);
+         t->interrupt_timer();
+      }
    }
 }
 
@@ -3152,12 +3191,10 @@ void producer_plugin_impl::switch_to_read_window() {
             for (auto& task : _ro_exec_tasks_fut) {
                task.get();
             }
-            _ro_exec_tasks_fut.clear();
-            // will be executed from the main app thread because all read-only threads are idle now
-            switch_to_write_window();
-         } else {
-            _ro_exec_tasks_fut.clear();
          }
+         _ro_exec_tasks_fut.clear();
+         // will be executed from the main app thread because all read-only threads are idle now
+         switch_to_write_window();
       });
    });
 }

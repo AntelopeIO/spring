@@ -58,7 +58,7 @@ public:
    };
 
    struct get_account_ram_corrections_result {
-      std::vector<fc::variant>     rows;
+      fc::variants                 rows;
       std::optional<account_name>  more;
    };
 
@@ -150,6 +150,8 @@ public:
 
    // thread-safe, called when a new block is received
    void received_block(uint32_t block_num, chain::fork_db_add_t fork_db_add_result);
+   // thread-safe, called when ctrl-c/SIGINT/SIGTERM/SIGPIPE is received
+   void interrupt();
 
    const std::set<account_name>& producer_accounts() const;
 
