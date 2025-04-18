@@ -1638,14 +1638,11 @@ void producer_plugin_impl::plugin_startup() {
       }
 
       if (_ro_thread_pool_size > 0) {
-<<<<<<< HEAD
          // inform controller's wasm_alloc_pool of number of updated total threads
          // (number of main plus read only threads)
          chain.set_wasm_alloc_pool_num_threads(1 + _ro_thread_pool_size);
 
-=======
          _ro_timers.resize(_ro_thread_pool_size);
->>>>>>> origin/release/2.0
          _ro_thread_pool.start(
             _ro_thread_pool_size,
             [](const fc::exception& e) {
