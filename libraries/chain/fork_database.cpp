@@ -132,9 +132,11 @@ namespace eosio::chain {
    template<class BSP>
    void fork_database_impl<BSP>::open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
       bsp_t _root = std::make_shared<bs_t>();
-      fc::raw::unpack( ds, pending_savanna_lib_id );
+      block_id_type savanna_lib_id;
+      fc::raw::unpack( ds, savanna_lib_id );
       fc::raw::unpack( ds, *_root );
-      reset_root_impl( _root );
+      reset_root_impl( _root ); // resets pending_savanna_lib_id
+      set_pending_savanna_lib_id_impl( savanna_lib_id );
 
       unsigned_int size; fc::raw::unpack( ds, size );
       for( uint32_t i = 0, n = size.value; i < n; ++i ) {
