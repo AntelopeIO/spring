@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
-# debian:buster on Sep 20 2023
-FROM debian@sha256:d774a984460a74973e6ce4d1f87ab90f2818e41fcdd4802bcbdc4e0b67f9dadf AS builder
+# debian:bullseye on Apr 16 2025
+FROM debian@sha256:aa5332dbbec7ff8cdf7dfb8b467c6ac2d55419104af1e49b6f1c22b996da391b AS builder
 
 # If enabling the snapshot repo below, this ought to be after the base image time from above.
-# date -u -d @1695620708 = Mon Sep 25 05:45:08 AM UTC 2023
-ENV SOURCE_DATE_EPOCH=1695620708
+# date -u -d @1744820687 = Wed Apr 16 04:24:47 PM UTC 2025
+ENV SOURCE_DATE_EPOCH=1744820687
 
 # The snapshot repo is currently disabled due to poor performance. Re-eval in the future.
 # When the package repo is signed, a message in the payload indicates the time when the repo becomes stale. This protection
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-g
                                                                                               zstd \
                                                                                               ;
 
-ARG _SPRING_CLANG_VERSION=18.1.8
+ARG _SPRING_CLANG_VERSION=20.1.3
 ARG _SPRING_LLVM_VERSION=11.1.0
 ARG _SPRING_CMAKE_VERSION=3.27.6
 
