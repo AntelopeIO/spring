@@ -188,10 +188,10 @@ int main(int argc, char** argv)
          }
          return INITIALIZE_FAIL;
       }
-      controller& chain = app->get_plugin<chain_plugin>().chain();
-      app->set_stop_executor_cb([&app, &chain]() {
+      producer_plugin& prod_plug = app->get_plugin<producer_plugin>();
+      app->set_stop_executor_cb([&app, &prod_plug]() {
          ilog("appbase quit called");
-         chain.interrupt_apply_block_transaction();
+         prod_plug.interrupt();
          app->get_io_context().stop();
       });
       if (auto resmon_plugin = app->find_plugin<resource_monitor_plugin>()) {
