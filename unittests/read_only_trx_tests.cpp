@@ -230,7 +230,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( db_insert_test, T, read_only_trx_testers ) { try 
    chain.set_up_test_contract();
 
    // verify DB insert is not allowed by read-only transaction
-   BOOST_CHECK_THROW(chain.send_db_api_transaction("insert"_n, chain.insert_data, {}, transaction_metadata::trx_type::read_only), table_operation_not_permitted);
+   BOOST_CHECK_THROW(chain.send_db_api_transaction("insert"_n, chain.insert_data, {}, transaction_metadata::trx_type::read_only), unaccessible_api);
 
    // verify DB insert still works with non-read-only transaction after read-only
    chain.insert_a_record();
@@ -273,7 +273,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( db_modify_test, T, read_only_trx_testers ) { try 
       ("user", "alice") ("age", 25),
       abi_serializer::create_yield_function( chain.abi_serializer_max_time )
    );
-   BOOST_CHECK_THROW(chain.send_db_api_transaction("modify"_n, modify_data, {}, transaction_metadata::trx_type::read_only), table_operation_not_permitted);
+   BOOST_CHECK_THROW(chain.send_db_api_transaction("modify"_n, modify_data, {}, transaction_metadata::trx_type::read_only), unaccessible_api);
 
    // verify DB update still works in by non-read-only transaction
    auto res = chain.send_db_api_transaction("modify"_n, modify_data);
@@ -290,7 +290,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( db_modify_test, T, read_only_trx_testers ) { try 
       ("id", 1) ("age", 50),
       abi_serializer::create_yield_function( chain.abi_serializer_max_time )
    );
-   BOOST_CHECK_THROW(chain.send_db_api_transaction("modifybyid"_n, modifybyid_data, {}, transaction_metadata::trx_type::read_only), table_operation_not_permitted);
+   BOOST_CHECK_THROW(chain.send_db_api_transaction("modifybyid"_n, modifybyid_data, {}, transaction_metadata::trx_type::read_only), unaccessible_api);
 
    // verify DB update by secondary key still works in by non-read-only transaction
    res = chain.send_db_api_transaction("modifybyid"_n, modifybyid_data);
@@ -315,14 +315,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( db_erase_test, T, read_only_trx_testers ) { try {
       ("user", "alice"),
       abi_serializer::create_yield_function( chain.abi_serializer_max_time )
    );
-   BOOST_CHECK_THROW(chain.send_db_api_transaction("erase"_n, erase_data, {}, transaction_metadata::trx_type::read_only), table_operation_not_permitted);
+   BOOST_CHECK_THROW(chain.send_db_api_transaction("erase"_n, erase_data, {}, transaction_metadata::trx_type::read_only), unaccessible_api);
 
    // verify DB erase by secondary key is not allowed by read-only transaction
    auto erasebyid_data = chain.abi_ser.variant_to_binary("erasebyid", mutable_variant_object()
       ("id", 1),
       abi_serializer::create_yield_function( chain.abi_serializer_max_time )
    );
-   BOOST_CHECK_THROW(chain.send_db_api_transaction("erasebyid"_n, erasebyid_data, {}, transaction_metadata::trx_type::read_only), table_operation_not_permitted);
+   BOOST_CHECK_THROW(chain.send_db_api_transaction("erasebyid"_n, erasebyid_data, {}, transaction_metadata::trx_type::read_only), unaccessible_api);
 
    // verify DB erase still works in by non-read-only transaction
    auto res = chain.send_db_api_transaction("erase"_n, erase_data);
