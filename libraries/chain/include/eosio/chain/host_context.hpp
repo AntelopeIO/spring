@@ -171,7 +171,6 @@ public:
          int store( uint64_t scope, uint64_t table, const account_name& payer,
                     uint64_t id, secondary_key_proxy_const_type value )
          {
-            EOS_ASSERT( !context.trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
             EOS_ASSERT( payer != account_name(), invalid_table_payer, "must specify a valid account to pay for new record" );
 
 //            context.require_write_lock( scope );
@@ -206,7 +205,6 @@ public:
          }
 
          void remove( int iterator ) {
-            EOS_ASSERT( !context.trx_context.is_read_only(), table_operation_not_permitted, "cannot remove a db record when executing a readonly transaction" );
             const auto& obj = itr_cache.get( iterator );
 
             const auto& table_obj = itr_cache.get_table( obj.t_id );
@@ -239,7 +237,6 @@ public:
          }
 
          void update( int iterator, account_name payer, secondary_key_proxy_const_type secondary ) {
-            EOS_ASSERT( !context.trx_context.is_read_only(), table_operation_not_permitted, "cannot update a db record when executing a readonly transaction" );
             const auto& obj = itr_cache.get( iterator );
 
             const auto& table_obj = itr_cache.get_table( obj.t_id );
@@ -560,6 +557,7 @@ public:
    virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const { assert(false); __builtin_unreachable(); }
    virtual bool is_context_free()const = 0;
    bool is_privileged()const { return privileged; }
+   virtual bool is_read_only()const = 0;
    action_name get_receiver()const { return receiver; };
    virtual const action& get_action()const { assert(false); __builtin_unreachable(); }
    virtual action_name get_sender() const = 0;

@@ -14,12 +14,14 @@ sync_call_context::sync_call_context(controller&           con,
                                      bool                  privileged,
                                      uint32_t              sync_call_depth,
                                      uint64_t              flags,
+                                     bool                  is_caller_read_only,
                                      std::span<const char> data)
    : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
    , ordinal(ordinal)
    , current_action_trace(current_action_trace)
    , sender(sender)
    , flags(flags)
+   , is_caller_read_only(is_caller_read_only)
    , data(data)
 {
 }
@@ -48,7 +50,8 @@ void sync_call_context::set_call_return_value(std::span<const char> rv) {
 }
 
 bool sync_call_context::is_read_only()const {
-   return flags & static_cast<uint64_t>(sync_call_flags::read_only);
+   // If caller is read-only, callee must be read only too
+   return (is_caller_read_only || has_field(flags, sync_call_flags::read_only));
 }
 
 // Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
