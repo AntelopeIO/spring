@@ -3057,16 +3057,13 @@ namespace eosio {
       shared_ptr<signed_block> ptr = std::make_shared<signed_block>();
       fc::raw::unpack( ds, *ptr );
 
-      auto is_webauthn_sig = []( const fc::crypto::signature& s ) {
-         return s.which() == fc::get_index<fc::crypto::signature::storage_type, fc::crypto::webauthn::signature>();
-      };
-      bool has_webauthn_sig = is_webauthn_sig( ptr->producer_signature );
+      bool has_webauthn_sig = ptr->producer_signature.is_webauthn();
 
       constexpr auto additional_sigs_eid = additional_block_signatures_extension::extension_id();
       auto exts = ptr->validate_and_extract_extensions();
       if( exts.count( additional_sigs_eid ) ) {
          const auto &additional_sigs = std::get<additional_block_signatures_extension>(exts.lower_bound( additional_sigs_eid )->second).signatures;
-         has_webauthn_sig |= std::any_of( additional_sigs.begin(), additional_sigs.end(), is_webauthn_sig );
+         has_webauthn_sig |= std::ranges::any_of(additional_sigs, [](const auto& sig) { return sig.is_webauthn(); });
       }
 
       if( has_webauthn_sig ) {
