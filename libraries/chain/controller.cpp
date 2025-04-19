@@ -5853,7 +5853,7 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(flat_set<account_name> configured_bp_peers) {
+void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
    my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 

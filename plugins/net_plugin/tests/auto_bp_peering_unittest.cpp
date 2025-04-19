@@ -93,7 +93,7 @@ BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
    BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8891"], "producer4"_n);
 }
 
-bool operator==(const fc::flat_set<eosio::chain::account_name>& a, const fc::flat_set<eosio::chain::account_name>& b) {
+bool operator==(const eosio::chain::peer_name_set_t& a, const eosio::chain::peer_name_set_t& b) {
    return std::equal(a.begin(), a.end(), b.begin(), b.end());
 }
 
@@ -102,7 +102,7 @@ bool operator==(const std::vector<std::string>& a, const std::vector<std::string
 }
 
 namespace boost::container {
-std::ostream& boost_test_print_type(std::ostream& os, const flat_set<eosio::chain::account_name>& accounts) {
+std::ostream& boost_test_print_type(std::ostream& os, const eosio::chain::peer_name_set_t& accounts) {
    os << "{";
    const char* sep = "";
    for (auto e : accounts) {
@@ -146,7 +146,7 @@ const eosio::chain::producer_authority_schedule test_schedule2{
      { "prodd"_n, {} }, { "prodh"_n, {} }, { "prodl"_n, {} } }
 };
 
-const fc::flat_set<eosio::chain::account_name> producers_minus_prodkt{
+const eosio::chain::peer_name_set_t producers_minus_prodkt{
    "proda"_n, "prodb"_n, "prodc"_n, "prodd"_n, "prode"_n, "prodf"_n,
    "prodg"_n, "prodh"_n, "prodi"_n, "prodj"_n,
    // "prodk"_n, not part of the peer addresses
@@ -173,7 +173,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.on_pending_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.pending_bps, (fc::flat_set<eosio::chain::account_name>{ "prodj"_n, "prodm"_n }));
+   BOOST_TEST(plugin.pending_bps == (eosio::chain::peer_name_set_t{ "prodj"_n, "prodm"_n }));
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
 
    // when it is in sync and on_pending_schedule is called
@@ -181,7 +181,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.on_pending_schedule(test_schedule1);
 
    // the pending are connected to
-   BOOST_CHECK_EQUAL(plugin.pending_bps, producers_minus_prodkt);
+   BOOST_TEST(plugin.pending_bps == producers_minus_prodkt);
 
    // all connect to bp peers should be invoked
    BOOST_CHECK_EQUAL(connected_hosts, peer_addresses);
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
 
    plugin.on_pending_schedule(reset_schedule1);
-   BOOST_CHECK_EQUAL(plugin.pending_bps, (fc::flat_set<eosio::chain::account_name>{}));
+   BOOST_TEST(plugin.pending_bps == eosio::chain::peer_name_set_t{});
 }
 
 BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
@@ -216,8 +216,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    plugin.on_active_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.get_active_bps(),
-                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
+   BOOST_TEST(plugin.get_active_bps() == (eosio::chain::peer_name_set_t{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 0u);
 
    // when it is in sync and on_active_schedule is called
@@ -227,7 +226,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    // then disconnect to prodt
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.get_active_bps(), producers_minus_prodkt);
+   BOOST_TEST(plugin.get_active_bps() == producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);
@@ -250,7 +249,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    // then disconnect prodt
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.get_active_bps(), producers_minus_prodkt);
+   BOOST_TEST(plugin.get_active_bps() == producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);

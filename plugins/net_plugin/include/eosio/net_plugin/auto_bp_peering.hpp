@@ -28,19 +28,19 @@ class bp_connection_manager {
    struct config_t {
       flat_map<account_name, std::string> bp_peer_addresses;
       flat_map<std::string, account_name> bp_peer_accounts;
-      flat_set<account_name> my_bp_accounts;       // block producer --producer-name
-      flat_set<account_name> my_bp_peer_accounts;  // peer key account --p2p-producer-peer
+      peer_name_set_t                     my_bp_accounts;       // block producer --producer-name
+      peer_name_set_t                     my_bp_peer_accounts;  // peer key account --p2p-producer-peer
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
-   flat_set<account_name> pending_bps;
+   peer_name_set_t        pending_bps;
    uint32_t               pending_schedule_version = 0;
    uint32_t               active_schedule_version  = 0;
 
    fc::mutex                     mtx;
    gossip_buffer_initial_factory initial_gossip_msg_factory GUARDED_BY(mtx);
-   flat_set<account_name>        active_bps GUARDED_BY(mtx);
-   flat_set<account_name>        active_schedule GUARDED_BY(mtx);
+   peer_name_set_t               active_bps GUARDED_BY(mtx);
+   peer_name_set_t               active_schedule GUARDED_BY(mtx);
 
    Derived*       self() { return static_cast<Derived*>(this); }
    const Derived* self() const { return static_cast<const Derived*>(this); }
@@ -51,10 +51,10 @@ class bp_connection_manager {
    }
 
    // Only called from main thread
-   chain::flat_set<account_name> active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
+   peer_name_set_t active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
-      chain::flat_set<account_name> result;
+      peer_name_set_t result;
       for (const auto& auth : schedule) {
          if (config.bp_peer_addresses.contains(auth.producer_name) || prod_idx.contains(auth.producer_name))
             result.insert(auth.producer_name);
@@ -63,10 +63,10 @@ class bp_connection_manager {
    }
 
    // called from net threads
-   chain::flat_set<account_name> active_bp_accounts(const flat_set<account_name>& active_schedule) const REQUIRES(mtx) {
+   peer_name_set_t active_bp_accounts(const peer_name_set_t& active_schedule) const REQUIRES(mtx) {
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
-      chain::flat_set<account_name> result;
+      peer_name_set_t result;
       for (const auto& a : active_schedule) {
          if (config.bp_peer_addresses.contains(a) || prod_idx.contains(a))
             result.insert(a);
@@ -81,12 +81,12 @@ class bp_connection_manager {
    }
 
    // for testing
-   flat_set<account_name> get_active_bps() {
+   peer_name_set_t get_active_bps() {
       fc::lock_guard g(mtx);
       return active_bps;
    }
    // for testing
-   void set_active_bps(flat_set<account_name> bps) {
+   void set_active_bps(peer_name_set_t bps) {
       fc::lock_guard g(mtx);
       active_bps = std::move(bps);
    }
@@ -94,7 +94,7 @@ class bp_connection_manager {
 public:
    bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() || !config.my_bp_peer_accounts.empty(); }
    bool bp_gossip_enabled() const { return !config.my_bp_peer_accounts.empty(); }
-   flat_set<account_name> configured_bp_peer_accounts() const { return config.my_bp_peer_accounts; }
+   peer_name_set_t configured_bp_peer_accounts() const { return config.my_bp_peer_accounts; }
    bool bp_gossip_initialized() { return !!get_gossip_bp_initial_send_buffer(); }
 
    // Only called at plugin startup
@@ -331,7 +331,7 @@ public:
       return diff;
    }
 
-   flat_set<std::string> find_gossip_bp_addresses(const flat_set<account_name>& accounts, const char* desc) const {
+   flat_set<std::string> find_gossip_bp_addresses(const peer_name_set_t& accounts, const char* desc) const {
       flat_set<std::string> addresses;
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
@@ -418,14 +418,14 @@ public:
 
          fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
 
-         flat_set<account_name> peers_to_stay;
+         peer_name_set_t peers_to_stay;
          std::set_union(active_bps.begin(), active_bps.end(), pending_bps.begin(), pending_bps.end(),
                         std::inserter(peers_to_stay, peers_to_stay.begin()));
          gm.unlock();
 
          fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
 
-         flat_set<account_name> peers_to_drop;
+         peer_name_set_t peers_to_drop;
          std::set_difference(old_bps.begin(), old_bps.end(), peers_to_stay.begin(), peers_to_stay.end(),
                              std::inserter(peers_to_drop, peers_to_drop.end()));
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
