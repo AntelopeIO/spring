@@ -14,21 +14,28 @@ enum class sync_call_flags : uint64_t {
 
 class sync_call_context : public host_context {
 public:
-   sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, bool is_caller_read_only, std::span<const char> data);
+
+   sync_call_context(controller& con, transaction_context& trx_ctx, uint32_t ordinal, action_trace& current_action_trace, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, bool is_caller_read_only, std::span<const char> data);
 
    uint32_t get_call_data(std::span<char> memory) const override;
    void set_call_return_value(std::span<const char> return_value) override;
+   action_trace& get_current_action_trace() const override { return current_action_trace; }
+   uint32_t get_sync_call_ordinal() override { return ordinal; }
 
    bool is_sync_call() const override { return true; }
 
    bool is_read_only()const override;
    action_name get_sender() const override;
+   void console_append(std::string_view val) override;
+   void store_console_marker() override;
 
-   const account_name           sender{};
-   const uint64_t               flags = 0;
-   const bool                   is_caller_read_only = false;
-   const std::span<const char>  data{}; // includes function name, arguments, and other information
-   std::vector<char>            return_value{};
+   uint32_t               ordinal = 1;
+   action_trace&          current_action_trace;
+   account_name           sender{};
+   uint64_t               flags = 0;
+   const bool             is_caller_read_only = false;
+   std::span<const char>  data{}; // includes function name, arguments, and other information
+   std::vector<char>      return_value{};
 
    bool has_recipient(account_name account)const override;
    void update_db_usage( const account_name& payer, int64_t delta ) override;

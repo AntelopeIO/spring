@@ -3205,6 +3205,9 @@ inline std::pair<action_trace, std::string> generate_action_trace(const std::opt
       }
    }
    expected_json
+      << ",\"call_traces\":[]"
+      << ",\"console_markers\":[]";
+   expected_json
       <<     "}"
       << "}";
 

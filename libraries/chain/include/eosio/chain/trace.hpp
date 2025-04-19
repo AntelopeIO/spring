@@ -19,6 +19,63 @@ namespace eosio::chain {
    struct transaction_trace;
    using transaction_trace_ptr = std::shared_ptr<transaction_trace>;
 
+   struct call_trace {
+      call_trace(uint32_t sender_ordinal, account_name receiver, bool read_only, std::span<const char> data)
+         : sender_ordinal(sender_ordinal)
+         , receiver(receiver)
+         , read_only(read_only)
+         , data(data.begin(), data.end())
+      {
+      }
+
+      // receiver's ordinal. A sequence number starting with 1, unique within
+      // an action. It can be used to reference `call_trace` struct in `call_traces`
+      // vector in `action_trace` struct.
+      fc::unsigned_int              call_ordinal = 1;
+
+      // sender's ordinal. If the caller is the action, sender_ordinal is 0.
+      fc::unsigned_int              sender_ordinal = 0;
+
+      // receiver's account name
+      const account_name            receiver;
+
+      // indicate whether the call is read only or not.
+      const bool                    read_only = false;
+
+      // information about the call. Include function name, arguments, and other
+      // necessary information.
+      const std::vector<char>       data;
+
+      // the time the call takes
+      fc::microseconds              elapsed;
+
+      // the console log produced by the call
+      string                        console;
+
+      // for each call directly made by the current sync call, identify the starting
+      // position in `console`.
+      // For example, suppose current sync call:
+      //    prints 10 chars; calls sync1; prints 50 chars; calls sycn2,
+      // console_markers would look like { 10, 60 }
+      // This is used for pretty printing console logs to show hierachy of all logs.
+      std::vector<fc::unsigned_int>  console_markers;
+
+      // exception details if an exception happens during the call or its children
+      std::optional<fc::exception>  except;
+
+      // exception code
+      std::optional<uint64_t>       error_code;
+
+      // if this field is present, it indicates the receiver contract does not
+      // support sync calls. error_id tells the reason. Currenlty only `-1` is
+      // used, indicating the receiver contract is empty or it does not have
+      // `sync_call` entry point.
+      std::optional<int64_t>        error_id;
+
+      // the return value of the call
+      std::vector<char>             return_value;
+   };
+
    struct action_trace {
       action_trace(  const transaction_trace& trace, const action& act, account_name receiver, bool context_free,
                      uint32_t action_ordinal, uint32_t creator_action_ordinal,
@@ -45,6 +102,13 @@ namespace eosio::chain {
       std::optional<fc::exception>    except;
       std::optional<uint64_t>         error_code;
       std::vector<char>               return_value;
+
+      // all the traces of sync calls made by the action
+      std::vector<call_trace>         call_traces;
+
+      // similar to console_markers in call_trace, identify positions
+      // of sync calls made by the action in console log
+      std::vector<fc::unsigned_int>   console_markers;
 
       //savanna_witness_hash can be computed separately, since it is not relevant to IBC action proofs
       digest_type savanna_witness_hash() const {
@@ -129,10 +193,15 @@ namespace eosio::chain {
 FC_REFLECT( eosio::chain::account_delta,
             (account)(delta) )
 
+FC_REFLECT( eosio::chain::call_trace,
+            (call_ordinal)(sender_ordinal)(receiver)(read_only)(data)(elapsed)
+            (console)(console_markers)(except)(error_code)(error_id)(return_value) )
+
 FC_REFLECT( eosio::chain::action_trace,
                (action_ordinal)(creator_action_ordinal)(closest_unnotified_ancestor_action_ordinal)(receipt)
                (receiver)(act)(context_free)(elapsed)(console)(trx_id)(block_num)(block_time)
-               (producer_block_id)(account_ram_deltas)(except)(error_code)(return_value) )
+               (producer_block_id)(account_ram_deltas)(except)(error_code)(return_value)
+               (call_traces)(console_markers) )
 
 // @ignore except_ptr
 FC_REFLECT( eosio::chain::transaction_trace, (id)(block_num)(block_time)(producer_block_id)
