@@ -42,24 +42,16 @@ void peer_keys::delpeerkey(const name& proposer_finalizer_name, const public_key
 
 peer_keys::getpeerkeys_res_t peer_keys::getpeerkeys() {
    peer_keys_table  peer_keys_table(get_self(), get_self().value);
-   producers_table  producers(get_self(), get_self().value);
-   constexpr size_t max_return = 50;
 
    getpeerkeys_res_t resp;
-   resp.reserve(max_return);
-
-   auto idx = producers.get_index<"prototalvote"_n>();
 
    // this is a simpler implementation than the one in `eos-system-contracts`.
    // the one in `eos-system-contracts` iterates over both ends of the "prototalvote"_n index
    // (to take into account non-active producers)
-   // ----------------------------------------------------------------------------------------
-   for( auto it = idx.cbegin(); it != idx.cend() && resp.size() < max_return; ++it ) {
-      auto peers_itr = peer_keys_table.find(it->owner.value);
-      if (peers_itr == peer_keys_table.end())
-         resp.push_back(peerkeys_t{it->owner, {}});
-      else
-         resp.push_back(peerkeys_t{it->owner, peers_itr->get_public_key()});
+   // Most integration tests use bios contract to setprods, just return complete list for tests
+   // since prototalvote will not be populated.
+   for (auto it = peer_keys_table.begin(); it != peer_keys_table.end(); ++it) {
+      resp.push_back(peerkeys_t{it->account, it->get_public_key()});
    }
    return resp;
 }

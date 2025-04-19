@@ -1149,10 +1149,12 @@ public:
              (_max_irreversible_block_age_us.count() >= 0 && get_irreversible_block_age() >= _max_irreversible_block_age_us);
    }
 
+   // thread safe, not modified after plugin_initialize
    bool is_producer_key(const chain::public_key_type& key) const {
       return _signature_providers.find(key) != _signature_providers.end();
    }
 
+   // thread safe, not modified after plugin_initialize
    chain::signature_type sign_compact(const chain::public_key_type& key, const fc::sha256& digest) const {
       if (key != chain::public_key_type()) {
          auto private_key_itr = _signature_providers.find(key);
@@ -2359,12 +2361,6 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          if (should_interrupt_start_block(preprocess_deadline, pending_block_num) || block_is_exhausted()) {
             return start_block_result::exhausted;
          }
-
-         // Here we use readonly transactions to update our internal data structures from chainbase data
-         // (typically every minute or so).
-         // Currently the only update is the peer public_keys db (updated via "getpeerkeys"_n trx)
-         // ---------------------------------------------------------------------------------------------
-         chain.update_peer_keys(preprocess_deadline);
 
          if (!process_incoming_trxs(preprocess_deadline, incoming_itr))
             return start_block_result::exhausted;

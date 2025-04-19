@@ -33,8 +33,8 @@ BOOST_FIXTURE_TEST_CASE( getpeerkeys_test, getpeerkeys_tester ) { try {
          BOOST_REQUIRE_EQUAL(success(), regpeerkey(n, get_public_key(n)));
    }
 
-   auto peerkeys = control->get_top_producer_keys(fc::time_point::maximum()); // call readonly action from controller
-   BOOST_REQUIRE_EQUAL(peerkeys.size(), 21);
+   auto peerkeys = control->get_top_producer_keys(); // call readonly action from controller
+   BOOST_REQUIRE_EQUAL(peerkeys.size(), 11);
 
    size_t num_found = 0;
    for (size_t i=0; i<prod_names.size(); ++i) {
@@ -42,16 +42,12 @@ BOOST_FIXTURE_TEST_CASE( getpeerkeys_test, getpeerkeys_tester ) { try {
       for (auto& p : peerkeys) {
          if (p.producer_name == n) {
             ++num_found;
-            if (i % 2 == 0) {
-               BOOST_REQUIRE(!!p.peer_key);
-               BOOST_REQUIRE_EQUAL(get_public_key(n), *p.peer_key);
-            } else {
-               BOOST_REQUIRE(!p.peer_key);
-            }
+            BOOST_REQUIRE(!!p.peer_key);
+            BOOST_REQUIRE_EQUAL(get_public_key(n), *p.peer_key);
          }
       }
    }
-   BOOST_REQUIRE_EQUAL(num_found, 21);
+   BOOST_REQUIRE_EQUAL(num_found, 11);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
