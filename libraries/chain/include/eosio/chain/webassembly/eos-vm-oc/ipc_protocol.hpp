@@ -34,6 +34,7 @@ struct evict_wasms_message {
 struct code_compilation_result_message {
    eosvmoc_optional_offset_or_import_t start;
    unsigned apply_offset;
+   std::optional<unsigned> call_offset;  // sync call entry point
    int starting_memory_pages;
    unsigned initdata_prologue_size;
    fc::time_point queued_time;      // when compilation was queued to begin
@@ -68,7 +69,7 @@ FC_REFLECT(eosio::chain::eosvmoc::initalize_response_message, (error_message))
 FC_REFLECT(eosio::chain::eosvmoc::code_tuple, (code_id)(vm_version))
 FC_REFLECT(eosio::chain::eosvmoc::compile_wasm_message, (code)(queued_time)(limits))
 FC_REFLECT(eosio::chain::eosvmoc::evict_wasms_message, (codes))
-FC_REFLECT(eosio::chain::eosvmoc::code_compilation_result_message, (start)(apply_offset)(starting_memory_pages)(initdata_prologue_size)(queued_time))
+FC_REFLECT(eosio::chain::eosvmoc::code_compilation_result_message, (start)(apply_offset)(call_offset)(starting_memory_pages)(initdata_prologue_size)(queued_time))
 FC_REFLECT(eosio::chain::eosvmoc::compilation_result_unknownfailure, )
 FC_REFLECT(eosio::chain::eosvmoc::compilation_result_toofull, )
 FC_REFLECT(eosio::chain::eosvmoc::wasm_compilation_result_message, (code)(result)(cache_free_bytes)(queued_time))

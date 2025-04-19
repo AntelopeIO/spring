@@ -8,7 +8,7 @@
 #include <vector>
 #include <list>
 namespace eosio::chain {
-   class apply_context;
+   class host_context;
 }
 #endif
 
@@ -19,7 +19,7 @@ struct eos_vm_oc_control_block {
    uintptr_t execution_thread_memory_start;
    size_t execution_thread_memory_length;
 #ifdef __cplusplus
-   eosio::chain::apply_context* ctx;
+   eosio::chain::host_context* ctx;
    std::exception_ptr* eptr;
 #else
    void* ctx;

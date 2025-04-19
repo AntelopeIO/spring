@@ -91,11 +91,6 @@ static const char sync_call_in_same_account_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(same_account) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& acct = account_name("synccall");
    t.create_account(acct);
    t.set_code(acct, sync_call_in_same_account_wast);
@@ -148,11 +143,6 @@ static const char callee_wast[] = R"=====(
 // Verify sync call works for called function in a different account
 BOOST_AUTO_TEST_CASE(different_account) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -234,11 +224,6 @@ static const char callee2_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(multi_level_call_depth) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, call_depth_wast);
@@ -311,11 +296,6 @@ static const char seq_callee2_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(seq_sync_calls) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, seq_caller_wast);
@@ -384,11 +364,6 @@ static const char loop_callee_wast[] = R"=====(
 // are not exhausted (like wasm allocators)
 BOOST_AUTO_TEST_CASE(large_number_of_sequential_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -478,11 +453,6 @@ static const char different_actions_callee2_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(calls_from_different_actions) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, different_actions_caller_wast);
@@ -567,12 +537,6 @@ static const char recursive_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(recursive_calls) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-   ilog("!!! caller: ${c}", ("c", "caller"_n.to_uint64_t()));
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, recursive_caller_wast);
@@ -593,11 +557,6 @@ BOOST_AUTO_TEST_CASE(recursive_calls) { try {
 // Verify sync call fails if receiver account does not exist
 BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -681,11 +640,6 @@ static const char basic_params_return_value_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, basic_params_return_value_caller_wast);
@@ -746,11 +700,6 @@ static const char get_call_data_less_memory_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, caller_wast);
@@ -804,11 +753,6 @@ static const char no_parameters_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(no_parameters_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_accounts_and_set_code(no_parameters_caller_wast, no_parameters_callee_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // no_parameters_callee_wast will throw if get_call_data returns non-zero.
@@ -851,11 +795,6 @@ static const char no_return_value_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(no_return_value_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_accounts_and_set_code(no_return_value_caller_wast, no_return_value_callee_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // no_return_value_caller_wast will throw if `call` returns a non-zero-length value.
@@ -882,11 +821,6 @@ static const char zero_return_value_size_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(zero_return_value_size_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    // callee returns 0 sized value
    create_accounts_and_set_code(no_return_value_caller_wast, zero_return_value_size_callee_wast, t);
 
@@ -909,11 +843,6 @@ static const char get_call_data_in_apply_wast[] = R"=====(
 // Verify get_call_data can be only called in sync calls
 BOOST_AUTO_TEST_CASE(get_call_data_in_apply_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -946,11 +875,6 @@ static const char set_call_return_value_invalid_size_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(set_call_return_value_invalid_size_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, caller_wast);
@@ -981,11 +905,6 @@ static const char set_call_return_value_not_in_sync_call_wast[] = R"=====(
 // Verify set_call_return_value can be only called in sync calls
 BOOST_AUTO_TEST_CASE(set_call_return_value_not_in_sync_call_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -1033,11 +952,6 @@ static const char get_call_return_value_less_memory_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(get_call_return_value_less_memory_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, get_call_return_value_less_memory_wast);
@@ -1075,11 +989,6 @@ static const char get_call_return_value_not_called_sync_call_wast[] = R"=====(
 // Verify get_call_return_value returns 0 if no sync calls were made before
 BOOST_AUTO_TEST_CASE(get_call_return_value_not_called_sync_call_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -1130,11 +1039,6 @@ static const char no_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_accounts_and_set_code(entry_point_validation_caller_wast, no_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
@@ -1156,8 +1060,8 @@ static const char invalid_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
+   // validating entry point signature on OC not done yet.
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
       return;
    }
 
@@ -1186,11 +1090,6 @@ BOOST_AUTO_TEST_CASE(valid_flags_test) { try {
    validating_tester t;
    account_name      acct;
 
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_one_account_and_set_code(valid_flags_wast, acct, t);
    BOOST_REQUIRE_NO_THROW(t.push_action(acct, "doit"_n, acct, {}));
 } FC_LOG_AND_RETHROW() }
@@ -1214,11 +1113,6 @@ static const char invalid_flags_wast1[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_flags_test1) { try {
    validating_tester t;
    account_name      acct;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_one_account_and_set_code(invalid_flags_wast1, acct, t);
    BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
@@ -1245,11 +1139,6 @@ static const char invalid_flags_wast2[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
    validating_tester t;
    account_name      acct;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_one_account_and_set_code(invalid_flags_wast2, acct, t);
    BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
@@ -1314,11 +1203,6 @@ static const char direct_recursive_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(one_input_caller_wast, direct_recursive_wast, t);
 
@@ -1413,11 +1297,6 @@ static const char indirect_recursive_callee_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(indirect_recursive_caller_wast, indirect_recursive_callee_wast, t);
 
@@ -1576,11 +1455,6 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(constrains_enforcement_test)  { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_accounts_and_set_code(constrains_enforcement_caller_wast, constrains_enforcement_callee_wast, t);
 
    // require_auth
@@ -1669,11 +1543,6 @@ static const char privilege_call_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(privilege_call_test)  { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_accounts_and_set_code(caller_wast, privilege_call_wast, t);
 
    // No privilege, sync call should fail
@@ -1738,11 +1607,6 @@ static const char max_call_depth_update_caller_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(max_call_depth_update_caller_wast, direct_recursive_wast, t);
 
