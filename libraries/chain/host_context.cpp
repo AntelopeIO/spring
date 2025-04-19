@@ -75,7 +75,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
+            sync_call_context call_ctx(control, trx_context, get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, is_read_only(), data);
 
             auto rc = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
             if (rc == execution_status::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
@@ -208,13 +208,11 @@ vector<account_name> host_context::get_active_producers() const {
 }
 
 int host_context::db_store_i64( name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
    return db_store_i64( receiver, scope, table, payer, id, buffer, buffer_size);
 }
 
 int host_context::db_store_i64( name code, name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size ) {
 //   require_write_lock( scope );
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
    const auto& tab = find_or_create_table( code, scope, table, payer );
    auto tableid = tab.id;
 
@@ -254,7 +252,6 @@ int host_context::db_store_i64( name code, name scope, name table, const account
 }
 
 void host_context::db_update_i64( int iterator, account_name payer, const char* buffer, size_t buffer_size ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot update a db record when executing a readonly transaction" );
    const key_value_object& obj = keyval_cache.get( iterator );
 
    const auto& table_obj = keyval_cache.get_table( obj.t_id );
@@ -311,7 +308,6 @@ void host_context::db_update_i64( int iterator, account_name payer, const char* 
 }
 
 void host_context::db_remove_i64( int iterator ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot remove a db record when executing a readonly transaction" );
    const key_value_object& obj = keyval_cache.get( iterator );
 
    const auto& table_obj = keyval_cache.get_table( obj.t_id );

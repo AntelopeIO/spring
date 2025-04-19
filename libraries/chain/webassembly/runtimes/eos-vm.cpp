@@ -433,21 +433,21 @@ REGISTER_LEGACY_CF_ONLY_HOST_FUNCTION(get_context_free_data)
 
 // privileged api
 REGISTER_HOST_FUNCTION(is_feature_active, privileged_check);
-REGISTER_HOST_FUNCTION(activate_feature, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(preactivate_feature, privileged_check);
-REGISTER_HOST_FUNCTION(set_resource_limits, privileged_check);
+REGISTER_HOST_FUNCTION(activate_feature, privileged_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(preactivate_feature, privileged_check, read_only_check);
+REGISTER_HOST_FUNCTION(set_resource_limits, privileged_check, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(get_resource_limits, privileged_check);
 REGISTER_HOST_FUNCTION(get_parameters_packed, privileged_check);
-REGISTER_HOST_FUNCTION(set_parameters_packed, privileged_check);
+REGISTER_HOST_FUNCTION(set_parameters_packed, privileged_check, read_only_check);
 REGISTER_HOST_FUNCTION(get_wasm_parameters_packed, privileged_check);
-REGISTER_HOST_FUNCTION(set_wasm_parameters_packed, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers_ex, privileged_check);
+REGISTER_HOST_FUNCTION(set_wasm_parameters_packed, privileged_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers, privileged_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers_ex, privileged_check, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(get_blockchain_parameters_packed, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(set_blockchain_parameters_packed, privileged_check);
+REGISTER_LEGACY_HOST_FUNCTION(set_blockchain_parameters_packed, privileged_check, read_only_check);
 REGISTER_HOST_FUNCTION(is_privileged, privileged_check);
-REGISTER_HOST_FUNCTION(set_privileged, privileged_check);
-REGISTER_HOST_FUNCTION(set_finalizers, privileged_check);
+REGISTER_HOST_FUNCTION(set_privileged, privileged_check, read_only_check);
+REGISTER_HOST_FUNCTION(set_finalizers, privileged_check, read_only_check);
 
 // softfloat api
 REGISTER_INJECTED_HOST_FUNCTION(_eosio_f32_add);
@@ -578,9 +578,9 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(printhex);
 
 // database api
 // primary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_store_i64);
-REGISTER_LEGACY_HOST_FUNCTION(db_update_i64);
-REGISTER_HOST_FUNCTION(db_remove_i64);
+REGISTER_LEGACY_HOST_FUNCTION(db_store_i64, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_update_i64, read_only_check);
+REGISTER_HOST_FUNCTION(db_remove_i64, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_get_i64);
 REGISTER_LEGACY_HOST_FUNCTION(db_next_i64);
 REGISTER_LEGACY_HOST_FUNCTION(db_previous_i64);
@@ -590,9 +590,9 @@ REGISTER_HOST_FUNCTION(db_upperbound_i64);
 REGISTER_HOST_FUNCTION(db_end_i64);
 
 // uint64_t secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx64_store);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx64_update);
-REGISTER_HOST_FUNCTION(db_idx64_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx64_store, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx64_update, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx64_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_find_secondary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_lowerbound);
@@ -602,9 +602,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx64_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_previous);
 
 // uint128_t secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx128_store);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx128_update);
-REGISTER_HOST_FUNCTION(db_idx128_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx128_store, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx128_update, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx128_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_find_secondary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_lowerbound);
@@ -614,9 +614,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx128_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_previous);
 
 // 256-bit secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx256_store);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx256_update);
-REGISTER_HOST_FUNCTION(db_idx256_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx256_store, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx256_update, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx256_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_find_secondary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_lowerbound);
@@ -626,9 +626,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx256_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_previous);
 
 // double secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_store, is_nan_check);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_update, is_nan_check);
-REGISTER_HOST_FUNCTION(db_idx_double_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_store, is_nan_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_update, is_nan_check, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx_double_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_find_secondary, is_nan_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_lowerbound, is_nan_check);
@@ -638,9 +638,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_previous);
 
 // long double secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_store, is_nan_check);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_update, is_nan_check);
-REGISTER_HOST_FUNCTION(db_idx_long_double_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_store, is_nan_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_update, is_nan_check, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx_long_double_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_find_secondary, is_nan_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_lowerbound, is_nan_check);
@@ -658,8 +658,8 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(memset);
 // transaction api
 REGISTER_LEGACY_HOST_FUNCTION(send_inline, action_check);
 REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline, action_check);
-REGISTER_LEGACY_HOST_FUNCTION(send_deferred, action_check);
-REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_deferred, action_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred, action_check, read_only_check);
 
 // context-free transaction api
 REGISTER_LEGACY_CF_HOST_FUNCTION(read_transaction);

@@ -84,7 +84,8 @@ class apply_context : public host_context {
       const action* get_action_ptr()const { return act; }
 
       action_name get_sender() const override;
-
+      bool is_read_only() const override { return trx_context.is_read_only(); }
+  
    private:
       const action*                 act = nullptr; ///< action being applied
       // act pointer may be invalidated on call to trx_context.schedule_action
