@@ -2024,13 +2024,30 @@ static const char read_only_pass_along_callee_wast[] = R"=====(
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
-
    (memory (export "memory") 1)
 )
 )=====";
 
-// The called function invokes db_store_i64 which would modify the state
+// Make the third level of sync call without read_only flag set
 static const char read_only_pass_along_callee1_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee2 i64 (i64.const 4729647296285769728))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 1)))
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Invoke db_store_i64 which will modify the state
+static const char read_only_pass_along_callee2_wast[] = R"=====(
 (module
    (import "env" "db_store_i64" (func $db_store_i64 (param i64 i64 i64 i64 i32 i32) (result i32)))
 
@@ -2041,7 +2058,6 @@ static const char read_only_pass_along_callee1_wast[] = R"=====(
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
-
    (memory (export "memory") 1)
 )
 )=====";
@@ -2049,28 +2065,62 @@ static const char read_only_pass_along_callee1_wast[] = R"=====(
 // Verify that in a sequence of sync calls, once the read_only flag is set,
 // all subsequent calls will honor the read only request, even if their own
 // call flags do not have read_only set.
+// In this test, first call has read_only flag set, the second and third do not.
+// But the call traces shoud show all the calls are read only.
 BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
    call_tester t({ {"caller"_n,  read_only_pass_along_caller_wast},
                    {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast} });
+                   {"callee1"_n, read_only_pass_along_callee1_wast},
+                   {"callee2"_n, read_only_pass_along_callee2_wast} });
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
       // skip eos_vm_oc for now.
       return;
    }
 
+   // First verify db_store_i64 is disaalowed
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
                          unaccessible_api,
                          fc_exception_message_contains("this API is not allowed in read only action/call"));
 
+   // Then verifiy read_only flags are true in all the call traces
+
+   // Use signed_transaction so we can pass in `no_throw` to return trace
+   signed_transaction trx;
+   trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
+   t.set_transaction_headers(trx);
+   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
+   auto trx_trace = t.push_transaction(trx,
+                                       fc::time_point::maximum(),
+                                       validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+                                       true // `true` is for no_throw so that tester returns trace without throwing
+                                      );
+
+   auto& action_trace = trx_trace->action_traces;
+   BOOST_REQUIRE_EQUAL(action_trace[0].call_traces.size(), 3u);
+
+   auto& call_trace1 = action_trace[0].call_traces[0];
+   BOOST_REQUIRE_EQUAL(call_trace1.call_ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(call_trace1.read_only, true);
+
+   auto& call_trace2 = action_trace[0].call_traces[1];
+   BOOST_REQUIRE_EQUAL(call_trace2.call_ordinal, 2u);
+   BOOST_REQUIRE_EQUAL(call_trace2.read_only, true);
+
+   auto& call_trace3 = action_trace[0].call_traces[2];
+   BOOST_REQUIRE_EQUAL(call_trace3.call_ordinal, 3u);
+   BOOST_REQUIRE_EQUAL(call_trace3.read_only, true);
 } FC_LOG_AND_RETHROW() }
 
 // Verify that if the transaction is a read-only transaction,
 // all sync calls it initiates will honor the read only request, even if their own
 // call flags do not have read_only set.
+// Also verify the read_only value in the call trace is true.
 BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
    call_tester t({ {"caller"_n,  caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee1_wast} });
+                   {"callee"_n,  read_only_pass_along_callee_wast},
+                   {"callee1"_n, read_only_pass_along_callee1_wast},
+                   {"callee2"_n, read_only_pass_along_callee2_wast} });
 
    if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
       // skip eos_vm_oc for now.
@@ -2086,9 +2136,36 @@ BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
    t.set_transaction_headers(trx);
 
    BOOST_CHECK_EXCEPTION(
-      t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::read_only),
+      t.push_transaction(trx,
+                         fc::time_point::maximum(),
+                         validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+                         false,
+                         transaction_metadata::trx_type::read_only),
       unaccessible_api,
       fc_exception_message_contains("this API is not allowed in read only action/call"));
+
+   auto trx_trace = t.push_transaction(
+      trx,
+      fc::time_point::maximum(),
+      validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+      true, // `true` is for no_throw so that tester returns trace without throwing
+      transaction_metadata::trx_type::read_only // send read only
+   );
+
+   auto& action_trace = trx_trace->action_traces;
+   BOOST_REQUIRE_EQUAL(action_trace[0].call_traces.size(), 3u);
+
+   auto& call_trace1 = action_trace[0].call_traces[0];
+   BOOST_REQUIRE_EQUAL(call_trace1.call_ordinal, 1u);
+   BOOST_REQUIRE_EQUAL(call_trace1.read_only, true);
+
+   auto& call_trace2 = action_trace[0].call_traces[1];
+   BOOST_REQUIRE_EQUAL(call_trace2.call_ordinal, 2u);
+   BOOST_REQUIRE_EQUAL(call_trace2.read_only, true);
+
+   auto& call_trace3 = action_trace[0].call_traces[2];
+   BOOST_REQUIRE_EQUAL(call_trace3.call_ordinal, 3u);
+   BOOST_REQUIRE_EQUAL(call_trace3.read_only, true);
 } FC_LOG_AND_RETHROW() }
 
 // Verify `call_traces` in the action trace of an action without sync calls
