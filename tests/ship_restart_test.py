@@ -81,7 +81,8 @@ try:
 
     Print("Shutdown producer and SHiP nodes")
     prodNode.processUrllibRequest("producer", "pause", exitOnError=True)
-    time.sleep(0.5) # give time for any blocks to propagate
+    blockNum = prodNode.getHeadBlockNum()
+    shipNode.waitForBlock(blockNum)
     prodNode.kill(signal.SIGTERM)
     shipNode.kill(signal.SIGTERM)
 
