@@ -96,7 +96,16 @@ namespace detail {
       string::size_type colon2 = peer_add.find(':', colon + 1);
       string host = peer_add.substr( 0, colon );
       string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
-      string remainder = colon2 == string::npos ? "" : peer_add.substr( colon2 + 1 );
+      string remainder;
+      if (colon2 == string::npos) {
+         auto port_end = port.find_first_not_of("0123456789");
+         if (port_end != string::npos) {
+            port = port.substr(0, port_end);
+            remainder = port.substr( port_end );
+         }
+      } else {
+         remainder = peer_add.substr( colon2 + 1 );
+      }
       return {std::move(host), std::move(port), std::move(remainder)};
    }
 
