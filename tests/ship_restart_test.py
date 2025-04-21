@@ -60,6 +60,7 @@ try:
     Print("Stand up cluster")
 
     specificExtraNodeosArgs={}
+    specificExtraNodeosArgs[prodNodeId]="--plugin eosio::producer_api_plugin"
     specificExtraNodeosArgs[shipNodeId]="--plugin eosio::state_history_plugin --trace-history --chain-state-history --finality-data-history --state-history-stride 200 --plugin eosio::net_api_plugin --plugin eosio::producer_api_plugin"
 
     if cluster.launch(topo="mesh", pnodes=totalProducerNodes, totalNodes=totalNodes,
@@ -79,9 +80,9 @@ try:
     shipNode = cluster.getNode(shipNodeId)
 
     Print("Shutdown producer and SHiP nodes")
+    prodNode.processUrllibRequest("producer", "pause", exitOnError=True)
+    time.sleep(0.5) # give time for any blocks to propagate
     prodNode.kill(signal.SIGTERM)
-    # prodNode might have produced but not gotten to shipNode yet, wait to allow block to arrive
-    time.sleep(0.5)
     shipNode.kill(signal.SIGTERM)
 
     shipDir               = os.path.join(Utils.getNodeDataDir(shipNodeId), "state-history")
