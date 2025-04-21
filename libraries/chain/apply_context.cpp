@@ -135,8 +135,8 @@ void apply_context::exec_one()
 
       if( control.is_builtin_activated( builtin_protocol_feature_t::action_return_value ) ) {
          act_digest =   generate_action_digest(
-                           [this](const char* data, uint32_t datalen) {
-                              return trx_context.hash_with_checktime<digest_type>(data, datalen);
+                           [this]() {
+                              return trx_context.checktime();
                            },
                            *act,
                            action_return_value

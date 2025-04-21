@@ -1,7 +1,9 @@
 #pragma once
 
-#include <eosio/chain/types.hpp>
+#include <eosio/chain/config.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/chain/types.hpp>
+#include <fc/crypto/digest.hpp>
 
 namespace eosio { namespace chain {
 
@@ -95,36 +97,23 @@ namespace eosio { namespace chain {
       }
    };
 
-   template <typename Hasher>
-   auto generate_action_digest(Hasher&& hash, const action& act, const vector<char>& action_output) {
-      using hash_type = decltype(hash(nullptr, 0));
-      hash_type hashes[2];
-      const action_base* base = &act;
-      const auto action_base_size   = fc::raw::pack_size(*base);
-      const auto action_input_size  = fc::raw::pack_size(act.data);
-      const auto action_output_size = fc::raw::pack_size(action_output);
-      const auto rhs_size           = action_input_size + action_output_size;
-      std::vector<char> buff;
-      buff.reserve(std::max(action_base_size, rhs_size));
-      {
-         buff.resize(action_base_size);
-         fc::datastream<char*> ds(buff.data(), action_base_size);
-         fc::raw::pack(ds, *base);
-         hashes[0] = hash(buff.data(), action_base_size);
-      }
-      {
-         buff.resize(rhs_size);
-         fc::datastream<char*> ds(buff.data(), rhs_size);
-         fc::raw::pack(ds, act.data);
-         fc::raw::pack(ds, action_output);
-         hashes[1] = hash(buff.data(), rhs_size);
-      }
-      auto hashes_size = fc::raw::pack_size(hashes[0]) + fc::raw::pack_size(hashes[1]);
-      buff.resize(hashes_size); // may cause reallocation but in practice will be unlikely
-      fc::datastream<char*> ds(buff.data(), hashes_size);
-      fc::raw::pack(ds, hashes[0]);
-      fc::raw::pack(ds, hashes[1]);
-      return hash(buff.data(), hashes_size);
+   template <typename F>
+   digest_type generate_action_digest(F&& checktime, const action& act, const vector<char>& action_output) {
+      digest_type hashes[2];
+      const action_base& base = act;
+
+      fc::sha256_encoder_with_checktime enc(eosio::chain::config::hashing_checktime_block_size, std::forward<F>(checktime));
+
+      fc::raw::pack(enc, base);
+      hashes[0] = enc.result();
+
+      enc.reset();
+      fc::raw::pack(enc, std::make_pair(act.data, action_output));
+      hashes[1] = enc.result();
+
+      enc.reset();
+      fc::raw::pack(enc, std::make_pair(hashes[0], hashes[1]));
+      return enc.result();
    }
 
    struct action_notice : public action {
