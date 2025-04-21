@@ -4,7 +4,6 @@ import os
 import tempfile
 import shutil
 import signal
-import time
 
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 
