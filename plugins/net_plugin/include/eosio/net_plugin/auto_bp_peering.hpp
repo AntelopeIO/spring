@@ -26,10 +26,10 @@ class bp_connection_manager {
 
    // the following members are thread-safe, only modified during plugin startup
    struct config_t {
-      flat_map<account_name, std::string> bp_peer_addresses;
-      flat_map<std::string, account_name> bp_peer_accounts;
-      peer_name_set_t                     my_bp_accounts;       // block producer --producer-name
-      peer_name_set_t                     my_bp_peer_accounts;  // peer key account --p2p-producer-peer
+      flat_map<account_name, net_utils::endpoint>   bp_peer_addresses;
+      flat_map<net_utils::endpoint, account_name>   bp_peer_accounts;
+      peer_name_set_t                               my_bp_accounts;       // block producer --producer-name
+      peer_name_set_t                               my_bp_peer_accounts;  // peer key account --p2p-producer-peer
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
@@ -119,10 +119,11 @@ public:
             const auto& [host, port, type] = net_utils::split_host_port_type(addr);
             EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
                         "Invalid p2p-auto-bp-peer ${p}, syntax host:port:[trx|blk]", ("p", addr));
+            net_utils::endpoint e{host, port};
 
             fc_dlog(self()->get_logger(), "Setting p2p-auto-bp-peer ${a} -> ${d}", ("a", account)("d", addr));
-            config.bp_peer_accounts[addr]     = account;
-            config.bp_peer_addresses[account] = std::move(addr);
+            config.bp_peer_accounts[e]        = account;
+            config.bp_peer_addresses[account] = std::move(e);
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
                        "the account ${a} supplied by --p2p-auto-bp-peer option is invalid", ("a", entry));
@@ -187,10 +188,11 @@ public:
    void mark_configured_bp_connection(Connection* conn) const {
       /// mark an connection as a configured bp connection if it connects to an address in the bp peer list,
       /// so that the connection won't be subject to the limit of max_client_count.
-      auto space_pos = conn->log_p2p_address.find(' ');
-      // log_p2p_address always has a trailing hex like `localhost:9877 - bc3f55b`
-      std::string addr = conn->log_p2p_address.substr(0, space_pos);
-      if (config.bp_peer_accounts.count(addr)) {
+      net_utils::endpoint e;
+      std::string type;
+      std::tie(e.host, e.port, type) = eosio::net_utils::split_host_port_type(conn->log_p2p_address);
+
+      if (config.bp_peer_accounts.count(e)) {
          conn->bp_connection = Connection::bp_connection_type::bp_config;
       }
    }
@@ -349,7 +351,7 @@ public:
       for (const auto& account : accounts) {
          if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
             fc_dlog(self()->get_logger(), "${d} manual bp peer ${p}", ("d", desc)("p", i->second));
-            addresses.insert(i->second);
+            addresses.insert(i->second.address());
          }
          auto r = prod_idx.equal_range(account);
          for (auto i = r.first; i != r.second; ++i) {

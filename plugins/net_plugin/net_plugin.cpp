@@ -2793,8 +2793,7 @@ namespace eosio {
             fc_ilog(logger, "Accepted new connection: " + paddr_str);
 
             connections.any_of_supplied_peers([&listen_address, &paddr_str, &paddr_desc, &limit](const string& peer_addr) {
-               auto [host, port, type] = net_utils::split_host_port_type(peer_addr);
-               if (host == paddr_str) {
+               if (auto [host, port, type] = net_utils::split_host_port_type(peer_addr); host == paddr_str) {
                   if (limit > 0) {
                      fc_dlog(logger, "Connection inbound to ${la} from ${a} is a configured p2p-peer-address and will not be throttled", ("la", listen_address)("a", paddr_desc));
                   }
@@ -3302,8 +3301,7 @@ namespace eosio {
          }
 
          if( incoming() ) {
-            auto [host, port, type] = net_utils::split_host_port_type(msg.p2p_address);
-            if (host.size())
+            if (auto [host, port, type] = net_utils::split_host_port_type(msg.p2p_address); !host.empty())
                set_connection_type( msg.p2p_address);
             else
                peer_dlog(this, "Invalid handshake p2p_address ${p}", ("p", msg.p2p_address));
@@ -4729,8 +4727,7 @@ namespace eosio {
    }
 
    string connections_manager::resolve_and_connect( const string& peer_address, const string& listen_address ) {
-      auto [host, port, type] = net_utils::split_host_port_type(peer_address);
-      if (host.empty()) {
+      if (auto [host, port, type] = net_utils::split_host_port_type(peer_address); host.empty()) {
          return "invalid peer address";
       }
 

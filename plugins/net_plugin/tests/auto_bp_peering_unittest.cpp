@@ -1,6 +1,8 @@
 #include <boost/test/unit_test.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 
+using namespace eosio::net_utils;
+
 struct mock_connection {
    enum class bp_connection_type { non_bp, bp_config, bp_gossip };
    bp_connection_type bp_connection = bp_connection_type::non_bp;
@@ -61,7 +63,7 @@ struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_
 };
 
 const std::vector<std::string> peer_addresses{
-   "127.0.0.1:8001:blk"s, "127.0.0.1:8002:trx"s, "127.0.0.1:8003"s,
+   "127.0.0.1:8001"s, "127.0.0.1:8002"s, "127.0.0.1:8003"s,
    "127.0.0.1:8004"s, "127.0.0.1:8005"s, "127.0.0.1:8006"s, "127.0.0.1:8007"s,
    "127.0.0.1:8008"s, "127.0.0.1:8009"s, "127.0.0.1:8010"s,
    // prodk is intentionally skipped
@@ -82,15 +84,15 @@ BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
          "producer3,127.0.0.1:8890"s,
          "producer4,127.0.0.1:8891"s
    });
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer1"_n], "127.0.0.1:8888:blk"s);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer2"_n], "127.0.0.1:8889:trx"s);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer3"_n], "127.0.0.1:8890"s);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer4"_n], "127.0.0.1:8891"s);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer1"_n], endpoint("127.0.0.1", "8888"));
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer2"_n], endpoint("127.0.0.1", "8889"));
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer3"_n], endpoint("127.0.0.1", "8890"));
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer4"_n], endpoint("127.0.0.1", "8891"));
 
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8888:blk"], "producer1"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8889:trx"], "producer2"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8890"], "producer3"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8891"], "producer4"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8888")], "producer1"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8889")], "producer2"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8890")], "producer3"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8891")], "producer4"_n);
 }
 
 bool operator==(const eosio::chain::peer_name_set_t& a, const eosio::chain::peer_name_set_t& b) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ostream>
 #include <eosio/chain/exceptions.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 
@@ -101,6 +102,18 @@ namespace detail {
 
 } // namespace detail
 
+   struct endpoint {
+      std::string host;
+      std::string port;
+
+      std::string address() const { return host + ":" + port; }
+
+      friend std::ostream& operator<<(std::ostream& os, const endpoint& e) { return os << e.host << ":" << e.port; }
+
+      bool operator==(const endpoint& lhs) const = default;
+      auto operator<=>(const endpoint& lhs) const = default;
+   };
+
    /// @return host, port, type. returns empty on invalid peer_add, does not throw
    inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
 
@@ -139,3 +152,5 @@ namespace detail {
    }
 
 } // namespace eosio::net_utils
+
+FC_REFLECT(eosio::net_utils::endpoint, (host)(port))
