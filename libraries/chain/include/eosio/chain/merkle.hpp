@@ -13,7 +13,7 @@ namespace detail {
 
 struct merkle_pool {
    merkle_pool() {
-      thread_pool.start(4, [](const fc::exception&){}, [](size_t){});
+      thread_pool.start(4, thread_pool.make_on_except_abort());
    }
    named_thread_pool<struct merkle> thread_pool;
 };
