@@ -4,6 +4,7 @@ import os
 import tempfile
 import shutil
 import signal
+import time
 
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 
@@ -79,6 +80,8 @@ try:
 
     Print("Shutdown producer and SHiP nodes")
     prodNode.kill(signal.SIGTERM)
+    # prodNode might have produced but not gotten to shipNode yet, wait to allow block to arrive
+    time.sleep(0.5)
     shipNode.kill(signal.SIGTERM)
 
     shipDir               = os.path.join(Utils.getNodeDataDir(shipNodeId), "state-history")
