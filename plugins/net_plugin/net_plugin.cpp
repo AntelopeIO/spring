@@ -4723,6 +4723,7 @@ namespace eosio {
       std::unique_lock g( connections_mtx );
       supplied_peers.insert(host);
       g.unlock();
+      fc_dlog(logger, "API connect ${h}", ("h", host));
       return resolve_and_connect( host, p2p_address );
    }
 
@@ -4734,7 +4735,6 @@ namespace eosio {
       {
          std::shared_lock g( connections_mtx );
          if( find_connection_i( peer_address ) ) {
-            fc_dlog( logger, "Already connected to ${p}", ("p", peer_address));
             return "already connected";
          }
       }
