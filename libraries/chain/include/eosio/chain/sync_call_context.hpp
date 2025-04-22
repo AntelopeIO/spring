@@ -36,7 +36,6 @@ public:
    const uint32_t               ordinal = 1;
    action_trace&                current_action_trace;
    const account_name           sender{};
-   const uint64_t               flags = 0;
    // `read_only` represents what the read only status of the call context.
    // It tells the executing smart contract code whether or not it is in
    // read-only mode and therefore whether or not the system will enforce that it

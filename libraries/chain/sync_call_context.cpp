@@ -19,7 +19,6 @@ sync_call_context::sync_call_context(controller&           con,
    , ordinal(ordinal)
    , current_action_trace(current_action_trace)
    , sender(sender)
-   , flags(flags)
    , read_only(has_field(flags, sync_call_flags::force_read_only))
    , data(data)
 {
