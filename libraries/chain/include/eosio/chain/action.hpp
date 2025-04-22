@@ -95,7 +95,7 @@ namespace eosio { namespace chain {
       }
    };
 
-   digest_type generate_action_digest(const action& act, const vector<char>& action_output) {
+   inline digest_type generate_action_digest(const action& act, const vector<char>& action_output) {
       digest_type hashes[2];
       const action_base& base = act;
 
@@ -111,10 +111,6 @@ namespace eosio { namespace chain {
       fc::raw::pack(enc, std::make_pair(hashes[0], hashes[1]));
       return enc.result();
    }
-
-   struct action_notice : public action {
-      account_name receiver;
-   };
 
 } } /// namespace eosio::chain
 
