@@ -2,6 +2,7 @@
 
 import os
 import re
+import tempfile
 
 from TestHarness import Utils
 
@@ -23,14 +24,12 @@ def test_create_key_to_console():
     check_create_key_results(rslts)
 
 def test_create_key_to_file():
-    tmp_file = "tmp_key_file_dlkdx1x56pjy"
-    Utils.processSpringUtilCmd("bls create key --file {}".format(tmp_file), "create key to file", silentErrors=False)
+    with tempfile.NamedTemporaryFile(mode="w+") as tmp_file:
+        Utils.processSpringUtilCmd("bls create key --file {}".format(tmp_file.name), "create key to file", silentErrors=False)
 
-    with open(tmp_file, 'r') as file:
-        rslts = file.read()
+        tmp_file.seek(0)
+        rslts = tmp_file.read()
         check_create_key_results(rslts)
-
-    os.remove(tmp_file)
 
 def test_create_pop_from_command_line():
     # Create a pair of keys
@@ -61,14 +60,13 @@ def test_create_pop_from_file():
     pop = results["Proof of Possession"]
 
     # save private key to a file
-    private_key_file = "tmp_key_file_ulkdx1x42pjx"
-    with open(private_key_file, 'w+') as file:
-        file.write(private_key)
+    with tempfile.NamedTemporaryFile(mode="w+") as private_key_file:
+        private_key_file.write(private_key)
+        private_key_file.flush()
 
-    # use the private key file to create POP
-    rslts = Utils.processSpringUtilCmd("bls create pop --file {}".format(private_key_file), "create pop from command line", silentErrors=False)
-    os.remove(private_key_file)
-    results = get_results(rslts)
+        # use the private key file to create POP
+        rslts = Utils.processSpringUtilCmd("bls create pop --file {}".format(private_key_file.name), "create pop from command line", silentErrors=False)
+        results = get_results(rslts)
 
     # check pop and public key are the same as those generated before
     assert results["Public key"] == public_key
@@ -89,10 +87,8 @@ def test_create_pop_error_handling():
     assert Utils.processSpringUtilCmd("bls create pop --file private_key_file --private-key", "conflicting arguments") == None
 
     # should fail when private key file does not exist
-    temp_file = "aRandomFileT6bej2pjsaz"
-    if os.path.exists(temp_file):
-        os.remove(temp_file)
-    assert Utils.processSpringUtilCmd("bls create pop --file {}".format(temp_file), "private file not existing") == None
+    with tempfile.NamedTemporaryFile(mode="w+") as temp_file:
+        assert Utils.processSpringUtilCmd("bls create pop --file {}".format(temp_file.name), "private file not existing") == None
 
 def check_create_key_results(rslts): 
     results = get_results(rslts)
