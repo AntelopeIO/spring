@@ -11,6 +11,9 @@ enum class sync_call_flags : uint64_t {
    // `force_read_only` is a user's directive to the system, telling the system whether
    // the new call context created must operate in read-only mode or if it is
    // free to operate under its most permissible mode.
+   // When the flag is not set, the new call context inherits the
+   // `readonlyness` from the calling context; that is, if the calling context
+   // is read only, the system will enforce read only in the new call context.
    force_read_only  = 1ull<<0,
 
    all_allowed_bits = force_read_only
