@@ -44,11 +44,6 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    // If current call is read only, or read_only flag from the user is read only,
    // next call must be read only
    bool is_next_call_read_only = is_read_only() || has_field(flags, sync_call_flags::force_read_only);
-   // Update next call's flags based on is_next_call_read_only
-   uint64_t updated_flags = flags;  // get the default values
-   if (is_next_call_read_only) {
-      updated_flags = set_field(flags, sync_call_flags::force_read_only);
-   }
 
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
@@ -107,7 +102,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
          }
 
          // use a new sync_call_context for next sync call
-         sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, updated_flags, data);
+         sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, is_next_call_read_only, data);
 
          try {
             // execute the sync call
