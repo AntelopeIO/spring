@@ -3753,6 +3753,7 @@ namespace eosio {
          return;
       }
 
+      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].server_address.empty();
       if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
@@ -3760,11 +3761,13 @@ namespace eosio {
          return;
       }
 
+      if (msg.peers.empty())
+         return; // no current top producers in msg
+
       // valid gossip peer connection
       bp_connection = bp_connection_type::bp_gossip;
 
-      assert(!msg.peers.empty()); // checked by validate_gossip_bp_peers_message()
-      if (msg.peers.size() == 1 && msg.peers[0].server_address.empty()) {
+      if (first_msg) {
          // initial message case, send back our entire collection
          send_gossip_bp_peers_message();
       } else {

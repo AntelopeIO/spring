@@ -315,7 +315,8 @@ public:
 
       if (invalid_message)
          return false;
-      return !msg.peers.empty();
+
+      return true;
    }
 
    // thread-safe
