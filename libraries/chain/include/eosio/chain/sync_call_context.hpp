@@ -22,7 +22,7 @@ enum class sync_call_flags : uint64_t {
 class sync_call_context : public host_context {
 public:
 
-   sync_call_context(controller& con, transaction_context& trx_ctx, uint32_t ordinal, action_trace& current_action_trace, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, std::span<const char> data);
+   sync_call_context(controller& con, transaction_context& trx_ctx, uint32_t ordinal, action_trace& current_action_trace, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, bool read_only, std::span<const char> data);
 
    uint32_t get_call_data(std::span<char> memory) const override;
    void set_call_return_value(std::span<const char> return_value) override;

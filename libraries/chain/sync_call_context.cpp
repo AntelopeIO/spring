@@ -13,13 +13,13 @@ sync_call_context::sync_call_context(controller&           con,
                                      account_name          receiver,
                                      bool                  privileged,
                                      uint32_t              sync_call_depth,
-                                     uint64_t              flags,
+                                     bool                  read_only,
                                      std::span<const char> data)
    : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
    , ordinal(ordinal)
    , current_action_trace(current_action_trace)
    , sender(sender)
-   , read_only(has_field(flags, sync_call_flags::force_read_only))
+   , read_only(read_only)
    , data(data)
 {
 }
