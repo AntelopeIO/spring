@@ -25,6 +25,22 @@ namespace {
 
    }
 
+   fc::variants process_call_traces(const std::vector<call_trace_v0>& call_traces) {
+      fc::variants result;
+      result.reserve(call_traces.size());
+      for ( const auto& t: call_traces) {
+         result.emplace_back(fc::mutable_variant_object()
+            ("call_ordinal", t.call_ordinal)
+            ("sender_ordinal", t.sender_ordinal)
+            ("receiver", t.receiver.to_string())
+            ("data", fc::to_hex(t.data.data(), t.data.size()))
+            ("return_value", fc::to_hex(t.return_value.data(), t.return_value.size()))
+         );
+      }
+
+      return result;
+   }
+
    template<typename ActionTrace>
    fc::variants process_actions(const std::vector<ActionTrace>& actions, const data_handler_function & data_handler) {
       fc::variants result;
@@ -52,7 +68,8 @@ namespace {
                action_variant("params", params);
             }
          }
-         else if constexpr(std::is_same_v<ActionTrace, action_trace_v1>){
+         else if constexpr(std::is_same_v<ActionTrace, action_trace_v1> ||
+                           std::is_same_v<ActionTrace, action_trace_v2>){
             action_variant("return_value", fc::to_hex(a.return_value.data(),a.return_value.size())) ;
             auto [params, return_data] = data_handler(a);
             if (!params.is_null()) {
@@ -60,6 +77,9 @@ namespace {
             }
             if(return_data.has_value()){
                action_variant("return_data", *return_data);
+            }
+            if constexpr(std::is_same_v<ActionTrace, action_trace_v2>){
+               action_variant("call_traces", process_call_traces(a.call_traces));
             }
          }
          result.emplace_back( std::move(action_variant) );
@@ -109,6 +129,17 @@ namespace {
                      (std::move(common_mvo))
                );
             }
+            else if constexpr(std::is_same_v<TransactionTrace, transaction_trace_v4>){
+               result.emplace_back(
+                  fc::mutable_variant_object()
+                     ("id", t.id.str())
+                     ("block_num", t.block_num)
+                     ("block_time", t.block_time)
+                     ("producer_block_id", t.producer_block_id)
+                     ("actions", process_actions<action_trace_v2>(std::get<std::vector<action_trace_v2>>(t.actions), data_handler))
+                     (std::move(common_mvo))
+               );
+            }
          }
       }
 
@@ -150,6 +181,14 @@ namespace eosio::trace_api::detail {
                 ("action_mroot", block_trace.action_mroot)
                 ("schedule_version", block_trace.schedule_version)
                 ("transactions", transactions) ;
+       }else if(std::holds_alternative<block_trace_v3>(trace)){
+          auto& block_trace = std::get<block_trace_v3>(trace);
+          return fc::mutable_variant_object()
+                (std::move(common_mvo))
+                ("transaction_mroot", block_trace.transaction_mroot)
+                ("action_mroot", block_trace.action_mroot)
+                ("schedule_version", block_trace.schedule_version)
+                ("transactions", process_transactions<transaction_trace_v4>(block_trace.transactions, data_handler));
        }else{
           return fc::mutable_variant_object();
        }

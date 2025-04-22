@@ -50,6 +50,7 @@ namespace eosio::trace_api {
 
    template void store_provider::append<block_trace_v1>(const block_trace_v1& bt);
    template void store_provider::append<block_trace_v2>(const block_trace_v2& bt);
+   template void store_provider::append<block_trace_v3>(const block_trace_v3& bt);
 
    void store_provider::append_lib(uint32_t lib) {
       fc::cfile index, trx_id;

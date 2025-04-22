@@ -6,7 +6,7 @@
 #include <eosio/trace_api/common.hpp>
 
 namespace eosio::trace_api {
-   using data_handler_function = std::function<std::tuple<fc::variant, std::optional<fc::variant>>( const std::variant<action_trace_v0, action_trace_v1> & action_trace_t)>;
+   using data_handler_function = std::function<std::tuple<fc::variant, std::optional<fc::variant>>( const std::variant<action_trace_v0, action_trace_v1, action_trace_v2> & action_trace_t)>;
 
    namespace detail {
       class response_formatter {

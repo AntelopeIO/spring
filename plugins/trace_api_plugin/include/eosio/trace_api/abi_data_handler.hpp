@@ -36,7 +36,7 @@ namespace eosio {
        * @param action - trace of the action including metadata necessary for finding the ABI
        * @return tuple where the first element is a variant representing the `data` field of the action interpreted by known ABIs OR an empty variant, and the second element represents the `return_value` field of the trace.
        */
-      std::tuple<fc::variant, std::optional<fc::variant>> serialize_to_variant(const std::variant<action_trace_v0, action_trace_v1> & action);
+      std::tuple<fc::variant, std::optional<fc::variant>> serialize_to_variant(const std::variant<action_trace_v0, action_trace_v1, action_trace_v2> & action);
 
       /**
        * Utility class that allows multiple request_handlers to share the same abi_data_handler
@@ -47,7 +47,7 @@ namespace eosio {
          :handler(handler)
          {}
 
-         std::tuple<fc::variant, std::optional<fc::variant>> serialize_to_variant( const std::variant<action_trace_v0, action_trace_v1> & action ) {
+         std::tuple<fc::variant, std::optional<fc::variant>> serialize_to_variant( const std::variant<action_trace_v0, action_trace_v1, action_trace_v2> & action ) {
             return handler->serialize_to_variant(action);
          }
 

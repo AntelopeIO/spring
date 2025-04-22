@@ -4,7 +4,8 @@
 
 namespace eosio { namespace trace_api {
 
-/// Used by to_transaction_trace  for creation of action_trace_v0 or action_trace_v1
+/// Used by to_transaction_trace  for creation of action_trace_v0, action_trace_v1
+/// or action_trace_v2
 template<typename ActionTrace>
 inline ActionTrace to_action_trace( const chain::action_trace& at ) {
    ActionTrace r;
@@ -12,8 +13,19 @@ inline ActionTrace to_action_trace( const chain::action_trace& at ) {
    r.account = at.act.account;
    r.action = at.act.name;
    r.data = at.act.data;
-   if constexpr(std::is_same_v<ActionTrace, action_trace_v1>) {
+   if constexpr(std::is_same_v<ActionTrace, action_trace_v1> ||
+                std::is_same_v<ActionTrace, action_trace_v2>) {
       r.return_value = at.return_value;
+   }
+   if constexpr(std::is_same_v<ActionTrace, action_trace_v2>) {
+      r.call_traces.reserve( at.call_traces.size());
+      for( const auto& t : at.call_traces ) {
+         r.call_traces.emplace_back( call_trace_v0{t.call_ordinal,
+                                                   t.sender_ordinal,
+                                                   t.receiver,
+                                                   t.data,
+                                                   t.return_value} );
+      }
    }
    if( at.receipt ) {
       r.global_sequence = at.receipt->global_sequence;
@@ -35,7 +47,8 @@ inline TransactionTrace to_transaction_trace( const cache_trace& t ) {
    }
    if constexpr(std::is_same_v<TransactionTrace, transaction_trace_v1>  ||
                 std::is_same_v<TransactionTrace, transaction_trace_v2>  ||
-                std::is_same_v<TransactionTrace, transaction_trace_v3>) {
+                std::is_same_v<TransactionTrace, transaction_trace_v3>  ||
+                std::is_same_v<TransactionTrace, transaction_trace_v4>) {
       if (t.trace->receipt) {
          r.status = t.trace->receipt->status;
          r.cpu_usage_us = t.trace->receipt->cpu_usage_us;
@@ -49,9 +62,16 @@ inline TransactionTrace to_transaction_trace( const cache_trace& t ) {
       r.producer_block_id = t.trace->producer_block_id;
    }
 
-   using action_trace_t = std::conditional_t<std::is_same_v<TransactionTrace, transaction_trace_v2> ||
-                                             std::is_same_v<TransactionTrace, transaction_trace_v3>
-                                             , action_trace_v1, action_trace_v0>;
+   using action_trace_t = std::conditional_t<
+      std::is_same_v<TransactionTrace, transaction_trace_v4>,
+         action_trace_v2,    // if transaction_trace_v4
+         std::conditional_t<
+            std::is_same_v<TransactionTrace, transaction_trace_v2> ||
+            std::is_same_v<TransactionTrace, transaction_trace_v3>,
+               action_trace_v1, // if transaction_trace_v2 || transaction_trace_v3
+               action_trace_v0  // if transaction_trace_v0
+         >
+      >;
    r.actions = std::vector<action_trace_t>();
    std::get<std::vector<action_trace_t>>(r.actions).reserve( t.trace->action_traces.size());
    for( const auto& at : t.trace->action_traces ) {
@@ -62,8 +82,8 @@ inline TransactionTrace to_transaction_trace( const cache_trace& t ) {
    return r;
 }
 
-inline block_trace_v2 create_block_trace( const chain::signed_block_ptr& block, const chain::block_id_type& id ) {
-   block_trace_v2 r;
+inline block_trace_v3 create_block_trace( const chain::signed_block_ptr& block, const chain::block_id_type& id ) {
+   block_trace_v3 r;
    r.id = id;
    r.number = block->block_num();
    r.previous_id = block->previous;
