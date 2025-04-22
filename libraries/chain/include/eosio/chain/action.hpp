@@ -104,8 +104,7 @@ namespace eosio { namespace chain {
       hashes[0] = enc.result();
 
       enc.reset();
-      fc::raw::pack(enc, act.data);
-      fc::raw::pack(enc, action_output);
+      fc::raw::pack(enc, act.data, action_output);
       hashes[1] = enc.result();
 
       enc.reset();
