@@ -1,4 +1,6 @@
 #pragma once
+
+#include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/types.hpp>
 #include <fc/io/raw.hpp>
 #include <bit>
@@ -8,6 +10,18 @@
 namespace eosio::chain {
 
 namespace detail {
+
+struct merkle_pool {
+   merkle_pool() {
+      thread_pool.start(4, thread_pool.make_on_except_abort());
+   }
+   named_thread_pool<struct merkle> thread_pool;
+};
+
+inline boost::asio::io_context::executor_type get_merkle_thread_pool() {
+   static merkle_pool the_merkle_pool;
+   return the_merkle_pool.thread_pool.get_executor().get_executor();
+}
 
 inline digest_type hash_combine(const digest_type& a, const digest_type& b) {
    return digest_type::hash(std::make_pair(std::cref(a), std::cref(b)));
@@ -28,8 +42,9 @@ inline digest_type calculate_merkle_pow2(const It& start, const It& end) {
             size_t slice_size = size / fut.size();
 
             for (size_t i=0; i<fut.size(); ++i)
-               fut[i] = std::async(std::launch::async, calculate_merkle_pow2<It>,
-                                   start + slice_size * i, start + slice_size * (i+1));
+               fut[i] = post_async_task(get_merkle_thread_pool(), [s=start + slice_size * i, e=start + slice_size * (i+1)]() {
+                  return calculate_merkle_pow2<It>(s, e);
+               });
 
             std::array<digest_type, fut.size()> res;
 
