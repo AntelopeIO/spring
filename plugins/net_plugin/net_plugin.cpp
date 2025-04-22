@@ -3765,7 +3765,10 @@ namespace eosio {
          return; // no current top producers in msg
 
       // valid gossip peer connection
-      bp_connection = bp_connection_type::bp_gossip;
+      if (bp_connection != bp_connection_type::bp_gossip) {
+         peer_dlog(this, "bp gossip connection");
+         bp_connection = bp_connection_type::bp_gossip;
+      }
 
       if (first_msg) {
          // initial message case, send back our entire collection
