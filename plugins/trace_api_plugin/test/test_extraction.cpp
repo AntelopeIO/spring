@@ -171,49 +171,56 @@ BOOST_AUTO_TEST_SUITE(block_extraction)
             { chain::packed_transaction(ptrx1) } );
       signal_accepted_block( bp1 );
 
-      const std::vector<action_trace_v1> expected_action_traces {
+      const std::vector<action_trace_v2> expected_action_traces {
          {
             {
-               0,
-               "eosio.token"_n, "eosio.token"_n, "transfer"_n,
-               {{"alice"_n, "active"_n}},
-               make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               {
+                  0,
+                  "eosio.token"_n, "eosio.token"_n, "transfer"_n,
+                  {{"alice"_n, "active"_n}},
+                  make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               },
+               {}
             },
             {}
          },
          {
             {
-               1,
-               "alice"_n, "eosio.token"_n, "transfer"_n,
-               {{"alice"_n, "active"_n}},
-               make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               {
+                  1,
+                  "alice"_n, "eosio.token"_n, "transfer"_n,
+                  {{"alice"_n, "active"_n}},
+                  make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               },
+               {}
             },
             {}
          },
          {
             {
-               2,
-               "bob"_n, "eosio.token"_n, "transfer"_n,
-               {{"alice"_n, "active"_n}},
-               make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               {
+                  2,
+                  "bob"_n, "eosio.token"_n, "transfer"_n,
+                  {{"alice"_n, "active"_n}},
+                  make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               },
+               {}
             },
             {}
          }
       };
 
-      const transaction_trace_v3 expected_transaction_trace {
-         {
-            ptrx1.id(),
-            expected_action_traces,
-            fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[0].status},
-            bp1->transactions[0].cpu_usage_us,
-            bp1->transactions[0].net_usage_words,
-            ptrx1.get_signatures(),
-            make_trx_header(ptrx1.get_transaction())
-         }
+      const transaction_trace_v4 expected_transaction_trace {
+         ptrx1.id(),
+         expected_action_traces,
+         fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[0].status},
+         bp1->transactions[0].cpu_usage_us,
+         bp1->transactions[0].net_usage_words,
+         ptrx1.get_signatures(),
+         make_trx_header(ptrx1.get_transaction())
       };
 
-      const block_trace_v2 expected_block_trace {
+      const block_trace_v3 expected_block_trace {
          bp1->calculate_id(),
          1,
          bp1->previous,
@@ -222,15 +229,15 @@ BOOST_AUTO_TEST_SUITE(block_extraction)
          bp1->transaction_mroot,
          bp1->action_mroot,
          bp1->schedule_version,
-         std::vector<transaction_trace_v3> {
+         std::vector<transaction_trace_v4> {
             expected_transaction_trace
          }
       };
 
       BOOST_REQUIRE_EQUAL(max_lib, 0u);
       BOOST_REQUIRE(data_log.size() == 1u);
-      BOOST_REQUIRE(std::holds_alternative<block_trace_v2>(data_log.at(0)));
-      BOOST_REQUIRE_EQUAL(std::get<block_trace_v2>(data_log.at(0)), expected_block_trace);
+      BOOST_REQUIRE(std::holds_alternative<block_trace_v3>(data_log.at(0)));
+      BOOST_REQUIRE_EQUAL(std::get<block_trace_v3>(data_log.at(0)), expected_block_trace);
       BOOST_REQUIRE_EQUAL(id_log.at(bp1->block_num()).size(),  bp1->transactions.size());
    }
 
@@ -263,79 +270,82 @@ BOOST_AUTO_TEST_SUITE(block_extraction)
             { chain::packed_transaction(ptrx1), chain::packed_transaction(ptrx2), chain::packed_transaction(ptrx3) } );
       signal_accepted_block( bp1 );
 
-      const std::vector<action_trace_v1> expected_action_trace1 {
+      const std::vector<action_trace_v2> expected_action_trace1 {
          {
             {
-               0,
-               "eosio.token"_n, "eosio.token"_n, "transfer"_n,
-               {{"alice"_n, "active"_n}},
-               make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               {
+                  0,
+                  "eosio.token"_n, "eosio.token"_n, "transfer"_n,
+                  {{"alice"_n, "active"_n}},
+                  make_transfer_data("alice"_n, "bob"_n, "0.0001 SYS"_t, "Memo!")
+               },
+               {}
             },
             {}
          }
       };
 
-      const std::vector<action_trace_v1> expected_action_trace2 {
+      const std::vector<action_trace_v2> expected_action_trace2 {
          {
             {
-               1,
-               "bob"_n, "eosio.token"_n, "transfer"_n,
-               {{ "bob"_n, "active"_n }},
-               make_transfer_data( "bob"_n, "alice"_n, "0.0001 SYS"_t, "Memo!" )
+               {
+                  1,
+                  "bob"_n, "eosio.token"_n, "transfer"_n,
+                  {{ "bob"_n, "active"_n }},
+                  make_transfer_data( "bob"_n, "alice"_n, "0.0001 SYS"_t, "Memo!" )
+               },
+               {}
             },
             {}
          }
       };
 
-      const std::vector<action_trace_v1> expected_action_trace3 {
+      const std::vector<action_trace_v2> expected_action_trace3 {
          {
             {
-               2,
-               "fred"_n, "eosio.token"_n, "transfer"_n,
-               {{ "fred"_n, "active"_n }},
-               make_transfer_data( "fred"_n, "bob"_n, "0.0001 SYS"_t, "Memo!" )
+               {
+                  2,
+                  "fred"_n, "eosio.token"_n, "transfer"_n,
+                  {{ "fred"_n, "active"_n }},
+                  make_transfer_data( "fred"_n, "bob"_n, "0.0001 SYS"_t, "Memo!" )
+               },
+               {}
             },
             {}
          }
       };
 
-      const std::vector<transaction_trace_v3> expected_transaction_traces {
+      const std::vector<transaction_trace_v4> expected_transaction_traces {
          {
-            {
-               ptrx1.id(),
-               expected_action_trace1,
-               fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[0].status},
-               bp1->transactions[0].cpu_usage_us,
-               bp1->transactions[0].net_usage_words,
-               ptrx1.get_signatures(),
-               make_trx_header(ptrx1.get_transaction())
-            }
+            ptrx1.id(),
+            expected_action_trace1,
+            fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[0].status},
+            bp1->transactions[0].cpu_usage_us,
+            bp1->transactions[0].net_usage_words,
+            ptrx1.get_signatures(),
+            make_trx_header(ptrx1.get_transaction())
          },
          {
-            {
-               ptrx2.id(),
-               expected_action_trace2,
-               fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[1].status},
-               bp1->transactions[1].cpu_usage_us,
-               bp1->transactions[1].net_usage_words,
-               ptrx2.get_signatures(),
-               make_trx_header(ptrx2.get_transaction())
-            }
+            ptrx2.id(),
+            expected_action_trace2,
+            fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[1].status},
+            bp1->transactions[1].cpu_usage_us,
+            bp1->transactions[1].net_usage_words,
+            ptrx2.get_signatures(),
+            make_trx_header(ptrx2.get_transaction())
          },
          {
-            {
-               ptrx3.id(),
-               expected_action_trace3,
-               fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[2].status},
-               bp1->transactions[2].cpu_usage_us,
-               bp1->transactions[2].net_usage_words,
-               ptrx3.get_signatures(),
-               make_trx_header(ptrx3.get_transaction())
-            }
+            ptrx3.id(),
+            expected_action_trace3,
+            fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[2].status},
+            bp1->transactions[2].cpu_usage_us,
+            bp1->transactions[2].net_usage_words,
+            ptrx3.get_signatures(),
+            make_trx_header(ptrx3.get_transaction())
          }
       };
 
-      const block_trace_v2 expected_block_trace {
+      const block_trace_v3 expected_block_trace {
          bp1->calculate_id(),
          1,
          bp1->previous,
@@ -349,8 +359,8 @@ BOOST_AUTO_TEST_SUITE(block_extraction)
 
       BOOST_REQUIRE_EQUAL(max_lib, 0u);
       BOOST_REQUIRE(data_log.size() == 1u);
-      BOOST_REQUIRE(std::holds_alternative<block_trace_v2>(data_log.at(0)));
-      BOOST_REQUIRE_EQUAL(std::get<block_trace_v2>(data_log.at(0)), expected_block_trace);
+      BOOST_REQUIRE(std::holds_alternative<block_trace_v3>(data_log.at(0)));
+      BOOST_REQUIRE_EQUAL(std::get<block_trace_v3>(data_log.at(0)), expected_block_trace);
    }
 
    BOOST_FIXTURE_TEST_CASE(onerror_transaction_block, extraction_test_fixture)
@@ -375,33 +385,34 @@ BOOST_AUTO_TEST_SUITE(block_extraction)
             { chain::packed_transaction(transfer_trx) } );
       signal_accepted_block( bp1 );
 
-      const std::vector<action_trace_v1> expected_action_trace {
+      const std::vector<action_trace_v2> expected_action_trace {
          {
             {
-               0,
-               "eosio.token"_n, "eosio"_n, "onerror"_n,
-               {{ "alice"_n, "active"_n }},
-               make_onerror_data( chain::onerror{ 1, "test ", 4 } )
+               {
+                  0,
+                  "eosio.token"_n, "eosio"_n, "onerror"_n,
+                  {{ "alice"_n, "active"_n }},
+                  make_onerror_data( chain::onerror{ 1, "test ", 4 } )
+               },
+               {}
             },
             {}
          }
       };
 
-      const std::vector<transaction_trace_v3> expected_transaction_traces {
+      const std::vector<transaction_trace_v4> expected_transaction_traces {
          {
-            {
-               transfer_trx.id(), // transfer_trx.id() because that is the trx id known to the user
-               expected_action_trace,
-               fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[0].status},
-               bp1->transactions[0].cpu_usage_us,
-               bp1->transactions[0].net_usage_words,
-               transfer_trx.get_signatures(),
-               make_trx_header(transfer_trx.get_transaction())
-            }
+            transfer_trx.id(), // transfer_trx.id() because that is the trx id known to the user
+            expected_action_trace,
+            fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{bp1->transactions[0].status},
+            bp1->transactions[0].cpu_usage_us,
+            bp1->transactions[0].net_usage_words,
+            transfer_trx.get_signatures(),
+            make_trx_header(transfer_trx.get_transaction())
          }
       };
 
-      const block_trace_v2 expected_block_trace {
+      const block_trace_v3 expected_block_trace {
          bp1->calculate_id(),
          1,
          bp1->previous,
@@ -415,8 +426,8 @@ BOOST_AUTO_TEST_SUITE(block_extraction)
 
       BOOST_REQUIRE_EQUAL(max_lib, 0u);
       BOOST_REQUIRE(data_log.size() == 1u);
-      BOOST_REQUIRE(std::holds_alternative<block_trace_v2>(data_log.at(0)));
-      BOOST_REQUIRE_EQUAL(std::get<block_trace_v2>(data_log.at(0)), expected_block_trace);
+      BOOST_REQUIRE(std::holds_alternative<block_trace_v3>(data_log.at(0)));
+      BOOST_REQUIRE_EQUAL(std::get<block_trace_v3>(data_log.at(0)), expected_block_trace);
    }
 
 BOOST_AUTO_TEST_SUITE_END()

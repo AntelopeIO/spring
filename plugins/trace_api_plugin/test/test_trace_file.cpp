@@ -840,7 +840,7 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
 
       bt_data = sp.read_data_log(block_nums[1], block_offsets[1]);
       BOOST_REQUIRE(bt_data);
-      auto v = std::variant<block_trace_v0, block_trace_v1, block_trace_v2>(*bt_data);
+      auto v = std::variant<block_trace_v0, block_trace_v1, block_trace_v2, block_trace_v3>(*bt_data);
       BOOST_REQUIRE_EQUAL(std::get<block_trace_v1>(v), bt2_v1);
 
       block_nums.clear();

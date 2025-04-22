@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
       auto action = action_trace_v0 {
          0, "alice"_n, "alice"_n, "foo"_n, {}, {}
       };
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
       abi_data_handler handler(exception_handler{});
 
       auto expected = fc::variant();
@@ -30,7 +30,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          {0, "alice"_n, "alice"_n, "foo"_n, {}, {}},
          {}
       };
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
       abi_data_handler handler(exception_handler{});
 
       auto expected = fc::variant();
@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
       auto action = action_trace_v0 {
          0, "alice"_n, "alice"_n, "foo"_n, {}, {0x00, 0x01, 0x02, 0x03}
       };
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
       abi_data_handler handler(exception_handler{});
 
       auto expected = fc::variant();
@@ -61,7 +61,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          { 0, "alice"_n, "alice"_n, "foo"_n, {}, {0x00, 0x01, 0x02, 0x03}},
          {0x04, 0x05, 0x06, 0x07}
       };
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
       abi_data_handler handler(exception_handler{});
 
       auto expected = fc::variant();
@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
             0, "alice"_n, "alice"_n, "foo"_n, {}, {0x00, 0x01, 0x02, 0x03}
       };
 
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
 
       auto abi = chain::abi_def ( {},
          {
@@ -112,7 +112,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          {0x04, 0x05, 0x06}
       };
 
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
 
       auto abi = chain::abi_def ( {},
          {
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
             0, "alice"_n, "alice"_n, "foo"_n, {}, {0x00, 0x01, 0x02, 0x03}
       };
 
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
 
       auto abi = chain::abi_def ( {},
          {
@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          { 0, "alice"_n, "alice"_n, "foo"_n, {}, {0x00, 0x01, 0x02, 0x03}},
          {0x04, 0x05, 0x06, 0x07}
       };
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
 
       auto abi = chain::abi_def ( {},
          {
@@ -213,7 +213,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
             0, "alice"_n, "alice"_n, "foo"_n, {}, {0x00, 0x01, 0x02}
       };
 
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
 
       auto abi = chain::abi_def ( {},
          {
@@ -247,7 +247,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          {0x04, 0x05, 0x06}
       };
 
-      std::variant<action_trace_v0, action_trace_v1> action_trace_t = action;
+      std::variant<action_trace_v0, action_trace_v1, action_trace_v2> action_trace_t = action;
 
       auto abi = chain::abi_def ( {},
          {

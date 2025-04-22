@@ -120,6 +120,14 @@ namespace eosio::trace_api {
          lhs.permission == rhs.permission;
    }
 
+   inline bool operator==(const call_trace_v0& lhs, const call_trace_v0& rhs) {
+      return
+         lhs.call_ordinal == rhs.call_ordinal &&
+         lhs.sender_ordinal == rhs.sender_ordinal &&
+         lhs.receiver == rhs.receiver &&
+         lhs.data == rhs.data;
+   }
+
    inline bool operator==(const action_trace_v0& lhs, const action_trace_v0& rhs) {
       return
          lhs.global_sequence == rhs.global_sequence &&
@@ -130,6 +138,17 @@ namespace eosio::trace_api {
          lhs.data == rhs.data;
    }
 
+   inline bool operator==(const action_trace_v2& lhs, const action_trace_v2& rhs) {
+      return
+         lhs.global_sequence == rhs.global_sequence &&
+         lhs.receiver == rhs.receiver &&
+         lhs.account == rhs.account &&
+         lhs.action == rhs.action &&
+         lhs.authorization == rhs.authorization &&
+         lhs.data == rhs.data &&
+         lhs.call_traces == rhs.call_traces;
+   }
+
    inline bool operator==(const transaction_trace_v0& lhs,  const transaction_trace_v0& rhs) {
       return
          lhs.id == rhs.id &&
@@ -137,6 +156,22 @@ namespace eosio::trace_api {
    }
 
    inline bool operator==(const transaction_trace_v2& lhs,  const transaction_trace_v2& rhs) {
+      return
+         lhs.id == rhs.id &&
+         lhs.actions == rhs.actions &&
+         lhs.status == rhs.status &&
+         lhs.cpu_usage_us == rhs.cpu_usage_us &&
+         lhs.net_usage_words == rhs.net_usage_words &&
+         lhs.signatures == rhs.signatures &&
+         lhs.trx_header.expiration == rhs.trx_header.expiration &&
+         lhs.trx_header.ref_block_num == rhs.trx_header.ref_block_num &&
+         lhs.trx_header.ref_block_prefix == rhs.trx_header.ref_block_prefix &&
+         lhs.trx_header.max_net_usage_words == rhs.trx_header.max_net_usage_words &&
+         lhs.trx_header.max_cpu_usage_ms == rhs.trx_header.max_cpu_usage_ms &&
+         lhs.trx_header.delay_sec == rhs.trx_header.delay_sec ;
+   }
+
+   inline bool operator==(const transaction_trace_v4& lhs,  const transaction_trace_v4& rhs) {
       return
          lhs.id == rhs.id &&
          lhs.actions == rhs.actions &&
@@ -175,12 +210,30 @@ namespace eosio::trace_api {
          lhs.transactions == rhs.transactions;
    }
 
+   inline bool operator==(const block_trace_v3 &lhs, const block_trace_v3 &rhs) {
+      return
+         lhs.id == rhs.id &&
+         lhs.number == rhs.number &&
+         lhs.previous_id == rhs.previous_id &&
+         lhs.timestamp == rhs.timestamp &&
+         lhs.producer == rhs.producer &&
+         lhs.transaction_mroot == rhs.transaction_mroot &&
+         lhs.action_mroot == rhs.action_mroot &&
+         lhs.schedule_version == rhs.schedule_version &&
+         lhs.transactions == rhs.transactions;
+   }
+
    inline std::ostream& operator<<(std::ostream &os, const block_trace_v0 &bt) {
       os << fc::json::to_string( bt, fc::time_point::maximum() );
       return os;
    }
 
    inline std::ostream& operator<<(std::ostream &os, const block_trace_v2 &bt) {
+      os << fc::json::to_string( bt, fc::time_point::maximum() );
+      return os;
+   }
+
+   inline std::ostream& operator<<(std::ostream &os, const block_trace_v3 &bt) {
       os << fc::json::to_string( bt, fc::time_point::maximum() );
       return os;
    }
