@@ -1156,7 +1156,7 @@ BOOST_AUTO_TEST_CASE(stable_priority_queue_test) {
 
      appbase::execution_priority_queue pri_queue;
      auto io_serv = std::make_shared<boost::asio::io_context>();
-     auto work_ptr = boost::asio::make_work_guard(*io_serv);
+     auto work_guard = boost::asio::make_work_guard(*io_serv);
      std::atomic<int> posted{0};
 
      std::thread t( [io_serv, &pri_queue, &posted]() {
@@ -1189,7 +1189,7 @@ BOOST_AUTO_TEST_CASE(stable_priority_queue_test) {
 
      while( ran < 100 ) std::this_thread::sleep_for( 5us );
 
-     work_ptr.reset();
+     work_guard.reset();
      io_serv->stop();
      t.join();
 
