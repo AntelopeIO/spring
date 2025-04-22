@@ -106,21 +106,22 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             return handle_call_failure();
          }
 
-         try {
-            // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, updated_flags, data);
+         // use a new sync_call_context for next sync call
+         sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, updated_flags, data);
 
+         try {
             // execute the sync call
             auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
             if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
                return handle_call_failure();
             }
-
-            // store return value
-            last_sync_call_return_value = std::move(call_ctx.return_value);
-            return_value_size = last_sync_call_return_value.size();
          } catch( const wasm_exit&) {}
+
+         // Store return value here for the case when the contract sets the
+         // return value before calling eosio_exit()
+         last_sync_call_return_value = std::move(call_ctx.return_value);
+         return_value_size = last_sync_call_return_value.size();
       } FC_RETHROW_EXCEPTIONS(warn, "sync call exception ${receiver} <= ${sender} console output: ${console}", ("receiver", call_receiver)("sender", get_sync_call_sender())("console", get_call_trace(ordinal).console))
    } catch (const std::bad_alloc&) {
       throw;
