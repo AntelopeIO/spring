@@ -113,13 +113,17 @@ namespace eosio { namespace chain {
       };
    };
 
-
-   inline std::string set_current_thread_name_to_typename(const std::type_info& tinfo, const unsigned i) {
+   inline std::string thread_name_base_from_typeinfo(const std::type_info& tinfo) {
       std::string tn = boost::core::demangle(tinfo.name());
       const size_t offset = tn.rfind("::");
       if(offset != std::string::npos)
          tn.erase(0, offset+2);
-      tn = tn.substr(0, tn.find('>')) + "-" + std::to_string(i);
+      tn = tn.substr(0, tn.find('>'));
+      return tn;
+   }
+
+   inline std::string set_current_thread_name_to_typename(const std::type_info& tinfo, const unsigned i) {
+      const std::string tn = thread_name_base_from_typeinfo(tinfo) + "-" + std::to_string(i);
       fc::set_thread_name(tn);
       return tn;
    }
@@ -199,6 +203,13 @@ namespace eosio { namespace chain {
             _thread_pool.clear();
             tlog("stopped ${i}", ("i", boost::core::demangle(typeid(this).name())));
          }
+      }
+
+      on_except_t make_on_except_abort() {
+         return [tn=thread_name_base_from_typeinfo(typeid(this))](const fc::exception& e) {
+            elog("Unexpected exception in a ${n} thread, aborting: ${e}", ("n", tn)("e", e.to_detail_string()));
+            abort();
+         };
       }
 
    private:
