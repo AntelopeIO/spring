@@ -61,8 +61,8 @@ def test_create_pop_from_file():
     pop = results["Proof of Possession"]
 
     # save private key to a file
-    private_key_file = "tmp_key_file_dlkdx1x56pjy"
-    with open(private_key_file, 'w') as file:
+    private_key_file = "tmp_key_file_ulkdx1x42pjx"
+    with open(private_key_file, 'w+') as file:
         file.write(private_key)
 
     # use the private key file to create POP
