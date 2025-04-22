@@ -270,12 +270,12 @@ public:
       }
 
       const controller& cc = self()->chain_plug->chain();
-      bool fatal_error = false;
+      bool invalid_message = false;
       auto is_peer_key_valid = [&](const gossip_bp_peers_message::bp_peer& peer) -> bool {
          try {
             if (peer.sig.is_webauthn()) {
                fc_dlog(self()->get_logger(), "Peer ${p} signature is webauthn, not allowed.", ("p", peer.producer_name));
-               fatal_error = true;
+               invalid_message = true;
                return false;
             }
             std::optional<peer_info_t> peer_info = cc.get_peer_info(peer.producer_name);
@@ -294,7 +294,7 @@ public:
             }
          } catch (fc::exception& e) {
             fc_dlog(self()->get_logger(), "Exception recovering peer key ${p}, error: ${e}", ("p", peer.producer_name)("e", e.to_detail_string()));
-            fatal_error = true;
+            invalid_message = true;
             return false; // invalid key
          }
          return true;
@@ -302,7 +302,7 @@ public:
 
       fc::lock_guard g(gossip_bps.mtx);
       auto& sig_idx = gossip_bps.index.get<by_sig>();
-      for (auto i = msg.peers.begin(); i != msg.peers.end() && !fatal_error;) {
+      for (auto i = msg.peers.begin(); i != msg.peers.end() && !invalid_message;) {
          const auto& peer = *i;
          bool have_sig = sig_idx.contains(peer.sig); // we already have it, already verified
          if (!have_sig && !is_peer_key_valid(peer)) {
@@ -313,7 +313,7 @@ public:
          }
       }
 
-      if (fatal_error)
+      if (invalid_message)
          return false;
       return !msg.peers.empty();
    }
