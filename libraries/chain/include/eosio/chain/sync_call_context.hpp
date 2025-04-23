@@ -11,6 +11,9 @@ enum class sync_call_flags : uint64_t {
    // `force_read_only` is a user's directive to the system, telling the system whether
    // the new call context created must operate in read-only mode or if it is
    // free to operate under its most permissible mode.
+   // When the flag is not set, the new call context inherits the
+   // `readonlyness` from the calling context; that is, if the calling context
+   // is read only, the system will enforce read only in the new call context.
    force_read_only  = 1ull<<0,
 
    all_allowed_bits = force_read_only
@@ -19,7 +22,7 @@ enum class sync_call_flags : uint64_t {
 class sync_call_context : public host_context {
 public:
 
-   sync_call_context(controller& con, transaction_context& trx_ctx, uint32_t ordinal, action_trace& current_action_trace, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, uint64_t flags, std::span<const char> data);
+   sync_call_context(controller& con, transaction_context& trx_ctx, uint32_t ordinal, action_trace& current_action_trace, account_name sender, account_name receiver, bool privileged, uint32_t sync_call_depth, bool read_only, std::span<const char> data);
 
    uint32_t get_call_data(std::span<char> memory) const override;
    void set_call_return_value(std::span<const char> return_value) override;
@@ -36,7 +39,6 @@ public:
    const uint32_t               ordinal = 1;
    action_trace&                current_action_trace;
    const account_name           sender{};
-   const uint64_t               flags = 0;
    // `read_only` represents what the read only status of the call context.
    // It tells the executing smart contract code whether or not it is in
    // read-only mode and therefore whether or not the system will enforce that it
