@@ -70,8 +70,8 @@ try:
     Print("Kill the node we want to verify its block log")
     node0.kill(signal.SIGTERM)
 
-    Print("Wait for node0's head block to become irreversible")
-    node1.waitForBlock(headBlockNum, blockType=BlockType.lib, timeout=5) # we time-out because we killed one of the two prod. nodes
+    Print("Let's have node1's head advance a couple blocks")
+    node1.waitForBlock(headBlockNum+2, timeout=5)
     infoAfter=node1.getInfo(exitOnError=True)
     headBlockNumAfter=infoAfter["head_block_num"]
 
