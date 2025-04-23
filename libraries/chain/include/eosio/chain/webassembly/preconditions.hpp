@@ -118,6 +118,11 @@ namespace eosio { namespace chain { namespace webassembly {
                        "${code} does not have permission to call this API", ("code", ctx.get_host().get_context().get_receiver()));
          }));
 
+   EOS_VM_PRECONDITION(read_only_check,
+         EOS_VM_INVOKE_ONCE([&](auto&&...) {
+            EOS_ASSERT(!ctx.get_host().get_context().is_read_only(), unaccessible_api, "this API is not allowed in read only action/call");
+         }));
+
    EOS_VM_PRECONDITION(action_check,
          EOS_VM_INVOKE_ONCE([&](auto&&...) {
             EOS_ASSERT(ctx.get_host().get_context().is_action(), unaccessible_api, "this API may only be called from action");

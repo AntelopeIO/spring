@@ -89,6 +89,7 @@ class apply_context : public host_context {
 
       action_trace& get_current_action_trace() const override { return trx_context.get_action_trace( action_ordinal ); }
       uint32_t get_sync_call_ordinal() override { return 0; }
+      bool is_read_only() const override { return trx_context.is_read_only(); }
 
    private:
 

@@ -415,7 +415,7 @@ namespace eosio { namespace chain {
          try {
             fc::raw::unpack(stream, size);
          } EOS_RETHROW_EXCEPTIONS( unpack_exception, "Unable to unpack size of array '${p}'", ("p", ctx.get_path_string()) )
-         vector<fc::variant> vars;
+         fc::variants vars;
          vars.reserve(std::min(size.value, 1024u)); // limit the maximum size that can be reserved before data is read
          auto h1 = ctx.push_to_path( impl::array_index_path_item{} );
          for( decltype(size.value) i = 0; i < size; ++i ) {
@@ -448,7 +448,7 @@ namespace eosio { namespace chain {
             EOS_ASSERT( (size_t)select < v_itr->second.types.size(), unpack_exception,
                         "Unpacked invalid tag (${select}) for variant '${p}'", ("select", select.value)("p",ctx.get_path_string()) );
             auto h1 = ctx.push_to_path( impl::variant_path_item{ .variant_itr = v_itr, .variant_ordinal = static_cast<uint32_t>(select) } );
-            return vector<fc::variant>{v_itr->second.types[select], _binary_to_variant(v_itr->second.types[select], stream, ctx)};
+            return fc::variants{v_itr->second.types[select], _binary_to_variant(v_itr->second.types[select], stream, ctx)};
          }
       }
 
@@ -503,7 +503,7 @@ namespace eosio { namespace chain {
          btype->second.second(var, ds, is_array(rtype), is_optional(rtype), ctx.get_yield_function());
       } else if ( is_array(rtype) ) {
          ctx.hint_array_type_if_in_array();
-         const vector<fc::variant>& vars = var.get_array();
+         const fc::variants& vars = var.get_array();
          fc::raw::pack(ds, (fc::unsigned_int)vars.size());
 
          auto h1 = ctx.push_to_path( impl::array_index_path_item{} );

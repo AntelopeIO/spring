@@ -80,6 +80,23 @@ namespace eosio::chain {
       class resource_limits_manager;
    };
 
+   // vector, sorted by rank, of the top-50 producers by `total_votes` (whether
+   // active or not) and their peer key if populated on-chain.
+   // -------------------------------------------------------------------------
+   struct peerkeys_t {
+      name                           producer_name;
+      std::optional<public_key_type> peer_key;
+   };
+   using getpeerkeys_res_t = std::vector<peerkeys_t>;
+
+   struct peer_info_t {
+      // rank by `total_votes` of all producers, active or not, may not match schedule rank
+      uint32_t                       rank{std::numeric_limits<uint32_t>::max()};
+      std::optional<public_key_type> key;
+
+      bool operator==(const peer_info_t&) const = default;
+   };
+
    struct controller_impl;
    using chainbase::database;
    using chainbase::pinnable_mapped_file;
@@ -209,7 +226,7 @@ namespace eosio::chain {
          deque<transaction_metadata_ptr> abort_block();
 
          /// Expected to be called from signal handler, or producer_plugin
-         void interrupt_apply_block_transaction();
+         void interrupt_transaction();
 
        /**
         *
@@ -230,6 +247,7 @@ namespace eosio::chain {
          void assemble_and_complete_block( const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block();
+         void update_peer_keys(fc::time_point deadline);
          void testing_allow_voting(bool val);
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
@@ -428,7 +446,8 @@ namespace eosio::chain {
          chain_id_type get_chain_id()const;
 
          void set_peer_keys_retrieval_active(bool active);
-         std::optional<public_key_type> get_peer_key(name n) const; // thread safe
+         peer_info_t  get_peer_info(name n) const;  // thread safe
+         getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline); // must be called from main thread
 
          // thread safe
          db_read_mode get_read_mode()const;
@@ -450,11 +469,11 @@ namespace eosio::chain {
          void enable_deep_mind( deep_mind_handler* logger );
          uint32_t earliest_available_block_num() const;
 
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
-         vm::wasm_allocator&  get_wasm_allocator();
-         vm::wasm_allocator&  get_sync_call_wasm_allocator();
-         void                 return_sync_call_wasm_allocator();
-#endif
+         vm::wasm_allocator&                 get_wasm_allocator();
+         std::shared_ptr<vm::wasm_allocator> acquire_sync_call_wasm_allocator();
+         void                                release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc);
+         void                                set_wasm_alloc_pool_num_threads(uint32_t num_threads);
+         void                                set_wasm_alloc_pool_max_call_depth(uint32_t depth);
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          bool is_eos_vm_oc_enabled() const;
 #endif
@@ -495,6 +514,9 @@ namespace eosio::chain {
       void set_to_read_window();
       bool is_write_window() const;
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
+
+      platform_timer& get_thread_local_timer();
+
       void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
       // is the bls key a registered finalizer key of this node, thread safe
@@ -518,3 +540,5 @@ namespace eosio::chain {
    }; // controller
 
 }  /// eosio::chain
+
+FC_REFLECT(eosio::chain::peerkeys_t, (producer_name)(peer_key))

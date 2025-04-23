@@ -202,9 +202,15 @@ void apply_context::console_append(std::string_view val) {
 }
 
 void apply_context::store_console_marker() {
+   // Only do this when console log is enabled; otherwise we will end up with  a non-empty
+   // console markers vector with an empty console string.
+   if (!control.contracts_console()) {
+      return;
+   }
+
    action_trace& trace = get_current_action_trace();
    // Mark the starting point of upcoming sync call's console log
-   // when constructing coonsole log hierarchy in pretty printing
+   // when constructing console log hierarchy in pretty printing
    trace.console_markers.emplace_back(trace.console.size());
 }
 
@@ -403,7 +409,6 @@ void apply_context::schedule_deferred_transaction( const uint128_t& sender_id, a
       return;
    }
 
-   EOS_ASSERT( !trx_context.is_read_only(), transaction_exception, "cannot schedule a deferred transaction from within a readonly transaction" );
    EOS_ASSERT( trx.context_free_actions.size() == 0, cfa_inside_generated_tx, "context free actions are not currently allowed in generated transactions" );
 
    bool enforce_actor_whitelist_blacklist = trx_context.enforce_whiteblacklist && control.is_speculative_block()
@@ -609,7 +614,6 @@ bool apply_context::cancel_deferred_transaction( const uint128_t& sender_id, acc
       return false;
    }
 
-   EOS_ASSERT( !trx_context.is_read_only(), transaction_exception, "cannot cancel a deferred transaction from within a readonly transaction" );
    auto& generated_transaction_idx = db.get_mutable_index<generated_transaction_multi_index>();
    const auto* gto = db.find<generated_transaction_object,by_sender_id>(boost::make_tuple(sender, sender_id));
    if ( gto ) {

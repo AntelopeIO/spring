@@ -13,13 +13,13 @@ sync_call_context::sync_call_context(controller&           con,
                                      account_name          receiver,
                                      bool                  privileged,
                                      uint32_t              sync_call_depth,
-                                     uint64_t              flags,
+                                     bool                  read_only,
                                      std::span<const char> data)
    : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
    , ordinal(ordinal)
    , current_action_trace(current_action_trace)
    , sender(sender)
-   , flags(flags)
+   , read_only(read_only)
    , data(data)
 {
 }
@@ -47,10 +47,6 @@ void sync_call_context::set_call_return_value(std::span<const char> rv) {
    return_value.assign(rv.data(), rv.data() + rv.size());
 }
 
-bool sync_call_context::is_read_only()const {
-   return flags & static_cast<uint64_t>(sync_call_flags::read_only);
-}
-
 // Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
 action_name sync_call_context::get_sender() const {
    // The sync call is initiated by this apply_context or its sync_call_ctx.
@@ -65,6 +61,12 @@ void sync_call_context::console_append(std::string_view val) {
 }
 
 void sync_call_context::store_console_marker() {
+   // Only do this when console log is enabled; otherwise we will end up with  a non-empty
+   // console markers vector with an empty console string.
+   if (!control.contracts_console()) {
+      return;
+   }
+
    // Mark the starting point of upcoming sync call's console log
    // when constructing coonsole log hierarchy in pretty printing
    call_trace& trace = get_call_trace(ordinal);

@@ -41,20 +41,18 @@ host_context::~host_context() = default;
 int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std::span<const char> data) {
    auto start = fc::time_point::now();
 
+   // If current call is read only, or read_only flag from the user is read only,
+   // next call must be read only
+   bool is_next_call_read_only = is_read_only() || has_field(flags, sync_call_flags::force_read_only);
+
    // As early as possible, create the call trace of this new sync call in the parent's
    // (sender's) trace to record entire trace of the sync call, including any exceptions
    auto& trace = get_current_action_trace();
-   const bool read_only = flags & static_cast<uint64_t>(sync_call_flags::read_only);
-   trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, read_only, data);
+   trace.call_traces.emplace_back(get_sync_call_ordinal(), call_receiver, is_next_call_read_only, data);
 
-   // Only do this when console log is enabled; otherwise we will have a non-empty
-   // console markers vector with an empty console string.
-   // But if we do need to have markers, the number of markers must be the same as
-   // the number of sync call traces. That's why we store the marker right after
-   // the sync call trace was created.
-   if (control.contracts_console()) {
-      store_console_marker();
-   }
+   // The number of markers must be the same as the number of sync call traces.
+   // That's why we store the marker right after the sync call trace was created.
+   store_console_marker();
 
    uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).call_ordinal = ordinal;
@@ -103,21 +101,22 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             return handle_call_failure();
          }
 
-         try {
-            // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, flags, data);
+         // use a new sync_call_context for next sync call
+         sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, is_next_call_read_only, data);
 
+         try {
             // execute the sync call
             auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
             if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
                return handle_call_failure();
             }
-
-            // store return value
-            last_sync_call_return_value = std::move(call_ctx.return_value);
-            return_value_size = last_sync_call_return_value.size();
          } catch( const wasm_exit&) {}
+
+         // Store return value here for the case when the contract sets the
+         // return value before calling eosio_exit()
+         last_sync_call_return_value = std::move(call_ctx.return_value);
+         return_value_size = last_sync_call_return_value.size();
       } FC_RETHROW_EXCEPTIONS(warn, "sync call exception ${receiver} <= ${sender} console output: ${console}", ("receiver", call_receiver)("sender", get_sync_call_sender())("console", get_call_trace(ordinal).console))
    } catch (const std::bad_alloc&) {
       throw;
@@ -260,13 +259,11 @@ vector<account_name> host_context::get_active_producers() const {
 }
 
 int host_context::db_store_i64( name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
    return db_store_i64( receiver, scope, table, payer, id, buffer, buffer_size);
 }
 
 int host_context::db_store_i64( name code, name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size ) {
 //   require_write_lock( scope );
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
    const auto& tab = find_or_create_table( code, scope, table, payer );
    auto tableid = tab.id;
 
@@ -306,7 +303,6 @@ int host_context::db_store_i64( name code, name scope, name table, const account
 }
 
 void host_context::db_update_i64( int iterator, account_name payer, const char* buffer, size_t buffer_size ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot update a db record when executing a readonly transaction" );
    const key_value_object& obj = keyval_cache.get( iterator );
 
    const auto& table_obj = keyval_cache.get_table( obj.t_id );
@@ -363,7 +359,6 @@ void host_context::db_update_i64( int iterator, account_name payer, const char* 
 }
 
 void host_context::db_remove_i64( int iterator ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot remove a db record when executing a readonly transaction" );
    const key_value_object& obj = keyval_cache.get( iterator );
 
    const auto& table_obj = keyval_cache.get_table( obj.t_id );

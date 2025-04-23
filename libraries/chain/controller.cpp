@@ -26,6 +26,7 @@
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
+#include <eosio/chain/wasm_alloc_pool.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finalizer.hpp>
@@ -1013,12 +1014,9 @@ struct controller_impl {
    peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
-   thread_local static std::vector<vm::wasm_allocator> sync_call_wasm_alloc; // used for sync call. expensive to create one for each call
-   thread_local static uint32_t sync_call_wasm_alloc_index;
-#endif
-   wasm_interface wasmif;
+   wasm_alloc_pool wasm_allocator_pool;
+   wasm_interface  wasmif;
    app_window_type app_window = app_window_type::write;
 
    typedef pair<scope_name,action_name>                   handler_key;
@@ -1276,6 +1274,57 @@ struct controller_impl {
       apply_handlers[receiver][make_pair(contract,action)] = v;
    }
 
+   void set_trx_expiration(signed_transaction& trx) {
+      if (is_builtin_activated(builtin_protocol_feature_t::no_duplicate_deferred_id)) {
+         trx.expiration       = time_point_sec();
+         trx.ref_block_num    = 0;
+         trx.ref_block_prefix = 0;
+      } else {
+         trx.expiration = time_point_sec{
+            pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
+         trx.set_reference_block(chain_head.id());
+      }
+   }
+
+   getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline) {
+      try {
+         auto get_getpeerkeys_transaction = [&]() {
+            auto perms = vector<permission_level>{};
+            action act(perms, config::system_account_name, "getpeerkeys"_n, {});
+            signed_transaction trx;
+
+            trx.actions.emplace_back(std::move(act));
+            set_trx_expiration(trx);
+            return trx;
+         };
+
+         auto metadata = transaction_metadata::create_no_recover_keys(
+            std::make_shared<packed_transaction>(get_getpeerkeys_transaction()),
+            transaction_metadata::trx_type::read_only);
+
+         // allow a max of 20ms for getpeerkeys
+         auto trace = push_transaction(metadata, deadline, fc::milliseconds(20), 0, false, 0);
+
+         if( trace->except_ptr )
+            std::rethrow_exception(trace->except_ptr);
+         if( trace->except)
+            throw *trace->except;
+         getpeerkeys_res_t res;
+         if (!trace->action_traces.empty()) {
+            const auto& act_trace = trace->action_traces[0];
+            const auto& retval = act_trace.return_value;
+            if (!retval.empty()) {
+               // in some tests, the system contract is not set and the return value is empty.
+               fc::datastream<const char*> ds(retval.data(), retval.size());
+               fc::raw::unpack(ds, res);
+            }
+         }
+
+         return res;
+      }
+      FC_LOG_AND_RETHROW()
+   }
+
    controller_impl( const controller::config& cfg, controller& s, protocol_feature_set&& pfs, const chain_id_type& chain_id )
    :rnh(),
     self(s),
@@ -1305,11 +1354,6 @@ struct controller_impl {
          if( shutdown ) shutdown();
       } );
 
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
-      sync_call_wasm_alloc.resize(16); // Will change to use max_sync_call_depth of global property object in future version
-      sync_call_wasm_alloc_index = 0;
-#endif
-
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
       set_activation_handler<builtin_protocol_feature_t::get_sender>();
@@ -1330,9 +1374,6 @@ struct controller_impl {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
-
-         // update peer public keys from chainbase db 
-         peer_keys_db.update_peer_keys(self, block->block_num());
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
@@ -2644,14 +2685,7 @@ struct controller_impl {
       // Deliver onerror action containing the failed deferred transaction directly back to the sender.
       etrx.actions.emplace_back( vector<permission_level>{{gtrx.sender, config::active_name}},
                                  onerror( gtrx.sender_id, gtrx.packed_trx.data(), gtrx.packed_trx.size() ) );
-      if( is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
-         etrx.expiration = time_point_sec();
-         etrx.ref_block_num = 0;
-         etrx.ref_block_prefix = 0;
-      } else {
-         etrx.expiration = time_point_sec{pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
-         etrx.set_reference_block( chain_head.id() );
-      }
+      set_trx_expiration(etrx);
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
@@ -3360,8 +3394,19 @@ struct controller_impl {
       }
 
       guard_pending.cancel();
+
       return onblock_trace;
    } /// start_block
+
+   void update_peer_keys(fc::time_point deadline) {
+      try {
+         // update peer public keys from chainbase db using a readonly trx
+         auto block_num = chain_head.block_num();
+         if (block_num % 120 == 0) { // update once/minute
+            peer_keys_db.update_peer_keys(get_top_producer_keys(deadline));
+         }
+      } FC_LOG_AND_DROP()
+   }
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
    {
@@ -4575,12 +4620,13 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_apply_block_transaction() {
-      // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
-      // have limited run time already. This is to allow killing a long-running transaction in a block being
-      // validated.
-      if (!replaying && applying_block) {
-         ilog("Interrupting apply block");
+   void interrupt_transaction() {
+      // Do not interrupt during replay. ctrl-c during replay is handled at block boundaries.
+      // Interrupt both speculative trxs and trxs while applying a block.
+      // This is to allow killing a long-running transaction in a block being validated during apply block.
+      // This also allows killing a trx when a block is received to prioritize block validation.
+      if (!replaying) {
+         dlog("Interrupting trx...");
          main_thread_timer.interrupt_timer();
       }
    }
@@ -4809,14 +4855,7 @@ struct controller_impl {
 
       signed_transaction trx;
       trx.actions.emplace_back(std::move(on_block_act));
-      if( is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
-         trx.expiration = time_point_sec();
-         trx.ref_block_num = 0;
-         trx.ref_block_prefix = 0;
-      } else {
-         trx.expiration = time_point_sec{pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
-         trx.set_reference_block( chain_head.id() );
-      }
+      set_trx_expiration(trx);
 
       return trx;
    }
@@ -4939,10 +4978,6 @@ struct controller_impl {
    // Only called from read-only trx execution threads when producer_plugin
    // starts them.
    void init_thread_local_data() {
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
-      sync_call_wasm_alloc.resize(16);
-      sync_call_wasm_alloc_index = 0;
-#endif
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       if ( is_eos_vm_oc_enabled() ) {
          wasmif.init_thread_local_data();
@@ -5096,11 +5131,7 @@ struct controller_impl {
 }; /// controller_impl
 
 thread_local platform_timer controller_impl::timer;
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 thread_local eosio::vm::wasm_allocator controller_impl::wasm_alloc;
-thread_local std::vector<eosio::vm::wasm_allocator> controller_impl::sync_call_wasm_alloc;
-thread_local uint32_t controller_impl::sync_call_wasm_alloc_index = 0;
-#endif
 
 const resource_limits_manager&   controller::get_resource_limits_manager()const
 {
@@ -5320,6 +5351,10 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
                            bs, std::optional<block_id_type>(), deadline );
 }
 
+void controller::update_peer_keys(fc::time_point deadline) {
+   my->update_peer_keys(deadline);
+}
+
 void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
    validate_db_available_size();
 
@@ -5365,8 +5400,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_apply_block_transaction() {
-   my->interrupt_apply_block_transaction();
+void controller::interrupt_transaction() {
+   my->interrupt_transaction();
 }
 
 boost::asio::io_context& controller::get_thread_pool() {
@@ -5820,8 +5855,12 @@ void controller::set_peer_keys_retrieval_active(bool active) {
    my->peer_keys_db.set_active(active);
 }
 
-std::optional<public_key_type> controller::get_peer_key(name n) const {
-   return my->peer_keys_db.get_peer_key(n);
+peer_info_t controller::get_peer_info(name n) const {
+   return my->peer_keys_db.get_peer_info(n);
+}
+
+getpeerkeys_res_t controller::get_top_producer_keys(fc::time_point deadline) {
+   return my->get_top_producer_keys(deadline);
 }
 
 db_read_mode controller::get_read_mode()const {
@@ -6011,20 +6050,27 @@ void controller::enable_deep_mind(deep_mind_handler* logger) {
 uint32_t controller::earliest_available_block_num() const{
    return my->earliest_available_block_num();
 }
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+
 vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
 
-vm::wasm_allocator& controller::get_sync_call_wasm_allocator() {
-   EOS_ASSERT( my->sync_call_wasm_alloc_index < 16, misc_exception, "sync_call_wasm_alloc_index ${i} must be less than ${m}", ("i", my->sync_call_wasm_alloc_index) ("m", 16) ); // will change to use max_sync_call_depth
-   return my->sync_call_wasm_alloc[my->sync_call_wasm_alloc_index++];
+std::shared_ptr<vm::wasm_allocator> controller::acquire_sync_call_wasm_allocator() {
+   return my->wasm_allocator_pool.acquire();
 }
 
-void controller::return_sync_call_wasm_allocator() {
-   --my->sync_call_wasm_alloc_index;
+void controller::release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc) {
+   my->wasm_allocator_pool.release(alloc);
 }
-#endif
+
+void controller::set_wasm_alloc_pool_num_threads(uint32_t num_threads) {
+   my->wasm_allocator_pool.set_num_threads(num_threads);
+}
+
+void controller::set_wasm_alloc_pool_max_call_depth(uint32_t depth) {
+   my->wasm_allocator_pool.set_max_call_depth(depth);
+}
+
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
 bool controller::is_eos_vm_oc_enabled() const {
    return my->is_eos_vm_oc_enabled();
@@ -6190,6 +6236,10 @@ bool controller::is_write_window() const {
 
 void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+}
+
+platform_timer& controller::get_thread_local_timer() {
+    return my->timer;
 }
 
 void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
@@ -6359,6 +6409,9 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_data" );
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
    } );
+
+   auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
+   wasm_allocator_pool.set_max_call_depth(max_call_depth);
 }
 
 /// End of protocol feature activation handlers
