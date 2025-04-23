@@ -712,7 +712,7 @@ public:
    bool                                              _disable_subjective_p2p_billing              = true;
    bool                                              _disable_subjective_api_billing              = true;
    fc::time_point                                    _irreversible_block_time;
-   bool                                              _is_savanna_active                           = false;
+   std::atomic<bool>                                 _is_savanna_active                           = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
    bool                            _protocol_features_signaled = false; // to mark whether it has been signaled in start_block
@@ -1149,10 +1149,12 @@ public:
              (_max_irreversible_block_age_us.count() >= 0 && get_irreversible_block_age() >= _max_irreversible_block_age_us);
    }
 
+   // thread safe, not modified after plugin_initialize
    bool is_producer_key(const chain::public_key_type& key) const {
       return _signature_providers.find(key) != _signature_providers.end();
    }
 
+   // thread safe, not modified after plugin_initialize
    chain::signature_type sign_compact(const chain::public_key_type& key, const fc::sha256& digest) const {
       if (key != chain::public_key_type()) {
          auto private_key_itr = _signature_providers.find(key);
@@ -1217,6 +1219,11 @@ public:
 
    bool in_producing_mode()   const { return _pending_block_mode == pending_block_mode::producing; }
    bool in_speculating_mode() const { return _pending_block_mode == pending_block_mode::speculating; }
+
+   void interrupt_transaction(controller::interrupt_t interrupt) {
+      if (_is_savanna_active) // interrupt during transition causes issues, so only allow after transition
+         chain_plug->chain().interrupt_transaction(interrupt);
+   }
 };
 
 void new_chain_banner(const eosio::chain::controller& db)
@@ -2059,6 +2066,10 @@ producer_plugin_impl::determine_pending_block_mode(const fc::time_point& now,
    // If the next block production opportunity is in the present or future, we're synced.
    if (!_production_enabled) {
       _pending_block_mode = pending_block_mode::speculating;
+      if (_producers.find(scheduled_producer.producer_name) != _producers.end()) {
+         fc_elog(_log, "Not producing block because stale production not enabled, block ${t}", ("t", block_time));
+         not_producing_when_time = true;
+      }
    } else if (_producers.find(scheduled_producer.producer_name) == _producers.end()) {
       _pending_block_mode = pending_block_mode::speculating;
    } else if (num_relevant_signatures == 0) {
@@ -2843,7 +2854,7 @@ void producer_plugin_impl::schedule_production_loop() {
       // we failed to start a block, so try again later?
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-            chain_plug->chain().interrupt_apply_block_transaction();
+            interrupt_transaction(controller::interrupt_t::all_trx);
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -2929,7 +2940,7 @@ void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<
       _timer.expires_at(epoch + boost::posix_time::microseconds(wake_up_time->time_since_epoch().count()));
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-            chain_plug->chain().interrupt_apply_block_transaction();
+            interrupt_transaction(controller::interrupt_t::all_trx);
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -3049,9 +3060,14 @@ void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fo
    my->_received_block = block_num;
    // fork_db_add_t::fork_switch means head block of best fork (different from the current branch) is received.
    // Since a better fork is available, interrupt current block validation and allow a fork switch to the better branch.
-   if (fork_db_add_result == fork_db_add_t::fork_switch) {
-      fc_ilog(_log, "new best fork received");
-      my->chain_plug->chain().interrupt_apply_block_transaction();
+   if (my->_is_savanna_active) { // interrupt during transition causes issues, so only allow after transition
+      if (fork_db_add_result == fork_db_add_t::appended_to_head) {
+         fc_tlog(_log, "new head block received, interrupting trx");
+         my->interrupt_transaction(controller::interrupt_t::speculative_block_trx);
+      } else if (fork_db_add_result == fork_db_add_t::fork_switch) {
+         fc_ilog(_log, "new best fork received, interrupting trx");
+         my->interrupt_transaction(controller::interrupt_t::all_trx);
+      }
    }
 }
 
@@ -3060,7 +3076,7 @@ void producer_plugin::interrupt() {
    fc_ilog(_log, "interrupt");
    app().executor().stop(); // shutdown any blocking read_only_execution_task
    my->interrupt_read_only();
-   my->chain_plug->chain().interrupt_apply_block_transaction();
+   my->interrupt_transaction(controller::interrupt_t::all_trx);
 }
 
 void producer_plugin_impl::interrupt_read_only() {

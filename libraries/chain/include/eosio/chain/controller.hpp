@@ -10,6 +10,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/finalizer.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -208,8 +209,9 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler, or producer_plugin
-         void interrupt_apply_block_transaction();
+         /// Expected to be called from signal handler or producer_plugin
+         enum class interrupt_t { all_trx, apply_block_trx, speculative_block_trx };
+         void interrupt_transaction(interrupt_t interrupt);
 
        /**
         *
@@ -427,8 +429,11 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
-         void set_peer_keys_retrieval_active(bool active);
-         std::optional<public_key_type> get_peer_key(name n) const; // thread safe
+         void set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers);
+         std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
+         bool configured_peer_keys_updated(); // thread safe
+         // used for testing, only call with an active pending block from main thread
+         getpeerkeys_res_t get_top_producer_keys();
 
          // thread safe
          db_read_mode get_read_mode()const;
@@ -518,3 +523,5 @@ namespace eosio::chain {
    }; // controller
 
 }  /// eosio::chain
+
+FC_REFLECT(eosio::chain::peerkeys_t, (producer_name)(peer_key))

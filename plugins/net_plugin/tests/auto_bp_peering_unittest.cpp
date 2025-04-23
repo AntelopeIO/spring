@@ -1,12 +1,16 @@
 #include <boost/test/unit_test.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 
+using namespace eosio::net_utils;
+
 struct mock_connection {
-   bool is_bp_connection   = false;
+   enum class bp_connection_type { non_bp, bp_config, bp_gossip };
+   bp_connection_type bp_connection = bp_connection_type::non_bp;
+
    bool is_open            = false;
    bool handshake_received = false;
    mock_connection(bool bp_connection, bool open, bool received)
-     : is_bp_connection(bp_connection)
+     : bp_connection(bp_connection ? bp_connection_type::bp_config : bp_connection_type::non_bp)
      , is_open(open)
      , handshake_received(received)
    {}
@@ -46,7 +50,7 @@ struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_
    bool is_lib_catchup() { return lib_catchup; }
 
    void setup_test_peers() {
-      set_bp_peers({ "proda,127.0.0.1:8001:blk"s, "prodb,127.0.0.1:8002:trx"s, "prodc,127.0.0.1:8003"s,
+      set_configured_bp_peers({ "proda,127.0.0.1:8001:blk"s, "prodb,127.0.0.1:8002:trx"s, "prodc,127.0.0.1:8003"s,
                      "prodd,127.0.0.1:8004"s, "prode,127.0.0.1:8005"s, "prodf,127.0.0.1:8006"s, "prodg,127.0.0.1:8007"s,
                      "prodh,127.0.0.1:8008"s, "prodi,127.0.0.1:8009"s, "prodj,127.0.0.1:8010"s,
                      // prodk is intentionally skipped
@@ -55,11 +59,11 @@ struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_
                      "prodt,127.0.0.1:8020"s, "produ,127.0.0.1:8021"s });
    }
 
-   fc::logger get_logger() { return fc::logger::get(DEFAULT_LOGGER); }
+   fc::logger get_logger() const { return fc::logger::get(DEFAULT_LOGGER); }
 };
 
 const std::vector<std::string> peer_addresses{
-   "127.0.0.1:8001:blk"s, "127.0.0.1:8002:trx"s, "127.0.0.1:8003"s,
+   "127.0.0.1:8001"s, "127.0.0.1:8002"s, "127.0.0.1:8003"s,
    "127.0.0.1:8004"s, "127.0.0.1:8005"s, "127.0.0.1:8006"s, "127.0.0.1:8007"s,
    "127.0.0.1:8008"s, "127.0.0.1:8009"s, "127.0.0.1:8010"s,
    // prodk is intentionally skipped
@@ -71,28 +75,27 @@ const std::vector<std::string> peer_addresses{
 BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
 
    mock_net_plugin plugin;
-   BOOST_CHECK_THROW(plugin.set_bp_peers({ "producer17,127.0.0.1:8888"s }), eosio::chain::plugin_config_exception);
-   BOOST_CHECK_THROW(plugin.set_bp_peers({ "producer1"s }), eosio::chain::plugin_config_exception);
+   BOOST_CHECK_THROW(plugin.set_configured_bp_peers({ "producer17,127.0.0.1:8888"s }), eosio::chain::plugin_config_exception);
+   BOOST_CHECK_THROW(plugin.set_configured_bp_peers({ "producer1"s }), eosio::chain::plugin_config_exception);
 
-   plugin.set_bp_peers({
+   plugin.set_configured_bp_peers({
          "producer1,127.0.0.1:8888:blk"s,
          "producer2,127.0.0.1:8889:trx"s,
          "producer3,127.0.0.1:8890"s,
          "producer4,127.0.0.1:8891"s
    });
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer1"_n], endpoint("127.0.0.1", "8888"));
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer2"_n], endpoint("127.0.0.1", "8889"));
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer3"_n], endpoint("127.0.0.1", "8890"));
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer4"_n], endpoint("127.0.0.1", "8891"));
 
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer1"_n], "127.0.0.1:8888:blk"s);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer2"_n], "127.0.0.1:8889:trx"s);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer3"_n], "127.0.0.1:8890"s);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer4"_n], "127.0.0.1:8891"s);
-
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8888:blk"], "producer1"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8889:trx"], "producer2"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8890"], "producer3"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts["127.0.0.1:8891"], "producer4"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8888")], "producer1"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8889")], "producer2"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8890")], "producer3"_n);
+   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8891")], "producer4"_n);
 }
 
-bool operator==(const fc::flat_set<eosio::chain::account_name>& a, const fc::flat_set<eosio::chain::account_name>& b) {
+bool operator==(const eosio::chain::peer_name_set_t& a, const eosio::chain::peer_name_set_t& b) {
    return std::equal(a.begin(), a.end(), b.begin(), b.end());
 }
 
@@ -101,7 +104,7 @@ bool operator==(const std::vector<std::string>& a, const std::vector<std::string
 }
 
 namespace boost::container {
-std::ostream& boost_test_print_type(std::ostream& os, const flat_set<eosio::chain::account_name>& accounts) {
+std::ostream& boost_test_print_type(std::ostream& os, const eosio::chain::peer_name_set_t& accounts) {
    os << "{";
    const char* sep = "";
    for (auto e : accounts) {
@@ -145,7 +148,7 @@ const eosio::chain::producer_authority_schedule test_schedule2{
      { "prodd"_n, {} }, { "prodh"_n, {} }, { "prodl"_n, {} } }
 };
 
-const fc::flat_set<eosio::chain::account_name> producers_minus_prodkt{
+const eosio::chain::peer_name_set_t producers_minus_prodkt{
    "proda"_n, "prodb"_n, "prodc"_n, "prodd"_n, "prode"_n, "prodf"_n,
    "prodg"_n, "prodh"_n, "prodi"_n, "prodj"_n,
    // "prodk"_n, not part of the peer addresses
@@ -161,7 +164,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
 
    mock_net_plugin plugin;
    plugin.setup_test_peers();
-   plugin.pending_configured_bps = { "prodj"_n, "prodm"_n };
+   plugin.pending_bps = { "prodj"_n, "prodm"_n };
 
    std::vector<std::string> connected_hosts;
 
@@ -172,7 +175,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.on_pending_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.pending_configured_bps, (fc::flat_set<eosio::chain::account_name>{ "prodj"_n, "prodm"_n }));
+   BOOST_TEST(plugin.pending_bps == (eosio::chain::peer_name_set_t{ "prodj"_n, "prodm"_n }));
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
 
    // when it is in sync and on_pending_schedule is called
@@ -180,7 +183,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.on_pending_schedule(test_schedule1);
 
    // the pending are connected to
-   BOOST_CHECK_EQUAL(plugin.pending_configured_bps, producers_minus_prodkt);
+   BOOST_TEST(plugin.pending_bps == producers_minus_prodkt);
 
    // all connect to bp peers should be invoked
    BOOST_CHECK_EQUAL(connected_hosts, peer_addresses);
@@ -196,7 +199,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
 
    plugin.on_pending_schedule(reset_schedule1);
-   BOOST_CHECK_EQUAL(plugin.pending_configured_bps, (fc::flat_set<eosio::chain::account_name>{}));
+   BOOST_TEST(plugin.pending_bps == eosio::chain::peer_name_set_t{});
 }
 
 BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
@@ -204,7 +207,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    mock_net_plugin plugin;
    plugin.setup_test_peers();
 
-   plugin.active_configured_bps = { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n };
+   plugin.set_active_bps( { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n } );
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
 
    std::vector<std::string> disconnected_hosts;
@@ -215,8 +218,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    plugin.on_active_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.active_configured_bps,
-                     (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
+   BOOST_TEST(plugin.get_active_bps() == (eosio::chain::peer_name_set_t{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 0u);
 
    // when it is in sync and on_active_schedule is called
@@ -226,7 +228,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    // then disconnect to prodt
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.active_configured_bps, producers_minus_prodkt);
+   BOOST_TEST(plugin.get_active_bps() == producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);
@@ -237,7 +239,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    mock_net_plugin plugin;
    plugin.setup_test_peers();
 
-   plugin.active_configured_bps = { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n };
+   plugin.set_active_bps( { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n } );
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
    std::vector<std::string> disconnected_hosts;
    plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
@@ -249,7 +251,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    // then disconnect prodt
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.active_configured_bps, producers_minus_prodkt);
+   BOOST_TEST(plugin.get_active_bps() == producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);

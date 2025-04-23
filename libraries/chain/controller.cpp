@@ -1274,6 +1274,57 @@ struct controller_impl {
       apply_handlers[receiver][make_pair(contract,action)] = v;
    }
 
+   void set_trx_expiration(signed_transaction& trx) {
+      if (is_builtin_activated(builtin_protocol_feature_t::no_duplicate_deferred_id)) {
+         trx.expiration       = time_point_sec();
+         trx.ref_block_num    = 0;
+         trx.ref_block_prefix = 0;
+      } else {
+         trx.expiration = time_point_sec{
+            pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
+         trx.set_reference_block(chain_head.id());
+      }
+   }
+
+   getpeerkeys_res_t get_top_producer_keys() {
+      try {
+         auto get_getpeerkeys_transaction = [&]() {
+            auto perms = vector<permission_level>{};
+            action act(perms, config::system_account_name, "getpeerkeys"_n, {});
+            signed_transaction trx;
+
+            trx.actions.emplace_back(std::move(act));
+            set_trx_expiration(trx);
+            return trx;
+         };
+
+         auto metadata = transaction_metadata::create_no_recover_keys(
+            std::make_shared<packed_transaction>(get_getpeerkeys_transaction()),
+            transaction_metadata::trx_type::read_only);
+
+         // allow a max of 20ms for getpeerkeys
+         auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::milliseconds(20), 0, false, 0);
+
+         if( trace->except_ptr )
+            std::rethrow_exception(trace->except_ptr);
+         if( trace->except)
+            throw *trace->except;
+         getpeerkeys_res_t res;
+         if (!trace->action_traces.empty()) {
+            const auto& act_trace = trace->action_traces[0];
+            const auto& retval = act_trace.return_value;
+            if (!retval.empty()) {
+               // in some tests, the system contract is not set and the return value is empty.
+               fc::datastream<const char*> ds(retval.data(), retval.size());
+               fc::raw::unpack(ds, res);
+            }
+         }
+
+         return res;
+      }
+      FC_LOG_AND_RETHROW()
+   }
+
    controller_impl( const controller::config& cfg, controller& s, protocol_feature_set&& pfs, const chain_id_type& chain_id )
    :rnh(),
     self(s),
@@ -1322,9 +1373,6 @@ struct controller_impl {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
-
-         // update peer public keys from chainbase db 
-         peer_keys_db.update_peer_keys(self, block->block_num());
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
@@ -2623,14 +2671,7 @@ struct controller_impl {
       // Deliver onerror action containing the failed deferred transaction directly back to the sender.
       etrx.actions.emplace_back( vector<permission_level>{{gtrx.sender, config::active_name}},
                                  onerror( gtrx.sender_id, gtrx.packed_trx.data(), gtrx.packed_trx.size() ) );
-      if( is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
-         etrx.expiration = time_point_sec();
-         etrx.ref_block_num = 0;
-         etrx.ref_block_prefix = 0;
-      } else {
-         etrx.expiration = time_point_sec{pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
-         etrx.set_reference_block( chain_head.id() );
-      }
+      set_trx_expiration(etrx);
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
@@ -3196,6 +3237,11 @@ struct controller_impl {
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
+      // limit to complete type to avoid multiple calls per block number due to speculative blocks
+      if (pending->_block_status == controller::block_status::complete) {
+         update_peer_keys();
+      }
+
       transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
@@ -3339,8 +3385,23 @@ struct controller_impl {
       }
 
       guard_pending.cancel();
+
       return onblock_trace;
    } /// start_block
+
+   void update_peer_keys() {
+      // if syncing or replaying old blocks don't bother updating peer keys
+      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+         return;
+
+      try {
+         auto block_num = chain_head.block_num() + 1;
+         if (peer_keys_db.should_update(block_num)) { // update once/minute
+            // update peer public keys from chainbase db using a readonly trx
+            peer_keys_db.update_peer_keys(block_num, get_top_producer_keys());
+         }
+      } FC_LOG_AND_DROP()
+   }
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
    {
@@ -3722,6 +3783,9 @@ struct controller_impl {
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
+            applying_block = true;
+            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
+
             const signed_block_ptr& b = bsp->block;
             fc::scoped_set_value prod_light_validation(trusted_producer_light_validation, is_trusted_producer(b->producer));
 
@@ -3778,9 +3842,6 @@ struct controller_impl {
                   }
                }
             }
-
-            applying_block = true;
-            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
 
             transaction_trace_ptr trace;
 
@@ -4554,13 +4615,23 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_apply_block_transaction() {
-      // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
-      // have limited run time already. This is to allow killing a long-running transaction in a block being
-      // validated.
-      if (!replaying && applying_block) {
-         ilog("Interrupting apply block");
-         main_thread_timer.interrupt_timer();
+   void interrupt_transaction(controller::interrupt_t interrupt) {
+      // Do not interrupt during replay. ctrl-c during replay is handled at block boundaries.
+      // Interrupt both speculative trxs and trxs while applying a block.
+      // This is to allow killing a long-running transaction in a block being validated during apply block.
+      // This also allows killing a trx when a block is received to prioritize block validation.
+      if (!replaying) {
+         if (applying_block) {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::apply_block_trx) {
+               dlog("Interrupting apply block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         } else {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::speculative_block_trx) {
+               dlog("Interrupting speculative block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         }
       }
    }
 
@@ -4788,14 +4859,7 @@ struct controller_impl {
 
       signed_transaction trx;
       trx.actions.emplace_back(std::move(on_block_act));
-      if( is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
-         trx.expiration = time_point_sec();
-         trx.ref_block_num = 0;
-         trx.ref_block_prefix = 0;
-      } else {
-         trx.expiration = time_point_sec{pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
-         trx.set_reference_block( chain_head.id() );
-      }
+      set_trx_expiration(trx);
 
       return trx;
    }
@@ -5338,8 +5402,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_apply_block_transaction() {
-   my->interrupt_apply_block_transaction();
+void controller::interrupt_transaction(interrupt_t interrupt) {
+   my->interrupt_transaction(interrupt);
 }
 
 boost::asio::io_context& controller::get_thread_pool() {
@@ -5789,12 +5853,20 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(bool active) {
-   my->peer_keys_db.set_active(active);
+void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+   my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
-std::optional<public_key_type> controller::get_peer_key(name n) const {
-   return my->peer_keys_db.get_peer_key(n);
+std::optional<peer_info_t> controller::get_peer_info(name n) const {
+   return my->peer_keys_db.get_peer_info(n);
+}
+
+bool controller::configured_peer_keys_updated() {
+   return my->peer_keys_db.configured_peer_keys_updated();
+}
+
+getpeerkeys_res_t controller::get_top_producer_keys() {
+   return my->get_top_producer_keys();
 }
 
 db_read_mode controller::get_read_mode()const {
