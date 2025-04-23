@@ -115,7 +115,8 @@ try:
     assert len(fork_db_only) < len(blockLog), "retrieving fork_db only is expected to be smaller than with block log"
     assert len(fork_db_only) + len(blockLog_only) == len(blockLog), "size mismatch"
     assert fork_db_only[0]["block_num"] == blockLog_lib+1, "first block number of fork_db_only is expected to be lib+1"
-    assert fork_db_only[-1]["block_num"] == headBlockNum, "last block number of fork_db_only is expected to be headBlockNum"
+    forkdb_head = fork_db_only[-1]["block_num"]
+    assert forkdb_head == headBlockNum or forkdb_head == headBlockNum + 1, "last block number of fork_db_only is expected to be headBlockNum, or maybe headBlockNum + 1 if head advanced after getInfo"
 
     output=cluster.getBlockLog(0, blockLogAction=BlockLogAction.smoke_test)
     expectedStr="no problems found"
