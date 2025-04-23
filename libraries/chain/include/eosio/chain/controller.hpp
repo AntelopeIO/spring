@@ -10,6 +10,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/finalizer.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -208,8 +209,9 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler, or producer_plugin
-         void interrupt_apply_block_transaction();
+         /// Expected to be called from signal handler or producer_plugin
+         enum class interrupt_t { all_trx, apply_block_trx, speculative_block_trx };
+         void interrupt_transaction(interrupt_t interrupt);
 
        /**
         *
@@ -427,6 +429,12 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
+         void set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers);
+         std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
+         bool configured_peer_keys_updated(); // thread safe
+         // used for testing, only call with an active pending block from main thread
+         getpeerkeys_res_t get_top_producer_keys();
+
          // thread safe
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
@@ -490,6 +498,9 @@ namespace eosio::chain {
       void set_to_read_window();
       bool is_write_window() const;
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
+
+      platform_timer& get_thread_local_timer();
+
       void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
       // is the bls key a registered finalizer key of this node, thread safe
@@ -512,3 +523,5 @@ namespace eosio::chain {
    }; // controller
 
 }  /// eosio::chain
+
+FC_REFLECT(eosio::chain::peerkeys_t, (producer_name)(peer_key))

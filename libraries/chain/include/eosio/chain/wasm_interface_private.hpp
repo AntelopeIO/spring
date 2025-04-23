@@ -115,7 +115,6 @@ struct eosvmoc_tier {
       void async_compile_complete(boost::asio::io_context& ctx, const digest_type& code_id, fc::time_point queued_time) {
          if (executing_code_hash.load() == code_id) { // is action still executing?
             auto elapsed = fc::time_point::now() - queued_time;
-            ilog("EOS VM OC tier up for ${id} compile complete ${t}ms", ("id", code_id)("t", elapsed.count()/1000));
             auto expire_in = std::max(fc::microseconds(0), fc::milliseconds(500) - elapsed);
             std::shared_ptr<boost::asio::steady_timer> timer = std::make_shared<boost::asio::steady_timer>(ctx);
             timer->expires_from_now(std::chrono::microseconds(expire_in.count()));
@@ -125,7 +124,7 @@ struct eosvmoc_tier {
                if (executing_code_hash.load() == code_id) {
                   ilog("EOS VM OC tier up interrupting ${id}", ("id", code_id));
                   eos_vm_oc_compile_interrupt = true;
-                  main_thread_timer.expire_now();
+                  main_thread_timer.interrupt_timer();
                }
             });
          }
@@ -148,10 +147,6 @@ struct eosvmoc_tier {
                m.whitelisted = context.is_eos_vm_oc_whitelisted();
                m.high_priority = m.whitelisted && context.is_applying_block();
                m.write_window = context.control.is_write_window();
-               auto timer_pause = fc::make_scoped_exit([&](){
-                  context.trx_context.resume_billing_timer();
-               });
-               context.trx_context.pause_billing_timer();
                cd = eosvmoc->cc.get_descriptor_for_code(m, code_hash, vm_version, failure);
             } catch (...) {
                // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
@@ -169,7 +164,14 @@ struct eosvmoc_tier {
             }
          }
 #endif
-         const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() && context.trx_context.has_undo();
+         // Do not allow oc interrupt if no undo as the transaction needs to be undone to restart it.
+         // Do not allow oc interrupt if implicit or scheduled. There are two implicit trxs: onblock and onerror.
+         //   The onerror trx of deferred trxs is implicit. Interrupt needs to be disabled for deferred trxs because
+         //   they capture all exceptions, explicitly handle undo stack, and directly call trx_context.execute_action.
+         //   Not allowing interrupt for onblock seems rather harmless, so instead of distinguishing between onerror and
+         //   onblock, just disallow for all implicit.
+         const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() &&
+                                         context.trx_context.has_undo() && !context.trx_context.is_implicit() && !context.trx_context.is_scheduled();
          auto ex = fc::make_scoped_exit([&]() {
             if (allow_oc_interrupt) {
                eos_vm_oc_compile_interrupt = false;
@@ -181,7 +183,7 @@ struct eosvmoc_tier {
          try {
             get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
-            if (allow_oc_interrupt && eos_vm_oc_compile_interrupt) {
+            if (allow_oc_interrupt && eos_vm_oc_compile_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
                dlog("EOS VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
                     ("r", context.get_receiver())("a", context.get_action().account)

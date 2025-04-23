@@ -120,7 +120,7 @@ class PluginHttpTest(unittest.TestCase):
 
         retMap = self.nodeos.publishContract(eosioAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True)
 
-        self.nodeos.preactivateAllBuiltinProtocolFeature()
+        self.nodeos.activateAllBuiltinProtocolFeature()
 
     # test all chain api
     def test_ChainApi(self) :
@@ -128,8 +128,12 @@ class PluginHttpTest(unittest.TestCase):
         command = "get_info"
         endpoint=self.endpoint("chain_ro")
 
-        # get_info without parameter
+        # get_info without parameter with default chain_ro endpoint
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
+        self.assertIn("server_version", ret_json["payload"])
+        # get_info without parameter with an endpoint (catelog) other than chain_ro
+        # get_info should work on any end point
+        ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=self.endpoint("producer_ro"))
         self.assertIn("server_version", ret_json["payload"])
         # get_info with empty content parameter
         ret_json = self.nodeos.processUrllibRequest(resource, command, self.empty_content_dict, endpoint=endpoint)
@@ -168,6 +172,17 @@ class PluginHttpTest(unittest.TestCase):
         command = "get_activated_protocol_features"
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
         self.assertEqual(type(ret_json["payload"]["activated_protocol_features"]), list)
+
+        # some extra debugging info
+        activated_features = ret_json["payload"]["activated_protocol_features"]
+        activated_names = [feature['specification'][0]['value'] for feature in activated_features]
+        expected_names = allFeatureCodenames
+        Utils.Print("activated_features={}".format(activated_features))
+        Utils.Print("expected_names={}".format(expected_names))
+        for n in expected_names:
+            if n not in activated_names:
+                Utils.Print("Missing feature: {}".format(n))
+
         self.assertEqual(len(ret_json["payload"]["activated_protocol_features"]), ACT_FEATURE_CURRENT_EXPECTED_TOTAL)
         for dict_feature in ret_json["payload"]["activated_protocol_features"]:
             self.assertTrue(dict_feature['feature_digest'] in allFeatureDigests)
@@ -1619,10 +1634,7 @@ class PluginHttpTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(self):
-        global keepLogs
         self.killNodes(self)
-        if unittest.TestResult().wasSuccessful() and not keepLogs:
-            self.cleanEnv(self)
 
     
 if __name__ == "__main__":
@@ -1634,9 +1646,18 @@ if __name__ == "__main__":
     parser.add_argument('unittest_args', nargs=argparse.REMAINDER)
 
     args = parser.parse_args()
-    global keepLogs
-    keepLogs = args.keep_logs;
+    keepLogs = args.keep_logs
 
     # Now set the sys.argv to the unittest_args (leaving sys.argv[0] alone)
     sys.argv[1:] = args.unittest_args
-    unittest.main()
+    suite = unittest.TestLoader().loadTestsFromTestCase(PluginHttpTest)
+    results = unittest.TextTestRunner().run(suite)
+    testSuccessful = True
+    if not results.wasSuccessful():
+        keepLogs = True
+        testSuccessful = False
+    if not keepLogs:
+        PluginHttpTest().cleanEnv()
+
+    exitCode = 0 if testSuccessful else 1
+    exit(exitCode)

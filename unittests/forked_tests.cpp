@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
          auto& fork = forks.at(j);
 
          if (j <= i) {
-            auto copy_b = std::make_shared<signed_block>(b->clone());
+            auto copy_b = b->clone();
             if (j == i) {
                // corrupt this block
                fork.block_merkle = remote.control->head_block_state_legacy()->blockroot_merkle;
@@ -82,8 +82,9 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
             copy_b->producer_signature = remote.get_private_key("b"_n, "active").sign(sig_digest);
 
             // add this new block to our corrupted block merkle
-            fork.block_merkle.append(copy_b->calculate_id());
-            fork.blocks.emplace_back(copy_b);
+            auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
+            fork.block_merkle.append(signed_copy_b->calculate_id());
+            fork.blocks.emplace_back(signed_copy_b);
          } else {
             fork.blocks.emplace_back(b);
          }
@@ -242,10 +243,10 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    }
    wlog( "end push c2 blocks to c1" );
    wlog( "now push dan's block to c1 but first corrupt it so it is a bad block" );
-   signed_block bad_block{b->clone()};
-   bad_block.action_mroot = bad_block.previous;
-   auto bad_id = bad_block.calculate_id();
-   BOOST_REQUIRE_EXCEPTION(c.control->accept_block(bad_id, std::make_shared<signed_block>(bad_block.clone())),
+   auto bad_block = b->clone();
+   bad_block->action_mroot = bad_block->previous;
+   auto bad_id = bad_block->calculate_id();
+   BOOST_REQUIRE_EXCEPTION(c.control->accept_block(bad_id, signed_block::create_signed_block(std::move(bad_block))),
       fc::exception, [] (const fc::exception& ex)->bool {
          return ex.to_detail_string().find("block signed by unexpected key") != std::string::npos;
       });

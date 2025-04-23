@@ -127,7 +127,7 @@ void chain_api_plugin::plugin_startup() {
 
    // Run get_info on http thread only
    _http_plugin.add_async_api({
-      CHAIN_RO_CALL_WITH_400(get_info, 200, http_params_types::no_params)
+      CALL_WITH_400(chain, node, ro_api, chain_apis::read_only, get_info, 200, http_params_types::no_params)
    });
 
    _http_plugin.add_api({

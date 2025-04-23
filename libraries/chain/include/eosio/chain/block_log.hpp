@@ -58,10 +58,6 @@ namespace eosio { namespace chain {
          std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num)const;
          std::optional<block_id_type>       read_block_id_by_num(uint32_t block_num)const;
 
-         signed_block_ptr read_block_by_id(const block_id_type& id)const {
-            return read_block_by_num(block_header::num_from_id(id));
-         }
-
          /**
           * Return offset of block in file, or block_log::npos if it does not exist.
           */
@@ -94,6 +90,9 @@ namespace eosio { namespace chain {
          static std::optional<chain_id_type>
          extract_chain_id(const std::filesystem::path& data_dir,
                           const std::filesystem::path& retained_dir = std::filesystem::path{});
+
+         static uint32_t extract_first_block_num(const std::filesystem::path& block_dir,
+                                                 const std::filesystem::path& retained_dir = std::filesystem::path{});
 
          static void construct_index(const std::filesystem::path& block_file_name, const std::filesystem::path& index_file_name);
 

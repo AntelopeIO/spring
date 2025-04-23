@@ -278,7 +278,8 @@ inline constexpr auto get_intrinsic_table() {
       "env.bls_fp_mod",
       "env.bls_fp_mul",
       "env.bls_fp_exp",
-      "env.set_finalizers"
+      "env.set_finalizers",
+      "eosvmoc_internal.check_memcpy_params"
    );
 }
 inline constexpr std::size_t find_intrinsic_index(std::string_view hf) {

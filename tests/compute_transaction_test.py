@@ -101,6 +101,10 @@ try:
 
     results = node.pushTransaction(trx, opts='--dry-run', permissions=account1.name)
     assert(results[0])
+
+    Print("Sending read-only transfer as action")
+    results = node.pushMessage('eosio.token', 'transfer', '{"from": "account1","to": "account2","quantity": "1.0001 SYS","memo": "act1"}', '--dry-run -p account1@active')
+    assert(results[0])
     node.waitForLibToAdvance(30)
 
     postBalances = node.getEosBalances([account1, account2])

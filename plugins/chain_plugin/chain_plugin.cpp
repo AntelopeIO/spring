@@ -253,10 +253,6 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
    delim = ", ";
 #endif
 
-#ifdef EOSIO_EOS_VM_OC_DEVELOPER
-   wasm_runtime_opt += delim + "\"eos-vm-oc\"";
-   wasm_runtime_desc += "\"eos-vm-oc\" : Unsupported. Instead, use one of the other runtimes along with the option eos-vm-oc-enable.\n";
-#endif
    wasm_runtime_opt += ")\n" + wasm_runtime_desc;
 
    std::string default_wasm_runtime_str= eosio::chain::wasm_interface::vm_type_string(eosio::chain::config::default_wasm_runtime);
@@ -288,13 +284,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "the location of the protocol_features directory (absolute path or relative to application config dir)")
          ("checkpoint", bpo::value<vector<string>>()->composing(), "Pairs of [BLOCK_NUM,BLOCK_ID] that should be enforced as checkpoints.")
          ("wasm-runtime", bpo::value<eosio::chain::wasm_interface::vm_type>()->value_name("runtime")->notifier([](const auto& vm){
-#ifndef EOSIO_EOS_VM_OC_DEVELOPER
-            //throwing an exception here (like EOS_ASSERT) is just gobbled up with a "Failed to initialize" error :(
-            if(vm == wasm_interface::vm_type::eos_vm_oc) {
-               elog("EOS VM OC is a tier-up compiler and works in conjunction with the configured base WASM runtime. Enable EOS VM OC via 'eos-vm-oc-enable' option");
-               EOS_ASSERT(false, plugin_exception, "");
-            }
-#endif
+            if(vm == wasm_interface::vm_type::eos_vm_oc)
+               wlog("eos-vm-oc-forced mode is not supported. It is for development purposes only");
          })->default_value(eosio::chain::config::default_wasm_runtime, default_wasm_runtime_str), wasm_runtime_opt.c_str()
          )
          ("profile-account", boost::program_options::value<vector<string>>()->composing(),
@@ -372,7 +363,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
-         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->default_value(std::vector<string>{{"xsat"}}),
+         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{"xsat", "vaulta"}),
           "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
@@ -542,6 +533,15 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
       LOAD_VALUE_SET( options, "trusted-producer", chain_config->trusted_producers );
 
+      if (!chain_config->eos_vm_oc_whitelist_suffixes.empty()) {
+         const auto& wl = chain_config->eos_vm_oc_whitelist_suffixes;
+         std::string s = std::accumulate(std::next(wl.begin()), wl.end(),
+                                         wl.begin()->to_string(),
+                                         [](std::string a, account_name b) -> std::string {
+                                            return std::move(a) + ", " + b.to_string();
+                                         });
+         ilog("eos-vm-oc-whitelist accounts: ${a}", ("a", s));
+      }
       if( options.count( "action-blacklist" )) {
          const std::vector<std::string>& acts = options["action-blacklist"].as<std::vector<std::string>>();
          auto& list = chain_config->action_blacklist;
@@ -778,6 +778,11 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          ilog( "Replay requested: deleting state database" );
          if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 )
             wlog( "The --truncate-at-block option does not work for a regular replay of the blockchain." );
+         if (!options.count( "snapshot" )) {
+            auto first_block = block_log::extract_first_block_num(blocks_dir, retained_dir);
+            EOS_ASSERT(first_block == 1, plugin_config_exception,
+                       "replay-blockchain without snapshot requested without a full block log, first block: ${n}", ("n", first_block));
+         }
          clear_directory_contents( chain_config->state_dir );
       } else if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 ) {
          wlog( "The --truncate-at-block option can only be used with --hard-replay-blockchain." );
@@ -2140,9 +2145,9 @@ void read_write::push_transaction(const read_write::push_transaction_params& par
                                              act_trace.get_object() );
                   }
 
-                  std::function<vector<fc::variant>(uint32_t)> convert_act_trace_to_tree_struct =
+                  std::function<fc::variants(uint32_t)> convert_act_trace_to_tree_struct =
                   [&](uint32_t closest_unnotified_ancestor_action_ordinal) {
-                     vector<fc::variant> restructured_act_traces;
+                     fc::variants restructured_act_traces;
                      auto it = act_traces_map.lower_bound(
                                  std::make_pair( closest_unnotified_ancestor_action_ordinal, 0)
                      );
@@ -2673,7 +2678,11 @@ read_only::get_consensus_parameters_results
 read_only::get_consensus_parameters(const get_consensus_parameters_params&, const fc::time_point& ) const {
    get_consensus_parameters_results results;
 
-   results.chain_config = db.get_global_properties().configuration;
+   if (db.is_builtin_activated(builtin_protocol_feature_t::action_return_value))
+      to_variant(db.get_global_properties().configuration,        results.chain_config); //chain_config_v1
+   else
+      to_variant(db.get_global_properties().configuration.base(), results.chain_config); //chain_config_v0
+
    if (db.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
       results.wasm_config = db.get_global_properties().wasm_configuration;
    }

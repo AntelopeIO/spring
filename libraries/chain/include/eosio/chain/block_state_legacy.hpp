@@ -21,7 +21,7 @@ namespace eosio::chain {
                  );
 
       block_state_legacy( pending_block_header_state_legacy&& cur,
-                          mutable_signed_block_ptr&& b, // unsigned block
+                          mutable_block_ptr&& b, // unsigned block
                           deque<transaction_metadata_ptr>&& trx_metas,
                           const std::optional<digests_t>& action_receipt_digests_savanna,
                           const protocol_feature_set& pfs,

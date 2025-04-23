@@ -127,10 +127,12 @@ add_library( eosio_chain
              symbol.cpp
              whitelisted_intrinsics.cpp
              thread_utils.cpp
+             peer_keys_db.cpp
              platform_timer_accuracy.cpp
              ${PLATFORM_TIMER_IMPL}
              ${HEADERS}
              )
+
 
 ## Boost::accumulators depends on Boost::numeric_ublas, which is still missing cmake support (see
 ## https://github.com/boostorg/cmake/issues/39). Until this is fixed, manually add Boost::numeric_ublas
@@ -162,11 +164,6 @@ foreach(RUNTIME ${EOSIO_WASM_RUNTIMES})
    string(REPLACE "-" "_" RUNTIMEUC ${RUNTIMEUC})
    target_compile_definitions(eosio_chain PUBLIC "EOSIO_${RUNTIMEUC}_RUNTIME_ENABLED")
 endforeach()
-
-if(EOSVMOC_ENABLE_DEVELOPER_OPTIONS)
-   message(WARNING "EOS VM OC Developer Options are enabled; these are NOT supported")
-   target_compile_definitions(eosio_chain PUBLIC EOSIO_EOS_VM_OC_DEVELOPER)
-endif()
 
 install( TARGETS eosio_chain
    RUNTIME DESTINATION ${CMAKE_INSTALL_FULL_BINDIR} COMPONENT dev EXCLUDE_FROM_ALL

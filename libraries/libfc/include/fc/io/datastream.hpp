@@ -176,6 +176,40 @@ class datastream<Container, typename std::enable_if_t<(std::is_same_v<std::vecto
    const Container& storage() const { return _container; }
 };
 
+/**
+ * Datastream wrapper that creates a copy of the datastream data read. After reading
+ * the data is available via extract_mirror()
+ * @tparam DataStream datastream to wrap
+ */
+template <typename DataStream>
+class datastream_mirror {
+public:
+   explicit datastream_mirror( DataStream& ds, size_t reserve = 0 ) : ds(ds) {
+      mirror.reserve(reserve);
+   }
+
+   void skip( size_t s ) { ds.skip(s); }
+   bool read( char* d, size_t s ) {
+      if (ds.read(d, s)) {
+         auto size = mirror.size();
+         if (mirror.capacity() < size + s)
+            mirror.reserve(std::bit_ceil(size + s));
+         mirror.resize(size + s);
+         memcpy(mirror.data() + size, d, s);
+         return true;
+      }
+      return false;
+   }
+
+   bool   get( unsigned char& c ) { return read(&c, 1); }
+   bool   get( char& c ) { return read(&c, 1); }
+
+   std::vector<char> extract_mirror() { return std::move(mirror); }
+
+private:
+   DataStream& ds;
+   std::vector<char> mirror;
+};
 
 
 template<typename ST>

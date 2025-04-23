@@ -188,7 +188,7 @@ class Node(Transactions):
         return ret
 
     def waitForBlock(self, blockNum, timeout=None, blockType=BlockType.head, reportInterval=None):
-        lam = lambda: self.getBlockNum(blockType=blockType) > blockNum
+        lam = lambda: self.getBlockNum(blockType=blockType) >= blockNum
         blockDesc = "head" if blockType == BlockType.head else "LIB"
         count = 0
 
@@ -527,6 +527,12 @@ class Node(Transactions):
         err = dd / Path(f'stderr.{launch_time}.txt')
         pidf = dd / Path(f'{Utils.EosServerName}.pid')
 
+        # make sure unique file name to avoid overwrite of existing log file
+        i = 0
+        while err.is_file():
+            i = i + 1
+            err = dd / Path(f'stderr.{launch_time}-{i}.txt')
+
         Utils.Print(f'spawning child: {" ".join(cmd)}')
         dd.mkdir(parents=True, exist_ok=True)
         with out.open('w') as sout, err.open('w') as serr:
@@ -724,6 +730,30 @@ class Node(Transactions):
             return False
         else:
             return True
+
+    # Returns the number of unique unlinkable blocks in stderr.txt.
+    def numUniqueUnlinkableBlocks(self) -> int:
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        logFile = dataDir + "/stderr.txt"
+
+        pattern = re.compile(r"unlinkable_block\s(\d+)")
+
+        # Use set for uniqueness, as the same block can be unlinkable multiple
+        # times due to multiple connections.
+        uniqueBlocks = set()
+        with open(logFile, 'r') as f:
+            for line in f:
+                match = pattern.search(line)
+                if match:
+                    try:
+                        blockNum = int(match.group(1))
+                        uniqueBlocks.add(blockNum)
+                    except ValueError:
+                        Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
+                        assert(False)  # Cannot happen. Fail the test.
+        numUnlinkableBlocks = len(uniqueBlocks)
+        Utils.Print(f"Number of unique unlinkable blocks: {numUnlinkableBlocks}")
+        return numUnlinkableBlocks
 
     # Verify that we have only one "Starting block" in the log for any block number unless:
     # - the block was restarted because it was exhausted,

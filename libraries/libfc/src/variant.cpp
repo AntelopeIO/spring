@@ -212,13 +212,13 @@ variant::variant( const variant& v )
           set_variant_type( this, blob_type );
           return;
        default:
-          memcpy( this, &v, sizeof(v) );
+          _data = v._data;
    }
 }
 
 variant::variant( variant&& v )
 {
-   memcpy( this, &v, sizeof(v) );
+   _data = v._data;
    set_variant_type( &v, null_type );
 }
 
@@ -231,7 +231,7 @@ variant& variant::operator=( variant&& v )
 {
    if( this == &v ) return *this;
    clear();
-   memcpy( (char*)this, (char*)&v, sizeof(v) );
+   _data = v._data;
    set_variant_type( &v, null_type );
    return *this;
 }
@@ -259,7 +259,7 @@ variant& variant::operator=( const variant& v )
          *reinterpret_cast<blob**>(this)  = new blob((**reinterpret_cast<const const_blob_ptr*>(&v)) );
          break;
       default:
-         memcpy( this, &v, sizeof(v) );
+         _data = v._data;
    }
    set_variant_type( this, v.get_type() );
    return *this;

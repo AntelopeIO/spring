@@ -8,12 +8,6 @@
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 
-namespace fc {
-  inline std::size_t hash_value( const fc::sha256& v ) {
-     return v._hash[3];
-  }
-}
-
 namespace eosio { namespace chain {
 
 using namespace boost::multi_index;

@@ -18,9 +18,24 @@ using namespace eosio::chain;
 
 
 void snapshot_actions::setup(CLI::App& app) {
+   // callback helper with error code handling
+   auto err_guard = [this](int (snapshot_actions::*fun)()) {
+      try {
+         int rc = (this->*fun)();
+         if(rc) throw(CLI::RuntimeError(rc));
+      } catch(...) {
+         print_exception();
+         throw(CLI::RuntimeError(-1));
+      }
+   };
+
    auto* sub = app.add_subcommand("snapshot", "Snapshot utility");
    sub->require_subcommand();
    sub->fallthrough();
+
+   auto info = sub->add_subcommand("info", "Prints basic snapshot information in json format");
+   info->add_option("snapshot", opt->input_file, "Snapshot file")->required()->capture_default_str();
+   info->callback([err_guard]() {err_guard(&snapshot_actions::run_info);});
 
    // subcommand -convert snapshot to json
    auto to_json = sub->add_subcommand("to-json", "Convert snapshot file to json format");
@@ -28,19 +43,18 @@ void snapshot_actions::setup(CLI::App& app) {
    to_json->add_option("--output-file,-o", opt->output_file, "The file to write the output to (absolute or relative path).  If not specified then output is to <input-file>.json.");
    to_json->add_option("--chain-id", opt->chain_id, "Specify a chain id in case it is not included in a snapshot or you want to override it.");
    to_json->add_option("--db-size", opt->db_size, "Maximum size (in MiB) of the chain state database")->capture_default_str();
-
-   to_json->callback([this]() {
-      try {
-         int rc = run_subcommand();
-         if(rc) throw(CLI::RuntimeError(rc));
-      } catch(...) {
-         print_exception();
-         throw(CLI::RuntimeError(-1));
-      }
-   });
+   to_json->callback([err_guard]() {err_guard(&snapshot_actions::run_tojson);});
 }
 
-int snapshot_actions::run_subcommand() {
+int snapshot_actions::run_info() {
+   threaded_snapshot_reader snapshot(opt->input_file);
+
+   std::cout << json::to_pretty_string(snapshot_info(snapshot)) << std::endl;
+
+   return 0;
+}
+
+int snapshot_actions::run_tojson() {
    if(!opt->input_file.empty()) {
       if(!std::filesystem::exists(opt->input_file)) {
          std::cerr << "cannot load snapshot, " << opt->input_file

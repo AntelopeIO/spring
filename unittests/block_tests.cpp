@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    auto& act = signed_tx.actions.back();
    auto act_data = act.template data_as<newaccount>();
@@ -53,7 +53,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
 
    // Push block with invalid transaction to other chain
    T validator;
-   auto [best_head, obh] = validator.control->accept_block( copy_b->calculate_id(), copy_b );
+   auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
+   auto [best_head, obh] = validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b );
    BOOST_REQUIRE(obh);
    validator.control->abort_block();
    BOOST_REQUIRE_EXCEPTION(validator.control->apply_blocks( {}, trx_meta_cache_lookup{} ), fc::exception ,
@@ -72,7 +73,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    const auto& packed_trx = std::get<packed_transaction>(copy_b->transactions.back().trx);
    auto signed_tx = packed_trx.get_signed_transaction();
 
@@ -96,7 +97,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
 
    // Push block with invalid transaction to other chain
    T validator;
-   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( copy_b->calculate_id(), copy_b ), fc::exception,
+   auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
+   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b ), fc::exception,
                            [] (const fc::exception &e)->bool {
                               return e.code() == block_validate_exception::code_value &&
                                      e.to_detail_string().find("invalid block transaction merkle root") != std::string::npos;
@@ -110,7 +112,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, acco
    signed_block_ptr b = main.produce_block_no_validation();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    const auto& packed_trx = std::get<packed_transaction>(copy_b->transactions.back().trx);
    auto signed_tx = packed_trx.get_signed_transaction();
    // Corrupt one signature
@@ -141,7 +143,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, acco
       copy_b->producer_signature = main.get_private_key(b->producer, "active").sign(sig_digest);
    }
 
-   return std::pair<signed_block_ptr, signed_block_ptr>(b, copy_b);
+   return std::pair<signed_block_ptr, signed_block_ptr>(b, signed_block::create_signed_block(std::move(copy_b)));
 }
 
 // verify that a block with a transaction with an incorrect signature, is blindly accepted from a trusted producer
@@ -380,5 +382,67 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(no_onblock_test, T, testers) { try {
 
 } FC_LOG_AND_RETHROW() }
 
+// Verify a block with invalid QC block number is rejected.
+BOOST_FIXTURE_TEST_CASE( invalid_qc_claim_block_num_test, validating_tester ) {
+   skip_validate = true;
+
+   // First we create a valid block
+   create_account("newacc"_n);
+   auto b = produce_block_no_validation();
+
+   // Make a copy of the valid block
+   auto copy_b = b->clone();
+
+   // Retrieve finality extension
+   auto fin_ext_id = finality_extension::extension_id();
+   std::optional<block_header_extension> header_fin_ext = copy_b->extract_header_extension(fin_ext_id);
+
+   // Remove finality extension from header extensions
+   auto& h_exts = copy_b->header_extensions;
+   std::erase_if(h_exts, [&](const auto& ext) {
+      return ext.first == fin_ext_id;
+   });
+
+   // Set QC claim block number to an invalid number (QC claim block number cannot be greater than previous block number)
+   auto& f_ext = std::get<finality_extension>(*header_fin_ext);
+   f_ext.qc_claim.block_num = copy_b->block_num(); // copy_b->block_num() is 1 greater than previous block number
+
+   // Add the corrupted finality extension back to header extensions
+   emplace_extension(h_exts, fin_ext_id, fc::raw::pack(f_ext));
+
+   // Re-sign the block
+   copy_b->producer_signature = get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
+
+   // Push the corrupted block. It must be rejected.
+   BOOST_REQUIRE_EXCEPTION(validate_push_block(signed_block::create_signed_block(std::move(copy_b))), fc::exception,
+                           [] (const fc::exception &e)->bool {
+                              return e.code() == invalid_qc_claim::code_value &&
+                                     e.to_detail_string().find("that is greater than the previous block number") != std::string::npos;
+                           }) ;
+}
+
+// Verify that a block with an invalid action mroot is rejected
+BOOST_FIXTURE_TEST_CASE( invalid_action_mroot_test, tester )
+{
+   // Create a block with transaction
+   create_account("newacc"_n);
+   auto b = produce_block();
+
+   // Make a copy of the block and corrupt its action mroot
+   auto copy_b = b->clone();
+   copy_b->action_mroot = digest_type::hash("corrupted");
+
+   // Re-sign the block
+   copy_b->producer_signature = get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
+
+   // Push the block containing corruptted action mroot. It should fail
+   BOOST_REQUIRE_EXCEPTION(push_block(signed_block::create_signed_block(std::move(copy_b))),
+                           fc::exception,
+                           [] (const fc::exception &e)->bool {
+                              return e.code() == block_validate_exception::code_value &&
+                                     e.to_detail_string().find("computed finality mroot") != std::string::npos &&
+                                     e.to_detail_string().find("does not match supplied finality mroot") != std::string::npos;
+                           });
+}
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -422,7 +422,7 @@ public:
     };
 
    struct get_table_rows_result {
-      vector<fc::variant> rows; ///< one row per item, either encoded as hex String or JSON object
+      fc::variants        rows; ///< one row per item, either encoded as hex String or JSON object
       bool                more = false; ///< true if last element in data is not the end and sizeof data() < limit
       string              next_key; ///< fill lower_bound with this value to fetch more rows
    };
@@ -500,7 +500,7 @@ public:
    };
 
    struct get_producers_result {
-      vector<fc::variant> rows; ///< one row per item, either encoded as hex string or JSON object
+      fc::variants        rows; ///< one row per item, either encoded as hex string or JSON object
       double              total_producer_vote_weight;
       string              more; ///< fill lower_bound with this value to fetch more rows
    };
@@ -830,7 +830,7 @@ public:
 
    using get_consensus_parameters_params = empty;
    struct get_consensus_parameters_results {
-     chain::chain_config               chain_config;
+     fc::variant                       chain_config; //filled as chain_config_v0, v1, etc depending on activated features
      std::optional<chain::wasm_config> wasm_config;
    };
    get_consensus_parameters_results get_consensus_parameters(const get_consensus_parameters_params&, const fc::time_point& deadline) const;

@@ -17,12 +17,6 @@
 
 #include <thread>
 
-namespace fc {
-   inline size_t hash_value(const fc::sha256& code_id) {
-      return boost::hash<fc::sha256>()(code_id);
-   }
-}
-
 namespace eosio { namespace chain { namespace eosvmoc {
 
 using namespace boost::multi_index;

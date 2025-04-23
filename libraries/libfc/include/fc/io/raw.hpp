@@ -207,7 +207,7 @@ namespace fc {
          auto tmp = std::make_shared<std::remove_const_t<T>>();
          fc::raw::unpack( s, *tmp );
          v = std::move(tmp);
-      }
+      } else { v.reset(); }
     } FC_RETHROW_EXCEPTIONS( warn, "std::shared_ptr<T>", ("type",fc::get_typename<T>::name()) ) }
 
     template<typename Stream> inline void pack( Stream& s, const signed_int& v ) {
@@ -285,6 +285,7 @@ namespace fc {
     { try {
       bool b; fc::raw::unpack( s, b );
       if( b ) { v = T(); fc::raw::unpack( s, *v ); }
+      else { v.reset(); } // in case v has already has a value
     } FC_RETHROW_EXCEPTIONS( warn, "optional<${type}>", ("type",fc::get_typename<T>::name() ) ) }
 
     // std::vector<char>
@@ -635,6 +636,7 @@ namespace fc {
     inline void unpack( Stream& s, std::list<T>& value ) {
       unsigned_int size; fc::raw::unpack( s, size );
       FC_ASSERT( size.value <= MAX_NUM_ARRAY_ELEMENTS );
+      value.clear();
       while( size.value-- ) {
          T i;
          fc::raw::unpack( s, i );
@@ -658,6 +660,7 @@ namespace fc {
     inline void unpack( Stream& s, std::set<T>& value ) {
       unsigned_int size; fc::raw::unpack( s, size );
       FC_ASSERT( size.value <= MAX_NUM_ARRAY_ELEMENTS );
+      value.clear();
       for( uint64_t i = 0; i < size.value; ++i )
       {
         T tmp;

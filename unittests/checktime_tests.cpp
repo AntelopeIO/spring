@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    BOOST_REQUIRE_EQUAL( b->transactions.size(), 1 );
 
    // Make a copy of the valid block and swicth the checktime_pass transaction with checktime_failure
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    auto& act = signed_tx.actions.back();
    constexpr chain::name checktime_fail_n{WASM_TEST_ACTION("test_checktime", "checktime_failure")};
@@ -126,13 +126,24 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    // Re-sign the block
    copy_b->producer_signature = t.get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
 
-   std::thread th( [&c=*other.control]() {
-      std::this_thread::sleep_for( std::chrono::milliseconds(50) );
-      c.interrupt_apply_block_transaction();
+   std::promise<bool> block_start_promise;
+   std::future<bool> block_start_future = block_start_promise.get_future();
+   other.control->accepted_block_header().connect([&](const block_signal_params& t) {
+      block_start_promise.set_value(true);
+   });
+
+   std::thread th( [&c=*other.control, &block_start_future]() {
+      // wait for controller to accept block
+      if (block_start_future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+         elog("Timed out waiting for block start");
+         BOOST_FAIL("Timed out waiting for block start");
+      }
+      std::this_thread::sleep_for( std::chrono::milliseconds(100) );
+      c.interrupt_transaction(controller::interrupt_t::apply_block_trx);
    } );
 
    // apply block, caught in an "infinite" loop
-   BOOST_CHECK_EXCEPTION( other.push_block(copy_b), fc::exception,
+   BOOST_CHECK_EXCEPTION( other.push_block(signed_block::create_signed_block(std::move(copy_b))), fc::exception,
                           [](const fc::exception& e) { return e.code() == interrupt_exception::code_value; } );
 
    th.join();
@@ -466,12 +477,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_hashing_fail, T, validating_testers) { t
 	chain.produce_block();
 
         BOOST_TEST( !chain.is_code_cached("testapi"_n) );
-
-        //hit deadline exception, but cache the contract
-        BOOST_CHECK_EXCEPTION( call_test( chain, test_api_action<WASM_TEST_ACTION("test_checktime", "checktime_sha1_failure")>{},
-                                          5000, 8, 8 ),
-                               deadline_exception, is_deadline_exception );
-
+        //run a simple action to cache the contract
+        CALL_TEST_FUNCTION(chain, "test_checktime", "checktime_pass", {});
         BOOST_TEST( chain.is_code_cached("testapi"_n) );
 
         //the contract should be cached, now we should get deadline_exception because of calls to checktime() from hashing function

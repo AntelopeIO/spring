@@ -7,21 +7,14 @@ namespace eosio {
    using namespace chain;
    using namespace fc;
 
+   constexpr auto message_header_size = sizeof(uint32_t);
+
    struct chain_size_message {
       uint32_t                   last_irreversible_block_num = 0;
       block_id_type              last_irreversible_block_id;
       uint32_t                   head_num = 0;
       block_id_type              head_id;
    };
-
-   // Longest domain name is 253 characters according to wikipedia.
-   // Addresses include ":port" where max port is 65535, which adds 6 chars.
-   // Addresses may also include ":bitrate" with suffix and separators, which adds 30 chars,
-   // for the maximum comma-separated value that fits in a size_t expressed in decimal plus a suffix.
-   // We also add our own extentions of "[:trx|:blk] - xxxxxxx", which adds 14 chars, total= 273.
-   // Allow for future extentions as well, hence 384.
-   constexpr size_t max_p2p_address_length = 253 + 6 + 30;
-   constexpr size_t max_handshake_str_length = 384;
 
    struct handshake_message {
       uint16_t                   network_version = 0; ///< incremental value above a computed base
@@ -42,7 +35,7 @@ namespace eosio {
    };
 
 
-  enum go_away_reason {
+  enum class go_away_reason {
     no_reason, ///< no reason to go away
     self, ///< the connection is to itself
     duplicate, ///< the connection is redundant
@@ -59,25 +52,24 @@ namespace eosio {
 
   constexpr auto reason_str( go_away_reason rsn ) {
     switch (rsn ) {
-    case no_reason : return "no reason";
-    case self : return "self connect";
-    case duplicate : return "duplicate";
-    case wrong_chain : return "wrong chain";
-    case wrong_version : return "wrong version";
-    case forked : return "chain is forked";
-    case unlinkable : return "unlinkable block received";
-    case bad_transaction : return "bad transaction";
-    case validation : return "invalid block";
-    case authentication : return "authentication failure";
-    case fatal_other : return "some other failure";
-    case benign_other : return "some other non-fatal condition, possibly unknown block";
+    case go_away_reason::no_reason : return "no reason";
+    case go_away_reason::self : return "self connect";
+    case go_away_reason::duplicate : return "duplicate";
+    case go_away_reason::wrong_chain : return "wrong chain";
+    case go_away_reason::wrong_version : return "wrong version";
+    case go_away_reason::forked : return "chain is forked";
+    case go_away_reason::unlinkable : return "unlinkable block received";
+    case go_away_reason::bad_transaction : return "bad transaction";
+    case go_away_reason::validation : return "invalid block";
+    case go_away_reason::authentication : return "authentication failure";
+    case go_away_reason::fatal_other : return "some other failure";
+    case go_away_reason::benign_other : return "some other non-fatal condition, possibly unknown block";
     default : return "some crazy reason";
     }
   }
 
   struct go_away_message {
-    go_away_message(go_away_reason r = no_reason) : reason(r), node_id() {}
-    go_away_reason reason{no_reason};
+    go_away_reason reason{go_away_reason::no_reason};
     fc::sha256 node_id; ///< for duplicate notification
   };
 
@@ -112,6 +104,7 @@ namespace eosio {
     uint32_t       pending{0};
     vector<T>      ids;
     bool           empty () const { return (mode == none || ids.empty()); }
+    bool operator==(const select_ids&) const noexcept = default;
   };
 
   using ordered_txn_ids = select_ids<transaction_id_type>;
@@ -134,6 +127,32 @@ namespace eosio {
       uint32_t end_block{0};
    };
 
+   struct block_nack_message {
+      block_id_type id;
+   };
+
+   struct block_notice_message {
+      block_id_type previous;
+      block_id_type id;
+   };
+
+   struct gossip_bp_peers_message {
+      struct bp_peer {
+         eosio::name               producer_name;
+         std::string               server_address;
+         // sig over [producer_name, server_address]
+         signature_type            sig;
+
+         digest_type digest() const;
+         bool operator==(const bp_peer&) const = default;
+         bool operator<(const bp_peer& rhs) const {
+            return std::tie(producer_name, server_address) < std::tie(rhs.producer_name, rhs.server_address);
+         }
+      };
+
+      std::vector<bp_peer> peers;
+   };
+
    using net_message = std::variant<handshake_message,
                                     chain_size_message,
                                     go_away_message,
@@ -143,7 +162,39 @@ namespace eosio {
                                     sync_request_message,
                                     signed_block,
                                     packed_transaction,
-                                    vote_message>;
+                                    vote_message,
+                                    block_nack_message,
+                                    block_notice_message,
+                                    gossip_bp_peers_message>;
+
+   // see protocol net_message
+   enum class msg_type_t {
+      handshake_message      = fc::get_index<net_message, handshake_message>(),
+      chain_size_message     = fc::get_index<net_message, chain_size_message>(),
+      go_away_message        = fc::get_index<net_message, go_away_message>(),
+      time_message           = fc::get_index<net_message, time_message>(),
+      notice_message         = fc::get_index<net_message, notice_message>(),
+      request_message        = fc::get_index<net_message, request_message>(),
+      sync_request_message   = fc::get_index<net_message, sync_request_message>(),
+      signed_block           = fc::get_index<net_message, signed_block>(),
+      packed_transaction     = fc::get_index<net_message, packed_transaction>(),
+      vote_message           = fc::get_index<net_message, vote_message>(),
+      block_nack_message     = fc::get_index<net_message, block_nack_message>(),
+      block_notice_message   = fc::get_index<net_message, block_notice_message>(),
+      gossip_bp_peers_message= fc::get_index<net_message, gossip_bp_peers_message>(),
+      unknown
+   };
+
+   constexpr uint32_t to_index(msg_type_t net_msg) {
+      static_assert( std::variant_size_v<net_message> == static_cast<uint32_t>(msg_type_t::unknown));
+      return static_cast<uint32_t>(net_msg);
+   }
+
+   constexpr msg_type_t to_msg_type_t(size_t v) {
+      static_assert( std::variant_size_v<net_message> == static_cast<size_t>(msg_type_t::unknown));
+      EOS_ASSERT(v < to_index(msg_type_t::unknown), plugin_exception, "Invalid net_message index: ${v}", ("v", v));
+      return static_cast<msg_type_t>(v);
+   }
 
 } // namespace eosio
 
@@ -162,6 +213,10 @@ FC_REFLECT( eosio::time_message, (org)(rec)(xmt)(dst) )
 FC_REFLECT( eosio::notice_message, (known_trx)(known_blocks) )
 FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
+FC_REFLECT( eosio::block_nack_message, (id) )
+FC_REFLECT( eosio::block_notice_message, (previous)(id) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(sig) )
+FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
 /**
  *

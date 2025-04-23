@@ -91,7 +91,6 @@ namespace eosio::chain {
    {
       assert(b);
       assert(active_proposer_policy);
-      auto packed_blk = fc::raw::pack(*b);
       auto finality_data = fc::raw::pack(fd);
       auto packed_proposer_policy = fc::raw::pack(*active_proposer_policy);
       auto packed_finalizer_policy = fc::raw::pack(active_finalizer_policy);
@@ -100,7 +99,7 @@ namespace eosio::chain {
          ("id", id)
          ("num", b->block_num())
          ("lib", lib)
-         ("blk", fc::to_hex(packed_blk))
+         ("blk", fc::to_hex(b->packed_signed_block()))
          ("fd", fc::to_hex(finality_data))
          ("pp", fc::to_hex(packed_proposer_policy))
          ("fp", fc::to_hex(packed_finalizer_policy))

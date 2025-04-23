@@ -20,12 +20,13 @@ namespace eosio::chain {
          void start(fc::time_point tp);
          void stop();
 
+         platform_timer::state_t timer_state() const { return _timer.timer_state(); }
+
          /* Sets a callback for when timer expires. Be aware this could might fire from a signal handling context and/or
             on any particular thread. Only a single callback can be registered at once; trying to register more will
             result in an exception. Use nullptr to disable a previously set callback. */
          void set_expiration_callback(void(*func)(void*), void* user);
 
-         std::atomic_bool& expired;
       private:
          platform_timer& _timer;
 
@@ -113,8 +114,8 @@ namespace eosio::chain {
                               const transaction_id_type& trx_id, // trx_id diff than t.id() before replace_deferred
                               transaction_checktime_timer&& timer,
                               action_digests_t::store_which_t sad,
-                              fc::time_point start = fc::time_point::now(),
-                              transaction_metadata::trx_type type = transaction_metadata::trx_type::input);
+                              fc::time_point start,
+                              transaction_metadata::trx_type type);
          ~transaction_context();
 
          void init_for_implicit_trx();
@@ -161,6 +162,8 @@ namespace eosio::chain {
          bool is_dry_run()const { return trx_type == transaction_metadata::trx_type::dry_run; };
          bool is_read_only()const { return trx_type == transaction_metadata::trx_type::read_only; };
          bool is_transient()const { return trx_type == transaction_metadata::trx_type::read_only || trx_type == transaction_metadata::trx_type::dry_run; };
+         bool is_implicit()const { return trx_type == transaction_metadata::trx_type::implicit; };
+         bool is_scheduled()const { return trx_type == transaction_metadata::trx_type::scheduled; };
          bool has_undo()const;
 
          int64_t set_proposed_producers(vector<producer_authority> producers);

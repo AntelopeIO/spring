@@ -210,9 +210,9 @@ try:
     # block number to start expecting node killed after
     preKillBlockNum=nonProdNode.getBlockNum()
     preKillBlockProducer=nonProdNode.getBlockProducerByNum(preKillBlockNum)
-    # kill at last block before defproducerl, since the block it is killed on will get propagated
+    # kill before defproducerc
     killAtProducer="defproducerb"
-    inRowCountPerProducer=12
+    inRowCountPerProducer=10 # kill before c can produce
     nonProdNode.killNodeOnProducer(producer=killAtProducer, whereInSequence=(inRowCountPerProducer-1))
 
 
@@ -303,7 +303,7 @@ try:
     killBlockNum=blockNum
     lastBlockNum=killBlockNum+(maxActiveProducers - 1)*inRowCountPerProducer+1  # allow 1st testnet group to produce just 1 more block than the 2nd
 
-    Print("Tracking the blocks from the divergence till there are 10*12 blocks on one chain and 10*12+1 on the other, from block %d to %d" % (killBlockNum, lastBlockNum))
+    Print("Tracking the blocks from the divergence till there are 2*12 blocks on one chain and 2*12+1 on the other, from block %d to %d" % (killBlockNum, lastBlockNum))
 
     for blockNum in range(killBlockNum,lastBlockNum):
         blockProducer0=prodNodes[0].getBlockProducerByNum(blockNum)
@@ -356,10 +356,11 @@ try:
     while remainingChecks>0:
         if checkMatchBlock == killBlockNum and checkHead:
             checkMatchBlock = prodNodes[0].getBlockNum()
-        blockProducer0=prodNodes[0].getBlockProducerByNum(checkMatchBlock)
-        blockProducer1=prodNodes[1].getBlockProducerByNum(checkMatchBlock)
+        # do not exit on error as fork switching can make block not available temporarily
+        blockProducer0=prodNodes[0].getBlockProducerByNum(checkMatchBlock, exitOnError=False)
+        blockProducer1=prodNodes[1].getBlockProducerByNum(checkMatchBlock, exitOnError=False)
         match=blockProducer0==blockProducer1
-        if match:
+        if match and blockProducer0 is not None:
             if checkHead:
                 forkResolved=True
                 break

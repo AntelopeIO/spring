@@ -14,8 +14,7 @@
 namespace eosio::chain {
 
    transaction_checktime_timer::transaction_checktime_timer(platform_timer& timer)
-         : expired(timer.expired), _timer(timer) {
-      expired = 0;
+         : _timer(timer) {
    }
 
    void transaction_checktime_timer::start(fc::time_point tp) {
@@ -60,11 +59,12 @@ namespace eosio::chain {
       undo();
       *trace = transaction_trace{}; // reset trace
       initialize();
+      transaction_timer.stop();
       resume_billing_timer(start);
 
       auto sw = executed_action_receipts.store_which();
       executed_action_receipts = action_digests_t{sw};
-      bill_to_accounts.clear();
+      // bill_to_accounts should only be updated in init(), not updated during transaction execution
       validate_ram_usage.clear();
    }
 
@@ -112,14 +112,20 @@ namespace eosio::chain {
       init_net_usage = initial_net_usage;
 
       // set maximum to a semi-valid deadline to allow for pause math and conversion to dates for logging
-      if( block_deadline == fc::time_point::maximum() ) block_deadline = start + fc::hours(24*7*52);
+      const fc::time_point far_future_time = start + fc::days(7*52);
+      if( block_deadline == fc::time_point::maximum() ) block_deadline = far_future_time;
 
       const auto& cfg = control.get_global_properties().configuration;
       auto& rl = control.get_mutable_resource_limits_manager();
 
       net_limit = rl.get_block_net_limit();
 
-      objective_duration_limit = fc::microseconds( rl.get_block_cpu_limit() );
+      if (is_read_only() && !control.is_write_window()) { // if in write window then honor objective block limit
+         // this is not objective, but plays the same role for read-only trxs
+         objective_duration_limit = block_deadline - start; // read-only window size
+      } else {
+         objective_duration_limit = fc::microseconds( rl.get_block_cpu_limit() );
+      }
       _deadline = start + objective_duration_limit;
 
       // Possibly lower net_limit to the maximum net usage a transaction is allowed to be billed
@@ -251,7 +257,10 @@ namespace eosio::chain {
          _deadline = block_deadline;
       }
 
-      transaction_timer.start( _deadline );
+      if(_deadline < far_future_time)
+         transaction_timer.start( _deadline );
+      else
+         transaction_timer.start( fc::time_point::maximum() );  //avoids overhead in starting the timer at all
       checktime(); // Fail early if deadline has already been exceeded
       is_initialized = true;
    }
@@ -441,10 +450,12 @@ namespace eosio::chain {
    void transaction_context::squash() {
       if (undo_session) undo_session->squash();
       control.apply_trx_block_context(trx_blk_context);
+      transaction_timer.stop();
    }
 
    void transaction_context::undo() {
       if (undo_session) undo_session->undo();
+      transaction_timer.stop();
    }
 
    void transaction_context::check_net_usage()const {
@@ -489,11 +500,12 @@ namespace eosio::chain {
    }
 
    void transaction_context::checktime()const {
-      if(BOOST_LIKELY(transaction_timer.expired == false))
+      platform_timer::state_t expired = transaction_timer.timer_state();
+      if(BOOST_LIKELY(expired == platform_timer::state_t::running))
          return;
 
       auto now = fc::time_point::now();
-      if (explicit_billed_cpu_time && block_deadline > now) {
+      if (expired == platform_timer::state_t::interrupted) {
          EOS_THROW( interrupt_exception, "interrupt signaled, ran ${bt}us, start ${s}",
                     ("bt", now - pseudo_start)("s", start) );
       } else if( explicit_billed_cpu_time || deadline_exception_code == deadline_exception::code_value ) {

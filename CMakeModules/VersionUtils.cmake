@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.5)
-
 function(GENERATE_VERSION_METADATA)
    # Execute `git` to grab the corresponding data.
    execute_process(

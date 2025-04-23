@@ -114,7 +114,7 @@ block_state::block_state(const block_header_state&                bhs,
    , cached_trxs(std::move(trx_metas))
    , action_mroot(action_mroot)
 {
-   mutable_signed_block_ptr new_block = std::make_shared<signed_block>(signed_block_header{bhs.header});
+   mutable_block_ptr new_block = signed_block::create_mutable_block(signed_block_header{bhs.header});
    new_block->transactions = std::move(trx_receipts);
 
    if( qc ) {
@@ -125,7 +125,7 @@ block_state::block_state(const block_header_state&                bhs,
 
    sign(*new_block, block_id, signer, valid_block_signing_authority);
 
-   block = std::move(new_block);
+   block = signed_block::create_signed_block(std::move(new_block));
 }
 
 // Used for transition from dpos to Savanna.

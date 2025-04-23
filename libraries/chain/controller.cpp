@@ -33,6 +33,7 @@
 #include <eosio/chain/qc.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/vote_processor.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/chainbase.hpp>
 #include <eosio/vm/allocator.hpp>
@@ -231,7 +232,7 @@ struct assembled_block {
       block_id_type                     id;
       pending_block_header_state_legacy pending_block_header_state;
       deque<transaction_metadata_ptr>   trx_metas;
-      mutable_signed_block_ptr          unsigned_block;
+      mutable_block_ptr                 unsigned_block;
 
       // if the unsigned_block pre-dates block-signing authorities this may be present.
       std::optional<producer_authority_schedule> new_producer_authority_cache;
@@ -728,7 +729,7 @@ struct building_block {
                }
 
                // in dpos, we create a signed_block here. In IF mode, we do it later (when we are ready to sign it)
-               auto block_ptr = std::make_shared<signed_block>(bb.pending_block_header_state.make_block_header(
+               auto block_ptr = signed_block::create_mutable_block(bb.pending_block_header_state.make_block_header(
                   transaction_mroot, action_mroot, bb.new_pending_producer_schedule, std::move(new_finalizer_policy),
                   vector<digest_type>(bb.new_protocol_feature_activations), pfs));
 
@@ -990,7 +991,7 @@ struct controller_impl {
    // persist chain_head after vote_processor shutdown, avoids concurrent access, after chain_head & conf since this uses them
    fc::scoped_exit<std::function<void()>> write_chain_head = [&]() { chain_head.write(conf.state_dir / config::chain_head_filename); };
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
-   bool                            replaying = false;
+   std::atomic<bool>               replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
    block_num_type                  pause_at_block_num = std::numeric_limits<block_num_type>::max();
    const db_read_mode              read_mode;
@@ -1009,6 +1010,7 @@ struct controller_impl {
    std::atomic<bool>               writing_snapshot = false;
    std::atomic<bool>               applying_block = false;
    platform_timer&                 main_thread_timer;
+   peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
@@ -1272,6 +1274,57 @@ struct controller_impl {
       apply_handlers[receiver][make_pair(contract,action)] = v;
    }
 
+   void set_trx_expiration(signed_transaction& trx) {
+      if (is_builtin_activated(builtin_protocol_feature_t::no_duplicate_deferred_id)) {
+         trx.expiration       = time_point_sec();
+         trx.ref_block_num    = 0;
+         trx.ref_block_prefix = 0;
+      } else {
+         trx.expiration = time_point_sec{
+            pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
+         trx.set_reference_block(chain_head.id());
+      }
+   }
+
+   getpeerkeys_res_t get_top_producer_keys() {
+      try {
+         auto get_getpeerkeys_transaction = [&]() {
+            auto perms = vector<permission_level>{};
+            action act(perms, config::system_account_name, "getpeerkeys"_n, {});
+            signed_transaction trx;
+
+            trx.actions.emplace_back(std::move(act));
+            set_trx_expiration(trx);
+            return trx;
+         };
+
+         auto metadata = transaction_metadata::create_no_recover_keys(
+            std::make_shared<packed_transaction>(get_getpeerkeys_transaction()),
+            transaction_metadata::trx_type::read_only);
+
+         // allow a max of 20ms for getpeerkeys
+         auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::milliseconds(20), 0, false, 0);
+
+         if( trace->except_ptr )
+            std::rethrow_exception(trace->except_ptr);
+         if( trace->except)
+            throw *trace->except;
+         getpeerkeys_res_t res;
+         if (!trace->action_traces.empty()) {
+            const auto& act_trace = trace->action_traces[0];
+            const auto& retval = act_trace.return_value;
+            if (!retval.empty()) {
+               // in some tests, the system contract is not set and the return value is empty.
+               fc::datastream<const char*> ds(retval.data(), retval.size());
+               fc::raw::unpack(ds, res);
+            }
+         }
+
+         return res;
+      }
+      FC_LOG_AND_RETHROW()
+   }
+
    controller_impl( const controller::config& cfg, controller& s, protocol_feature_set&& pfs, const chain_id_type& chain_id )
    :rnh(),
     self(s),
@@ -1321,7 +1374,6 @@ struct controller_impl {
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
       });
-
 
 #define SET_APP_HANDLER( receiver, contract, action) \
    set_apply_handler( account_name(#receiver), account_name(#contract), action_name(#action), \
@@ -1498,7 +1550,7 @@ struct controller_impl {
       }
    }
 
-   void log_irreversible() {
+   controller::apply_blocks_result log_irreversible() {
       EOS_ASSERT( fork_db_has_root(), fork_database_exception, "fork database not properly initialized" );
 
       const std::optional<block_id_type> log_head_id = blog.head_id();
@@ -1538,9 +1590,10 @@ struct controller_impl {
 
       const block_id_type new_lib_id = pending_lib_id();
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
+      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
 
       if( new_lib_num <= lib_num )
-         return;
+         return result;
 
       const fc::time_point start = fc::time_point::now();
 
@@ -1555,7 +1608,7 @@ struct controller_impl {
          // pending LIB. If the pending LIB not found on the head branch then fetch_branch returns an empty branch.
          // Otherwise fetch_branch will return from chain_head to root iff chain_head on pending LIB branch.
          auto branch = new_lib_num <= head_num ? fork_db.fetch_branch(head_id, new_lib_id) : fork_db.fetch_branch(new_lib_id, head_id);
-         try {
+         try { try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
                // and therefore have not been validated.
@@ -1563,31 +1616,13 @@ struct controller_impl {
                // irreversible. Instead, this moves irreversible as much as possible and allows the next maybe_switch_forks call to apply these
                // non-validated blocks. After the maybe_switch_forks call (before next produced block or on next received block), irreversible
                // can then move forward on the then validated blocks.
-               // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
-               // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
-               if (irreversible_mode()) {
-                  if (!replaying && fc::time_point::now() - start > fc::milliseconds(500))
-                     return false;
-                  return true;
-               }
-               return bsp->is_valid();
+               return irreversible_mode() || bsp->is_valid();
             };
 
-            using packed_block_future = std::future<std::vector<char>>;
-            std::vector<packed_block_future> v;
-            if (!irreversible_mode()) {
-               v.reserve( branch.size() );
-               for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-                  v.emplace_back( post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } ) );
-               }
-            }
-            auto it = v.begin();
-
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-               packed_block_future f;
                if (irreversible_mode()) {
-                  f = post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } );
-                  if (apply_irreversible_block(fork_db, *bitr) != controller::apply_blocks_result::complete)
+                  result = apply_irreversible_block(fork_db, *bitr);
+                  if (result != controller::apply_blocks_result::complete)
                      break;
                }
 
@@ -1595,7 +1630,7 @@ struct controller_impl {
 
                // blog.append could fail due to failures like running out of space.
                // Do it before commit so that in case it throws, DB can be rolled back.
-               blog.append( (*bitr)->block, (*bitr)->id(), irreversible_mode() ? f.get() : it++->get() );
+               blog.append( (*bitr)->block, (*bitr)->id(), (*bitr)->block->packed_signed_block() );
 
                db.commit( (*bitr)->block_num() );
                root_id = (*bitr)->id();
@@ -1604,10 +1639,19 @@ struct controller_impl {
                   fork_db_.switch_to(fork_database::in_use_t::savanna);
                   break;
                }
+               if (irreversible_mode()) {
+                  // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run
+                  const bool more_blocks_to_process = bitr + 1 != branch.rend();
+                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start > fc::milliseconds(500)) {
+                     result = controller::apply_blocks_result::incomplete;
+                     break;
+                  }
+               }
             }
-         } catch( const std::exception& e ) {
+         } FC_CAPTURE_AND_RETHROW() } catch ( const fc::exception& e ) {
             try {
-               elog("Caught exception while logging irreversible: ${e}", ("e", e.what()));
+               if (e.code() != interrupt_exception::code_value)
+                  elog("Caught exception while logging irreversible: ${e}", ("e", e.to_detail_string()));
                if (root_id != fork_db.root()->id()) {
                   fork_db.advance_root(root_id);
                }
@@ -1631,6 +1675,8 @@ struct controller_impl {
       };
 
       fork_db_.apply<void>(mark_branch_irreversible);
+
+      return result;
    }
 
    void initialize_blockchain_state(const genesis_state& genesis) {
@@ -1653,7 +1699,7 @@ struct controller_impl {
       auto head = std::make_shared<block_state_legacy>();
       static_cast<block_header_state_legacy&>(*head) = genheader;
       head->activated_protocol_features = std::make_shared<protocol_feature_activation_set>(); // no activated protocol features in genesis
-      head->block = std::make_shared<signed_block>(genheader.header);
+      head->block = signed_block::create_signed_block(signed_block::create_mutable_block(genheader.header));
       chain_head = block_handle{head};
 
       db.set_revision( chain_head.block_num() );
@@ -1745,7 +1791,8 @@ struct controller_impl {
       }
       transition_legacy_branch.clear(); // not needed after replay
       auto end = fc::time_point::now();
-      ilog( "${n} irreversible blocks replayed from block log", ("n", 1 + chain_head.block_num() - start_block_num) );
+      ilog( "${n} irreversible blocks replayed from block log, chain head ${bn}",
+            ("n", 1 + chain_head.block_num() - start_block_num)("bn", chain_head.block_num()) );
       ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
             ("n", chain_head.block_num() + 1 - start_block_num)("duration", (end-start).count()/1000000)
             ("mspb", ((end-start).count()/1000.0)/(chain_head.block_num()-start_block_num)) );
@@ -2048,7 +2095,8 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
-      fc::scoped_set_value r(replaying, true);
+      replaying = true;
+      auto replay_reset = fc::make_scoped_exit([&](){ replaying = false; });
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -2241,7 +2289,7 @@ struct controller_impl {
       // clear in case the previous call to clear did not finish in time of deadline
       clear_expired_input_transactions( fc::time_point::maximum() );
 
-      snapshot_written_row_counter row_counter(expected_snapshot_row_count());
+      snapshot_written_row_counter row_counter(expected_snapshot_row_count(), snapshot->name());
 
       snapshot->write_section<chain_snapshot_header>([this]( auto &section ){
          section.add_row(chain_snapshot_header(), db);
@@ -2628,20 +2676,14 @@ struct controller_impl {
       // Deliver onerror action containing the failed deferred transaction directly back to the sender.
       etrx.actions.emplace_back( vector<permission_level>{{gtrx.sender, config::active_name}},
                                  onerror( gtrx.sender_id, gtrx.packed_trx.data(), gtrx.packed_trx.size() ) );
-      if( is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
-         etrx.expiration = time_point_sec();
-         etrx.ref_block_num = 0;
-         etrx.ref_block_prefix = 0;
-      } else {
-         etrx.expiration = time_point_sec{pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
-         etrx.set_reference_block( chain_head.id() );
-      }
+      set_trx_expiration(etrx);
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
       transaction_checktime_timer trx_timer(timer);
       const packed_transaction trx( std::move( etrx ) );
-      transaction_context trx_context( self, trx, trx.id(), std::move(trx_timer), bb.action_receipt_digests().store_which(), start );
+      transaction_context trx_context( self, trx, trx.id(), std::move(trx_timer), bb.action_receipt_digests().store_which(),
+                                       start, transaction_metadata::trx_type::implicit );
 
       if (auto dm_logger = get_deep_mind_logger(trx_context.is_transient())) {
          dm_logger->on_onerror(etrx);
@@ -2687,6 +2729,8 @@ struct controller_impl {
       } catch ( const boost::interprocess::bad_alloc& ) {
          throw;
       } catch( const fc::exception& e ) {
+         // apply_onerror for deferred trxs is implicit so interrupt oc not allowed
+         assert(e.code() != interrupt_oc_exception::code_value);
          handle_exception(e);
       } catch ( const std::exception& e ) {
          auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
@@ -2812,7 +2856,8 @@ struct controller_impl {
       auto& bb = std::get<building_block>(pending->_block_stage);
 
       transaction_checktime_timer trx_timer( timer );
-      transaction_context trx_context( self, *trx->packed_trx(), gtrx.trx_id, std::move(trx_timer), bb.action_receipt_digests().store_which() );
+      transaction_context trx_context( self, *trx->packed_trx(), gtrx.trx_id, std::move(trx_timer), bb.action_receipt_digests().store_which(),
+                                       start, transaction_metadata::trx_type::scheduled );
       trx_context.leeway =  fc::microseconds(0); // avoid stealing cpu resource
       trx_context.block_deadline = block_deadline;
       trx_context.max_transaction_time_subjective = max_transaction_time;
@@ -3077,8 +3122,10 @@ struct controller_impl {
             } else {
                transaction_receipt_header r;
                r.status = transaction_receipt::executed;
-               r.cpu_usage_us = trx_context.billed_cpu_time_us;
-               r.net_usage_words = trace->net_usage / 8;
+               if (!trx->is_read_only()) {
+                  r.cpu_usage_us = trx_context.billed_cpu_time_us;
+                  r.net_usage_words = trace->net_usage / 8;
+               }
                trace->receipt = r;
             }
 
@@ -3195,6 +3242,11 @@ struct controller_impl {
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
+      // limit to complete type to avoid multiple calls per block number due to speculative blocks
+      if (pending->_block_status == controller::block_status::complete) {
+         update_peer_keys();
+      }
+
       transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
@@ -3305,6 +3357,10 @@ struct controller_impl {
             onblock_trace = push_transaction( onbtrx, fc::time_point::maximum(), fc::microseconds::maximum(),
                                       gpo.configuration.min_transaction_cpu_usage, true, 0 );
             if( onblock_trace->except ) {
+               if (onblock_trace->except->code() == interrupt_exception::code_value) {
+                  ilog("Interrupt of onblock ${bn}", ("bn", chain_head.block_num() + 1));
+                  throw *onblock_trace->except;
+               }
                wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
                     ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
             }
@@ -3318,10 +3374,12 @@ struct controller_impl {
             wlog( "on block transaction failed due to controller_emit_signal_exception: ${e}", ("e", e.to_detail_string()) );
             throw;
          } catch( const fc::exception& e ) {
-            wlog( "on block transaction failed, but shouldn't impact block generation, system contract needs update" );
+            if (e.code() == interrupt_exception::code_value)
+               throw;
+            wlog( "on block transaction failed due to unexpected fc::exception" );
             edump((e.to_detail_string()));
          } catch( const std::exception& e ) {
-            wlog( "on block transaction failed due to unexpected exception" );
+            wlog( "on block transaction failed due to unexpected std::exception" );
             edump((e.what()));
          } catch( ... ) {
             elog( "on block transaction failed due to unknown exception" );
@@ -3332,8 +3390,23 @@ struct controller_impl {
       }
 
       guard_pending.cancel();
+
       return onblock_trace;
    } /// start_block
+
+   void update_peer_keys() {
+      // if syncing or replaying old blocks don't bother updating peer keys
+      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+         return;
+
+      try {
+         auto block_num = chain_head.block_num() + 1;
+         if (peer_keys_db.should_update(block_num)) { // update once/minute
+            // update peer public keys from chainbase db using a readonly trx
+            peer_keys_db.update_peer_keys(block_num, get_top_producer_keys());
+         }
+      } FC_LOG_AND_DROP()
+   }
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
    {
@@ -3520,7 +3593,7 @@ struct controller_impl {
       if (s == controller::block_status::incomplete) {
          const auto& new_b = chain_head.block();
          ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-              "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu} us, elapsed: ${et} us, producing time: ${tt} us]",
+              "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu} us, elapsed: ${et} us, producing time: ${tt} us]",
               ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
               ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())
               ("confs", new_b->is_proper_svnn_block() ? "" : ", confirmed: " + std::to_string(new_b->confirmed))
@@ -3715,6 +3788,9 @@ struct controller_impl {
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
+            applying_block = true;
+            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
+
             const signed_block_ptr& b = bsp->block;
             fc::scoped_set_value prod_light_validation(trusted_producer_light_validation, is_trusted_producer(b->producer));
 
@@ -3771,9 +3847,6 @@ struct controller_impl {
                   }
                }
             }
-
-            applying_block = true;
-            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
 
             transaction_trace_ptr trace;
 
@@ -3962,7 +4035,7 @@ struct controller_impl {
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
    std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b,
-                                                             const block_header_state& prev ) {
+                                                             const block_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -4056,6 +4129,20 @@ struct controller_impl {
       EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc, block_validate_exception,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+
+      // `valid` structure can be modified while this function is running on net thread.
+      // Use is_valid() instead. It uses atomic `validated` and when it is true, `valid`
+      // has been constructed.
+      if (prev.is_valid()) {
+         assert(prev.valid);
+
+         // compute finality mroot using previous block state and new qc claim
+         auto        computed_finality_mroot = prev.get_finality_mroot_claim(new_qc_claim);
+         const auto& supplied_finality_mroot  = b->action_mroot;
+         EOS_ASSERT( computed_finality_mroot == supplied_finality_mroot, block_validate_exception,
+                     "computed finality mroot (${computed}) does not match supplied finality mroot ${supplied} by header extension. Block number: ${b}, block id: ${id}",
+                     ("computed", computed_finality_mroot)("supplied", supplied_finality_mroot)("b", block_num)("id", id) );
+      }
 
       return std::optional{qc_proof};
    }
@@ -4227,9 +4314,12 @@ struct controller_impl {
       EOS_ASSERT( b, block_validate_exception, "null block" );
 
       auto f = [&](auto& fork_db) -> controller::accepted_block_result {
+         if (auto bsp = fork_db.get_block(id, include_root_t::yes))
+            return controller::accepted_block_result{.add_result = fork_db_add_t::duplicate, .block{std::optional<block_handle>{std::move(bsp)}}};
          // previous not found, means it is unlinkable
          auto prev = fork_db.get_block( b->previous, include_root_t::yes );
-         if( !prev ) return {};
+         if( !prev )
+            return controller::accepted_block_result{.add_result = fork_db_add_t::failure, .block{}};
 
          return create_block_state_i( fork_db, id, b, *prev );
       };
@@ -4362,9 +4452,9 @@ struct controller_impl {
             return maybe_apply_blocks( cb, trx_lookup );
          }
 
-         log_irreversible();
+         auto result = log_irreversible();
          transition_to_savanna_if_needed();
-         return should_pause() ? controller::apply_blocks_result::paused : controller::apply_blocks_result::complete;
+         return result;
       } catch (fc::exception& e) {
          if (e.code() != interrupt_exception::code_value) {
             wlog("${d}", ("d",e.to_detail_string()));
@@ -4389,9 +4479,13 @@ struct controller_impl {
          if( switch_fork ) {
             auto head_fork_comp_str =
                block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
-            ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                 ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+            ilog("switching forks from ${chid} (block number ${chn} ${cp}) ${c} to ${nhid} (block number ${nhn} ${np}) ${n}",
+                 ("chid", chain_head.id())("chn", chain_head.block_num())("cp", chain_head.producer())
+                 ("nhid", new_head->id())("nhn", new_head->block_num())("np", new_head->producer())
                  ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
+            if (chain_head.block_num() == new_head->block_num() && chain_head.producer() == new_head->producer()) {
+               wlog("${p} double produced block ${n}", ("p", new_head->producer())("n", new_head->block_num()));
+            }
 
             // not possible to log transaction specific info when switching forks
             if (auto dm_logger = get_deep_mind_logger(false)) {
@@ -4505,8 +4599,10 @@ struct controller_impl {
          }
 
          // irreversible can change even if block not applied to head, integrated qc can move LIB
-         log_irreversible();
+         auto log_result = log_irreversible();
          transition_to_savanna_if_needed();
+         if (log_result != controller::apply_blocks_result::complete)
+            result = log_result;
       };
 
       fork_db_.apply<void>(do_apply_blocks);
@@ -4524,13 +4620,23 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_apply_block_transaction() {
-      // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
-      // have limited run time already. This is to allow killing a long-running transaction in a block being
-      // validated.
-      if (applying_block) {
-         ilog("Interrupting apply block");
-         main_thread_timer.expire_now();
+   void interrupt_transaction(controller::interrupt_t interrupt) {
+      // Do not interrupt during replay. ctrl-c during replay is handled at block boundaries.
+      // Interrupt both speculative trxs and trxs while applying a block.
+      // This is to allow killing a long-running transaction in a block being validated during apply block.
+      // This also allows killing a trx when a block is received to prioritize block validation.
+      if (!replaying) {
+         if (applying_block) {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::apply_block_trx) {
+               dlog("Interrupting apply block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         } else {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::speculative_block_trx) {
+               dlog("Interrupting speculative block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         }
       }
    }
 
@@ -4758,14 +4864,7 @@ struct controller_impl {
 
       signed_transaction trx;
       trx.actions.emplace_back(std::move(on_block_act));
-      if( is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
-         trx.expiration = time_point_sec();
-         trx.ref_block_num = 0;
-         trx.ref_block_prefix = 0;
-      } else {
-         trx.expiration = time_point_sec{pending_block_time() + fc::microseconds(999'999)}; // Round up to nearest second to avoid appearing expired
-         trx.set_reference_block( chain_head.id() );
-      }
+      set_trx_expiration(trx);
 
       return trx;
    }
@@ -5308,8 +5407,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_apply_block_transaction() {
-   my->interrupt_apply_block_transaction();
+void controller::interrupt_transaction(interrupt_t interrupt) {
+   my->interrupt_transaction(interrupt);
 }
 
 boost::asio::io_context& controller::get_thread_pool() {
@@ -5524,7 +5623,7 @@ signed_block_ptr controller::fetch_block_by_number( uint32_t block_num )const  {
 
 std::vector<char> controller::fetch_serialized_block_by_number( uint32_t block_num)const  { try {
    if (signed_block_ptr b = my->fork_db_fetch_block_on_best_branch_by_num(block_num)) {
-      return fc::raw::pack(*b);
+      return b->packed_signed_block();
    }
 
    return my->blog.read_serialized_block_by_num(block_num);
@@ -5759,6 +5858,22 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
+void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+   my->peer_keys_db.set_active(std::move(configured_bp_peers));
+}
+
+std::optional<peer_info_t> controller::get_peer_info(name n) const {
+   return my->peer_keys_db.get_peer_info(n);
+}
+
+bool controller::configured_peer_keys_updated() {
+   return my->peer_keys_db.configured_peer_keys_updated();
+}
+
+getpeerkeys_res_t controller::get_top_producer_keys() {
+   return my->get_top_producer_keys();
+}
+
 db_read_mode controller::get_read_mode()const {
    return my->read_mode;
 }
@@ -5847,8 +5962,8 @@ void controller::validate_tapos( const transaction& trx )const { try {
 
    //Verify TaPoS block summary has correct ID prefix, and that this block's time is not past the expiration
    EOS_ASSERT(trx.verify_reference_block(tapos_block_summary.block_id), invalid_ref_block_exception,
-              "Transaction's reference block did not match. Is this transaction from a different fork?",
-              ("tapos_summary", tapos_block_summary));
+              "Transaction's reference block ${rb} did not match ${bs}. Is this transaction from a different fork?",
+              ("rb", trx.ref_block_num)("bs", tapos_block_summary.block_id));
 } FC_CAPTURE_AND_RETHROW() }
 
 void controller::validate_db_available_size() const {
@@ -6108,6 +6223,10 @@ bool controller::is_write_window() const {
 
 void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+}
+
+platform_timer& controller::get_thread_local_timer() {
+    return my->timer;
 }
 
 void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {

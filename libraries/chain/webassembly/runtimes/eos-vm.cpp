@@ -29,7 +29,8 @@ namespace {
         guard(transaction_checktime_timer& timer, F&& func)
            : _timer(timer), _func(std::forward<F>(func)) {
            _timer.set_expiration_callback(&callback, this);
-           if(_timer.expired) {
+           platform_timer::state_t expired = _timer.timer_state();
+           if(expired == platform_timer::state_t::timed_out || expired == platform_timer::state_t::interrupted) {
               _func(); // it's harmless if _func is invoked twice
            }
         }

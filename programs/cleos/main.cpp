@@ -679,19 +679,32 @@ void print_result( const fc::variant& result ) { try {
          }
 
          cerr << status << " transaction: " << transaction_id << "  ";
-         if( net < 0 ) {
-            cerr << "<unknown>";
+         if (!tx_read) {
+            if( net < 0 ) {
+               cerr << "<unknown>";
+            } else {
+               cerr << net;
+            }
+            cerr << " bytes  ";
+            if( cpu < 0 ) {
+               cerr << "<unknown>";
+            } else {
+               cerr << cpu;
+            }
+            cerr << " us\n";
          } else {
-            cerr << net;
+            int64_t elapsed = -1;
+            if (processed.get_object().contains( "elapsed" )) {
+               elapsed = processed["elapsed"].as_int64();
+            }
+            cerr << " elapsed ";
+            if (elapsed < 0) {
+               cerr << "<unknown>";
+            } else {
+               cerr << elapsed;
+            }
+            cerr << " us\n";
          }
-         cerr << " bytes  ";
-         if( cpu < 0 ) {
-            cerr << "<unknown>";
-         } else {
-            cerr << cpu;
-         }
-
-         cerr << " us\n";
 
          if( status == "failed" ) {
             auto soft_except = processed["except"].as<std::optional<fc::exception>>();
@@ -703,7 +716,8 @@ void print_result( const fc::variant& result ) { try {
             for( const auto& a : actions ) {
                print_action_tree( a );
             }
-            wlog( "\rwarning: transaction executed locally, but may not be confirmed by the network yet" );
+            if (!tx_read && !tx_dry_run)
+               wlog( "\rwarning: transaction executed locally, but may not be confirmed by the network yet" );
          }
       } else {
          cerr << fc::json::to_pretty_string( result ) << endl;
@@ -2781,7 +2795,7 @@ int main( int argc, char** argv ) {
 
    wallet_url = default_wallet_url;
 
-   CLI::App app{"Command Line Interface to EOSIO Client"};
+   CLI::App app{"Command Line Interface to Spring Client"};
 
    // custom leap formatter
    auto fmt = std::make_shared<CLI::SpringFormatter>();
@@ -3933,6 +3947,7 @@ int main( int argc, char** argv ) {
    actionsSubcommand->add_option("action", action,
                                  localized("A JSON string or filename defining the action to execute on the contract"))->required()->capture_default_str();
    actionsSubcommand->add_option("data", data, localized("The arguments to the contract"))->required();
+   actionsSubcommand->add_flag("--dry-run", tx_dry_run, localized("Specify an action is dry-run"));
    actionsSubcommand->add_flag("--read", tx_read, localized("Specify an action is read-only"));
 
    add_standard_transaction_options_plus_signing(actionsSubcommand);

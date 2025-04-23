@@ -120,7 +120,7 @@ std::istream& operator>>(std::istream& in, wasm_interface::vm_type& runtime) {
       runtime = eosio::chain::wasm_interface::vm_type::eos_vm;
    else if (s == "eos-vm-jit")
       runtime = eosio::chain::wasm_interface::vm_type::eos_vm_jit;
-   else if (s == "eos-vm-oc")
+   else if (s == "eos-vm-oc-forced")
       runtime = eosio::chain::wasm_interface::vm_type::eos_vm_oc;
    else
       in.setstate(std::ios_base::failbit);

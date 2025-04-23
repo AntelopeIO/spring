@@ -16,6 +16,7 @@
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/finalizer_authority.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>
@@ -3350,6 +3351,86 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_code_hash_tests, T, validating_testers ) { tr
    check("test"_n, 2);
    t.set_code("test"_n, std::vector<uint8_t>{});
    check("test"_n, 3);
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE_TEMPLATE( small_const_memcpy_tests, T, validating_testers ) { try {
+   T t;
+   t.create_account("smallmemcpy"_n);
+   t.produce_block();
+
+   for(unsigned i = eosvmoc::minimum_const_memcpy_intrinsic_to_optimize; i <= eosvmoc::maximum_const_memcpy_intrinsic_to_optimize; ++i) {
+      t.set_code("smallmemcpy"_n, fc::format_string(small_memcpy_const_dstsrc_wastfmt, fc::mutable_variant_object("COPY_SIZE", i)).c_str());
+
+      signed_transaction trx;
+      action act;
+      act.account = "smallmemcpy"_n;
+      act.name = ""_n;
+      act.authorization = vector<permission_level>{{"smallmemcpy"_n,config::active_name}};
+      act.data.push_back(i);
+      trx.actions.push_back(act);
+      t.set_transaction_headers(trx);
+      trx.sign(t.get_private_key( "smallmemcpy"_n, "active" ), t.get_chain_id());
+      t.push_transaction(trx);
+
+      if(i%10 == 0)
+         t.produce_block();
+   }
+
+} FC_LOG_AND_RETHROW() }
+
+//similar to above, but the source and destination values passed to memcpy are not consts
+BOOST_AUTO_TEST_CASE_TEMPLATE( small_var_memcpy_tests, T, validating_testers ) { try {
+   T t;
+   t.create_account("smallmemcpy"_n);
+   t.produce_block();
+
+   for(unsigned i = eosvmoc::minimum_const_memcpy_intrinsic_to_optimize; i <= eosvmoc::maximum_const_memcpy_intrinsic_to_optimize; ++i) {
+      t.set_code("smallmemcpy"_n, fc::format_string(small_memcpy_var_dstsrc_wastfmt, fc::mutable_variant_object("COPY_SIZE", i)).c_str());
+
+      signed_transaction trx;
+      action act;
+      act.account = "smallmemcpy"_n;
+      act.name = ""_n;
+      act.authorization = vector<permission_level>{{"smallmemcpy"_n,config::active_name}};
+      act.data.push_back(i);
+      trx.actions.push_back(act);
+      t.set_transaction_headers(trx);
+      trx.sign(t.get_private_key( "smallmemcpy"_n, "active" ), t.get_chain_id());
+      t.push_transaction(trx);
+
+      if(i%10 == 0)
+         t.produce_block();
+   }
+
+} FC_LOG_AND_RETHROW() }
+
+//check that small constant sized memcpys (that OC will optimize "away") correctly fail on edge or high side of invalid memory
+BOOST_AUTO_TEST_CASE_TEMPLATE( small_const_memcpy_oob_tests, T, validating_testers ) { try {
+   T t;
+   t.create_account("smallmemcpy"_n);
+   t.produce_block();
+
+   auto sendit = [&]() {
+      signed_transaction trx;
+      action act;
+      act.account = "smallmemcpy"_n;
+      act.name = ""_n;
+      act.authorization = vector<permission_level>{{"smallmemcpy"_n,config::active_name}};
+      trx.actions.push_back(act);
+      t.set_transaction_headers(trx);
+      trx.sign(t.get_private_key( "smallmemcpy"_n, "active" ), t.get_chain_id());
+      t.push_transaction(trx);
+   };
+
+   t.set_code("smallmemcpy"_n, small_memcpy_overlapenddst_wast);
+   BOOST_REQUIRE_EXCEPTION(sendit(), eosio::chain::wasm_execution_error, [](const eosio::chain::wasm_execution_error& e) {return expect_assert_message(e, "access violation");});
+
+   t.set_code("smallmemcpy"_n, small_memcpy_overlapendsrc_wast);
+   BOOST_REQUIRE_EXCEPTION(sendit(), eosio::chain::wasm_execution_error, [](const eosio::chain::wasm_execution_error& e) {return expect_assert_message(e, "access violation");});
+
+   t.set_code("smallmemcpy"_n, small_memcpy_high_wast);
+   BOOST_REQUIRE_EXCEPTION(sendit(), eosio::chain::wasm_execution_error, [](const eosio::chain::wasm_execution_error& e) {return expect_assert_message(e, "access violation");});
+
 } FC_LOG_AND_RETHROW() }
 
 //test that find_secondary_key behaves like lowerbound

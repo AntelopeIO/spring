@@ -1595,7 +1595,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
 
    { // ensure producer_schedule_change_extension is rejected
       // create a bad block that has the producer schedule change extension before the feature upgrade
-      auto bad_block = std::make_shared<signed_block>(last_legacy_block->clone());
+      auto bad_block = last_legacy_block->clone();
       emplace_extension(
               bad_block->header_extensions,
               producer_schedule_change_extension::extension_id(),
@@ -1609,14 +1609,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
 
       // ensure it is rejected as an unknown extension
       BOOST_REQUIRE_EXCEPTION(
-         remote.push_block(bad_block), producer_schedule_exception,
+         remote.push_block(signed_block::create_signed_block(std::move(bad_block))), producer_schedule_exception,
          fc_exception_message_is( "Block header producer_schedule_change_extension before activation of WTMsig Block Signatures" )
       );
    }
 
    { // ensure that non-null new_producers is accepted (and fails later in validation)
       // create a bad block that has the producer schedule change extension before the feature upgrade
-      auto bad_block = std::make_shared<signed_block>(last_legacy_block->clone());
+      auto bad_block = last_legacy_block->clone();
       bad_block->new_producers = legacy::producer_schedule_type{remote.control->active_producers().version + 1, {}};
 
       // re-sign the bad block
@@ -1626,7 +1626,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
 
       // ensure it is accepted (but rejected because it doesn't match expected state)
       BOOST_REQUIRE_EXCEPTION(
-         remote.push_block(bad_block), wrong_signing_key,
+         remote.push_block(signed_block::create_signed_block(std::move(bad_block))), wrong_signing_key,
          fc_exception_message_starts_with( "block signed by unexpected key" )
       );
    }
@@ -1638,7 +1638,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
 
    {
       // create a bad block that has the producer schedule change extension that is valid but not warranted by actions in the block
-      auto bad_block = std::make_shared<signed_block>(first_new_block->clone());
+      auto bad_block = first_new_block->clone();
       emplace_extension(
               bad_block->header_extensions,
               producer_schedule_change_extension::extension_id(),
@@ -1652,14 +1652,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
 
       // ensure it is rejected because it doesn't match expected state (but the extention was accepted)
       BOOST_REQUIRE_EXCEPTION(
-         remote.push_block(bad_block), wrong_signing_key,
+         remote.push_block(signed_block::create_signed_block(std::move(bad_block))), wrong_signing_key,
          fc_exception_message_starts_with( "block signed by unexpected key" )
       );
    }
 
    { // ensure that non-null new_producers is rejected
       // create a bad block that has the producer schedule change extension before the feature upgrade
-      auto bad_block = std::make_shared<signed_block>(first_new_block->clone());
+      auto bad_block = first_new_block->clone();
       bad_block->new_producers = legacy::producer_schedule_type{remote.control->active_producers().version + 1, {}};
 
       // re-sign the bad block
@@ -1669,7 +1669,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
 
       // ensure it is rejected because the new_producers field is not null
       BOOST_REQUIRE_EXCEPTION(
-         remote.push_block(bad_block), producer_schedule_exception,
+         remote.push_block(signed_block::create_signed_block(std::move(bad_block))), producer_schedule_exception,
          fc_exception_message_is( "Block header contains legacy producer schedule outdated by activation of WTMsig Block Signatures" )
       );
    }
@@ -2219,7 +2219,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    auto b = tester1.produce_block();
 
    // Make a copy of the block
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    // Retrieve the last transaction
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    // Make a delayed transaction by forcing delay_sec greater than 0
@@ -2253,7 +2253,8 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    tester2.produce_block();
 
    // Push the block with delayed transaction to the second chain
-   auto [best_head, obh] = tester2.control->accept_block( copy_b->calculate_id(), copy_b );
+   auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
+   auto [best_head, obh] = tester2.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b );
    BOOST_REQUIRE(obh);
    tester2.control->abort_block();
 

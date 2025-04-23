@@ -203,10 +203,13 @@ try:
     ####################### test 4 ######################
     # shutdown node0 and make sure node1 does not pause
 
+    currentBlockNum = node0.getBlockNum()
+
     Print("Restart finalizercNode")
     finalizercNode.relaunch()
 
     Print("Wait for LIB after finalizercNode back up")
+    assert finalizercNode.waitForIrreversibleBlock(currentBlockNum), "finalizercNode did not sync and advance LIB"
     assert finalizercNode.waitForLibToAdvance(), "finalizercNode did not advance LIB after relaunch"
 
     Print("Shutdown Node0")

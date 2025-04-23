@@ -147,5 +147,12 @@ namespace boost
        }
     };
 }
+
+namespace fc {
+   inline size_t hash_value(const fc::sha256& s) {
+      return boost::hash<fc::sha256>()(s);
+   }
+}
+
 #include <fc/reflect/reflect.hpp>
 FC_REFLECT_TYPENAME( fc::sha256 )

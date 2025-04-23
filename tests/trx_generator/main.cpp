@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
    et::accounts_config accts_config;
    et::trx_tps_tester_config tester_config;
 
-   const int64_t trx_expiration_max = 3600;
+   const int64_t trx_expiration_max = 3599;
    const uint16_t generator_id_max = 960;
    bpo::variables_map vmap;
    bpo::options_description cli("Transaction Generator command line options.");
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
          ("contract-owner-account", bpo::value<std::string>(&contract_owner_account_in), "Account name of the contract account for the transaction actions")
          ("accounts", bpo::value<std::string>(&accts), "comma-separated list of accounts that will be used for transfers. Minimum required accounts: 2.")
          ("priv-keys", bpo::value<std::string>(&p_keys), "comma-separated list of private keys in same order of accounts list that will be used to sign transactions. Minimum required: 2.")
-         ("trx-expiration", bpo::value<int64_t>(&trx_expr)->default_value(3600), "transaction expiration time in seconds. Defaults to 3,600. Maximum allowed: 3,600")
+         ("trx-expiration", bpo::value<int64_t>(&trx_expr)->default_value(1800), "transaction expiration time in seconds. Defaults to 1,800. Maximum allowed: 3,599")
          ("trx-gen-duration", bpo::value<uint32_t>(&tester_config._gen_duration_seconds)->default_value(60), "Transaction generation duration (seconds). Defaults to 60 seconds.")
          ("target-tps", bpo::value<uint32_t>(&tester_config._target_tps)->default_value(1), "Target transactions per second to generate/send. Defaults to 1 transaction per second.")
          ("last-irreversible-block-id", bpo::value<std::string>(&lib_id_str), "Current last-irreversible-block-id (LIB ID) to use for transactions.")

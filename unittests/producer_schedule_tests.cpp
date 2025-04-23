@@ -678,7 +678,7 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
    main.produce_blocks(3);
    BOOST_REQUIRE( main.control->pending_block_producer() == "alice"_n );
 
-   mutable_signed_block_ptr b;
+   mutable_block_ptr b;
 
    // Generate a valid block and then corrupt it by adding an extra signature.
    {
@@ -694,7 +694,7 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
       BOOST_REQUIRE( valid_block->producer == "alice"_n );
 
       // Make a copy of pointer to the valid block.
-      b = std::make_shared<signed_block>(valid_block->clone());
+      b = valid_block->clone();
       BOOST_REQUIRE_EQUAL( b->block_extensions.size(), 1u );
 
       // Extract the existing signatures.
@@ -717,7 +717,8 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
    }
 
    // Push block with extra signature to the main chain.
-   BOOST_REQUIRE_EXCEPTION( main.push_block(b), wrong_signing_key, fc_exception_message_starts_with("number of block signatures") );
+   auto sb = signed_block::create_signed_block(std::move(b));
+   BOOST_REQUIRE_EXCEPTION( main.push_block(sb), wrong_signing_key, fc_exception_message_starts_with("number of block signatures") );
 
 } FC_LOG_AND_RETHROW()
 

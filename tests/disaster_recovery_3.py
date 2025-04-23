@@ -96,10 +96,10 @@ try:
         assert not node.verifyAlive(), "Node did not shutdown"
 
     Print("Wait for lib to advance to LIB N on other 2 nodes")
-    for node in [node2, node3]: # waitForBlock uses > not >=. node2 & node3 have lib of n_LIB
-        assert node.waitForBlock(n_LIB-1, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
+    for node in [node2, node3]:
+        assert node.waitForBlock(n_LIB, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
         currentLIB = node.getIrreversibleBlockNum()
-        assert currentLIB == n_LIB, f"Node advanced LIB {currentLIB} beyond N LIB {n_LIB}"
+        assert currentLIB == n_LIB, f"Node {node.nodeId} advanced LIB {currentLIB} beyond N LIB {n_LIB}"
 
     Print("Shutdown other two nodes")
     for node in [node2, node3]:

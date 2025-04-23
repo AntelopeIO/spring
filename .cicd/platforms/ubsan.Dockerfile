@@ -19,10 +19,10 @@ RUN apt-get update && apt-get upgrade -y && \
                        zlib1g-dev           \
                        zstd
 
-RUN yes | bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" llvm.sh 19
+RUN yes | bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" llvm.sh 20
 
 #make sure no confusion on what llvm library spring's cmake should pick up on
-RUN rm -rf /usr/lib/llvm-19/lib/cmake
+RUN rm -rf /usr/lib/llvm-20/lib/cmake
 
 COPY <<-EOF /ubsan.supp
   vptr:wasm_eosio_validation.hpp
@@ -33,8 +33,8 @@ ENV SPRING_PLATFORM_HAS_EXTRAS_CMAKE=1
 COPY <<-EOF /extras.cmake
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
 
-  set(CMAKE_C_COMPILER "clang-19" CACHE STRING "")
-  set(CMAKE_CXX_COMPILER "clang++-19" CACHE STRING "")
+  set(CMAKE_C_COMPILER "clang-20" CACHE STRING "")
+  set(CMAKE_CXX_COMPILER "clang++-20" CACHE STRING "")
   set(CMAKE_C_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
   set(CMAKE_CXX_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
 EOF

@@ -130,7 +130,7 @@ try:
 
     apiNodeCount = len(apiNodes)
 
-    node=apiNodes[0]
+    node=cluster.biosNode # use biosNode to test configured as a producer but not producing
     checkTransIds = []
     startTime = time.perf_counter()
     Print("Create new accounts via %s" % (cluster.eosioAccount.name))
@@ -155,6 +155,7 @@ try:
     Print("Transfer funds took %s sec" % (nextTime - startTime))
     startTime = nextTime
 
+    node=apiNodes[0]
     Print("Delegate Bandwidth to new accounts")
     for account in accounts:
         trans=node.delegatebw(account, 200.0000, 200.0000, waitForTransBlock=False, exitOnError=True, reportStatus=False)

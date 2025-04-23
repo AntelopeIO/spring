@@ -1,6 +1,3 @@
-cmake_minimum_required(VERSION 3.5)
-project(Version)
-
 # Define the version metadata by default, in case `git` cannot be found.
 set(_VERSION_MAJOR_  "unknown")
 set(_VERSION_MINOR_  "")
