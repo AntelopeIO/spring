@@ -892,6 +892,64 @@ BOOST_AUTO_TEST_CASE(zero_return_value_size_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // no_return_value_caller_wast will throw if `call` returns a non-zero-length value.
 } FC_LOG_AND_RETHROW() }
 
+// make a sync call and return back its uint32_t result (1000)
+static const char return_value_before_eosio_exit_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+   (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32))) ;; memory
+   (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32)))
+
+   (global $callee i64 (i64.const 4729647295212027904))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (local $return_value_size i32)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 0))
+      i32.wrap/i64  ;; cast result of $call (return_value_size) from i64 to i32
+      set_local $return_value_size
+      (drop (call $get_call_return_value (i32.const 0)(get_local $return_value_size))) ;; save return value at address 0
+      (call $set_action_return_value (i32.const 0) (get_local $return_value_size))     ;; set the return value to action_return_value so test can check in action trace
+   )
+
+   (memory (export "memory") 1)
+)
+)=====";
+
+// save return value (1000) before calling eosio_exit
+static const char return_value_before_eosio_exit_callee_wast[] = R"=====(
+(module
+   (import "env" "eosio_exit" (func $eosio_exit (param i32)))
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $set_call_return_value (i32.const 0)(i32.const 4)) ;; store the return value 1000 (length is 4) before calling eosio_exit
+      (call $eosio_exit (i32.const 0))  ;; 0 is the exit code
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (memory (export "memory") 1)
+   (data (i32.const 0) "\E8\03\00\00") ;; decimal 1000 in little endian format
+)
+)=====";
+
+// Verify return value is kept if it is set before eosio_exit
+BOOST_AUTO_TEST_CASE(return_value_before_eosio_exit_test) { try {
+   call_tester t({ {"caller"_n, return_value_before_eosio_exit_caller_wast},
+                   {"callee"_n, return_value_before_eosio_exit_callee_wast} });
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   auto trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
+   auto &atrace   = trx_trace->action_traces;
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace[0].return_value), 1000u);
+} FC_LOG_AND_RETHROW() }
+
 static const char get_call_data_in_apply_wast[] = R"=====(
 (module
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
