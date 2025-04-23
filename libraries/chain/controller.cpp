@@ -1286,7 +1286,7 @@ struct controller_impl {
       }
    }
 
-   getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline) {
+   getpeerkeys_res_t get_top_producer_keys() {
       try {
          auto get_getpeerkeys_transaction = [&]() {
             auto perms = vector<permission_level>{};
@@ -1303,7 +1303,7 @@ struct controller_impl {
             transaction_metadata::trx_type::read_only);
 
          // allow a max of 20ms for getpeerkeys
-         auto trace = push_transaction(metadata, deadline, fc::milliseconds(20), 0, false, 0);
+         auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::milliseconds(20), 0, false, 0);
 
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
@@ -3237,6 +3237,11 @@ struct controller_impl {
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
+      // limit to complete type to avoid multiple calls per block number due to speculative blocks
+      if (pending->_block_status == controller::block_status::complete) {
+         update_peer_keys();
+      }
+
       transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
@@ -3384,12 +3389,16 @@ struct controller_impl {
       return onblock_trace;
    } /// start_block
 
-   void update_peer_keys(fc::time_point deadline) {
+   void update_peer_keys() {
+      // if syncing or replaying old blocks don't bother updating peer keys
+      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+         return;
+
       try {
-         // update peer public keys from chainbase db using a readonly trx
-         auto block_num = chain_head.block_num();
-         if (block_num % 120 == 0) { // update once/minute
-            peer_keys_db.update_peer_keys(get_top_producer_keys(deadline));
+         auto block_num = chain_head.block_num() + 1;
+         if (peer_keys_db.should_update(block_num)) { // update once/minute
+            // update peer public keys from chainbase db using a readonly trx
+            peer_keys_db.update_peer_keys(block_num, get_top_producer_keys());
          }
       } FC_LOG_AND_DROP()
    }
@@ -5348,10 +5357,6 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
                            bs, std::optional<block_id_type>(), deadline );
 }
 
-void controller::update_peer_keys(fc::time_point deadline) {
-   my->update_peer_keys(deadline);
-}
-
 void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
    validate_db_available_size();
 
@@ -5848,16 +5853,20 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(bool active) {
-   my->peer_keys_db.set_active(active);
+void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+   my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
-peer_info_t controller::get_peer_info(name n) const {
+std::optional<peer_info_t> controller::get_peer_info(name n) const {
    return my->peer_keys_db.get_peer_info(n);
 }
 
-getpeerkeys_res_t controller::get_top_producer_keys(fc::time_point deadline) {
-   return my->get_top_producer_keys(deadline);
+bool controller::configured_peer_keys_updated() {
+   return my->peer_keys_db.configured_peer_keys_updated();
+}
+
+getpeerkeys_res_t controller::get_top_producer_keys() {
+   return my->get_top_producer_keys();
 }
 
 db_read_mode controller::get_read_mode()const {

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
-import socket
+import copy
+import signal
 
-from TestHarness import Cluster, TestHelper, Utils, WalletMgr
+from TestHarness import Cluster, TestHelper, Utils, WalletMgr, createAccountKeys
 
 ###############################################################
-# auto_bp_peering_test
+# auto_bp_gossip_peering_test
 #
-# This test sets up  a cluster with 21 producers nodeos, each nodeos is configured with only one producer and only connects to the bios node.
-# Moreover, each producer nodeos is also configured with a list of p2p-auto-bp-peer so that each one can automatically establish p2p connections to
-# other bps. Test verifies connections are established when producer schedule is active.
+# This test sets up  a cluster with 21 producers nodeos, each nodeos is configured with only one producer and only
+# connects to the bios node. Moreover, each producer nodeos is also configured with a p2p-producer-peer so that each
+# one can automatically establish p2p connections to other bps. Test verifies connections are established when
+# producer schedule is active.
 #
 ###############################################################
 
@@ -23,7 +25,6 @@ totalNodes = producerNodes
 # Parse command line arguments
 args = TestHelper.parse_args({
     "-v",
-    "--activate-if",
     "--dump-error-details",
     "--leave-running",
     "--keep-logs",
@@ -31,7 +32,6 @@ args = TestHelper.parse_args({
 })
 
 Utils.Debug = args.v
-activateIF=args.activate_if
 dumpErrorDetails = args.dump_error_details
 keepLogs = args.keep_logs
 
@@ -49,25 +49,36 @@ def getHostName(nodeId):
     return hostname
 
 peer_names = {}
-
-auto_bp_peer_args = ""
 for nodeId in range(0, producerNodes):
     producer_name = "defproducer" + chr(ord('a') + nodeId)
     port = cluster.p2pBasePort + nodeId
     hostname = getHostName(nodeId)
     peer_names[hostname] = producer_name
-    auto_bp_peer_args += (" --p2p-auto-bp-peer " + producer_name + "," + hostname)
 
+auto_bp_peer_arg = f" --p2p-auto-bp-peer defproducera,localhost:{cluster.p2pBasePort}"
 
 peer_names["localhost:9776"] = "bios"
 
 testSuccessful = False
 try:
+    accounts=createAccountKeys(21)
+    if accounts is None:
+        Utils.errorExit("FAILURE - create keys")
+
+    if walletMgr.launch() is False:
+        errorExit("Failed to stand up keosd.")
+
     specificNodeosArgs = {}
     for nodeId in range(0, producerNodes):
-        specificNodeosArgs[nodeId] = auto_bp_peer_args
+        specificNodeosArgs[nodeId] = auto_bp_peer_arg
+        producer_name = "defproducer" + chr(ord('a') + nodeId)
+        specificNodeosArgs[nodeId] += (f" --signature-provider {accounts[nodeId].activePublicKey}=KEY:{accounts[nodeId].activePrivateKey}")
 
     specificNodeosArgs[5] = specificNodeosArgs[5] + ' --p2p-server-address ext-ip0:9999'
+
+    # restarting all producers can trigger production pause, so disable
+    # net_api_plugin for /v1/net/connections
+    extraNodeosArgs = " --production-pause-vote-timeout-ms 0 --plugin eosio::net_api_plugin "
 
     TestHelper.printSystemInfo("BEGIN")
     cluster.launch(
@@ -75,16 +86,48 @@ try:
         totalNodes=totalNodes,
         pnodes=producerNodes,
         totalProducers=producerNodes,
-        activateIF=activateIF,
+        activateIF=True,
         topo="./tests/auto_bp_peering_test_shape.json",
-        extraNodeosArgs=" --plugin eosio::net_api_plugin ",
+        extraNodeosArgs=extraNodeosArgs,
         specificExtraNodeosArgs=specificNodeosArgs,
     )
 
-    # wait until produceru is seen by every node
+    testWalletName="test"
+    Print("Creating wallet \"%s\"" % (testWalletName))
+    walletAccounts=copy.deepcopy(cluster.defProducerAccounts)
+    testWallet = walletMgr.create(testWalletName, walletAccounts.values())
+    all_acc = accounts + list( cluster.defProducerAccounts.values() )
+    for account in all_acc:
+        Print("Importing keys for account %s into wallet %s." % (account.name, testWallet.name))
+        if not walletMgr.importKey(account, testWallet):
+            errorExit("Failed to import key for account %s" % (account.name))
+
     for nodeId in range(0, producerNodes):
-        Utils.Print("Wait for node ", nodeId)
-        cluster.nodes[nodeId].waitForProducer("defproduceru", exitOnError=True, timeout=300)
+        producer_name = "defproducer" + chr(ord('a') + nodeId)
+        a = accounts[nodeId]
+        node = cluster.getNode(nodeId)
+
+        success, trans = cluster.biosNode.pushMessage('eosio', 'regpeerkey', f'{{"proposer_finalizer_name":"{producer_name}","key":"{a.activePublicKey}"}}', f'-p {producer_name}@active')
+        assert(success)
+
+    # wait for regpeerkey to be final
+    for nodeId in range(0, producerNodes):
+        Utils.Print("Wait for last regpeerkey to be final on ", nodeId)
+        cluster.getNode(nodeId).waitForTransFinalization(trans['transaction_id'])
+
+    # relaunch with p2p-producer-peer
+    for nodeId in range(0, producerNodes):
+        Utils.Print(f"Relaunch node {nodeId} with p2p-producer-peer")
+        node = cluster.getNode(nodeId)
+        node.kill(signal.SIGTERM)
+        producer_name = "defproducer" + chr(ord('a') + nodeId)
+        if not node.relaunch(chainArg=" --enable-stale-production --p2p-producer-peer " + producer_name):
+            errorExit(f"Failed to relaunch node {nodeId}")
+
+    # give time for messages to be gossiped around
+    for nodeId in range(0, producerNodes):
+        Utils.Print("Wait for defproducert on node ", nodeId)
+        cluster.getNode(nodeId).waitForHeadToAdvance(5)
 
     # retrieve the producer stable producer schedule
     scheduled_producers = []
@@ -97,7 +140,7 @@ try:
     for nodeId in range(0, producerNodes):
         # retrieve the connections in each node and check if each connects to the other bps in the schedule
         connections = cluster.nodes[nodeId].processUrllibRequest("net", "connections")
-        if Utils.Debug: Utils.Print(f"Node {nodeId} connections {connections}")
+        if Utils.Debug: Utils.Print(f"v1/net/connections: {connections}")
         peers = []
         for conn in connections["payload"]:
             if conn["is_socket_open"] is False:
