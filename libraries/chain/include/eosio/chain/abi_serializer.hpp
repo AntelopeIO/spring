@@ -542,7 +542,7 @@ namespace impl {
       template<typename Resolver>
       static void add( mutable_variant_object& out, const char* name, const action_trace& act_trace, const Resolver& resolver, abi_traverse_context& ctx )
       {
-         static_assert(fc::reflector<action_trace>::total_member_count == 17);
+         static_assert(fc::reflector<action_trace>::total_member_count == 19);
          auto h = ctx.enter_scope();
          mutable_variant_object mvo;
 
@@ -576,6 +576,10 @@ namespace impl {
                }
             }
          } catch(...) {}
+
+         mvo("call_traces", act_trace.call_traces);
+         mvo("console_markers", act_trace.console_markers);
+
          out(name, std::move(mvo));
       }
 

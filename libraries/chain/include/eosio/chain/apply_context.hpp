@@ -59,10 +59,8 @@ class apply_context : public host_context {
    /// Console methods:
    public:
 
-      void console_append( std::string_view val ) override {
-         _pending_console_output += val;
-      }
-
+      void console_append( std::string_view val ) override;
+      void store_console_marker() override;
       void update_db_usage( const account_name& payer, int64_t delta ) override;
 
    /// Misc methods:
@@ -89,9 +87,12 @@ class apply_context : public host_context {
       bool is_eos_vm_oc_whitelisted() const;
       bool should_use_eos_vm_oc()const;
 
+      action_trace& get_current_action_trace() const override { return trx_context.get_action_trace( action_ordinal ); }
+      uint32_t get_sync_call_ordinal() override { return 0; }
       bool is_read_only() const override { return trx_context.is_read_only(); }
 
    private:
+
       const action*                 act = nullptr; ///< action being applied
       // act pointer may be invalidated on call to trx_context.schedule_action
       uint32_t                      recurse_depth; ///< how deep inline actions can recurse
@@ -103,7 +104,6 @@ class apply_context : public host_context {
       vector< std::pair<account_name, uint32_t> > _notified; ///< keeps track of new accounts to be notifed of current message
       vector<uint32_t>                    _inline_actions; ///< action_ordinals of queued inline actions
       vector<uint32_t>                    _cfa_inline_actions; ///< action_ordinals of queued inline context-free actions
-      std::string                         _pending_console_output;
       flat_set<account_delta>             _account_ram_deltas; ///< flat_set of account_delta so json is an array of objects
 
       //bytes                               _cached_trx;
