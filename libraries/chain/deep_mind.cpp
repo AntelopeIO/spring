@@ -202,6 +202,12 @@ namespace eosio::chain {
    {
       ++_action_id;
    }
+   void deep_mind_handler::on_call()
+   {
+      fc_dlog(_logger, "CREATION_OP CALL ${action_id}",
+         ("action_id", _action_id)
+      );
+   }
    void deep_mind_handler::on_require_recipient()
    {
       fc_dlog(_logger, "CREATION_OP NOTIFY ${action_id}",

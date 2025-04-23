@@ -54,6 +54,10 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
    // That's why we store the marker right after the sync call trace was created.
    store_console_marker();
 
+   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
+      dm_logger->on_call();
+   }
+
    uint32_t ordinal = trace.call_traces.size();
    get_call_trace(ordinal).call_ordinal = ordinal;
 
