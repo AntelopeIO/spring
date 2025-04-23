@@ -139,7 +139,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
          BOOST_FAIL("Timed out waiting for block start");
       }
       std::this_thread::sleep_for( std::chrono::milliseconds(100) );
-      c.interrupt_transaction();
+      c.interrupt_transaction(controller::interrupt_t::apply_block_trx);
    } );
 
    // apply block, caught in an "infinite" loop
