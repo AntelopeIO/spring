@@ -202,11 +202,16 @@ namespace eosio::chain {
    {
       ++_execution_id;
    }
-   void deep_mind_handler::on_call()
+   void deep_mind_handler::on_start_call()
    {
+      ++_execution_id;
       fc_dlog(_logger, "CREATION_OP CALL ${execution_id}",
          ("execution_id", _execution_id)
       );
+   }
+   void deep_mind_handler::on_end_call()
+   {
+      --_execution_id;
    }
    void deep_mind_handler::on_require_recipient()
    {

@@ -75,7 +75,8 @@ public:
    void on_activate_feature(const protocol_feature& feature);
    void on_input_action();
    void on_end_action();
-   void on_call();
+   void on_start_call();
+   void on_end_call();
    void on_require_recipient();
    void on_send_inline();
    void on_send_context_free_inline();
