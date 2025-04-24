@@ -5,17 +5,20 @@
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index/composite_key.hpp>
 #include <boost/multi_index/key_extractors.hpp>
 #include <boost/multi_index/member.hpp>
-#include <boost/lockfree/spsc_queue.hpp>
+#include <boost/lockfree/queue.hpp>
 
 #include <boost/interprocess/mem_algo/rbtree_best_fit.hpp>
 #include <boost/asio/local/datagram_protocol.hpp>
 
 #include <fc/crypto/sha256.hpp>
 
+#include <atomic>
 #include <thread>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace eosio { namespace chain { namespace eosvmoc {
 
@@ -72,12 +75,12 @@ class code_cache_base {
       std::atomic<uint64_t> _executing_id{0}; // id of executing action
 
       io_context _ctx;
-      local::datagram_protocol::socket _compile_monitor_write_socket{_ctx}; // protected by _mtx for async
+      local::datagram_protocol::socket _compile_monitor_write_socket{_ctx}; // only accessed from main-thread
       local::datagram_protocol::socket _compile_monitor_read_socket{_ctx};
 
       struct queued_compile_entry {
          compile_wasm_message    msg;
-         std::vector<wrapped_fd> fds_to_pass;
+         uint8_t                 vm_version;
 
          const digest_type&      code_id() const { return msg.code.code_id; }
       };
@@ -90,9 +93,8 @@ class code_cache_base {
                const_mem_fun<queued_compile_entry, const digest_type&, &queued_compile_entry::code_id>>
          >
       >;
-      std::mutex                             _mtx;
-      queued_compilies_t                     _queued_compiles;                  // protected by _mtx
-      std::unordered_map<digest_type, bool>  _outstanding_compiles_and_poison;  // protected by _mtx
+      queued_compilies_t                     _queued_compiles;                  // only accessed by main-thread
+      std::unordered_map<digest_type, bool>  _outstanding_compiles_and_poison;  // only accessed by main-thread
       std::atomic<size_t>                    _outstanding_compiles{0};
 
       size_t _free_bytes_eviction_threshold;
@@ -123,14 +125,14 @@ class code_cache_async : public code_cache_base {
    private:
       compile_complete_callback _compile_complete_func; // called from async thread, provides executing_action_id
       std::thread _monitor_reply_thread;
-      boost::lockfree::spsc_queue<wasm_compilation_result_message> _result_queue;
+      boost::lockfree::queue<wasm_compilation_result_message> _result_queue;
       std::unordered_set<digest_type> _blacklist;
       size_t _threads;
 
       void wait_on_compile_monitor_message();
       std::tuple<size_t, size_t> consume_compile_thread_queue();
       void process_queued_compiles();
-      void write_message(const digest_type& code_id, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds);
+      void write_message(const digest_type& code_id, const eosvmoc_message& message, uint8_t vm_version);
 
 };
 
