@@ -672,12 +672,14 @@ namespace fc {
     template<typename Stream, typename T, std::size_t S>
     inline auto pack( Stream& s, const std::array<T, S>& value ) -> std::enable_if_t<std::is_trivially_copyable_v<T>>
     {
+       static_assert( S <= MAX_NUM_ARRAY_ELEMENTS, "number of elements in array is too large" );
        s.write((const char*)value.data(), S * sizeof(T));
     }
 
     template<typename Stream, typename T, std::size_t S>
     inline auto pack( Stream& s, const std::array<T, S>& value ) -> std::enable_if_t<!std::is_trivially_copyable_v<T>>
     {
+       static_assert( S <= MAX_NUM_ARRAY_ELEMENTS, "number of elements in array is too large" );
        for( std::size_t i = 0; i < S; ++i ) {
           fc::raw::pack( s, value[i] );
        }
@@ -686,12 +688,14 @@ namespace fc {
     template<typename Stream, typename T, std::size_t S>
     inline auto unpack( Stream& s, std::array<T, S>& value )  -> std::enable_if_t<std::is_trivially_copyable_v<T>>
     {
+       static_assert( S <= MAX_NUM_ARRAY_ELEMENTS, "number of elements in array is too large" );
        s.read((char*)value.data(), S * sizeof(T));
     }
 
     template<typename Stream, typename T, std::size_t S>
     inline auto unpack( Stream& s, std::array<T, S>& value )  -> std::enable_if_t<!std::is_trivially_copyable_v<T>>
     {
+       static_assert( S <= MAX_NUM_ARRAY_ELEMENTS, "number of elements in array is too large" );
        for( std::size_t i = 0; i < S; ++i ) {
           fc::raw::unpack( s, value[i] );
        }
