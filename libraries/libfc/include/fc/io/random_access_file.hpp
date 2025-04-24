@@ -95,7 +95,7 @@ struct random_access_file_context {
    ssize_t read_from(const MutableBufferSequence& mbs, ssize_t offs) {
       struct iovec iov[IOV_MAX];
       int i = 0;
-      for(const boost::asio::mutable_buffer& b : mbs) {
+      for(const auto& b : boost::beast::buffers_range(mbs)) {
          iov[i].iov_base = b.data();
          iov[i].iov_len = b.size();
          if(++i == IOV_MAX)
