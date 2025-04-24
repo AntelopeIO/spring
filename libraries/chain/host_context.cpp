@@ -108,7 +108,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             // execute the sync call
             auto rc = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
-            if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
+            if (rc == execution_status::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
                return handle_call_failure();
             }
          } catch( const wasm_exit&) {}
