@@ -101,7 +101,7 @@ public:
    void on_modify_permission(const permission_object& old_permission, const permission_object& new_permission);
    void on_remove_permission(const permission_object& permission);
 private:
-   uint32_t         _action_id = 0;
+   uint32_t         _execution_id = 0;
    ram_trace        _ram_trace;
    deep_mind_config _config;
    fc::logger       _logger;
