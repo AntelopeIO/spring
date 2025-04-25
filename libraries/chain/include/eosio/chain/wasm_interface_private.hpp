@@ -55,7 +55,6 @@ struct eosvmoc_tier {
                 eosvmoc::code_cache_async::compile_complete_callback cb)
       : cc(d, c, db, std::move(cb))
       , exec_pool([&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); })
-      , mem_pool([]() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); })
    {
       // Construct exec and mem for the main thread
       exec = std::make_unique<eosvmoc::executor>(cc);
@@ -70,19 +69,19 @@ struct eosvmoc_tier {
 
    void set_num_threads_for_call_res_pools(uint32_t num_threads) {
       exec_pool.set_num_threads(num_threads, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
-      mem_pool.set_num_threads(num_threads, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
+      mem_pools.set_num_threads(num_threads);
    }
 
    void set_max_call_depth_for_call_res_pools(uint32_t depth) {
       exec_pool.set_max_call_depth(depth, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
-      mem_pool.set_max_call_depth(depth, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
+      mem_pools.set_max_call_depth(depth);
    }
 
    eosvmoc::code_cache_async cc;
 
    // For sync calls
    call_resource_pool<eosvmoc::executor> exec_pool;
-   call_resource_pool<eosvmoc::memory> mem_pool;
+   eosvmoc::memory_pools mem_pools;
 
    // Each thread requires its own exec and mem. Defined in wasm_interface.cpp
    thread_local static std::unique_ptr<eosvmoc::executor> exec;
@@ -181,10 +180,10 @@ struct eosvmoc_tier {
 
                if (context.is_sync_call()) {
                   auto exec = eosvmoc->exec_pool.acquire();
-                  auto mem  = eosvmoc->mem_pool.acquire();
+                  auto mem  = eosvmoc->mem_pools.acquire_mem(context.sync_call_depth);
                   auto cleanup = fc::make_scoped_exit([&](){
                      eosvmoc->exec_pool.release(exec);
-                     eosvmoc->mem_pool.release(mem);
+                     eosvmoc->mem_pools.release_mem(context.sync_call_depth, mem);
                   });
                   return exec->execute(*cd, *mem, context);
                } else {

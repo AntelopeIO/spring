@@ -38,10 +38,10 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
 
          if (context.is_sync_call()) {  // sync call on either main thread or read only thread
             auto exec = _eosvmoc_runtime.acquire_call_exec();
-            auto mem  = _eosvmoc_runtime.acquire_call_mem();
+            auto mem  = _eosvmoc_runtime.acquire_call_mem(context.sync_call_depth);
             auto cleanup = fc::make_scoped_exit([&](){
                _eosvmoc_runtime.release_call_exec(exec);
-               _eosvmoc_runtime.release_call_mem(mem);
+               _eosvmoc_runtime.release_call_mem(context.sync_call_depth, mem);
             });
             status = exec->execute(*cd, *mem, context);
          } else if ( is_main_thread() ) {  // action on main thread
@@ -65,7 +65,6 @@ eosvmoc_runtime::eosvmoc_runtime(const std::filesystem::path data_dir, const eos
    , exec(cc)
    , mem(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size)
    , exec_pool([&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); })
-   , mem_pool([]() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); })
 {
 }
 
@@ -85,22 +84,22 @@ void eosvmoc_runtime::release_call_exec(eosvmoc::executor* e) {
    exec_pool.release(e);
 }
 
-eosvmoc::memory* eosvmoc_runtime::acquire_call_mem() {
-   return mem_pool.acquire();
+eosvmoc::memory* eosvmoc_runtime::acquire_call_mem(uint32_t call_level) {
+   return mem_pools.acquire_mem(call_level);
 }
 
-void eosvmoc_runtime::release_call_mem(eosvmoc::memory* m) {
-   mem_pool.release(m);
+void eosvmoc_runtime::release_call_mem(uint32_t call_level, eosvmoc::memory* m) {
+   mem_pools.release_mem(call_level, m);
 }
 
-void eosvmoc_runtime::set_num_threads_for_call_res_pools(uint32_t num_threads) {
-   exec_pool.set_num_threads(num_threads, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
-   mem_pool.set_num_threads(num_threads, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
+void eosvmoc_runtime::set_num_threads_for_call_res_pools(uint32_t nthreads) {
+   exec_pool.set_num_threads(nthreads, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+   mem_pools.set_num_threads(nthreads);
 }
 
 void eosvmoc_runtime::set_max_call_depth_for_call_res_pools(uint32_t depth) {
    exec_pool.set_max_call_depth(depth, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
-   mem_pool.set_max_call_depth(depth, []() -> eosvmoc::memory* { return new eosvmoc::memory(eosvmoc::memory::sliced_pages_sync_call); });
+   mem_pools.set_max_call_depth(depth);
 }
 
 void eosvmoc_runtime::init_thread_local_data() {
