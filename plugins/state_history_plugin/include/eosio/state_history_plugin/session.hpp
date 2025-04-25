@@ -57,7 +57,7 @@ public:
 
    // allow main thread to drain the strand before destruction -- some awake_if_idle() post()s may be inflight
    void drain_strand() {
-      boost::asio::post(strand, boost::asio::use_future([](){})).get();
+      chain::post_async_task(strand, [](){}).get();
    }
 
 private:
