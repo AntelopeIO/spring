@@ -167,6 +167,19 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
    BOOST_TEST(branch[1] == bsp11b);
 } FC_LOG_AND_RETHROW();
 
+BOOST_FIXTURE_TEST_CASE(remove_block_num_test, generate_fork_db_state) try {
+   BOOST_TEST(fork_db.size() == 14);
+   fork_db.remove(13); // remove all >= 13
+   BOOST_TEST(fork_db.size() == 8);
+
+   for (auto& i : all) {
+      if (i->block_num() < 13) {
+         BOOST_TEST(fork_db.get_block(i->id()) == i);
+      } else {
+         BOOST_TEST(!fork_db.get_block(i->id()));
+      }
+   }
+} FC_LOG_AND_RETHROW();
 
 // test `fork_database_t::validated_block_exists() const` member
 // -------------------------------------------------------------
