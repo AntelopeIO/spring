@@ -30,6 +30,13 @@ namespace fc {
    template<typename Storage> class fixed_string;
 
    namespace raw {
+
+    template<class T>
+    concept TriviallyCopyable = std::is_trivially_copyable_v<T>;
+
+    template<class T>
+    concept NotTriviallyCopyable = !std::is_trivially_copyable_v<T>;
+   
     template<typename T>
     inline size_t pack_size(  const T& v );
 
@@ -70,10 +77,10 @@ namespace fc {
     template<typename Stream, typename K, typename V> inline void pack( Stream& s, const std::pair<K,V>& value );
     template<typename Stream, typename K, typename V> inline void unpack( Stream& s, std::pair<K,V>& value );
 
-    template<typename Stream, typename T, std::size_t S> inline auto pack( Stream& s, const std::array<T,S>& value ) -> std::enable_if_t<std::is_trivially_copyable_v<T>>;
-    template<typename Stream, typename T, std::size_t S> inline auto pack( Stream& s, const std::array<T,S>& value ) -> std::enable_if_t<!std::is_trivially_copyable_v<T>>;
-    template<typename Stream, typename T, std::size_t S> inline auto unpack( Stream& s, std::array<T,S>& value ) -> std::enable_if_t<std::is_trivially_copyable_v<T>>;
-    template<typename Stream, typename T, std::size_t S> inline auto unpack( Stream& s, std::array<T,S>& value ) -> std::enable_if_t<!std::is_trivially_copyable_v<T>>;
+   template<typename Stream, TriviallyCopyable T, std::size_t S> inline void pack( Stream& s, const std::array<T,S>& value );
+   template<typename Stream, NotTriviallyCopyable T, std::size_t S> inline void pack( Stream& s, const std::array<T,S>& value );
+   template<typename Stream, TriviallyCopyable T, std::size_t S> inline void unpack( Stream& s, std::array<T,S>& value );
+   template<typename Stream, NotTriviallyCopyable T, std::size_t S> inline void unpack( Stream& s, std::array<T,S>& value );
 
     template<typename Stream> inline void pack( Stream& s, const variant_object& v );
     template<typename Stream> inline void unpack( Stream& s, variant_object& v );
@@ -118,10 +125,10 @@ namespace fc {
     template<typename Stream> inline void pack( Stream& s, const std::vector<char>& value );
     template<typename Stream> inline void unpack( Stream& s, std::vector<char>& value );
 
-    template<typename Stream, typename T, std::size_t N> inline auto pack( Stream& s, const fc::array<T,N>& v) -> std::enable_if_t<std::is_trivially_copyable_v<T>>;
-    template<typename Stream, typename T, std::size_t N> inline auto pack( Stream& s, const fc::array<T,N>& v) -> std::enable_if_t<!std::is_trivially_copyable_v<T>>;
-    template<typename Stream, typename T, std::size_t N> inline auto unpack( Stream& s, fc::array<T,N>& v) -> std::enable_if_t<std::is_trivially_copyable_v<T>>;
-    template<typename Stream, typename T, std::size_t N> inline auto unpack( Stream& s, fc::array<T,N>& v) -> std::enable_if_t<!std::is_trivially_copyable_v<T>>;
+   template<typename Stream, TriviallyCopyable T, std::size_t N> inline void pack( Stream& s, const fc::array<T,N>& v);
+   template<typename Stream, NotTriviallyCopyable T, std::size_t N> inline void pack( Stream& s, const fc::array<T,N>& v);
+   template<typename Stream, TriviallyCopyable T, std::size_t N> inline void unpack( Stream& s, fc::array<T,N>& v);
+   template<typename Stream, NotTriviallyCopyable T, std::size_t N> inline void unpack( Stream& s, fc::array<T,N>& v);
 
     template<typename Stream> inline void pack( Stream& s, const bool& v );
     template<typename Stream> inline void unpack( Stream& s, bool& v );
