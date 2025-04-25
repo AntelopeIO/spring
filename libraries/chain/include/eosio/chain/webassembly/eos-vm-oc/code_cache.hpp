@@ -5,17 +5,21 @@
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index/composite_key.hpp>
 #include <boost/multi_index/key_extractors.hpp>
 #include <boost/multi_index/member.hpp>
-#include <boost/lockfree/spsc_queue.hpp>
+#include <boost/lockfree/queue.hpp>
 
 #include <boost/interprocess/mem_algo/rbtree_best_fit.hpp>
 #include <boost/asio/local/datagram_protocol.hpp>
 
 #include <fc/crypto/sha256.hpp>
 
+#include <atomic>
 #include <thread>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+#include <filesystem>
 
 namespace eosio { namespace chain { namespace eosvmoc {
 
@@ -77,7 +81,7 @@ class code_cache_base {
 
       struct queued_compile_entry {
          compile_wasm_message    msg;
-         std::vector<wrapped_fd> fds_to_pass;
+         std::vector<char>       code;
 
          const digest_type&      code_id() const { return msg.code.code_id; }
       };
@@ -123,7 +127,7 @@ class code_cache_async : public code_cache_base {
    private:
       compile_complete_callback _compile_complete_func; // called from async thread, provides executing_action_id
       std::thread _monitor_reply_thread;
-      boost::lockfree::spsc_queue<wasm_compilation_result_message> _result_queue;
+      boost::lockfree::queue<wasm_compilation_result_message> _result_queue;
       std::unordered_set<digest_type> _blacklist;
       size_t _threads;
 
