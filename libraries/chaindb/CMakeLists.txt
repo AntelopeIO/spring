@@ -1,12 +1,6 @@
 # Defines ChainBase library target.
 project( ChainBase )
 
-SET( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
-
-if(NOT TARGET Boost::unit_test_framework)
-   FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS system unit_test_framework)
-endif()
-
 SET(PLATFORM_LIBRARIES)
 
 file(GLOB HEADERS "include/chainbase/*.hpp")
