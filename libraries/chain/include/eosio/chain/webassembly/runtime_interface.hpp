@@ -10,14 +10,9 @@ namespace eosio { namespace chain {
 
 class host_context;
 
-enum class execution_status : int64_t;  // full definition is in wasm_interface.hpp
-
 class wasm_instantiated_module_interface {
    public:
-      //virtual void apply(apply_context& context) = 0;
-
-      //virtual execution_status do_sync_call(sync_call_context& context) = 0;
-      virtual execution_status execute(host_context& context) = 0;
+      virtual void execute(host_context& context) = 0;
 
       virtual ~wasm_instantiated_module_interface();
 };

@@ -165,7 +165,7 @@ executor::executor(const code_cache_base& cc) {
    mapping_is_executable = true;
 }
 
-execution_status executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
+void executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
    if(mapping_is_executable == false) {
       mprotect(code_mapping, code_mapping_size, PROT_EXEC|PROT_READ);
       mapping_is_executable = true;
@@ -250,7 +250,6 @@ execution_status executor::execute(const code_descriptor& code, memory& mem, hos
    });
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
-   eosio::chain::execution_status status = eosio::chain::execution_status::executed;
 
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
@@ -275,7 +274,7 @@ execution_status executor::execute(const code_descriptor& code, memory& mem, hos
                int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
                call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
             } else {
-               status = eosio::chain::execution_status::receiver_not_support_sync_call;
+               assert(false);
             }
          });
          break;
@@ -290,8 +289,6 @@ execution_status executor::execute(const code_descriptor& code, memory& mem, hos
          std::rethrow_exception(*cb->eptr);
          break;
    }
-
-   return status;
 }
 
 executor::~executor() {

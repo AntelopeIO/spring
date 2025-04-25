@@ -148,7 +148,7 @@ struct eosvmoc_tier {
       }
 #endif
 
-      execution_status execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
+      void execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
          bool attempt_tierup = false;
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
@@ -221,8 +221,6 @@ struct eosvmoc_tier {
             }
             throw;
          }
-
-         return execution_status::executed;
       }
 
       // used for testing

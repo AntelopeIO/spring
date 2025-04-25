@@ -131,17 +131,16 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      execution_status execute(host_context& context) override {
+      void  execute(host_context& context) override {
          if (context.is_action()) {
             apply(static_cast<apply_context&>(context));
-            return execution_status::executed;
          } else {
-            return do_sync_call(static_cast<sync_call_context&>(context));
+            do_sync_call(static_cast<sync_call_context&>(context));
          }
       }
 
    private:
-      execution_status do_sync_call(sync_call_context& context) {
+      void do_sync_call(sync_call_context& context) {
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
          vm::wasm_allocator*                      wasm_alloc = context.control.acquire_sync_call_wasm_allocator();
@@ -164,10 +163,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
 
          exe(context, bkend, exec_ctx, *wasm_alloc, fn, true);
-         return execution_status::executed;
       }
 
-      execution_status apply(apply_context& context) {
+      void apply(apply_context& context) {
          auto& bkend      = _runtime->_bkend;
          auto& exec_ctx   = _runtime->_exec_ctx;
          auto& wasm_alloc = context.control.get_wasm_allocator();
@@ -184,7 +182,6 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
 
          exe(context, bkend, exec_ctx, wasm_alloc, fn, false);
-         return execution_status::executed;
       }
 
       void exe(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
@@ -235,7 +232,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          _original_code(code, code + code_size) {}
 
 
-      execution_status execute(host_context& context) override {
+      void execute(host_context& context) override {
          _instantiated_module->set_wasm_allocator(&context.control.get_wasm_allocator());
          apply_options opts;
          if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
@@ -263,7 +260,6 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          } catch(eosio::vm::exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure");
          }
-         return execution_status::executed;
       }
 
       profile_data* start(apply_context& context) {

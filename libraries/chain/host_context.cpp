@@ -106,11 +106,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // execute the sync call
-            auto rc = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
-
-            if (rc == execution_status::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
-               return handle_call_failure();
-            }
+            control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
          } catch( const wasm_exit&) {}
 
          // Store return value here for the case when the contract sets the
