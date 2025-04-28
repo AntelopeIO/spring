@@ -1,9 +1,6 @@
 [submodule "libraries/appbase"]
 	path = libraries/appbase
 	url = https://github.com/AntelopeIO/appbase
-[submodule "libraries/chainbase"]
-	path = libraries/chainbase
-	url = https://github.com/AntelopeIO/chainbase
 [submodule "libraries/eos-vm"]
 	path = libraries/eos-vm
 	url = https://github.com/AntelopeIO/eos-vm

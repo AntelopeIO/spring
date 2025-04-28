@@ -25,6 +25,8 @@ public:
 
    virtual void block_applied(const chain::block_num_type applied_block_num) = 0;
 
+   virtual void drain_strand() = 0;
+
    virtual ~session_base() = default;
 };
 
@@ -51,6 +53,11 @@ public:
       if(applied_block_num < next_block_cursor)
          next_block_cursor = applied_block_num;
       awake_if_idle();
+   }
+
+   // allow main thread to drain the strand before destruction -- some awake_if_idle() post()s may be inflight
+   void drain_strand() {
+      chain::post_async_task(strand, [](){}).get();
    }
 
 private:
