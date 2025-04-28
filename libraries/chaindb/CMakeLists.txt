@@ -1,9 +1,13 @@
 # Defines ChainBase library target.
 project( ChainBase )
 
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE) 
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads)
+
 file(GLOB HEADERS "include/chainbase/*.hpp")
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
-target_link_libraries( chainbase PUBLIC pthread Boost::system )
+target_link_libraries( chainbase PUBLIC Threads::Threads Boost::system )
 
 if(TARGET Boost::asio)
   target_link_libraries( chainbase PUBLIC
