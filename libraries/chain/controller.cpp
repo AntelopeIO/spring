@@ -2150,7 +2150,7 @@ struct controller_impl {
                if (auto head = fork_db.head(); head->block_num() > conf.truncate_at_block) {
                   ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
                         ("t", conf.truncate_at_block)("h", head->block_num()));
-                  fork_db.remove(conf.truncate_at_block);
+                  fork_db.remove(conf.truncate_at_block + 1);
                }
             });
          }
