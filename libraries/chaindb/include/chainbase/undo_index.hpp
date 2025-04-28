@@ -349,6 +349,10 @@ namespace chainbase {
          uint64_t ctime = 0; // _monotonic_revision at the point the undo_state was created
       };
 
+      void preallocate( std::size_t num ) {
+         _allocator.preallocate(num);
+      }
+
       // Exception safety: strong
       template<typename Constructor>
       const value_type& emplace( Constructor&& c ) {

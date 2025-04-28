@@ -509,6 +509,16 @@ namespace chainbase {
              return get_mutable_index<index_type>().remove( obj );
          }
 
+         template<typename ObjectType>
+         void preallocate( size_t num )
+         {
+             if ( _read_only_mode ) {
+                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to preallocate in read-only mode" ) );
+             }
+             typedef typename get_index_type<ObjectType>::type index_type;
+             get_mutable_index<index_type>().preallocate( num );
+         }
+
          template<typename ObjectType, typename Constructor>
          const ObjectType& create( Constructor&& con )
          {

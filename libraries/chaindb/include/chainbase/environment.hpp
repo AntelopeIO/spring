@@ -5,9 +5,13 @@
 namespace chainbase {
 
 constexpr size_t header_size = 1024;
+
 // `CHAINB01` reflects changes since `EOSIODB3`.
+// `CHAINB02` adds the small size allocator
 // Spring 1.0 is compatible with `CHAINB01`.
-constexpr uint64_t header_id = 0x3130424e49414843ULL; //"CHAINB01" little endian
+// Spring 2.0 is compatible with `CHAINB02`.
+// ---------------------------------------------
+constexpr uint64_t header_id = 0x3230424e49414843ULL; //"CHAINB02" little endian
 
 struct environment  {
    environment() {
@@ -67,10 +71,11 @@ struct environment  {
 } __attribute__ ((packed));
 
 struct db_header  {
-   uint64_t id = header_id;
-   bool dirty = false;
-   environment dbenviron;
-} __attribute__ ((packed));
+   uint64_t               id    = header_id;
+   bool                   dirty = false;
+   bip::offset_ptr<char>  small_size_allocator;
+   environment            dbenviron;
+};
 
 constexpr size_t header_dirty_bit_offset = offsetof(db_header, dirty);
 
