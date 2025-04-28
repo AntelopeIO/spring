@@ -86,7 +86,7 @@ class code_cache_base {
          const digest_type&      code_id() const { return msg.code.code_id; }
       };
       //these are really only useful to the async code cache, but keep them here so free_code can be shared
-      using queued_compilies_t = boost::multi_index_container<
+      using queued_compiles_t = boost::multi_index_container<
          queued_compile_entry,
          indexed_by<
             sequenced<>,
@@ -95,7 +95,7 @@ class code_cache_base {
          >
       >;
       std::mutex                             _mtx;
-      queued_compilies_t                     _queued_compiles;                  // protected by _mtx
+      queued_compiles_t                      _queued_compiles;                  // protected by _mtx
       std::unordered_map<digest_type, bool>  _outstanding_compiles_and_poison;  // protected by _mtx
       std::atomic<size_t>                    _outstanding_compiles{0};
 
