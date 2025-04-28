@@ -85,7 +85,19 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
    }
 }
 
-void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
+static bool module_has_valid_sync_call(module& mod) {
+   bool supported = false;
+   const uint32_t i = mod.get_exported_function("sync_call");
+   if (i < std::numeric_limits<uint32_t>::max()) {
+      const vm::func_type& function_type = mod.get_function_type(i);
+      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
+         supported = true;
+      }
+   }
+   return supported;
+}
+
+void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics, bool& sync_call_supported ) {
    EOS_ASSERT(code.size() <= cfg.max_module_bytes, wasm_serialization_error, "Code too large");
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
@@ -106,9 +118,23 @@ void validate( const controller& control, const bytes& code, const wasm_config& 
       EOS_ASSERT(apply_idx < std::numeric_limits<uint32_t>::max(), wasm_serialization_error, "apply not exported");
       const vm::func_type& apply_type = bkend.get_module().get_function_type(apply_idx);
       EOS_ASSERT((apply_type == vm::host_function{{vm::i64, vm::i64, vm::i64}, {}}), wasm_serialization_error, "apply has wrong type");
+
+      sync_call_supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+}
+
+bool is_sync_call_supported(const char* code_bytes, size_t code_size) {
+   wasm_code_ptr code_ptr((uint8_t*)code_bytes, code_size);
+   bool supported = false;
+   try {
+      eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code_size, nullptr);
+      supported = module_has_valid_sync_call(bkend.get_module());
+   } catch(vm::exception& e) {
+      EOS_THROW(wasm_serialization_error, e.detail());
+   }
+   return supported;
 }
 
 // Be permissive on apply.

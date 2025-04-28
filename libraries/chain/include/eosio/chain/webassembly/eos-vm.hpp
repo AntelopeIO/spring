@@ -31,7 +31,8 @@ using namespace eosio::vm;
 
 void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics );
 
-void validate(const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics );
+void validate(const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics, bool& sync_call_supported);
+bool is_sync_call_supported(const char* code_bytes, size_t code_size);
 
 struct apply_options;
 
