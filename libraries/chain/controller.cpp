@@ -2501,28 +2501,6 @@ struct controller_impl {
             }
          }
 
-         // special case for in-place upgrade of code_index
-         if (std::is_same_v<value_t, code_object>) {
-            using v1 = snapshot_code_object_v1;
-            if (std::clamp(header.version, v1::minimum_version, v1::maximum_version) == header.version ) {
-               snapshot->read_section<code_object>([&db=this->db](auto &section) {
-                  v1 obj_v1;
-                  section.read_row(obj_v1, db);
-                  bool sync_call_supported = wasm_interface::is_sync_call_supported(obj_v1.code.data(), obj_v1.code.size());
-                  db.create<code_object>([&obj_v1, sync_call_supported](auto& obj){
-                     obj.code_hash           = obj_v1.code_hash;
-                     obj.code                = obj_v1.code;
-                     obj.code_ref_count      = obj_v1.code_ref_count;
-                     obj.first_block_used    = obj_v1.first_block_used;
-                     obj.vm_type             = obj_v1.vm_type;
-                     obj.vm_version          = obj_v1.vm_version;
-                     obj.sync_call_supported = sync_call_supported;
-                  });
-               });
-               return; // early out to avoid default processing
-            }
-         }
-
          snapshot->read_section<value_t>([this,&rows_loaded]( auto& section ) {
             bool more = !section.empty();
             while(more) {
