@@ -85,7 +85,7 @@ void code_cache_async::wait_on_compile_monitor_message() {
 }
 
 //call with _mtx locked
-void code_cache_async::write_message(const digest_type& code_id, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds) {
+void code_cache_async::write_message(const digest_type& code_id, const eosvmoc_message& message, std::span<wrapped_fd> fds) {
    _outstanding_compiles_and_poison.emplace(code_id, false);
    ++_outstanding_compiles;
    if (!write_message_with_fds(_compile_monitor_write_socket, message, fds)) {
@@ -99,9 +99,8 @@ void code_cache_async::process_queued_compiles() {
    while (_outstanding_compiles < _threads && !_queued_compiles.empty()) {
       auto nextup = _queued_compiles.begin();
 
-      std::vector<wrapped_fd> fds_to_pass;
-      fds_to_pass.emplace_back(memfd_for_bytearray(nextup->code));
-      write_message(nextup->code_id(), nextup->msg, fds_to_pass);
+      auto fd = memfd_for_bytearray(nextup->code);
+      write_message(nextup->code_id(), nextup->msg, std::span<wrapped_fd>{&fd, 1});
 
       _queued_compiles.erase(nextup);
    }
@@ -215,9 +214,8 @@ code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, co
       return nullptr;
    }
 
-   std::vector<wrapped_fd> fds_to_pass;
-   fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
-   write_message(code_id, msg, fds_to_pass);
+   auto fd = memfd_for_bytearray(codeobject->code);
+   write_message(code_id, msg, std::span<wrapped_fd>{&fd, 1});
    failure = get_cd_failure::temporary; // Compile might not be done yet
    return nullptr;
 }
@@ -246,15 +244,13 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode 
    if(!codeobject) //should be impossible right?
       return nullptr;
 
-   std::vector<wrapped_fd> fds_to_pass;
-   fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
-
    auto msg = compile_wasm_message{
       .code = { code_id, vm_version },
       .queued_time = fc::time_point{}, // could use now() if compile time measurement desired
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };
-   write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass);
+   auto fd = memfd_for_bytearray(codeobject->code);
+   write_message_with_fds(_compile_monitor_write_socket, msg, std::span<wrapped_fd>{&fd, 1});
    auto [success, message, fds] = read_message_with_fds(_compile_monitor_read_socket);
    EOS_ASSERT(success, wasm_execution_error, "failed to read response from monitor process");
    EOS_ASSERT(std::holds_alternative<wasm_compilation_result_message>(message), wasm_execution_error, "unexpected response from monitor process");
