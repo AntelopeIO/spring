@@ -1097,9 +1097,6 @@ static const char no_sync_call_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
-   // disable temporarily
-   return;
-
    create_accounts_and_set_code(entry_point_validation_caller_wast, no_sync_call_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
@@ -1120,9 +1117,6 @@ static const char invalid_entry_point_wast[] = R"=====(
 // Verify sync call return -1 if sync call entry point signature is invalid
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
-
-   // disable temporarily
-   return;
 
    create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
 
