@@ -232,6 +232,10 @@ struct eosvmoc_tier {
          // Anything last used before or on the LIB can be evicted.
          const auto first_it = wasm_instantiation_cache.get<by_last_block_num>().begin();
          const auto last_it  = wasm_instantiation_cache.get<by_last_block_num>().upper_bound(lib);
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+         if(eosvmoc) for(auto it = first_it; it != last_it; it++)
+            eosvmoc->cc.free_code(it->code_hash, it->vm_version);
+#endif
          wasm_instantiation_cache.get<by_last_block_num>().erase(first_it, last_it);
       }
 
