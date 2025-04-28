@@ -2502,7 +2502,7 @@ struct controller_impl {
       });
 
       if(header.version < chain_snapshot_header::first_version_with_split_table_sections)
-         snapshot_load_ctx.post([this,&snapshot,&rows_loaded]() {
+         boost::asio::post(snapshot_load_ctx, [this,&snapshot,&rows_loaded]() {
             read_contract_tables_from_preV7_snapshot(snapshot, rows_loaded);
          });
       else

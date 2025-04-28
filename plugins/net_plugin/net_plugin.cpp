@@ -1733,7 +1733,7 @@ namespace eosio {
                block_sync_throttling = true;
                peer_dlog( this, "throttling block sync to peer ${host}:${port}", ("host", log_remote_endpoint_ip)("port", log_remote_endpoint_port));
                std::shared_ptr<boost::asio::steady_timer> throttle_timer = std::make_shared<boost::asio::steady_timer>(my_impl->thread_pool.get_executor());
-               throttle_timer->expires_from_now(std::chrono::milliseconds(100));
+               throttle_timer->expires_after(std::chrono::milliseconds(100));
                throttle_timer->async_wait(boost::asio::bind_executor(strand, [c=shared_from_this(), throttle_timer](const boost::system::error_code& ec) {
                   if (!ec)
                     c->enqueue_sync_block();
@@ -1834,7 +1834,7 @@ namespace eosio {
    void connection::sync_wait() {
       connection_ptr c(shared_from_this());
       fc::lock_guard g( sync_response_expected_timer_mtx );
-      sync_response_expected_timer.expires_from_now( my_impl->resp_expected_period );
+      sync_response_expected_timer.expires_after( my_impl->resp_expected_period );
       my_impl->sync_master->sync_wait(c);
       sync_response_expected_timer.async_wait(
             boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
@@ -3865,7 +3865,7 @@ namespace eosio {
    void connection::handle_message( const block_id_type& id, signed_block_ptr ptr ) {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
-      my_impl->dispatcher.strand.dispatch([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+      boost::asio::dispatch(my_impl->dispatcher.strand, [id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
          if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
             return;
          controller& cc = my_impl->chain_plug->chain();
@@ -3951,7 +3951,7 @@ namespace eosio {
    // thread safe
    void net_plugin_impl::start_expire_timer() {
       fc::lock_guard g( expire_timer_mtx );
-      expire_timer.expires_from_now( txn_exp_period);
+      expire_timer.expires_after( txn_exp_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
@@ -3962,7 +3962,7 @@ namespace eosio {
    // thread safe
    void net_plugin_impl::ticker() {
       fc::lock_guard g( keepalive_timer_mtx );
-      keepalive_timer.expires_from_now(keepalive_interval);
+      keepalive_timer.expires_after(keepalive_interval);
       keepalive_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
             my->ticker();
             if( ec ) {
@@ -4012,7 +4012,7 @@ namespace eosio {
 
       if (chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
+         boost::asio::post(dispatcher.strand, [sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4033,7 +4033,7 @@ namespace eosio {
       chain::controller& cc = chain_plug->chain();
       if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
+         boost::asio::post(dispatcher.strand, [sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4887,7 +4887,7 @@ namespace eosio {
       if (!timer) {
          timer = std::make_unique<boost::asio::steady_timer>( my_impl->thread_pool.get_executor() );
       }
-      timer->expires_from_now( du );
+      timer->expires_after( du );
       timer->async_wait( [this, from_connection{std::move(from_connection)}, f = func](boost::system::error_code ec) mutable {
          if( !ec ) {
             (this->*f)(from_connection);

@@ -492,7 +492,7 @@ BOOST_AUTO_TEST_CASE(simple_http_client_async_test) {
 
    // Start Server
    echo_server_impl               server = echo_server_impl();
-   auto                           addr   = boost::asio::ip::address::from_string(host);
+   auto                           addr   = boost::asio::ip::make_address(host);
    boost::asio::ip::tcp::endpoint endpoint(addr, port);
 
    server.start(endpoint);
