@@ -6,17 +6,13 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads)
 
 file(GLOB HEADERS "include/chainbase/*.hpp")
+
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
-target_link_libraries( chainbase PUBLIC Threads::Threads Boost::system )
+target_link_libraries( chainbase PUBLIC Threads::Threads Boost::system Boost::headers Boost::interprocess
+                                        Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio )
 
-if(TARGET Boost::asio)
-  target_link_libraries( chainbase PUBLIC
-                         Boost::headers Boost::interprocess Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio )
-endif()
-
-target_include_directories( chainbase PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"  )
+target_include_directories( chainbase PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+                                             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"  )
 
 enable_testing()
 add_subdirectory( test )
