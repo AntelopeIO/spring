@@ -65,7 +65,19 @@ struct setcode_options {
    static constexpr bool allow_zero_blocktype = true;
 };
 
-void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) {
+static bool module_has_valid_sync_call(module& mod) {
+   bool supported = false;
+   const uint32_t i = mod.get_exported_function("sync_call");
+   if (i < std::numeric_limits<uint32_t>::max()) {
+      const vm::func_type& function_type = mod.get_function_type(i);
+      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
+         supported = true;
+      }
+   }
+   return supported;
+}
+
+void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics, bool& sync_call_supported) {
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code.size(), nullptr);
@@ -80,21 +92,11 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
                     ("module", std::string((char*)imports[i].module_str.raw(), imports[i].module_str.size()))
                     ("fn", std::string((char*)imports[i].field_str.raw(), imports[i].field_str.size())));
       }
+
+      sync_call_supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
-}
-
-static bool module_has_valid_sync_call(module& mod) {
-   bool supported = false;
-   const uint32_t i = mod.get_exported_function("sync_call");
-   if (i < std::numeric_limits<uint32_t>::max()) {
-      const vm::func_type& function_type = mod.get_function_type(i);
-      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
-         supported = true;
-      }
-   }
-   return supported;
 }
 
 void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics, bool& sync_call_supported ) {
