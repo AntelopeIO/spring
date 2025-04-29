@@ -175,7 +175,6 @@ void apply_eosio_setcode(apply_context& context) {
       if( new_code_entry ) {
          db.modify(*new_code_entry, [&](code_object& o) {
             ++o.code_ref_count;
-            o.sync_call_supported = sync_call_supported;
          });
       } else {
          db.create<code_object>([&](code_object& o) {
