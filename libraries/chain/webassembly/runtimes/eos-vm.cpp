@@ -77,7 +77,8 @@ static bool module_has_valid_sync_call(module& mod) {
    return supported;
 }
 
-void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics, bool& sync_call_supported) {
+validate_result validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) {
+   bool sync_call_supported = false;
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code.size(), nullptr);
@@ -97,10 +98,15 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics, 
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return validate_result {
+      .sync_call_supported = sync_call_supported
+   };
 }
 
-void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics, bool& sync_call_supported ) {
+validate_result validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
    EOS_ASSERT(code.size() <= cfg.max_module_bytes, wasm_serialization_error, "Code too large");
+   bool sync_call_supported = false;
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<wasm_config> bkend(code_ptr, code.size(), nullptr, cfg);
@@ -125,6 +131,10 @@ void validate( const controller& control, const bytes& code, const wasm_config& 
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return validate_result {
+      .sync_call_supported = sync_call_supported
+   };
 }
 
 bool is_sync_call_supported(const char* code_bytes, size_t code_size) {

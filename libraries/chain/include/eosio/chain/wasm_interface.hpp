@@ -13,6 +13,7 @@ namespace eosio { namespace chain {
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
+   namespace webassembly { namespace eos_vm_runtime { struct validate_result; }}
 
    struct wasm_exit {
       int32_t code = 0;
@@ -69,7 +70,7 @@ namespace eosio { namespace chain {
          void indicate_shutting_down();
 
          //validates code -- does a WASM validation pass and checks the wasm against EOSIO specific constraints
-         static void validate(const controller& control, const bytes& code, bool& sync_call_supported);
+         static webassembly::eos_vm_runtime::validate_result validate(const controller& control, const bytes& code);
 
          //returns true if the code contains a valid sync_call entry point
          static bool is_sync_call_supported(const char* code_bytes, size_t code_size);
