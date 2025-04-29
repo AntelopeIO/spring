@@ -331,7 +331,7 @@ jobs:
       - name: checkout system-contracts
         uses: actions/checkout@v4
         with:
-          repository: vaultafoundation/system-contracts
+          repository: VaultaFoundation/system-contracts
           path: system-contracts
           ref: '${{needs.v.outputs.system-contracts-ref}}'
       - if: ${{ matrix.test == 'deb-install' }}
