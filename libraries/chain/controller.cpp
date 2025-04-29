@@ -2080,6 +2080,10 @@ struct controller_impl {
          db.undo();
       }
 
+      EOS_ASSERT(conf.terminate_at_block == 0 || conf.terminate_at_block > chain_head.block_num(),
+                 plugin_config_exception, "--terminate-at-block ${t} not greater than chain head ${h}",
+                 ("t", conf.terminate_at_block)("h", chain_head.block_num()));
+
       protocol_features.init( db );
 
       // At startup, no transaction specific logging is possible
@@ -2139,6 +2143,19 @@ struct controller_impl {
 
    ~controller_impl() {
       pending.reset();
+
+      if (conf.truncate_at_block > 0 && chain_head.is_valid()) {
+         if (chain_head.block_num() == conf.truncate_at_block && fork_db_has_root()) {
+            fork_db_.apply<void>([&](auto& fork_db) {
+               if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
+                  ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
+                        ("t", conf.truncate_at_block)("h", head->block_num()));
+                  fork_db.remove(conf.truncate_at_block + 1);
+               }
+            });
+         }
+      }
+
       //only log this not just if configured to, but also if initialization made it to the point we'd log the startup too
       if(okay_to_print_integrity_hash_on_stop && conf.integrity_hash_on_stop)
          ilog( "chain database stopped with hash: ${hash}", ("hash", calculate_integrity_hash()) );
