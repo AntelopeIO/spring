@@ -1,5 +1,3 @@
-#include <fc/log/logger_config.hpp> //set_thread_name
-
 #include <eosio/chain/webassembly/eos-vm-oc/code_cache.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/webassembly/common.hpp>
@@ -9,17 +7,11 @@
 #include <eosio/chain/webassembly/eos-vm-oc/compile_monitor.hpp>
 #include <eosio/chain/exceptions.hpp>
 
+#include <fc/log/logger_config.hpp> //set_thread_name
+
+#include <fstream>
 #include <unistd.h>
-#include <sys/syscall.h>
 #include <sys/mman.h>
-#include <linux/memfd.h>
-
-#include "IR/Module.h"
-#include "IR/Validate.h"
-#include "WASM/WASM.h"
-#include "LLVMJIT.h"
-
-using namespace IR;
 
 namespace eosio { namespace chain { namespace eosvmoc {
 
@@ -81,7 +73,8 @@ void code_cache_async::wait_on_compile_monitor_message() {
       --_outstanding_compiles;
 
       const auto& msg = std::get<wasm_compilation_result_message>(message);
-      _result_queue.push(msg);
+      bool p = _result_queue.push(msg);
+      assert(p);
 
       _compile_complete_func(_ctx, msg.code.code_id, msg.queued_time);
 
@@ -92,7 +85,7 @@ void code_cache_async::wait_on_compile_monitor_message() {
 }
 
 //call with _mtx locked
-void code_cache_async::write_message(const digest_type& code_id, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds) {
+void code_cache_async::write_message(const digest_type& code_id, const eosvmoc_message& message, std::span<wrapped_fd> fds) {
    _outstanding_compiles_and_poison.emplace(code_id, false);
    ++_outstanding_compiles;
    if (!write_message_with_fds(_compile_monitor_write_socket, message, fds)) {
@@ -106,7 +99,8 @@ void code_cache_async::process_queued_compiles() {
    while (_outstanding_compiles < _threads && !_queued_compiles.empty()) {
       auto nextup = _queued_compiles.begin();
 
-      write_message(nextup->code_id(), nextup->msg, nextup->fds_to_pass);
+      auto fd = memfd_for_bytearray(nextup->code);
+      write_message(nextup->code_id(), nextup->msg, std::span<wrapped_fd>{&fd, 1});
 
       _queued_compiles.erase(nextup);
    }
@@ -116,7 +110,9 @@ void code_cache_async::process_queued_compiles() {
 //number processed, bytes available (only if number processed > 0)
 std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
    std::unique_lock g(_mtx);
-   auto outstanding_compiles = _outstanding_compiles_and_poison; // will always be small, <= _threads
+   // will be relatively small, ~ _threads. Can be larger than _threads if multiple compiles finish before
+   // consume_compile_thread_queue() is called on the main thread
+   auto outstanding_compiles = _outstanding_compiles_and_poison;
    g.unlock();
 
    std::vector<digest_type> erased;
@@ -142,8 +138,10 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
    });
 
    g.lock();
-   for (const auto& e : erased)
-      _outstanding_compiles_and_poison.erase(e);
+   for (const auto& e : erased) {
+      auto c = _outstanding_compiles_and_poison.erase(e);
+      assert(c > 0);
+   }
    g.unlock();
 
    return {gotsome, bytes_remaining};
@@ -163,8 +161,7 @@ code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, co
    }
 
    //check for entry in cache
-   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(code_id);
-   if(it != _cache_index.get<by_hash>().end()) {
+   if(auto it = _cache_index.get<by_hash>().find(code_id); it != _cache_index.get<by_hash>().end()) {
       if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
       return &*it;
@@ -205,20 +202,20 @@ code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, co
       .queued_time = fc::time_point::now(),
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };
-   std::vector<wrapped_fd> fds_to_pass;
-   fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
 
    g.lock();
-   if(_outstanding_compiles_and_poison.size() >= _threads) {
+   if(_outstanding_compiles >= _threads) {
+      std::vector<char> code{codeobject->code.begin(), codeobject->code.end()};
       if (m.high_priority)
-         _queued_compiles.emplace_front(std::move(msg), std::move(fds_to_pass));
+         _queued_compiles.emplace_front(std::move(msg), std::move(code));
       else
-         _queued_compiles.emplace_back(std::move(msg), std::move(fds_to_pass));
+         _queued_compiles.emplace_back(std::move(msg), std::move(code));
       failure = get_cd_failure::temporary; // Compile might not be done yet
       return nullptr;
    }
 
-   write_message(code_id, msg, fds_to_pass);
+   auto fd = memfd_for_bytearray(codeobject->code);
+   write_message(code_id, msg, std::span<wrapped_fd>{&fd, 1});
    failure = get_cd_failure::temporary; // Compile might not be done yet
    return nullptr;
 }
@@ -247,15 +244,13 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode 
    if(!codeobject) //should be impossible right?
       return nullptr;
 
-   std::vector<wrapped_fd> fds_to_pass;
-   fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
-
    auto msg = compile_wasm_message{
       .code = { code_id, vm_version },
       .queued_time = fc::time_point{}, // could use now() if compile time measurement desired
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };
-   write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass);
+   auto fd = memfd_for_bytearray(codeobject->code);
+   write_message_with_fds(_compile_monitor_write_socket, msg, std::span<wrapped_fd>{&fd, 1});
    auto [success, message, fds] = read_message_with_fds(_compile_monitor_read_socket);
    EOS_ASSERT(success, wasm_execution_error, "failed to read response from monitor process");
    EOS_ASSERT(std::holds_alternative<wasm_compilation_result_message>(message), wasm_execution_error, "unexpected response from monitor process");
