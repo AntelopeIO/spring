@@ -4993,8 +4993,10 @@ struct controller_impl {
       return wasmif;
    }
 
-   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                 block_num_type first_used_block_num, block_num_type block_num_last_used)
+   {
+      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
    }
 
    void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
@@ -6216,8 +6218,9 @@ bool controller::is_write_window() const {
    return my->is_write_window();
 }
 
-void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-   return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                          block_num_type first_used_block_num, block_num_type block_num_last_used) {
+   return my->code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
 }
 
 platform_timer& controller::get_thread_local_timer() {
