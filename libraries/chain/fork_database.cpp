@@ -103,6 +103,7 @@ namespace eosio::chain {
       void             reset_root_impl( const bsp_t& root_bs );
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
+      void             remove_impl( block_num_type block_num );
       bsp_t            head_impl(include_root_t include_root) const;
       bool             set_pending_savanna_lib_id_impl(const block_id_type& id);
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
@@ -586,6 +587,24 @@ namespace eosio::chain {
 
       for( const auto& block_id : remove_queue ) {
          index.erase( block_id );
+      }
+   }
+
+   template<class BSP>
+   void fork_database_t<BSP>::remove( block_num_type block_num ) {
+      std::lock_guard g( my->mtx );
+      return my->remove_impl( block_num );
+   }
+
+   template<class BSP>
+   void fork_database_impl<BSP>::remove_impl( block_num_type block_num ) {
+      // doesn't matter which index as there is no index over block_num
+      for (auto itr = index.template get<0>().begin(); itr != index.template get<0>().end(); ) {
+         if ((*itr)->block_num() >= block_num) {
+            itr = index.erase(itr);
+         } else {
+            ++itr;
+         }
       }
    }
 
