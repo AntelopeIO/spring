@@ -150,6 +150,7 @@ namespace eosio::chain {
             uint32_t                 maximum_variable_signature_length = chain::config::default_max_variable_signature_length;
             bool                     disable_all_subjective_mitigations = false; //< for developer & testing purposes, can be configured using `disable-all-subjective-mitigations` when `EOSIO_DEVELOPER` build option is provided
             uint32_t                 terminate_at_block     = 0;
+            uint32_t                 truncate_at_block      = 0;
             uint32_t                 num_configured_p2p_peers = 0;
             bool                     integrity_hash_on_start= false;
             bool                     integrity_hash_on_stop = false;
@@ -497,10 +498,11 @@ namespace eosio::chain {
       void set_to_write_window();
       void set_to_read_window();
       bool is_write_window() const;
-      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
 
       platform_timer& get_thread_local_timer();
 
+      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                    block_num_type first_used_block_num, block_num_type block_num_last_used);
       void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
       // is the bls key a registered finalizer key of this node, thread safe
