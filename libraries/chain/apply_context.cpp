@@ -124,13 +124,7 @@ void apply_context::exec_one()
       } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} console output: ${console}", ("console", get_current_action_trace().console)("account", act->account)("action", act->name)("receiver", receiver) )
 
       if( control.is_builtin_activated( builtin_protocol_feature_t::action_return_value ) ) {
-         act_digest =   generate_action_digest(
-                           [this](const char* data, uint32_t datalen) {
-                              return trx_context.hash_with_checktime<digest_type>(data, datalen);
-                           },
-                           *act,
-                           action_return_value
-                        );
+         act_digest = generate_action_digest(*act, action_return_value);
       } else {
          act_digest = digest_type::hash(*act);
       }

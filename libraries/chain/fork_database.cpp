@@ -103,6 +103,7 @@ namespace eosio::chain {
       void             reset_root_impl( const bsp_t& root_bs );
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
+      void             remove_impl( block_num_type block_num );
       bsp_t            head_impl(include_root_t include_root) const;
       bool             set_pending_savanna_lib_id_impl(const block_id_type& id);
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
@@ -132,9 +133,11 @@ namespace eosio::chain {
    template<class BSP>
    void fork_database_impl<BSP>::open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
       bsp_t _root = std::make_shared<bs_t>();
-      fc::raw::unpack( ds, pending_savanna_lib_id );
+      block_id_type savanna_lib_id;
+      fc::raw::unpack( ds, savanna_lib_id );
       fc::raw::unpack( ds, *_root );
-      reset_root_impl( _root );
+      reset_root_impl( _root ); // resets pending_savanna_lib_id
+      set_pending_savanna_lib_id_impl( savanna_lib_id );
 
       unsigned_int size; fc::raw::unpack( ds, size );
       for( uint32_t i = 0, n = size.value; i < n; ++i ) {
@@ -249,15 +252,19 @@ namespace eosio::chain {
       if constexpr (std::is_same_v<BSP, block_state_ptr>) {
          auto qc_claim = n->extract_qc_claim();
          if (qc_claim.is_strong_qc) {
-            // claim has already been verified, update LIB even if unable to verify block
-            // We evaluate a block extension qc and advance lib if strong.
-            // This is done before evaluating the block. It is possible the block
-            // will not be valid or forked out. This is safe because the block is
-            // just acting as a carrier of this info. It doesn't matter if the block
-            // is actually valid as it simply is used as a network message for this data.
-            if (auto claimed = search_on_branch_impl(n->previous(), qc_claim.block_num, include_root_t::no)) {
-               auto& latest_qc_claim__block_ref = claimed->core.get_block_reference(claimed->core.latest_qc_claim().block_num);
-               set_pending_savanna_lib_id_impl(latest_qc_claim__block_ref.block_id);
+            // it is not possible to claim a future block, skip if pending is already a higher height
+            block_num_type current_lib = block_header::num_from_id(pending_savanna_lib_id);
+            if (qc_claim.block_num > current_lib) {
+               // claim has already been verified, update LIB even if unable to verify block
+               // We evaluate a block extension qc and advance lib if strong.
+               // This is done before evaluating the block. It is possible the block
+               // will not be valid or forked out. This is safe because the block is
+               // just acting as a carrier of this info. It doesn't matter if the block
+               // is actually valid as it simply is used as a network message for this data.
+               if (auto claimed = search_on_branch_impl(n->previous(), qc_claim.block_num, include_root_t::no)) {
+                  auto& latest_qc_claim__block_ref = claimed->core.get_block_reference(claimed->core.latest_qc_claim().block_num);
+                  set_pending_savanna_lib_id_impl(latest_qc_claim__block_ref.block_id);
+               }
             }
          }
       }
@@ -580,6 +587,24 @@ namespace eosio::chain {
 
       for( const auto& block_id : remove_queue ) {
          index.erase( block_id );
+      }
+   }
+
+   template<class BSP>
+   void fork_database_t<BSP>::remove( block_num_type block_num ) {
+      std::lock_guard g( my->mtx );
+      return my->remove_impl( block_num );
+   }
+
+   template<class BSP>
+   void fork_database_impl<BSP>::remove_impl( block_num_type block_num ) {
+      // doesn't matter which index as there is no index over block_num
+      for (auto itr = index.template get<0>().begin(); itr != index.template get<0>().end(); ) {
+         if ((*itr)->block_num() >= block_num) {
+            itr = index.erase(itr);
+         } else {
+            ++itr;
+         }
       }
    }
 

@@ -7,7 +7,6 @@ on:
         description: 'Select Platform'
         type: choice
         options:
-        - ubuntu20
         - ubuntu22
       override-test-params:
         description: 'Override perf harness params'

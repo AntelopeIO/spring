@@ -10,6 +10,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/finalizer.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -78,23 +79,6 @@ namespace eosio::chain {
 
    namespace resource_limits {
       class resource_limits_manager;
-   };
-
-   // vector, sorted by rank, of the top-50 producers by `total_votes` (whether
-   // active or not) and their peer key if populated on-chain.
-   // -------------------------------------------------------------------------
-   struct peerkeys_t {
-      name                           producer_name;
-      std::optional<public_key_type> peer_key;
-   };
-   using getpeerkeys_res_t = std::vector<peerkeys_t>;
-
-   struct peer_info_t {
-      // rank by `total_votes` of all producers, active or not, may not match schedule rank
-      uint32_t                       rank{std::numeric_limits<uint32_t>::max()};
-      std::optional<public_key_type> key;
-
-      bool operator==(const peer_info_t&) const = default;
    };
 
    struct controller_impl;
@@ -166,6 +150,7 @@ namespace eosio::chain {
             uint32_t                 maximum_variable_signature_length = chain::config::default_max_variable_signature_length;
             bool                     disable_all_subjective_mitigations = false; //< for developer & testing purposes, can be configured using `disable-all-subjective-mitigations` when `EOSIO_DEVELOPER` build option is provided
             uint32_t                 terminate_at_block     = 0;
+            uint32_t                 truncate_at_block      = 0;
             uint32_t                 num_configured_p2p_peers = 0;
             bool                     integrity_hash_on_start= false;
             bool                     integrity_hash_on_stop = false;
@@ -225,8 +210,9 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler, or producer_plugin
-         void interrupt_transaction();
+         /// Expected to be called from signal handler or producer_plugin
+         enum class interrupt_t { all_trx, apply_block_trx, speculative_block_trx };
+         void interrupt_transaction(interrupt_t interrupt);
 
        /**
         *
@@ -247,7 +233,6 @@ namespace eosio::chain {
          void assemble_and_complete_block( const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block();
-         void update_peer_keys(fc::time_point deadline);
          void testing_allow_voting(bool val);
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
@@ -445,9 +430,11 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
-         void set_peer_keys_retrieval_active(bool active);
-         peer_info_t  get_peer_info(name n) const;  // thread safe
-         getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline); // must be called from main thread
+         void set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers);
+         std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
+         bool configured_peer_keys_updated(); // thread safe
+         // used for testing, only call with an active pending block from main thread
+         getpeerkeys_res_t get_top_producer_keys();
 
          // thread safe
          db_read_mode get_read_mode()const;
@@ -513,10 +500,11 @@ namespace eosio::chain {
       void set_to_write_window();
       void set_to_read_window();
       bool is_write_window() const;
-      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
 
       platform_timer& get_thread_local_timer();
 
+      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                    block_num_type first_used_block_num, block_num_type block_num_last_used);
       void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
       // is the bls key a registered finalizer key of this node, thread safe
