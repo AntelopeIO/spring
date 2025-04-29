@@ -70,7 +70,7 @@ try:
     Print("Kill the node we want to verify its block log")
     node0.kill(signal.SIGTERM)
 
-    Print("Let's have node1's head advance a couple blocks")
+    Print("Let's have node1's head advance a few blocks")
     node1.waitForBlock(headBlockNum+4, timeout=10)
     infoAfter=node1.getInfo(exitOnError=True)
     headBlockNumAfter=infoAfter["head_block_num"]
