@@ -3167,6 +3167,12 @@ namespace eosio {
          return true;
       }
 
+      auto ds = pending_message_buffer.create_datastream();
+      unsigned_int which{};
+      fc::raw::unpack( ds, which );
+      transaction_notice_message msg;
+      fc::raw::unpack( ds, msg );
+
       // todo
 
       return true;
