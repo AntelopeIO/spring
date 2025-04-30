@@ -36,8 +36,6 @@ Command Line Options for eosio::chain_plugin:
   --force-all-checks                    do not skip any validation checks while
                                         replaying blocks (useful for replaying
                                         blocks from untrusted source)
-  --disable-replay-opts                 disable optimizations that specifically
-                                        target replay
   --replay-blockchain                   clear chain state database and replay
                                         all blocks
   --hard-replay-blockchain              clear chain state database, recover as
@@ -63,9 +61,48 @@ Config Options for eosio::chain_plugin:
   --blocks-dir arg (="blocks")          the location of the blocks directory
                                         (absolute path or relative to
                                         application data dir)
+  --blocks-log-stride arg               split the block log file when the head
+                                        block number is the multiple of the
+                                        stride
+                                        When the stride is reached, the current
+                                        block log and index will be renamed
+                                        '<blocks-retained-dir>/blocks-<start
+                                        num>-<end num>.log/index'
+                                        and a new current block log and index
+                                        will be created with the most recent
+                                        block. All files following
+                                        this format will be used to construct
+                                        an extended block log.
+  --max-retained-block-files arg        the maximum number of blocks files to
+                                        retain so that the blocks in those
+                                        files can be queried.
+                                        When the number is reached, the oldest
+                                        block file would be moved to archive
+                                        dir or deleted if the archive dir is
+                                        empty.
+                                        The retained block log files should not
+                                        be manipulated by users.
+  --blocks-retained-dir arg             the location of the blocks retained
+                                        directory (absolute path or relative to
+                                        blocks dir).
+                                        If the value is empty, it is set to the
+                                        value of blocks dir.
+  --blocks-archive-dir arg              the location of the blocks archive
+                                        directory (absolute path or relative to
+                                        blocks dir).
+                                        If the value is empty, blocks files
+                                        beyond the retained limit will be
+                                        deleted.
+                                        All files in the archive directory are
+                                        completely under user's control, i.e.
+                                        they won't be accessed by nodeos
+                                        anymore.
   --state-dir arg (="state")            the location of the state directory
                                         (absolute path or relative to
                                         application data dir)
+  --finalizers-dir arg (="finalizers")  the location of the finalizers safety
+                                        data directory (absolute path or
+                                        relative to application data dir)
   --protocol-features-dir arg (="protocol_features")
                                         the location of the protocol_features
                                         directory (absolute path or relative to
@@ -96,6 +133,11 @@ Config Options for eosio::chain_plugin:
                                         e.g. 50 for 50%
   --chain-threads arg (=2)              Number of worker threads in controller
                                         thread pool
+  --vote-threads arg                    Number of worker threads in vote
+                                        processor thread pool. If set to 0,
+                                        voting disabled, votes are not
+                                        propagatged on P2P network. Defaults to
+                                        4 on producer nodes.
   --contracts-console                   print contract's output to console
   --deep-mind                           print deeper information about chain
                                         operations
@@ -137,7 +179,8 @@ Config Options for eosio::chain_plugin:
                                         as well as some transactions not yet
                                         included in the blockchain;
                                         transactions received by the node are
-                                        relayed if valid.                                        
+                                        relayed if valid.
+
   --api-accept-transactions arg (=1)    Allow API transactions to be evaluated
                                         and relayed if valid.
   --validation-mode arg (=full)         Chain validation mode ("full" or
@@ -186,12 +229,16 @@ Config Options for eosio::chain_plugin:
                                         ('auto', 'all', 'none').
                                         'auto' - EOS VM OC tier-up is enabled
                                         for eosio.* accounts, read-only trxs,
-                                        and applying blocks.
+                                        and except on producers applying
+                                        blocks.
                                         'all'  - EOS VM OC tier-up is enabled
                                         for all contract execution.
                                         'none' - EOS VM OC tier-up is
                                         completely disabled.
 
+  --eos-vm-oc-whitelist arg (=xsat,vaulta)
+                                        EOS VM OC tier-up whitelist account
+                                        suffixes for tier-up runtime 'auto'.
   --enable-account-queries arg (=0)     enable queries to find accounts by
                                         various metadata.
   --transaction-retry-max-storage-size-gb arg
@@ -200,16 +247,16 @@ Config Options for eosio::chain_plugin:
                                         feature. Setting above 0 enables this
                                         feature.
   --transaction-retry-interval-sec arg (=20)
-                                        How often, in seconds, to resend an 
-                                        incoming transaction to network if not 
+                                        How often, in seconds, to resend an
+                                        incoming transaction to network if not
                                         seen in a block.
-                                        Needs to be at least twice as large as 
+                                        Needs to be at least twice as large as
                                         p2p-dedup-cache-expire-time-sec.
   --transaction-retry-max-expiration-sec arg (=120)
-                                        Maximum allowed transaction expiration 
-                                        for retry transactions, will retry 
+                                        Maximum allowed transaction expiration
+                                        for retry transactions, will retry
                                         transactions up to this value.
-                                        Should be larger than 
+                                        Should be larger than
                                         transaction-retry-interval-sec.
   --transaction-finality-status-max-storage-size-gb arg
                                         Maximum size (in GiB) allowed to be
@@ -226,6 +273,8 @@ Config Options for eosio::chain_plugin:
                                         transaction's Finality Status will
                                         remain available from being first
                                         identified.
+  --disable-replay-opts                 disable optimizations that specifically
+                                        target replay
   --integrity-hash-on-start             Log the state integrity hash on startup
   --integrity-hash-on-stop              Log the state integrity hash on
                                         shutdown
@@ -236,7 +285,6 @@ Config Options for eosio::chain_plugin:
                                         If set to 0, no blocks are be written
                                         to the block log; block log file is
                                         removed after startup.
-
 ```
 
 ## Dependencies
