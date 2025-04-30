@@ -15,6 +15,7 @@ namespace eosio {
       bool              connecting           = false;
       bool              syncing              = false;
       bool              is_bp_peer           = false;
+      bool              is_bp_gossip_peer    = false;
       bool              is_socket_open       = false;
       bool              is_blocks_only       = false;
       bool              is_transactions_only = false;
@@ -104,5 +105,5 @@ namespace eosio {
 }
 
 FC_REFLECT( eosio::connection_status, (peer)(remote_ip)(remote_port)(connecting)(syncing)
-                                      (is_bp_peer)(is_socket_open)(is_blocks_only)(is_transactions_only)
+                                      (is_bp_peer)(is_bp_gossip_peer)(is_socket_open)(is_blocks_only)(is_transactions_only)
                                       (last_vote_received)(last_handshake) )

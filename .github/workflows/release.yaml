@@ -13,15 +13,6 @@ jobs:
       packages: write
       actions: read
     steps:
-      - name: Get ubuntu20 antelope-spring-dev.deb
-        uses: AntelopeIO/asset-artifact-download-action@v3
-        with:
-          owner: ${{github.repository_owner}}
-          repo: ${{github.event.repository.name}}
-          file: 'antelope-spring-dev.*amd64.deb'
-          target: ${{github.sha}}
-          artifact-name: antelope-spring-dev-ubuntu20-amd64
-          wait-for-exact-target: true
       - name: Get ubuntu22 antelope-spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:

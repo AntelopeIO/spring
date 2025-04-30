@@ -82,6 +82,11 @@ namespace eosio::chain {
 
       void remove( const block_id_type& id );
 
+      /**
+       * Remove all blocks >= block_num
+       */
+      void remove( block_num_type block_num);
+
       bool is_valid() const; // sanity checks on this fork_db
 
       bool   has_root() const;
