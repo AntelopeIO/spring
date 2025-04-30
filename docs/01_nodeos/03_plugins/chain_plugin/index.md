@@ -291,7 +291,6 @@ Config Options for eosio::chain_plugin:
                                         If set to 0, no blocks are be written
                                         to the block log; block log file is
                                         removed after startup.
-
 ```
 
 ## Dependencies
