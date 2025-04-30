@@ -2,7 +2,6 @@
 #include <string>
 #include <fc/reflect/reflect.hpp>
 #include <iosfwd>
-#include <byteswap.h>
 
 namespace eosio::chain {
   struct name;
@@ -183,7 +182,7 @@ namespace std {
 
       size_t operator()(const argument_type& name) const noexcept {
          static_assert(sizeof(size_t) == sizeof(uint64_t));
-         return bswap_64(name.to_uint64_t());
+         return __builtin_bswap64(name.to_uint64_t());
       }
    };
 };
