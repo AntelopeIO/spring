@@ -889,7 +889,13 @@ public:
       if( chain.is_building_block() ) {
          block_info = std::make_tuple(chain.pending_block_num(), chain.pending_block_producer());
       }
-      _unapplied_transactions.add_aborted( chain.abort_block() );
+      auto aborted_trxs = chain.abort_block();
+      if (_trx_log.is_enabled(fc::log_level::debug)) {
+         for (const auto& t : aborted_trxs) {
+            fc_dlog(_trx_log, "adding aborted trx ${id} to unapplied queue", ("id", t->id()));
+         }
+      }
+      _unapplied_transactions.add_aborted( std::move(aborted_trxs) );
       _time_tracker.add_other_time();
 
       if (block_info) {
@@ -939,7 +945,10 @@ public:
       controller::apply_blocks_result result = controller::apply_blocks_result::complete;
       try {
          result = chain.apply_blocks(
-            [this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+            [this](const transaction_metadata_ptr& trx) {
+               fc_dlog(_trx_log, "adding forked trx ${id} to unapplied queue", ("id", trx->id()));
+               _unapplied_transactions.add_forked(trx);
+            },
             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (const guard_exception& e) {
          chain_plugin::handle_guard_exception(e);
@@ -2187,7 +2196,10 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    auto apply_blocks = [&]() -> controller::apply_blocks_result {
       try {
-         return chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+         return chain.apply_blocks([this](const transaction_metadata_ptr& trx) {
+                                      fc_dlog(_trx_log, "adding forked trx ${id} to unapplied queue", ("id", trx->id()));
+                                      _unapplied_transactions.add_forked(trx);
+                                   },
                                    [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (...) {} // errors logged in apply_blocks
       return controller::apply_blocks_result::incomplete;
@@ -2391,8 +2403,15 @@ bool producer_plugin_impl::remove_expired_trxs(const fc::time_point& deadline) {
    bool   exhausted   = !_unapplied_transactions.clear_expired(
       pending_block_time,
       [&]() { return should_interrupt_start_block(deadline, pending_block_num); },
-      [&num_expired](const packed_transaction_ptr& packed_trx_ptr, trx_enum_type trx_type) {
-         // expired exception is logged as part of next() call
+      [&](const packed_transaction_ptr& packed_trx_ptr, trx_enum_type trx_type) {
+         if (_trx_log.is_enabled(fc::log_level::debug) || _trx_trace_failure_log.is_enabled(fc::log_level::debug) || _trx_failed_trace_log.is_enabled(fc::log_level::debug)) {
+            auto except_ptr = std::make_shared<expired_tx_exception>(
+                  FC_LOG_MESSAGE( error, "unapplied expired transaction ${id}, expiration ${e}, block time ${bt}",
+                                  ("id", packed_trx_ptr->id())("e", packed_trx_ptr->expiration())
+                                  ("bt", pending_block_time) ) );
+            log_trx_results(packed_trx_ptr, nullptr, except_ptr, 0, false);
+         }
+         // expired exception is also logged as part of next() call if next() provided
          ++num_expired;
       });
 
