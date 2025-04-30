@@ -46,8 +46,7 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
             status = exec->execute(*cd, *mem, context);
          } else if ( is_main_thread() ) {  // action on main thread
             status = _eosvmoc_runtime.exec.execute(*cd, _eosvmoc_runtime.mem, context);
-         }
-         else {  // action on read only thread
+         } else {  // action on read only thread
             status = _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
          }
 
