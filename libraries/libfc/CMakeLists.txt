@@ -102,16 +102,21 @@ if(APPLE)
   find_library(security_framework Security)
   find_library(corefoundation_framework CoreFoundation)
 endif()
+
 target_link_libraries( fc PUBLIC Boost::date_time Boost::chrono Boost::iostreams Boost::interprocess Boost::multi_index Boost::dll
                                  Boost::multiprecision Boost::beast Boost::asio Boost::thread Boost::crc Threads::Threads
-                                 boringssl ZLIB::ZLIB ${PLATFORM_SPECIFIC_LIBS} ${CMAKE_DL_LIBS} secp256k1 bls12-381 ${security_framework} ${corefoundation_framework})
+                                 boringssl ZLIB::ZLIB ${PLATFORM_SPECIFIC_LIBS} ${CMAKE_DL_LIBS} secp256k1 bls12-381
+                                 ${security_framework} ${corefoundation_framework})
 
 add_subdirectory( test )
 
 install(TARGETS fc
-   LIBRARY DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR} COMPONENT dev EXCLUDE_FROM_ALL
-   ARCHIVE DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR} COMPONENT dev EXCLUDE_FROM_ALL)
-install(DIRECTORY include/fc DESTINATION ${CMAKE_INSTALL_FULL_INCLUDEDIR} COMPONENT dev EXCLUDE_FROM_ALL)
+        LIBRARY DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR} COMPONENT dev EXCLUDE_FROM_ALL
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR} COMPONENT dev EXCLUDE_FROM_ALL)
 
-install(TARGETS bls12-381 ARCHIVE       DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"               COMPONENT dev EXCLUDE_FROM_ALL
-                          PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}/bls12-381" COMPONENT dev EXCLUDE_FROM_ALL)
+install(DIRECTORY include/fc
+        DESTINATION ${CMAKE_INSTALL_FULL_INCLUDEDIR} COMPONENT dev EXCLUDE_FROM_ALL)
+
+install(TARGETS bls12-381 ARCHIVE
+        DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}" COMPONENT dev EXCLUDE_FROM_ALL
+        PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}/bls12-381" COMPONENT dev EXCLUDE_FROM_ALL)

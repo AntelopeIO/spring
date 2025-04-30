@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ostream>
 #include <eosio/chain/exceptions.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 
@@ -8,6 +9,15 @@
 #include <regex>
 
 namespace eosio::net_utils {
+
+// Longest domain name is 253 characters according to wikipedia.
+// Addresses include ":port" where max port is 65535, which adds 6 chars.
+// Addresses may also include ":bitrate" with suffix and separators, which adds 30 chars,
+// for the maximum comma-separated value that fits in a size_t expressed in decimal plus a suffix.
+// We also add our own extentions of "[:trx|:blk] - xxxxxxx", which adds 14 chars, total= 273.
+// Allow for future extentions as well, hence 384.
+constexpr size_t max_p2p_address_length = 253 + 6 + 30;
+constexpr size_t max_handshake_str_length = 384;
 
 namespace detail {
 
@@ -48,6 +58,10 @@ namespace detail {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification is empty" );
          return {};
       }
+      if (peer_add.size() > max_p2p_address_length) {
+         EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification exceeds max p2p address length" );
+         return {};
+      }
 
       auto colon_count = std::count(peer_add.begin(), peer_add.end(), ':');
       string::size_type end_bracket = 0;
@@ -82,11 +96,32 @@ namespace detail {
       string::size_type colon2 = peer_add.find(':', colon + 1);
       string host = peer_add.substr( 0, colon );
       string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
-      string remainder = colon2 == string::npos ? "" : peer_add.substr( colon2 + 1 );
+      string remainder;
+      if (colon2 == string::npos) {
+         auto port_end = port.find_first_not_of("0123456789");
+         if (port_end != string::npos) {
+            port = port.substr(0, port_end);
+            remainder = port.substr( port_end );
+         }
+      } else {
+         remainder = peer_add.substr( colon2 + 1 );
+      }
       return {std::move(host), std::move(port), std::move(remainder)};
    }
 
 } // namespace detail
+
+   struct endpoint {
+      std::string host;
+      std::string port;
+
+      std::string address() const { return host + ":" + port; }
+
+      friend std::ostream& operator<<(std::ostream& os, const endpoint& e) { return os << e.host << ":" << e.port; }
+
+      bool operator==(const endpoint& lhs) const = default;
+      auto operator<=>(const endpoint& lhs) const = default;
+   };
 
    /// @return host, port, type. returns empty on invalid peer_add, does not throw
    inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
@@ -126,3 +161,5 @@ namespace detail {
    }
 
 } // namespace eosio::net_utils
+
+FC_REFLECT(eosio::net_utils::endpoint, (host)(port))
