@@ -55,7 +55,7 @@ find_library(liblogging Logging @CMAKE_BINARY_DIR@/libraries/wasm-jit/Source/Log
 find_library(libsoftfloat softfloat @CMAKE_BINARY_DIR@/libraries/softfloat NO_DEFAULT_PATH)
 find_library(libbscrypto bscrypto @CMAKE_BINARY_DIR@/libraries/libfc/libraries/boringssl/bssl NO_DEFAULT_PATH)
 find_library(libdecrepit decrepit @CMAKE_BINARY_DIR@/libraries/libfc/libraries/boringssl/bssl NO_DEFAULT_PATH)
-find_library(libchainbase chainbase @CMAKE_BINARY_DIR@/libraries/chainbase NO_DEFAULT_PATH)
+find_library(libchainbase chainbase @CMAKE_BINARY_DIR@/libraries/chaindb NO_DEFAULT_PATH)
 find_library(libbuiltins builtins @CMAKE_BINARY_DIR@/libraries/builtins NO_DEFAULT_PATH)
 
 #Ubuntu build requires rt library to be specified explicitly
@@ -118,7 +118,7 @@ target_include_directories(EosioChain INTERFACE
                               @CMAKE_SOURCE_DIR@/libraries/libfc/libraries/bls12-381/include
                               @CMAKE_SOURCE_DIR@/libraries/softfloat/source/include
                               @CMAKE_SOURCE_DIR@/libraries/appbase/include
-                              @CMAKE_SOURCE_DIR@/libraries/chainbase/include
+                              @CMAKE_SOURCE_DIR@/libraries/chaindb/include
                               @CMAKE_SOURCE_DIR@/libraries/wasm-jit/include )
 
 

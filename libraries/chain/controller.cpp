@@ -1286,7 +1286,7 @@ struct controller_impl {
       }
    }
 
-   getpeerkeys_res_t get_top_producer_keys(fc::time_point deadline) {
+   getpeerkeys_res_t get_top_producer_keys() {
       try {
          auto get_getpeerkeys_transaction = [&]() {
             auto perms = vector<permission_level>{};
@@ -1303,7 +1303,7 @@ struct controller_impl {
             transaction_metadata::trx_type::read_only);
 
          // allow a max of 20ms for getpeerkeys
-         auto trace = push_transaction(metadata, deadline, fc::milliseconds(20), 0, false, 0);
+         auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::milliseconds(20), 0, false, 0);
 
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
@@ -2081,6 +2081,10 @@ struct controller_impl {
          db.undo();
       }
 
+      EOS_ASSERT(conf.terminate_at_block == 0 || conf.terminate_at_block > chain_head.block_num(),
+                 plugin_config_exception, "--terminate-at-block ${t} not greater than chain head ${h}",
+                 ("t", conf.terminate_at_block)("h", chain_head.block_num()));
+
       protocol_features.init( db );
 
       // At startup, no transaction specific logging is possible
@@ -2140,6 +2144,19 @@ struct controller_impl {
 
    ~controller_impl() {
       pending.reset();
+
+      if (conf.truncate_at_block > 0 && chain_head.is_valid()) {
+         if (chain_head.block_num() == conf.truncate_at_block && fork_db_has_root()) {
+            fork_db_.apply<void>([&](auto& fork_db) {
+               if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
+                  ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
+                        ("t", conf.truncate_at_block)("h", head->block_num()));
+                  fork_db.remove(conf.truncate_at_block + 1);
+               }
+            });
+         }
+      }
+
       //only log this not just if configured to, but also if initialization made it to the point we'd log the startup too
       if(okay_to_print_integrity_hash_on_stop && conf.integrity_hash_on_stop)
          ilog( "chain database stopped with hash: ${hash}", ("hash", calculate_integrity_hash()) );
@@ -2512,7 +2529,7 @@ struct controller_impl {
       });
 
       if(header.version < chain_snapshot_header::first_version_with_split_table_sections)
-         snapshot_load_ctx.post([this,&snapshot,&rows_loaded]() {
+         boost::asio::post(snapshot_load_ctx, [this,&snapshot,&rows_loaded]() {
             read_contract_tables_from_preV7_snapshot(snapshot, rows_loaded);
          });
       else
@@ -3251,6 +3268,11 @@ struct controller_impl {
 
       auto& bb = std::get<building_block>(pending->_block_stage);
 
+      // limit to complete type to avoid multiple calls per block number due to speculative blocks
+      if (pending->_block_status == controller::block_status::complete) {
+         update_peer_keys();
+      }
+
       transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
@@ -3398,12 +3420,16 @@ struct controller_impl {
       return onblock_trace;
    } /// start_block
 
-   void update_peer_keys(fc::time_point deadline) {
+   void update_peer_keys() {
+      // if syncing or replaying old blocks don't bother updating peer keys
+      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+         return;
+
       try {
-         // update peer public keys from chainbase db using a readonly trx
-         auto block_num = chain_head.block_num();
-         if (block_num % 120 == 0) { // update once/minute
-            peer_keys_db.update_peer_keys(get_top_producer_keys(deadline));
+         auto block_num = chain_head.block_num() + 1;
+         if (peer_keys_db.should_update(block_num)) { // update once/minute
+            // update peer public keys from chainbase db using a readonly trx
+            peer_keys_db.update_peer_keys(block_num, get_top_producer_keys());
          }
       } FC_LOG_AND_DROP()
    }
@@ -3788,6 +3814,9 @@ struct controller_impl {
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
+            applying_block = true;
+            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
+
             const signed_block_ptr& b = bsp->block;
             fc::scoped_set_value prod_light_validation(trusted_producer_light_validation, is_trusted_producer(b->producer));
 
@@ -3844,9 +3873,6 @@ struct controller_impl {
                   }
                }
             }
-
-            applying_block = true;
-            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
 
             transaction_trace_ptr trace;
 
@@ -4620,14 +4646,23 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_transaction() {
+   void interrupt_transaction(controller::interrupt_t interrupt) {
       // Do not interrupt during replay. ctrl-c during replay is handled at block boundaries.
       // Interrupt both speculative trxs and trxs while applying a block.
       // This is to allow killing a long-running transaction in a block being validated during apply block.
       // This also allows killing a trx when a block is received to prioritize block validation.
       if (!replaying) {
-         dlog("Interrupting trx...");
-         main_thread_timer.interrupt_timer();
+         if (applying_block) {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::apply_block_trx) {
+               dlog("Interrupting apply block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         } else {
+            if (interrupt == controller::interrupt_t::all_trx || interrupt == controller::interrupt_t::speculative_block_trx) {
+               dlog("Interrupting speculative block trx...");
+               main_thread_timer.interrupt_timer();
+            }
+         }
       }
    }
 
@@ -4989,8 +5024,10 @@ struct controller_impl {
       return wasmif;
    }
 
-   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                 block_num_type first_used_block_num, block_num_type block_num_last_used)
+   {
+      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
    }
 
    void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
@@ -5351,10 +5388,6 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
                            bs, std::optional<block_id_type>(), deadline );
 }
 
-void controller::update_peer_keys(fc::time_point deadline) {
-   my->update_peer_keys(deadline);
-}
-
 void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
    validate_db_available_size();
 
@@ -5400,8 +5433,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_transaction() {
-   my->interrupt_transaction();
+void controller::interrupt_transaction(interrupt_t interrupt) {
+   my->interrupt_transaction(interrupt);
 }
 
 boost::asio::io_context& controller::get_thread_pool() {
@@ -5851,16 +5884,20 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(bool active) {
-   my->peer_keys_db.set_active(active);
+void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+   my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
-peer_info_t controller::get_peer_info(name n) const {
+std::optional<peer_info_t> controller::get_peer_info(name n) const {
    return my->peer_keys_db.get_peer_info(n);
 }
 
-getpeerkeys_res_t controller::get_top_producer_keys(fc::time_point deadline) {
-   return my->get_top_producer_keys(deadline);
+bool controller::configured_peer_keys_updated() {
+   return my->peer_keys_db.configured_peer_keys_updated();
+}
+
+getpeerkeys_res_t controller::get_top_producer_keys() {
+   return my->get_top_producer_keys();
 }
 
 db_read_mode controller::get_read_mode()const {
@@ -6234,8 +6271,9 @@ bool controller::is_write_window() const {
    return my->is_write_window();
 }
 
-void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-   return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                          block_num_type first_used_block_num, block_num_type block_num_last_used) {
+   return my->code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
 }
 
 platform_timer& controller::get_thread_local_timer() {
