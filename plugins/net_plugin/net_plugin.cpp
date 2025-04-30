@@ -208,6 +208,7 @@ namespace eosio {
       : strand( io_context ) {}
 
       void bcast_transaction(const packed_transaction_ptr& trx);
+      void bcast_transaction_notify(const packed_transaction_ptr& trx);
       void rejected_transaction(const packed_transaction_ptr& trx);
       void bcast_block( const signed_block_ptr& b, const block_id_type& id );
 
@@ -242,6 +243,7 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
+   constexpr auto     def_trx_notice_min_size = 100;
 
    class connections_manager {
    public:
@@ -537,9 +539,10 @@ namespace eosio {
    constexpr uint16_t proto_savanna = 9;                   // savanna, adds vote_message
    constexpr uint16_t proto_block_nack = 10;               // adds block_nack_message & block_notice_message
    constexpr uint16_t proto_gossip_bp_peers = 11;          // adds gossip_bp_peers_message
+   constexpr uint16_t proto_trx_notice = 12;               // adds transaction_notice_message
 #pragma GCC diagnostic pop
 
-   constexpr uint16_t net_version_max = proto_gossip_bp_peers;
+   constexpr uint16_t net_version_max = proto_trx_notice;
 
    struct peer_sync_state {
       enum class sync_t {
@@ -619,7 +622,7 @@ namespace eosio {
                            const send_buffer_type& buff,
                            std::function<void(boost::system::error_code, std::size_t)> callback) {
          fc::lock_guard g( _mtx );
-         if( net_msg == msg_type_t::packed_transaction ) {
+         if( net_msg == msg_type_t::packed_transaction || net_msg == msg_type_t::transaction_notice_message ) {
             _trx_write_queue.emplace_back( buff, std::move(callback) );
          } else if (queue == queue_t::block_sync) {
             _sync_write_queue.emplace_back( buff, std::move(callback) );
@@ -905,6 +908,7 @@ namespace eosio {
 
       bool process_next_block_message(uint32_t message_length);
       bool process_next_trx_message(uint32_t message_length);
+      bool process_next_trx_notice_message(uint32_t message_length);
       bool process_next_vote_message(uint32_t message_length);
       void update_endpoints(const tcp::endpoint& endpoint = tcp::endpoint());
 
@@ -1019,6 +1023,7 @@ namespace eosio {
       void handle_message( const block_notice_message& msg);
       void handle_message( gossip_bp_peers_message& msg);
       void handle_message( const gossip_bp_peers_message& msg) = delete;
+      void handle_message( const transaction_notice_message& msg);
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
@@ -2712,6 +2717,32 @@ namespace eosio {
    }
 
    // called from any thread
+   void dispatch_manager::bcast_transaction_notify(const packed_transaction_ptr& trx) {
+      if (trx->get_estimated_size() < def_trx_notice_min_size) {
+         fc_dlog( logger, "trx notice not sent, trx size ${s}", ("s", trx->get_estimated_size()));
+         return;
+      }
+
+      trx_buffer_factory buff_factory;
+      const fc::time_point_sec now{fc::time_point::now()};
+      my_impl->connections.for_each_connection( [this, &trx, &now, &buff_factory]( const connection_ptr& cp ) {
+         if( cp->protocol_version < proto_trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
+            return;
+         }
+         // todo
+         // if( !add_peer_txn(trx->id(), trx->expiration(), cp->connection_id, now) ) {
+         //    return;
+         // }
+
+         const send_buffer_type& sb = buff_factory.get_notice_send_buffer( trx );
+         fc_dlog( logger, "sending trx notice: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
+         boost::asio::post(cp->strand, [cp, sb]() {
+            cp->enqueue_buffer( msg_type_t::transaction_notice_message, std::nullopt, queued_buffer::queue_t::general, sb, go_away_reason::no_reason );
+         } );
+      } );
+   }
+
+   // called from any thread
    void dispatch_manager::rejected_transaction(const packed_transaction_ptr& trx) {
       fc_dlog( logger, "not sending rejected transaction ${tid}", ("tid", trx->id()) );
       // keep rejected transaction around for awhile so we don't broadcast it, don't remove from local_txns
@@ -2982,6 +3013,8 @@ namespace eosio {
             return process_next_block_message( message_length );
          } else if( net_msg == msg_type_t::packed_transaction ) {
             return process_next_trx_message( message_length );
+         } else if( net_msg == msg_type_t::transaction_notice_message ) {
+            return process_next_trx_notice_message( message_length );
          } else if( net_msg == msg_type_t::vote_message ) {
             return process_next_vote_message( message_length );
          } else {
@@ -3122,6 +3155,24 @@ namespace eosio {
    }
 
    // called from connection strand
+   bool connection::process_next_trx_notice_message(uint32_t message_length) {
+      if( !my_impl->p2p_accept_transactions ) {
+         peer_dlog( this, "p2p-accept-transaction=false - dropping trx notice" );
+         pending_message_buffer.advance_read_ptr( message_length );
+         return true;
+      }
+      if (my_impl->sync_master->syncing_from_peer()) {
+         peer_dlog(this, "syncing, dropping trx notice");
+         pending_message_buffer.advance_read_ptr( message_length );
+         return true;
+      }
+
+      // todo
+
+      return true;
+   }
+
+// called from connection strand
    bool connection::process_next_vote_message(uint32_t message_length) {
       if( !my_impl->p2p_accept_votes ) {
          peer_dlog( this, "p2p_accept_votes=false - dropping vote" );
@@ -3734,6 +3785,11 @@ namespace eosio {
       }
    }
 
+   // called from connection strand
+   void connection::handle_message( const transaction_notice_message& msg ) {
+     // todo
+   }
+
    digest_type gossip_bp_peers_message::bp_peer::digest() const {
       digest_type::encoder enc;
       fc::raw::pack(enc, my_impl->chain_id);
@@ -3838,6 +3894,8 @@ namespace eosio {
       const auto& tid = trx->id();
 
       peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
+
+      my_impl->dispatcher.bcast_transaction_notify(trx);
 
       size_t trx_size = calc_trx_size( trx );
       trx_in_progress_size += trx_size;
