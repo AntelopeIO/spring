@@ -7,6 +7,7 @@
 #include <fc/crypto/sha256.hpp>
 #include <fc/variant.hpp>
 #include <fc/exception/exception.hpp>
+#include <fc/io/raw.hpp>
 #include "_digest_common.hpp"
 
 namespace fc {
