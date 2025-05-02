@@ -117,6 +117,8 @@ jobs:
           name: ${{github.event.inputs.platform-choice}}-build
       - name: Extract Build Directory
         run: |
+          # https://github.com/actions/runner/issues/2033  -- need this because of full version label test looking at git revs
+          chown -R $(id -u):$(id -g) $PWD
           zstdcat build.tar.zst | tar x
       - if: ${{ needs.v.outputs.spring-target != 'DEFAULT' }}
         name: Download Prev Spring Version
