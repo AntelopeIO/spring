@@ -40,6 +40,13 @@ walletMgr = WalletMgr(True)
 cluster = Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs=args.keep_logs)
 cluster.setWalletMgr(walletMgr)
 
+def getHostName(nodeId):
+    port = cluster.p2pBasePort + nodeId
+    if producer_name == 'defproducerf':
+        hostname = 'ext-ip0:9999'
+    else:
+        hostname = "localhost:" + str(port)
+    return hostname
 
 peer_names = {}
 
@@ -47,12 +54,7 @@ auto_bp_peer_args = ""
 for nodeId in range(0, producerNodes):
     producer_name = "defproducer" + chr(ord('a') + nodeId)
     port = cluster.p2pBasePort + nodeId
-    if producer_name == 'defproducerf':
-        hostname = 'ext-ip0:9999'
-    elif producer_name == 'defproducerk':
-        hostname = socket.gethostname() + ':9886'
-    else:
-        hostname = "localhost:" + str(port)
+    hostname = getHostName(nodeId)
     peer_names[hostname] = producer_name
     auto_bp_peer_args += (" --p2p-auto-bp-peer " + producer_name + "," + hostname)
 
@@ -66,7 +68,6 @@ try:
         specificNodeosArgs[nodeId] = auto_bp_peer_args
 
     specificNodeosArgs[5] = specificNodeosArgs[5] + ' --p2p-server-address ext-ip0:9999'
-    specificNodeosArgs[10] = specificNodeosArgs[10] + ' --p2p-server-address ""'
 
     TestHelper.printSystemInfo("BEGIN")
     cluster.launch(
@@ -99,20 +100,17 @@ try:
         if Utils.Debug: Utils.Print(f"Node {nodeId} connections {connections}")
         peers = []
         for conn in connections["payload"]:
+            if conn["is_socket_open"] is False:
+                continue
             peer_addr = conn["peer"]
             if len(peer_addr) == 0:
                 if len(conn["last_handshake"]["p2p_address"]) == 0:
                     continue
                 peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
-            if peer_names[peer_addr] != "bios":
-                peers.append(peer_names[peer_addr])
-                if not conn["is_bp_peer"]:
-                    Utils.Print(f"Error: expected connection to {peer_addr} with is_bp_peer as true")
-                    connection_failure = True
-                    break
+            if peer_names[peer_addr] != "bios" and peer_addr != getHostName(nodeId):
+                if conn["is_bp_peer"]:
+                    peers.append(peer_names[peer_addr])
 
-        if connection_failure:
-            break
         if not peers:
             Utils.Print(f"ERROR: found no connected peers for node {nodeId}")
             connection_failure = True

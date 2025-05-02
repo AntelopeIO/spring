@@ -14,7 +14,6 @@ The `main` branch is the development branch; do not use it for production. Refer
 ## Supported Operating Systems
 We currently support the following operating systems.
 - Ubuntu 22.04 Jammy
-- Ubuntu 20.04 Focal
 
 Other Unix derivatives such as macOS are tended to on a best-effort basis and may not be full featured. If you aren't using Ubuntu, please visit the "[Build Unsupported OS](./docs/00_install/01_build-from-source/00_build-unsupported-os.md)" page to explore your options.
 
@@ -136,20 +135,11 @@ sudo apt-get install -y \
         zlib1g-dev
 ```
 
-On Ubuntu 20.04, install gcc-10 which has C++20 support:
-```bash
-sudo apt-get install -y g++-10
-```
-
 To build, make sure you are in the root of the `spring` repo, then run the following command:
 ```bash
 mkdir -p build
 cd build
 
-## on Ubuntu 20, specify the gcc-10 compiler
-cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/lib/llvm-11 ..
-
-## on Ubuntu 22, the default gcc version is 11, using the default compiler is fine
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/lib/llvm-11 ..
 
 make -j "$(nproc)" package

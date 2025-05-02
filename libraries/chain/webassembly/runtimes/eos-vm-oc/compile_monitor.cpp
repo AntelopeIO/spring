@@ -96,9 +96,7 @@ struct compile_monitor_session {
       socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, socks);
       local::datagram_protocol::socket response_socket(_ctx);
       response_socket.assign(local::datagram_protocol(), socks[0]);
-      std::vector<wrapped_fd> fds_pass_to_trampoline;
-      fds_pass_to_trampoline.emplace_back(socks[1]);
-      fds_pass_to_trampoline.emplace_back(std::move(wasm_code));
+      std::array<wrapped_fd, 2> fds_pass_to_trampoline { socks[1], std::move(wasm_code) };
 
       eosvmoc_message trampoline_compile_request = msg;
       if(write_message_with_fds(_trampoline_socket, trampoline_compile_request, fds_pass_to_trampoline) == false) {
@@ -168,7 +166,7 @@ struct compile_monitor_session {
          write_message_with_fds(_nodeos_instance_socket, reply);
 
          //either way, we are done
-         _ctx.post([this, current_compile_it]() {
+         boost::asio::post(_ctx, [this, current_compile_it]() {
             current_compiles.erase(current_compile_it);
          });
       });
@@ -217,7 +215,7 @@ struct compile_monitor {
             _socket_for_comm.assign(local::datagram_protocol(), fds[0].release());
             _compile_sessions.emplace_front(ctx, std::move(_socket_for_comm), std::move(fds[1]), _trampoline_socket);
             _compile_sessions.front().connection_dead_signal.connect([&, it = _compile_sessions.begin()]() {
-               ctx.post([&]() {
+               boost::asio::post(ctx, [&]() {
                   _compile_sessions.erase(it);
                });
             });
@@ -325,9 +323,7 @@ wrapped_fd get_connection_to_compile_monitor(int cache_fd) {
    FC_ASSERT(dup_of_cache_fd != -1, "failed to dup cache_fd");
    wrapped_fd dup_cache_fd(dup_of_cache_fd);
 
-   std::vector<wrapped_fd> fds_to_pass; 
-   fds_to_pass.emplace_back(std::move(socket_to_hand_to_monitor_session));
-   fds_to_pass.emplace_back(std::move(dup_cache_fd));
+   std::array<wrapped_fd, 2> fds_to_pass { std::move(socket_to_hand_to_monitor_session), std::move(dup_cache_fd) };
    write_message_with_fds(the_compile_monitor_trampoline.compile_manager_fd, initialize_message(), fds_to_pass);
 
    auto [success, message, fds] = read_message_with_fds(the_compile_monitor_trampoline.compile_manager_fd);

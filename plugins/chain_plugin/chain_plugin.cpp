@@ -410,9 +410,12 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
          ("delete-all-blocks", bpo::bool_switch()->default_value(false),
           "clear chain state database and block log")
          ("truncate-at-block", bpo::value<uint32_t>()->default_value(0),
-          "stop hard replay / block log recovery at this block number (if set to non-zero number)")
+          "Stop hard replay / block log recovery at this block number (if non-zero). "
+          "Can also be used with terminate-at-block to prune any received blocks from fork database on exit.")
          ("terminate-at-block", bpo::value<uint32_t>()->default_value(0),
-          "terminate after reaching this block number (if set to a non-zero number)")
+          "Stops the node after reaching the specified block number (if non-zero). "
+          "Use RPC endpoint /v1/producer/pause_at_block to pause at a specific block instead. "
+          "Combine with truncate-at-block to prune blocks beyond the specified number from the fork database on exit.")
          ("snapshot", bpo::value<std::filesystem::path>(), "File to read Snapshot State from")
          ;
 
@@ -483,9 +486,9 @@ namespace {
 
 void
 chain_plugin_impl::do_hard_replay(const variables_map& options) {
-         ilog( "Hard replay requested: deleting state database" );
-         clear_directory_contents( chain_config->state_dir );
-         auto backup_dir = block_log::repair_log( blocks_dir, options.at( "truncate-at-block" ).as<uint32_t>(), config::reversible_blocks_dir_name);
+   ilog( "Hard replay requested: deleting state database" );
+   clear_directory_contents( chain_config->state_dir );
+   auto backup_dir = block_log::repair_log( blocks_dir, options.at( "truncate-at-block" ).as<uint32_t>(), config::reversible_blocks_dir_name);
 }
 
 void chain_plugin_impl::plugin_initialize(const variables_map& options) {
@@ -686,8 +689,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
       chain_config->maximum_variable_signature_length = options.at( "maximum-variable-signature-length" ).as<uint32_t>();
 
-      if( options.count( "terminate-at-block" ))
-         chain_config->terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
+      chain_config->terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
+      chain_config->truncate_at_block = options.at( "truncate-at-block" ).as<uint32_t>();
 
       chain_config->num_configured_p2p_peers = options.count( "p2p-peer-address" );
 
@@ -766,26 +769,30 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          EOS_THROW( extract_genesis_state_exception, "extracted genesis state from blocks.log" );
       }
 
+      uint32_t truncate_at_block = options.at( "truncate-at-block" ).as<uint32_t>();
+      uint32_t terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
+      if (truncate_at_block > 0 && terminate_at_block > 0) {
+         EOS_ASSERT(truncate_at_block == terminate_at_block, plugin_config_exception,
+                    "truncate-at-block ${a} must match terminate-at-block ${b}",
+                    ("a", truncate_at_block)("b", terminate_at_block));
+      } else if (truncate_at_block > 0 && !options.at( "hard-replay-blockchain" ).as<bool>()) {
+         wlog("truncate-at-block only applicable to --hard-replay-blockchain unless specified with --terminate-at-block");
+      }
+
       if( options.at( "delete-all-blocks" ).as<bool>()) {
          ilog( "Deleting state database and blocks" );
-         if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 )
-            wlog( "The --truncate-at-block option does not make sense when deleting all blocks." );
          clear_directory_contents( chain_config->state_dir );
          clear_directory_contents( blocks_dir );
       } else if( options.at( "hard-replay-blockchain" ).as<bool>()) {
          do_hard_replay(options);
       } else if( options.at( "replay-blockchain" ).as<bool>()) {
          ilog( "Replay requested: deleting state database" );
-         if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 )
-            wlog( "The --truncate-at-block option does not work for a regular replay of the blockchain." );
          if (!options.count( "snapshot" )) {
             auto first_block = block_log::extract_first_block_num(blocks_dir, retained_dir);
             EOS_ASSERT(first_block == 1, plugin_config_exception,
                        "replay-blockchain without snapshot requested without a full block log, first block: ${n}", ("n", first_block));
          }
          clear_directory_contents( chain_config->state_dir );
-      } else if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 ) {
-         wlog( "The --truncate-at-block option can only be used with --hard-replay-blockchain." );
       }
 
       std::optional<chain_id_type> chain_id;

@@ -135,7 +135,7 @@ struct eosvmoc_tier {
             auto elapsed = fc::time_point::now() - queued_time;
             auto expire_in = std::max(fc::microseconds(0), fc::milliseconds(500) - elapsed);
             std::shared_ptr<boost::asio::steady_timer> timer = std::make_shared<boost::asio::steady_timer>(ctx);
-            timer->expires_from_now(std::chrono::microseconds(expire_in.count()));
+            timer->expires_after(std::chrono::microseconds(expire_in.count()));
             timer->async_wait([timer, this, code_id](const boost::system::error_code& ec) {
                if (ec)
                   return;
@@ -237,16 +237,32 @@ struct eosvmoc_tier {
          return it != wasm_instantiation_cache.end();
       }
 
-      void code_block_num_last_used(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, const uint32_t& block_num) {
+      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                    block_num_type first_used_block_num, block_num_type block_num_last_used)
+      {
          // The caller of this method apply_eosio_setcode has asserted that
          // the transaction is not read-only, implying we are
          // in write window. Read-only threads are not running.
          // Safe to update the cache without locking.
          wasm_cache_index::iterator it = wasm_instantiation_cache.find(boost::make_tuple(code_hash, vm_type, vm_version));
-         if(it != wasm_instantiation_cache.end())
-            wasm_instantiation_cache.modify(it, [block_num](wasm_cache_entry& e) {
-               e.last_block_num_used = block_num;
-            });
+         if(it != wasm_instantiation_cache.end()) {
+            if (first_used_block_num == block_num_last_used) {
+               // First used and no longer needed in the same block, erase immediately, do not wait for LIB.
+               // Since created and destroyed in the same block, likely will not be needed in a forked block.
+               // Prevents many setcodes in the same block using up space in the cache.
+               wasm_instantiation_cache.erase(it);
+            } else {
+               wasm_instantiation_cache.modify(it, [block_num_last_used](wasm_cache_entry& e) {
+                  e.last_block_num_used = block_num_last_used;
+               });
+            }
+         }
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+         // see comment above
+         if (first_used_block_num == block_num_last_used && eosvmoc)
+            eosvmoc->cc.free_code(code_hash, vm_version);
+#endif
       }
 
       // reports each code_hash and vm_version that will be erased to callback

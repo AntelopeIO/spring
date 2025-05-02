@@ -143,9 +143,6 @@ add_library( eosio_chain
 ## as an interface library
 ##        ** Remove the two lines below when upgrading to Boost 1.86 or above **
 ## ----------------------------------------------------------------------------------------------------
-add_library(boost_numeric_ublas INTERFACE)
-add_library(Boost::numeric_ublas ALIAS boost_numeric_ublas)
-
 target_link_libraries( eosio_chain PUBLIC bn256 fc chainbase eosio_rapidjson Logging IR WAST WASM
                        softfloat builtins ${CHAIN_EOSVM_LIBRARIES} ${LLVM_LIBS} ${CHAIN_RT_LINKAGE}
                        Boost::signals2 Boost::hana Boost::property_tree Boost::multi_index Boost::asio Boost::lockfree
