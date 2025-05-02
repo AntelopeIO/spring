@@ -141,6 +141,12 @@ bool is_sync_call_supported(const char* code_bytes, size_t code_size) {
    wasm_code_ptr code_ptr((uint8_t*)code_bytes, code_size);
    bool supported = false;
    try {
+      // NOTE: if we ever relax WASM validation via some protocol feature in the future,
+      // we cannot simply create a backend using the default `setcode_options`.
+      // The caller of `is_sync_call_supported()` (`code_object::reflector_init()`)
+      // needs to pass in `controller` so we know what protocol features are enabled
+      // to decide what kind of backend to create. Or `code_object::sync_call_supported`
+      // needs to be populated explicitly when snapshot is read.
       eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code_size, nullptr);
       supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
