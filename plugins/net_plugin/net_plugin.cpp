@@ -79,9 +79,9 @@ namespace eosio {
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
 
    struct node_transaction_state {
-      transaction_id_type         id;
-      time_point_sec              expires;     // time after which this may be purged.
-      mutable flat_set<uint32_t>  connections; // not indexed, hence mutable
+      transaction_id_type id;
+      time_point_sec  expires;        /// time after which this may be purged.
+      uint32_t        connection_id = 0;
    };
 
    struct by_expiry;
@@ -89,9 +89,13 @@ namespace eosio {
    typedef multi_index_container<
       node_transaction_state,
       indexed_by<
-         hashed_unique<
+         ordered_unique<
             tag<by_id>,
-            member<node_transaction_state, transaction_id_type, &node_transaction_state::id>
+            composite_key< node_transaction_state,
+               member<node_transaction_state, transaction_id_type, &node_transaction_state::id>,
+               member<node_transaction_state, uint32_t, &node_transaction_state::connection_id>
+            >,
+            composite_key_compare< std::less<transaction_id_type>, std::less<> >
          >,
          ordered_non_unique<
             tag< by_expiry >,
@@ -2590,19 +2594,16 @@ namespace eosio {
    bool dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
                                         uint32_t connection_id, const time_point_sec& now ) {
       fc::lock_guard g( local_txns_mtx );
-      bool added = false;
-      if (auto tptr = local_txns.get<by_id>().find( std::ref( id ) ); tptr != local_txns.end()) {
-         if (tptr->connections.insert(connection_id).second)
-            added = true;
-      } else {
+      auto tptr = local_txns.get<by_id>().find( std::make_tuple( std::ref( id ), connection_id ) );
+      bool added = (tptr == local_txns.end());
+      if( added ) {
          // expire at either transaction expiration or configured max expire time whichever is less
          time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
             .expires = expires,
-            .connections = {connection_id}} );
-         added = true;
+            .connection_id = connection_id} );
       }
       return added;
    }
