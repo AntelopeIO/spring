@@ -4,7 +4,7 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
-#include <fc/io/raw_fwd.hpp>
+#include <fc/io/raw.hpp>
 #include <boost/functional/hash.hpp>
 
 namespace fc

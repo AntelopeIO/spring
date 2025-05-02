@@ -111,8 +111,6 @@ namespace fc {
 
     template<typename Stream, typename T> inline void pack( Stream& s, const T& v );
     template<typename Stream, typename T> inline void unpack( Stream& s, T& v );
-    template<typename Stream, typename Arg0, typename... Args> inline void pack( Stream& s, const Arg0& a0, const Args&... args );
-    template<typename Stream, typename Arg0, typename... Args> inline void unpack( Stream& s, Arg0& a0, Args&... args );
 
     template<typename Stream, typename T> inline void pack( Stream& s, const std::vector<T>& v );
     template<typename Stream, typename T> inline void unpack( Stream& s, std::vector<T>& v );

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <fc/fwd.hpp>
-#include <fc/io/raw_fwd.hpp>
+#include <fc/io/raw.hpp>
 #include <fc/reflect/typename.hpp>
 
 namespace fc{
