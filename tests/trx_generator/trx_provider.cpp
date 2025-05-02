@@ -96,7 +96,7 @@ namespace eosio::testing {
       send_buffer_type msg = create_send_buffer(trx);
 
       ++_sent;
-      _strand.post( [this, msg{std::move(msg)}, id{trx.id()}]() {
+      boost::asio::post( _strand, [this, msg{std::move(msg)}, id{trx.id()}]() {
          boost::asio::write(_p2p_socket, boost::asio::buffer(*msg));
          trx_acknowledged(id, fc::time_point::min()); //using min to identify ack time as not applicable for p2p
          ++_sent_callback_num;

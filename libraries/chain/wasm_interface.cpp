@@ -98,8 +98,10 @@ namespace eosio { namespace chain {
       return webassembly::eos_vm_runtime::is_sync_call_supported(code_bytes, code_size);
    }
 
-   void wasm_interface::code_block_num_last_used(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, const uint32_t& block_num) {
-      my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+   void wasm_interface::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                                 block_num_type first_used_block_num, block_num_type block_num_last_used)
+   {
+      my->code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
    }
 
    void wasm_interface::current_lib(const uint32_t lib) {

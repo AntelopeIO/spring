@@ -13,7 +13,6 @@ class host_context;
 class wasm_instantiated_module_interface {
    public:
       virtual void execute(host_context& context) = 0;
-
       virtual ~wasm_instantiated_module_interface();
 };
 

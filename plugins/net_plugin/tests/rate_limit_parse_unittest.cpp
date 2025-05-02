@@ -25,6 +25,7 @@ BOOST_AUTO_TEST_CASE(test_parse_rate_limit) {
       , "[::1]:9876:trx:-1KB/s"
       , "0.0.0.0:9877:trx:640Kb/s"
       , "0.0.0.0:9877:trx:999999999999999999999999999TiB/s"
+      , "0.0.0.0:9875 - 84c470d"
       , "0.0.0.0:9876:trx - 84c470d"
       , "0.0.0.0:9877:trx:640KB/s - additional info"
       , "[2001:db8:85a3:8d3:1319:8a2e:370:7348]additional info:trx:640KB/s"
@@ -100,6 +101,9 @@ BOOST_AUTO_TEST_CASE(test_parse_rate_limit) {
                          [](const eosio::chain::plugin_config_exception& e)
                          {return std::strstr(e.top_message().c_str(), "block sync rate limit specification overflowed");});
    std::tie(listen_addr, block_sync_rate_limit) = eosio::net_utils::parse_listen_address(p2p_addresses.at(which++));
+   BOOST_CHECK_EQUAL(listen_addr, "0.0.0.0:9875");
+   BOOST_CHECK_EQUAL(block_sync_rate_limit, 0u);
+   std::tie(listen_addr, block_sync_rate_limit) = eosio::net_utils::parse_listen_address(p2p_addresses.at(which++));
    BOOST_CHECK_EQUAL(listen_addr, "0.0.0.0:9876");
    BOOST_CHECK_EQUAL(block_sync_rate_limit, 0u);
    std::tie(listen_addr, block_sync_rate_limit) = eosio::net_utils::parse_listen_address(p2p_addresses.at(which++));
@@ -143,6 +147,7 @@ BOOST_AUTO_TEST_CASE(test_split_host_port_type) {
       , "[::1]:9876:trx:-1KB/s"
       , "0.0.0.0:9877:trx:640Kb/s"
       , "0.0.0.0:9877:trx:999999999999999999999999999TiB/s"
+      , "0.0.0.0:9876 - 84c470d"
       , "0.0.0.0:9876:trx - 84c470d"
       , "0.0.0.0:9877:trx:640KB/s - additional info"
       , "[2001:db8:85a3:8d3:1319:8a2e:370:7348]additional info:trx:640KB/s"
@@ -239,6 +244,10 @@ BOOST_AUTO_TEST_CASE(test_split_host_port_type) {
    BOOST_CHECK_EQUAL(host, "0.0.0.0");
    BOOST_CHECK_EQUAL(port, "9877");
    BOOST_CHECK_EQUAL(type, "trx");
+   std::tie(host, port, type) = eosio::net_utils::split_host_port_type(p2p_addresses.at(which++));
+   BOOST_CHECK_EQUAL(host, "0.0.0.0");
+   BOOST_CHECK_EQUAL(port, "9876");
+   BOOST_CHECK_EQUAL(type, "");
    std::tie(host, port, type) = eosio::net_utils::split_host_port_type(p2p_addresses.at(which++));
    BOOST_CHECK_EQUAL(host, "0.0.0.0");
    BOOST_CHECK_EQUAL(port, "9876");

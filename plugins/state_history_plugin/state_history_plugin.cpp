@@ -117,6 +117,12 @@ public:
                                                   },
                                                   [this](session_base* conn) {
                                                      app().executor().post(priority::high, exec_queue::read_write, [conn, this]() {
+                                                        //Main thread may have post()s inflight to session strand (via block_applied() -> awake_if_idle()) that
+                                                        // could execute during destruction. Drain any possible post() before destruction. This is in main
+                                                        // thread now so guaranteed no new block_applied() will be called during these lines below, and the
+                                                        // session has already indicated it is "done" so it will not be running any operations of its own
+                                                        // on the strand
+                                                        conn->drain_strand();
                                                         connections.erase(connections.find(conn));
                                                      });
                                                   }, _log));
