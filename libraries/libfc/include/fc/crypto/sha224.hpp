@@ -23,11 +23,11 @@ class sha224
     static sha224 hash( const char* d, uint32_t dlen );
     static sha224 hash( const std::string& );
 
-    template<typename T>
-    static sha224 hash( const T& t ) 
+    template<typename... T>
+    static sha224 hash( const T&... t )
     { 
       sha224::encoder e; 
-      fc::raw::pack(e,t);
+      fc::raw::pack(e,t...);
       return e.result(); 
     } 
 
