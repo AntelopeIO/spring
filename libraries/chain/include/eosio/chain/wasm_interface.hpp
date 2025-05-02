@@ -72,7 +72,8 @@ namespace eosio { namespace chain {
          static void validate(const controller& control, const bytes& code);
 
          //indicate that a particular code probably won't be used after given block_num
-         void code_block_num_last_used(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, const uint32_t& block_num);
+         void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                       block_num_type first_used_block_num, block_num_type last_used_block_num);
 
          //indicate the current LIB. evicts old cache entries
          void current_lib(const uint32_t lib);

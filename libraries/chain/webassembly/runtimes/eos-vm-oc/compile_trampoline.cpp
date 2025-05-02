@@ -135,9 +135,7 @@ void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t st
    std::move(prologue_it, prologue.end(), std::back_inserter(initdata_prep));
    std::move(initial_mem.begin(), initial_mem.end(), std::back_inserter(initdata_prep));
 
-   std::vector<wrapped_fd> fds_to_send;
-   fds_to_send.emplace_back(memfd_for_bytearray(code.code));
-   fds_to_send.emplace_back(memfd_for_bytearray(initdata_prep));
+   std::array<wrapped_fd, 2> fds_to_send{ memfd_for_bytearray(code.code), memfd_for_bytearray(initdata_prep) };
    write_message_with_fds(response_sock, result_message, fds_to_send);
 }
 
