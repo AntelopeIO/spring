@@ -79,12 +79,11 @@ namespace eosio {
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
 
    struct node_transaction_state {
-      transaction_id_type id;
-      time_point_sec  expires;        /// time after which this may be purged.
-      uint32_t        connection_id = 0;
+      transaction_id_type  id;
+      uint32_t             connection_id = 0;
+      time_point_sec       expires;              // time after which this may be purged.
+      mutable bool         have_trx = false;     // trx received, not just trx notice, mutable because not indexed
    };
-
-   struct by_expiry;
 
    typedef multi_index_container<
       node_transaction_state,
@@ -97,8 +96,12 @@ namespace eosio {
             >,
             composite_key_compare< std::less<transaction_id_type>, std::less<> >
          >,
+         hashed_non_unique<
+            tag< struct by_connection_id >,
+            member< node_transaction_state, uint32_t, &node_transaction_state::connection_id >
+         >,
          ordered_non_unique<
-            tag< by_expiry >,
+            tag< struct by_expiry >,
             member< node_transaction_state, fc::time_point_sec, &node_transaction_state::expires > >
          >
       >
@@ -220,9 +223,12 @@ namespace eosio {
       bool have_block(const block_id_type& blkid) const;
       void rm_block(const block_id_type& blkid);
 
-      bool add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id,
-                         const time_point_sec& now = time_point_sec(time_point::now()) );
+      // returns the number of tracked ids for connecion_id
+      size_t add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
+                           uint32_t connection_id, bool have_trx );
+      bool peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const;
       bool have_txn( const transaction_id_type& tid ) const;
+      void rm_txns( uint32_t connection_id );
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
@@ -244,6 +250,7 @@ namespace eosio {
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
    constexpr auto     def_trx_notice_min_size = 100;
+   constexpr auto     def_max_trx_per_connection = 100000;
 
    class connections_manager {
    public:
@@ -1448,6 +1455,7 @@ namespace eosio {
       last_vote_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
+      my_impl->dispatcher.rm_txns(connection_id);
 
       uint32_t head_num = my_impl->get_chain_head_num();
       if (last_received_block_num >= head_num) {
@@ -2591,27 +2599,52 @@ namespace eosio {
       index.erase(p.first, p.second);
    }
 
-   bool dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
-                                        uint32_t connection_id, const time_point_sec& now ) {
+   size_t
+   dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
+                                   uint32_t connection_id, bool have_trx )
+   {
+      fc::time_point_sec now{fc::time_point::now()};
       fc::lock_guard g( local_txns_mtx );
-      auto tptr = local_txns.get<by_id>().find( std::make_tuple( std::ref( id ), connection_id ) );
-      bool added = (tptr == local_txns.end());
-      if( added ) {
+      auto& conn_idx = local_txns.get<by_connection_id>();
+      auto count = conn_idx.count( connection_id );
+
+      bool add = true;
+      if( count > 0 ) {
+         auto& id_idx = local_txns.get<by_id>();
+         if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), connection_id ) ); tptr != id_idx.end()) {
+            add = false;
+            if (have_trx && !tptr->have_trx)
+               tptr->have_trx = true;
+         }
+      }
+      if (add) {
          // expire at either transaction expiration or configured max expire time whichever is less
          time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
+            .connection_id = connection_id,
             .expires = expires,
-            .connection_id = connection_id} );
+            .have_trx = have_trx } );
+         ++count;
       }
-      return added;
+      return count;
+   }
+
+   bool dispatch_manager::peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const {
+      fc::lock_guard g( local_txns_mtx );
+      return local_txns.get<by_id>().contains( std::make_tuple( std::ref( id ), connection_id ) );
    }
 
    bool dispatch_manager::have_txn( const transaction_id_type& tid ) const {
       fc::lock_guard g( local_txns_mtx );
-      const auto tptr = local_txns.get<by_id>().find( tid );
-      return tptr != local_txns.end();
+      const auto r = local_txns.get<by_id>().equal_range( tid );
+      return std::ranges::any_of( r.first, r.second, []( const auto& t ) { return t.have_trx; } );
+   }
+
+   void dispatch_manager::rm_txns( uint32_t connection_id ) {
+      fc::lock_guard g( local_txns_mtx );
+      local_txns.get<by_connection_id>().erase( connection_id );
    }
 
    void dispatch_manager::expire_txns() {
@@ -2699,12 +2732,11 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      const fc::time_point_sec now{fc::time_point::now()};
-      my_impl->connections.for_each_connection( [this, &trx, &now, &buff_factory]( const connection_ptr& cp ) {
+      my_impl->connections.for_each_connection( [this, &trx, &buff_factory]( const connection_ptr& cp ) {
          if( !cp->is_transactions_connection() || !cp->current() ) {
             return;
          }
-         if( !add_peer_txn(trx->id(), trx->expiration(), cp->connection_id, now) ) {
+         if( peer_has_txn(trx->id(), cp->connection_id) ) {
             return;
          }
 
@@ -2724,15 +2756,13 @@ namespace eosio {
       }
 
       trx_buffer_factory buff_factory;
-      const fc::time_point_sec now{fc::time_point::now()};
-      my_impl->connections.for_each_connection( [this, &trx, &now, &buff_factory]( const connection_ptr& cp ) {
+      my_impl->connections.for_each_connection( [this, &trx, &buff_factory]( const connection_ptr& cp ) {
          if( cp->protocol_version < proto_trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
             return;
          }
-         // todo
-         // if( !add_peer_txn(trx->id(), trx->expiration(), cp->connection_id, now) ) {
-         //    return;
-         // }
+         if( peer_has_txn(trx->id(), cp->connection_id) ) {
+            return;
+         }
 
          const send_buffer_type& sb = buff_factory.get_notice_send_buffer( trx );
          fc_dlog( logger, "sending trx notice: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
@@ -3143,7 +3173,11 @@ namespace eosio {
          return true;
       }
       bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
-      my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id );
+      size_t connection_count = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), true, connection_id );
+      if (connection_count > def_max_trx_per_connection) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
+         close();
+      }
 
       if( have_trx ) {
          peer_dlog( this, "got a duplicate transaction - dropping" );
@@ -3173,7 +3207,13 @@ namespace eosio {
       transaction_notice_message msg;
       fc::raw::unpack( ds, msg );
 
-      // todo
+      size_t connection_count = my_impl->dispatcher.add_peer_txn( msg.id, msg.expiration, false, connection_id );
+      if (connection_count > def_max_trx_per_connection) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
+         close();
+      }
+
+      handle_message( msg );
 
       return true;
    }
@@ -3793,7 +3833,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::handle_message( const transaction_notice_message& msg ) {
-     // todo
+      peer_dlog( this, "received transaction_notice_message ${id}", ("id", msg.id) );
    }
 
    digest_type gossip_bp_peers_message::bp_peer::digest() const {
