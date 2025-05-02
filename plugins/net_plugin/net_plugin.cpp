@@ -3173,10 +3173,11 @@ namespace eosio {
          return true;
       }
       bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
-      size_t connection_count = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), true, connection_id );
+      size_t connection_count = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id, true );
       if (connection_count > def_max_trx_per_connection) {
          peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
          close();
+         return true;
       }
 
       if( have_trx ) {
@@ -3207,7 +3208,7 @@ namespace eosio {
       transaction_notice_message msg;
       fc::raw::unpack( ds, msg );
 
-      size_t connection_count = my_impl->dispatcher.add_peer_txn( msg.id, msg.expiration, false, connection_id );
+      size_t connection_count = my_impl->dispatcher.add_peer_txn( msg.id, msg.expiration, connection_id, false );
       if (connection_count > def_max_trx_per_connection) {
          peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
          close();
