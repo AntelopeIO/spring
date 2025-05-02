@@ -6,7 +6,6 @@
 #include <fc/crypto/sha512.hpp>
 #include <fc/variant.hpp>
 #include "_digest_common.hpp"
-#include <fc/io/raw.hpp>
 
 namespace fc {
 

@@ -6,7 +6,6 @@
 #include <fc/variant.hpp>
 #include <vector>
 #include "_digest_common.hpp"
-#include <fc/io/raw.hpp>
 
 namespace fc
 {
