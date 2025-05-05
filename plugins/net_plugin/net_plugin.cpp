@@ -250,7 +250,7 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
-   constexpr auto     def_trx_notice_min_size = 200; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
+   constexpr auto     def_trx_notice_min_size = 5000; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
    constexpr auto     def_max_trx_per_connection = 100000;
 
    class connections_manager {
