@@ -357,6 +357,7 @@ namespace eosio {
        */
       vector<string>                        p2p_addresses;
       vector<string>                        p2p_server_addresses;
+      vector<string>                        p2p_outbound_server_addresses;
       const string&                         get_first_p2p_address() const;
 
       vector<chain::public_key_type>        allowed_peers; ///< peer keys allowed to connect
@@ -4275,6 +4276,10 @@ namespace eosio {
            "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
            " May be used as many times as p2p-listen-endpoint."
            " If provided, the first address will be used in handshakes with other nodes; otherwise the default is used.")
+         ( "p2p-outbound-server-address", bpo::value< vector<string> >(),
+           "An externally accessible host for identifying the address this node will connect from. Defaults to p2p-server-address without port."
+           " May be used as many times as p2p-listen-endpoint."
+           " Sent with gossip BP peer messages to communicate the address this peer will connect from. Can be used by peer to configure firewall.")
          ( "p2p-peer-address", bpo::value< vector<string> >()->composing(),
            "The public endpoint of a peer node to connect to. Use multiple p2p-peer-address options as needed to compose a network.\n"
            " Syntax: host:port[:trx|:blk]\n"
@@ -4408,6 +4413,21 @@ namespace eosio {
          }
          p2p_server_addresses.resize(p2p_addresses.size()); // extend with empty entries as needed
 
+         if( options.count( "p2p-outbound-server-address" ) ) {
+            p2p_outbound_server_addresses = options.at( "p2p-outbound-server-address" ).as<vector<string>>();
+            EOS_ASSERT( p2p_outbound_server_addresses.size() <= p2p_addresses.size(), chain::plugin_config_exception,
+                        "p2p-outbound-server-address may not be specified more times than p2p-listen-endpoint" );
+            for( const auto& addr: p2p_outbound_server_addresses ) {
+               EOS_ASSERT( addr.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
+                           "p2p-outbound-server-address ${a} too long, must be less than ${m}",
+                           ("a", addr)("m", net_utils::max_p2p_address_length) );
+               const auto& [host, port, type] = net_utils::split_host_port_type(addr);
+               EOS_ASSERT( !host.empty() && port.empty() && type.empty(), chain::plugin_config_exception,
+                           "Invalid p2p-outbound-server-address ${p}, syntax 'host' without port", ("p", addr));
+            }
+         }
+         p2p_outbound_server_addresses.resize(p2p_addresses.size()); // extend with empty entries as needed
+
          thread_pool_size = options.at( "net-threads" ).as<uint16_t>();
          EOS_ASSERT( thread_pool_size > 0, chain::plugin_config_exception,
                      "net-threads ${num} must be greater than 0", ("num", thread_pool_size) );
@@ -4510,14 +4530,15 @@ namespace eosio {
 
       std::vector<string> listen_addresses = p2p_addresses;
 
-      EOS_ASSERT( p2p_addresses.size() == p2p_server_addresses.size(), chain::plugin_config_exception, "" );
+      assert( p2p_addresses.size() == p2p_server_addresses.size() && p2p_addresses.size() == p2p_outbound_server_addresses.size() );
       std::transform(p2p_addresses.begin(), p2p_addresses.end(), p2p_server_addresses.begin(), 
                      p2p_addresses.begin(), [](const string& p2p_address, const string& p2p_server_address) {
-         auto [host, port] = fc::split_host_port(p2p_address);
-         
          if( !p2p_server_address.empty() ) {
             return p2p_server_address;
-         } else if( host.empty() || host == "0.0.0.0" || host == "[::]") {
+         }
+
+         const auto& [host, port, type] = net_utils::split_host_port_type(p2p_address);
+         if( host.empty() || host == "0.0.0.0" || host == "[::]") {
             boost::system::error_code ec;
             auto hostname = host_name( ec );
             if( ec.value() != boost::system::errc::success ) {
@@ -4526,9 +4547,29 @@ namespace eosio {
                                     "Unable to retrieve host_name. ${msg}", ("msg", ec.message()));
 
             }
-            return hostname + ":" + port;
+            return hostname + ":" + port + (type.empty() ? "" : ":" + type);
          }
          return p2p_address;
+      });
+      std::transform(p2p_server_addresses.begin(), p2p_server_addresses.end(), p2p_outbound_server_addresses.begin(),
+                     p2p_server_addresses.begin(), [](const string& p2p_address, const string& p2p_server_address) {
+          if( !p2p_server_address.empty() ) {
+             return p2p_server_address;
+          }
+
+          const auto& [host, port, type] = net_utils::split_host_port_type(p2p_address);
+          if( host.empty() || host == "0.0.0.0" || host == "[::]") {
+            boost::system::error_code ec;
+            auto hostname = host_name( ec );
+            if( ec.value() != boost::system::errc::success ) {
+
+               FC_THROW_EXCEPTION( fc::invalid_arg_exception,
+                                    "Unable to retrieve host_name. ${msg}", ("msg", ec.message()));
+
+            }
+            return hostname;
+         }
+         return host;
       });
 
       {
