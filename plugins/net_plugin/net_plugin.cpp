@@ -6,6 +6,7 @@
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 #include <eosio/chain/types.hpp>
+#include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/block.hpp>
@@ -249,7 +250,7 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
-   constexpr auto     def_trx_notice_min_size = 100;
+   constexpr auto     def_trx_notice_min_size = 200; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
    constexpr auto     def_max_trx_per_connection = 100000;
 
    class connections_manager {
@@ -424,6 +425,9 @@ namespace eosio {
       
       std::function<void()> increment_failed_p2p_connections;
       std::function<void()> increment_dropped_trxs;
+
+      alignas(hardware_destructive_interference_sz)
+      std::atomic<fc::microseconds> max_trx_lifetime; // cached on-chain value of max_transaction_lifetime
       
    private:
       alignas(hardware_destructive_interference_sz)
@@ -2741,7 +2745,7 @@ namespace eosio {
          }
 
          const send_buffer_type& sb = buff_factory.get_send_buffer( trx );
-         fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
+         fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}, size ${s}", ("id", trx->id())("cid", cp->connection_id)("s", sb->size()) );
          boost::asio::post(cp->strand, [cp, sb]() {
             cp->enqueue_buffer( msg_type_t::packed_transaction, std::nullopt, queued_buffer::queue_t::general, sb, go_away_reason::no_reason );
          } );
@@ -2750,11 +2754,6 @@ namespace eosio {
 
    // called from any thread
    void dispatch_manager::bcast_transaction_notify(const packed_transaction_ptr& trx) {
-      if (trx->get_estimated_size() < def_trx_notice_min_size) {
-         fc_dlog( logger, "trx notice not sent, trx size ${s}", ("s", trx->get_estimated_size()));
-         return;
-      }
-
       trx_buffer_factory buff_factory;
       my_impl->connections.for_each_connection( [this, &trx, &buff_factory]( const connection_ptr& cp ) {
          if( cp->protocol_version < proto_trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
@@ -3153,6 +3152,7 @@ namespace eosio {
 
       const unsigned long trx_in_progress_sz = this->trx_in_progress_size.load();
 
+      auto now = fc::time_point::now();
       auto ds = pending_message_buffer.create_datastream();
       unsigned_int which{};
       fc::raw::unpack( ds, which );
@@ -3163,15 +3163,30 @@ namespace eosio {
          char reason[72];
          snprintf(reason, 72, "Dropping trx, too many trx in progress %lu bytes", trx_in_progress_sz);
          my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason);
-         if (fc::time_point::now() - fc::seconds(1) >= last_dropped_trx_msg_time) {
-            last_dropped_trx_msg_time = fc::time_point::now();
-            if (my_impl->increment_dropped_trxs) {
-               my_impl->increment_dropped_trxs();
-            }
+         if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
+            last_dropped_trx_msg_time = now;
             peer_wlog(this, reason);
+         }
+         if (my_impl->increment_dropped_trxs) {
+            my_impl->increment_dropped_trxs();
          }
          return true;
       }
+      // allow for some (10 secs) clock skew on this node
+      if (ptr->expiration() < fc::time_point_sec{now - fc::seconds(10)} ||
+          ptr->expiration() > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + fc::seconds(10)}) {
+         std::string reason = "Dropping trx with expiration " + ptr->expiration().to_iso_string();
+         my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason.c_str());
+         if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
+            last_dropped_trx_msg_time = fc::time_point::now();
+            peer_dlog(this, "${r}", ("r", std::move(reason)));
+         }
+         if (my_impl->increment_dropped_trxs) {
+            my_impl->increment_dropped_trxs();
+         }
+         return true;
+      }
+
       bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
       size_t connection_count = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id, true );
       if (connection_count > def_max_trx_per_connection) {
@@ -3183,6 +3198,17 @@ namespace eosio {
       if( have_trx ) {
          peer_dlog( this, "got a duplicate transaction - dropping" );
          return true;
+      }
+
+      const auto& tid = ptr->id();
+      peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
+
+      if (message_length < def_trx_notice_min_size) {
+         // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
+         fc_dlog( logger, "trx notice not sent, trx size ${s}", ("s", message_length));
+      } else {
+         fc_dlog( logger, "send trx notice, trx size ${s}", ("s", message_length));
+         my_impl->dispatcher.bcast_transaction_notify(ptr);
       }
 
       handle_message( ptr );
@@ -3207,6 +3233,14 @@ namespace eosio {
       fc::raw::unpack( ds, which );
       transaction_notice_message msg;
       fc::raw::unpack( ds, msg );
+
+      auto now = fc::time_point::now();
+      // allow for some (10 secs) clock skew on this node
+      if (msg.expiration < fc::time_point_sec{now - fc::seconds(10)} ||
+          msg.expiration > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + fc::seconds(10)}) {
+         peer_dlog(this, "Dropping trx notice with expiration ${e}", ("e", msg.expiration));
+         return true;
+      }
 
       size_t connection_count = my_impl->dispatcher.add_peer_txn( msg.id, msg.expiration, connection_id, false );
       if (connection_count > def_max_trx_per_connection) {
@@ -3270,6 +3304,11 @@ namespace eosio {
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
          chain_info.fork_db_head_id = cc.fork_db_head().id();
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
+      }
+      static uint32_t update_interval = -1;
+      if (++update_interval % 1000 == 0) {
+         const auto& chain_configuration = cc.get_global_properties().configuration;
+         max_trx_lifetime = fc::seconds(chain_configuration.max_transaction_lifetime);
       }
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
@@ -3938,12 +3977,6 @@ namespace eosio {
 
    // called from connection strand
    void connection::handle_message( const packed_transaction_ptr& trx ) {
-      const auto& tid = trx->id();
-
-      peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
-
-      my_impl->dispatcher.bcast_transaction_notify(trx);
-
       size_t trx_size = calc_trx_size( trx );
       trx_in_progress_size += trx_size;
       my_impl->chain_plug->accept_transaction( trx,
