@@ -4268,9 +4268,9 @@ namespace eosio {
            " The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
            " Examples:\n"
            "   192.168.0.100:9876:1MiB/s\n"
-           "   node.eos.io:9876:trx:1512KB/s\n"
-           "   node.eos.io:9876:0.5GB/s\n"
-           "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:250KB/s")
+           "   node.eos.io:9877:trx:1512KB/s\n"
+           "   node.eos.io:9878:0.5GB/s\n"
+           "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9879:250KB/s")
          ( "p2p-server-address", bpo::value< vector<string> >(),
            "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
            " May be used as many times as p2p-listen-endpoint."
