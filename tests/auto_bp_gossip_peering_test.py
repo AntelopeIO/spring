@@ -141,6 +141,8 @@ try:
         # retrieve the connections in each node and check if each connects to the other bps in the schedule
         connections = cluster.nodes[nodeId].processUrllibRequest("net", "connections")
         if Utils.Debug: Utils.Print(f"v1/net/connections: {connections}")
+        bp_peers = cluster.nodes[nodeId].processUrllibRequest("net", "bp_gossip_peers")
+        if Utils.Debug: Utils.Print(f"v1/net/bp_gossip_peers: {bp_peers}")
         peers = []
         for conn in connections["payload"]:
             if conn["is_socket_open"] is False:
@@ -166,6 +168,11 @@ try:
             Utils.Print(f"ERROR: expect {name} has connections to {scheduled_producers}, got connections to {peers}")
             connection_failure = True
             break
+        for p in bp_peers["payload"]:
+            if p["producer_name"] not in peers:
+                Utils.Print(f"ERROR: expect bp peer {p} in peer list")
+                connection_failure = True
+                break
 
     testSuccessful = not connection_failure
 

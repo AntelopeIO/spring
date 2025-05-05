@@ -452,5 +452,15 @@ public:
          active_schedule_version = schedule.version;
       }
    }
+
+   // RPC called from http threads
+   vector<gossip_bp_peers_message::bp_peer> bp_gossip_peers() const {
+      fc::lock_guard g(gossip_bps.mtx);
+      vector<gossip_bp_peers_message::bp_peer> peers;
+      for (const auto& p : gossip_bps.index) {
+         peers.emplace_back(p);
+      }
+      return peers;
+   }
 };
 } // namespace eosio::auto_bp_peering

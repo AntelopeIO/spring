@@ -4640,6 +4640,10 @@ namespace eosio {
       return my->connections.connection_statuses();
    }
 
+   vector<gossip_bp_peers_message::bp_peer> net_plugin::bp_gossip_peers()const {
+      return my->bp_gossip_peers();
+   }
+
    constexpr uint16_t net_plugin_impl::to_protocol_version(uint16_t v) {
       if (v >= net_version_base) {
          v -= net_version_base;
