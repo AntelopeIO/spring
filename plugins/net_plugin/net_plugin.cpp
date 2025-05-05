@@ -823,6 +823,7 @@ namespace eosio {
       string                  log_remote_endpoint_port;
       string                  local_endpoint_ip;
       string                  local_endpoint_port;
+      string                  short_agent_name;
       // kept in sync with last_handshake_recv.fork_db_root_num, only accessed from connection strand
       uint32_t                peer_fork_db_root_num = 0;
 
@@ -1034,6 +1035,7 @@ namespace eosio {
             ( "_port", log_remote_endpoint_port )
             ( "_lip", local_endpoint_ip )
             ( "_lport", local_endpoint_port )
+            ( "_agent", short_agent_name )
             ( "_nver", protocol_version.load() );
          return mvo;
       }
@@ -3282,6 +3284,7 @@ namespace eosio {
             return;
          }
 
+         short_agent_name = msg.agent.substr( msg.agent.size() > 1 && msg.agent[0] == '"' ? 1 : 0, 15);
          log_p2p_address = msg.p2p_address;
          fc::unique_lock g_conn( conn_mtx );
          p2p_address = msg.p2p_address;
@@ -4293,7 +4296,7 @@ namespace eosio {
            "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
          ("p2p-producer-peer", boost::program_options::value<vector<string>>()->composing()->multitoken(),
            "Producer peer name of this node used to retrieve peer key from on-chain peerkeys table. Private key of peer key should be configured via signature-provider.")
-         ( "agent-name", bpo::value<string>()->default_value("EOS Test Agent"), "The name supplied to identify this node amongst the peers.")
+         ( "agent-name", bpo::value<string>()->default_value("Vault Agent"), "The name supplied to identify this node amongst the peers.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
          ( "peer-private-key", bpo::value<vector<string>>()->composing()->multitoken(),
@@ -4321,6 +4324,7 @@ namespace eosio {
            "   _port  \tremote port number of peer\n\n"
            "   _lip   \tlocal IP address connected to peer\n\n"
            "   _lport \tlocal port number connected to peer\n\n"
+           "   _agent \tfirst 15 characters of agent-name of peer\n\n"
            "   _nver  \tp2p protocol version\n\n")
          ( "p2p-keepalive-interval-ms", bpo::value<int>()->default_value(def_keepalive_interval), "peer heartbeat keepalive message interval in milliseconds")
 
