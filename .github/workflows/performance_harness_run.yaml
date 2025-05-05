@@ -85,13 +85,12 @@ jobs:
             target: ${{github.sha}}
             artifact-name: ${{github.event.inputs.platform-choice}}-build
             fail-on-missing-target: false
-
         - name: Upload builddir
           if: steps.downloadBuild.outputs.downloaded-file != ''
           uses: actions/upload-artifact@v4
           with:
             name: ${{github.event.inputs.platform-choice}}-build
-            path: ./build/build.tar.zst
+            path: build.tar.zst
             compression-level: 0
 
   build-base:
