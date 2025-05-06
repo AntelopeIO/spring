@@ -24,12 +24,22 @@ class bp_connection_manager {
    static constexpr size_t max_bp_peers_per_producer = 4;
    gossip_bp_index_t      gossip_bps;
 
+   struct listen_endpoint_t {
+      std::string listen_endpoint;  // full host:port:type
+      std::string server_address;   // externally known host:port:type
+      std::string outbound_address; // externally known outbound address
+
+      auto operator<=>(const listen_endpoint_t& rhs) const = default;
+      bool operator==(const listen_endpoint_t& rhs) const = default;
+   };
+
    // the following members are thread-safe, only modified during plugin startup
    struct config_t {
       flat_map<account_name, net_utils::endpoint>   bp_peer_addresses;
       flat_map<net_utils::endpoint, account_name>   bp_peer_accounts;
-      peer_name_set_t                               my_bp_accounts;       // block producer --producer-name
-      peer_name_set_t                               my_bp_peer_accounts;  // peer key account --p2p-producer-peer
+      peer_name_set_t                               my_bp_accounts;             // block producer --producer-name
+      peer_name_set_t                               my_bp_peer_accounts;        // peer key account --p2p-producer-peer, for bp gossip
+      flat_set<listen_endpoint_t>                   bp_gossip_listen_endpoints; // listen endpoints to bp gossip
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
@@ -92,8 +102,10 @@ class bp_connection_manager {
    }
 
 public:
-   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() || !config.my_bp_peer_accounts.empty(); }
+   // return true if bp gossip enabled (node has a configured producer peer account and signature provider for the account)
    bool bp_gossip_enabled() const { return !config.my_bp_peer_accounts.empty(); }
+   // return true if auto bp peering of manually configured bp peers is configured or if bp gossip enabled
+   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() || bp_gossip_enabled(); }
    peer_name_set_t configured_bp_peer_accounts() const { return config.my_bp_peer_accounts; }
    bool bp_gossip_initialized() { return !!get_gossip_bp_initial_send_buffer(); }
 
@@ -107,7 +119,9 @@ public:
       return config.my_bp_accounts.contains(account);
    }
 
-   // Only called at plugin startup
+   // Only called at plugin startup.
+   // set manually configured [producer_account,endpoint] to use as proposer schedule changes.
+   // These are not gossiped.
    void set_configured_bp_peers(const std::vector<std::string>& peers) {
       for (const auto& entry : peers) {
          try {
@@ -141,6 +155,7 @@ public:
    }
 
    // Only called at plugin startup
+   // The configued p2p-producer-peer for bp gossip
    void set_bp_producer_peers(const std::vector<std::string>& peers) {
       for (const auto& entry : peers) {
          try {
@@ -152,33 +167,60 @@ public:
       }
    }
 
+   // Only called at plugin startup
+   // The listen endpoints of this node to bp gossip.
+   void set_bp_gossip_listen_endpoints(const std::vector<std::string>& listen_endpoints,
+                                       const std::vector<std::string>& server_addresses,
+                                       const std::vector<std::string>& outbound_server_addresses) {
+      assert(listen_endpoints.size() == server_addresses.size() && listen_endpoints.size() == outbound_server_addresses.size());
+      if (!bp_gossip_enabled())
+         return;
+
+      for (size_t i = 0; i < listen_endpoints.size(); ++i) {
+         if (listen_endpoints[i].find(":nobpgoss") == std::string::npos) {
+            config.bp_gossip_listen_endpoints.emplace(listen_endpoints[i], server_addresses[i], outbound_server_addresses[i]);
+         }
+      }
+      EOS_ASSERT(!config.bp_gossip_listen_endpoints.empty(), chain::plugin_config_exception,
+                 "No listen endpoints specified for bp gossip");
+   }
+
    // Called when configured bp peer key changes
-   void update_bp_producer_peers(const chain::controller& cc, const std::string& server_address) {
+   void update_bp_producer_peers(const chain::controller& cc) {
       assert(!config.my_bp_peer_accounts.empty());
       fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
+      bool initial_updated = false;
       // normally only one bp peer account except in testing scenarios or test chains
-      for (const auto& e : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
-         std::optional<peer_info_t> peer_info = cc.get_peer_info(e);
-         if (peer_info && peer_info->key) {
-            // update initial so always an active one
-            gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
-            signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
-            EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
-                       "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
-            initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
-            // update gossip_bps
-            auto& prod_idx = gossip_bps.index.get<by_producer>();
-            gossip_bp_peers_message::bp_peer peer{.producer_name = e, .server_address = server_address};
-            peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
-            EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
-                       "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
-            if (auto i = prod_idx.find(boost::make_tuple(e, boost::cref(server_address))); i != prod_idx.end()) {
-               gossip_bps.index.modify(i, [&peer](auto& v) {
-                  v.sig = peer.sig;
-               });
-            } else {
-               gossip_bps.index.emplace(peer);
+      for (const auto& my_bp_account : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
+         for (const auto& le : config.bp_gossip_listen_endpoints) {
+            std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
+            if (peer_info && peer_info->key) {
+               if (!initial_updated) {
+                  // update initial so always an active one
+                  gossip_bp_peers_message::bp_peer signed_empty{.producer_name = my_bp_account}; // .server_address not set for initial message
+                  signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
+                  EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
+                             "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
+                  initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
+                  initial_updated = true;
+               }
+               // update gossip_bps
+               auto& prod_idx = gossip_bps.index.get<by_producer>();
+               gossip_bp_peers_message::bp_peer peer{
+                  .producer_name = my_bp_account,
+                  .server_address = le.server_address,
+                  .outbound_server_address = le.outbound_server_address};
+               peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
+               EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
+                          "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
+               if (auto i = prod_idx.find(boost::make_tuple(my_bp_account, boost::cref(le.server_address))); i != prod_idx.end()) {
+                  gossip_bps.index.modify(i, [&peer](auto& v) {
+                     v.sig = peer.sig;
+                  });
+               } else {
+                  gossip_bps.index.emplace(peer);
+               }
             }
          }
       }

@@ -140,13 +140,15 @@ namespace eosio {
       struct bp_peer {
          eosio::name               producer_name;
          std::string               server_address;
-         // sig over [producer_name, server_address]
+         std::string               outbound_server_address;
+         // sig over [producer_name, server_address, outbound_server_address]
          signature_type            sig;
 
          digest_type digest() const;
          bool operator==(const bp_peer&) const = default;
          bool operator<(const bp_peer& rhs) const {
-            return std::tie(producer_name, server_address) < std::tie(rhs.producer_name, rhs.server_address);
+            return std::tie(producer_name, server_address, outbound_server_address) <
+                   std::tie(rhs.producer_name, rhs.server_address, rhs.outbound_server_address);
          }
       };
 
@@ -215,7 +217,7 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
-FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(sig) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(outbound_server_address)(sig) )
 FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
 /**

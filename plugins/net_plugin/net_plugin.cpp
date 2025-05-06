@@ -491,7 +491,7 @@ namespace eosio {
 
       fc::logger& get_logger() const { return logger; }
 
-      void create_session(tcp::socket&& socket, const string listen_address, size_t limit);
+      void create_session(tcp::socket&& socket, string listen_address, size_t limit);
 
       std::string empty{};
    }; //net_plugin_impl
@@ -2767,7 +2767,7 @@ namespace eosio {
       return p2p_addresses.size() > 0 ? *p2p_addresses.begin() : empty;
    }
 
-   void net_plugin_impl::create_session(tcp::socket&& socket, const string listen_address, size_t limit) {
+   void net_plugin_impl::create_session(tcp::socket&& socket, string listen_address, size_t limit) {
       boost::system::error_code rec;
       const auto&               rend = socket.remote_endpoint(rec);
       if (rec) {
@@ -4046,7 +4046,7 @@ namespace eosio {
       // update peer public keys from chainbase db
       if (cc.configured_peer_keys_updated()) {
          try {
-            update_bp_producer_peers(cc, get_first_p2p_address());
+            update_bp_producer_peers(cc);
             connection::send_gossip_bp_peers_initial_message_to_peers();
          } catch (fc::exception& e) {
             fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
@@ -4260,17 +4260,19 @@ namespace eosio {
    {
       cfg.add_options()
          ( "p2p-listen-endpoint", bpo::value< vector<string> >()->default_value( vector<string>(1, string("0.0.0.0:9876:0")) ),
-           "The actual host:port[:trx|:blk][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times."
+           "The actual host:port[:trx|:blk][:nobpgoss][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times."
            " The optional rate cap will limit per connection block sync bandwidth to the specified rate. Total"
            " allowed bandwidth is the rate-cap multiplied by the connection count limit. A number alone will be"
            " interpreted as bytes per second. The number may be suffixed with units. Supported units are:"
            " 'B/s', 'KB/s', 'MB/s, 'GB/s', 'TB/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'."
            " Transactions and blocks outside sync mode are not throttled."
            " The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
+           " The optional 'nobpgoss' indicates to not gossip to other bp peers."
            " Examples:\n"
            "   192.168.0.100:9876:1MiB/s\n"
            "   node.eos.io:9877:trx:1512KB/s\n"
-           "   node.eos.io:9878:0.5GB/s\n"
+           "   node.eos.io:9878:trx:nobpgoss:1512KB/s\n"
+           "   node.eos.io:9879:0.5GB/s\n"
            "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9879:250KB/s")
          ( "p2p-server-address", bpo::value< vector<string> >(),
            "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
@@ -4379,7 +4381,7 @@ namespace eosio {
 
          if( options.count( "p2p-listen-endpoint" )) {
             auto p2ps =  options.at("p2p-listen-endpoint").as<vector<string>>();
-            if (!p2ps.front().empty()) {
+            if (!p2ps.front().empty()) { // "" for p2p-listen-endpoint means to not listen
                p2p_addresses = p2ps;
                auto addr_count = p2p_addresses.size();
                std::sort(p2p_addresses.begin(), p2p_addresses.end());
@@ -4551,13 +4553,14 @@ namespace eosio {
          }
          return p2p_address;
       });
+      p2p_server_addresses = p2p_addresses;
       std::transform(p2p_server_addresses.begin(), p2p_server_addresses.end(), p2p_outbound_server_addresses.begin(),
-                     p2p_server_addresses.begin(), [](const string& p2p_address, const string& p2p_server_address) {
-          if( !p2p_server_address.empty() ) {
-             return p2p_server_address;
+                     p2p_outbound_server_addresses.begin(), [](const string& p2p_server_address, const string& p2p_outbound_server_address) {
+          if( !p2p_outbound_server_address.empty() ) {
+             return p2p_outbound_server_address;
           }
 
-          const auto& [host, port, type] = net_utils::split_host_port_type(p2p_address);
+          const auto& [host, port, type] = net_utils::split_host_port_type(p2p_server_address);
           if( host.empty() || host == "0.0.0.0" || host == "[::]") {
             boost::system::error_code ec;
             auto hostname = host_name( ec );
@@ -4571,6 +4574,10 @@ namespace eosio {
          }
          return host;
       });
+
+      if (bp_gossip_enabled()) {
+         set_bp_gossip_listen_endpoints(listen_addresses, p2p_server_addresses, p2p_outbound_server_addresses);
+      }
 
       {
          chain::controller& cc = chain_plug->chain();
@@ -4621,7 +4628,7 @@ namespace eosio {
                   [this, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
                      fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}",
                               ("addr", addr)("limit", block_sync_rate_limit));
-                     create_session(std::move(socket), addr, block_sync_rate_limit);
+                     create_session(std::move(socket), std::move(addr), block_sync_rate_limit);
                   });
          } catch (const fc::exception& e) {
             fc_elog(logger, "net_plugin::plugin_startup failed to listen on ${a}, ${w}",
