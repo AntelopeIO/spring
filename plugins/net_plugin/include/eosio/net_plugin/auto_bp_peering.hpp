@@ -21,7 +21,7 @@ class bp_connection_manager {
  public:
 #endif
 
-   static constexpr size_t max_bp_peers_per_producer = 4;
+   static constexpr size_t max_bp_peers_per_producer = 8;
    gossip_bp_index_t      gossip_bps;
 
    struct listen_endpoint_t {
@@ -210,7 +210,7 @@ public:
                gossip_bp_peers_message::bp_peer peer{
                   .producer_name = my_bp_account,
                   .server_address = le.server_address,
-                  .outbound_server_address = le.outbound_server_address};
+                  .outbound_server_address = le.outbound_address};
                peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
                EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
                           "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
