@@ -2146,13 +2146,18 @@ struct controller_impl {
 
       if (conf.truncate_at_block > 0 && chain_head.is_valid()) {
          if (chain_head.block_num() == conf.truncate_at_block && fork_db_has_root()) {
-            fork_db_.apply<void>([&](auto& fork_db) {
-               if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
-                  ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
-                        ("t", conf.truncate_at_block)("h", head->block_num()));
-                  fork_db.remove(conf.truncate_at_block + 1);
-               }
-            });
+            if (fork_db_.version_in_use() == fork_database::in_use_t::both) {
+               // in savanna transition
+               wlog("In the middle of Savanna transition, truncate-at-block not allowed, ignoring truncate-at-block ${b}", ("b", conf.truncate_at_block));
+            } else {
+               fork_db_.apply<void>([&](auto& fork_db) {
+                  if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
+                     ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
+                           ("t", conf.truncate_at_block)("h", head->block_num()));
+                     fork_db.remove(conf.truncate_at_block + 1);
+                  }
+               });
+            }
          }
       }
 
@@ -5010,8 +5015,10 @@ struct controller_impl {
       return wasmif;
    }
 
-   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                 block_num_type first_used_block_num, block_num_type block_num_last_used)
+   {
+      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
    }
 
    void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
@@ -6233,8 +6240,9 @@ bool controller::is_write_window() const {
    return my->is_write_window();
 }
 
-void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-   return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                          block_num_type first_used_block_num, block_num_type block_num_last_used) {
+   return my->code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
 }
 
 platform_timer& controller::get_thread_local_timer() {
