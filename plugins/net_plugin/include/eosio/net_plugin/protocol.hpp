@@ -136,6 +136,11 @@ namespace eosio {
       block_id_type id;
    };
 
+   struct transaction_notice_message {
+      transaction_id_type id;
+      time_point_sec      expiration;
+   };
+
    struct gossip_bp_peers_message {
       struct bp_peer {
          eosio::name               producer_name;
@@ -165,7 +170,8 @@ namespace eosio {
                                     vote_message,
                                     block_nack_message,
                                     block_notice_message,
-                                    gossip_bp_peers_message>;
+                                    gossip_bp_peers_message,
+                                    transaction_notice_message>;
 
    // see protocol net_message
    enum class msg_type_t {
@@ -181,7 +187,8 @@ namespace eosio {
       vote_message           = fc::get_index<net_message, vote_message>(),
       block_nack_message     = fc::get_index<net_message, block_nack_message>(),
       block_notice_message   = fc::get_index<net_message, block_notice_message>(),
-      gossip_bp_peers_message= fc::get_index<net_message, gossip_bp_peers_message>(),
+      gossip_bp_peers_message    = fc::get_index<net_message, gossip_bp_peers_message>(),
+      transaction_notice_message = fc::get_index<net_message, transaction_notice_message>(),
       unknown
    };
 
@@ -215,6 +222,7 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
+FC_REFLECT( eosio::transaction_notice_message, (id)(expiration) )
 FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(sig) )
 FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
