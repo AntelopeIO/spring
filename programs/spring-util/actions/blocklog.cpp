@@ -304,8 +304,8 @@ int blocklog_actions::read_log() {
 
    signed_block_ptr end;
 
-   report_time rt(print_log && print_fork_db ? "reading both log and fork_db"
-                                             : (print_log ? "reading log" : "reading fork_db"));
+   report_time rt(print_log && print_fork_db ? "reading both block log and fork_db"
+                                             : (print_log ? "reading block log" : "reading fork_db"));
    if (print_log) {
       block_log   block_logger(opt->blocks_dir, opt->blog_conf);
       end = block_logger.read_head();
