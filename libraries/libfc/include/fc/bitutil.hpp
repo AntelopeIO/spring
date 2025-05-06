@@ -33,6 +33,19 @@ inline uint32_t endian_reverse_u32( uint32_t x )
 }
 
 // Using uint8_t boost::dynamic_bitset provides a more expected raw pack/unpack format
-using dynamic_bitset = boost::dynamic_bitset<uint8_t>;
+struct dynamic_bitset : public boost::dynamic_bitset<uint8_t> {
+   using base = boost::dynamic_bitset<uint8_t>;
+
+   // stream output function overriding the one in `boost::dynamic_bitset`. Currently it outputs
+   // the same as `boost::dynamic_bitset`.
+   // ------------------------------------------------------------------------------------------
+   template <typename Stream>
+   friend Stream& operator<<(Stream& ds, const dynamic_bitset& bs) {
+      ds << static_cast<base>(bs);
+      return ds;
+   }
+
+   using base::base;
+};
 
 } // namespace fc
