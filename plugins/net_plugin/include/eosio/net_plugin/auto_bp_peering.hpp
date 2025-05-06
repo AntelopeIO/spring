@@ -23,6 +23,7 @@ class bp_connection_manager {
 
    static constexpr size_t           max_bp_peers_per_producer = 8;
    static constexpr fc::microseconds bp_peer_expiration = fc::hours(1);
+   static constexpr fc::microseconds my_bp_peer_expiration = fc::minutes(30); // resend my bp_peer info every 30 minutes
    static constexpr fc::microseconds bp_peer_expiration_variance = fc::hours(1) + fc::minutes(15);
 
    gossip_bp_index_t      gossip_bps;
@@ -105,6 +106,7 @@ class bp_connection_manager {
    }
 
 public:
+   // the following accessors are thread-safe
    // return true if bp gossip enabled (node has a configured producer peer account and signature provider for the account)
    bool bp_gossip_enabled() const { return !config.my_bp_peer_accounts.empty(); }
    // return true if auto bp peering of manually configured bp peers is configured or if bp gossip enabled
@@ -195,15 +197,16 @@ public:
                  "No listen endpoints specified for bp gossip");
    }
 
+   // thread-safe
    // Called when configured bp peer key changes
-   // Called from main thread
-   void update_bp_producer_peers(const chain::controller& cc) {
+   void update_bp_producer_peers() {
       assert(!config.my_bp_peer_accounts.empty());
       fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
       bool initial_updated = false;
       // normally only one bp peer account except in testing scenarios or test chains
-      block_timestamp_type expire = cc.head().block_time() + bp_peer_expiration;
+      const controller& cc = self()->chain_plug->chain();
+      block_timestamp_type expire = self()->head_block_time.load() + bp_peer_expiration;
       for (const auto& my_bp_account : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
          for (const auto& le : config.bp_gossip_listen_endpoints) {
             std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
@@ -410,6 +413,31 @@ public:
          }
       }
       return diff;
+   }
+
+   // thread-safe
+   // return true if my bp accounts will expire "soon"
+   bool expire_gossip_bp_peers() {
+      if (!bp_gossip_enabled())
+         return false;
+
+      auto head_block_time = self()->head_block_time.load();
+
+      fc::lock_guard g(gossip_bps.mtx);
+      auto& idx = gossip_bps.index.get<by_expiry>();
+      auto ex_lo = idx.lower_bound(block_timestamp_type{});
+      auto ex_up = idx.upper_bound(head_block_time);
+      idx.erase(ex_lo, ex_up);
+      if (ex_up != idx.end()) {
+         ex_lo = ex_up;
+         ex_up = idx.upper_bound(head_block_time + my_bp_peer_expiration);
+         auto my_bp_account_will_expire = std::ranges::any_of(ex_lo, ex_up, [&](const auto& i) {
+            return config.my_bp_accounts.contains(i.producer_name);
+         });
+         return my_bp_account_will_expire;
+      }
+
+      return false;
    }
 
    flat_set<std::string> find_gossip_bp_addresses(const peer_name_set_t& accounts, const char* desc) const {

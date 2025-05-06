@@ -21,10 +21,15 @@ struct gossip_bp_index_t {
             >,
             composite_key_compare< std::less<>, std::less<> >
          >,
+         ordered_non_unique<
+            tag< struct by_expiry >,
+            member< gossip_bp_peers_message::bp_peer, block_timestamp_type, &gossip_bp_peers_message::bp_peer::expiration >
+         >,
          ordered_unique<
             tag< struct by_sig >,
-            member< gossip_bp_peers_message::signed_bp_peer, chain::signature_type, &gossip_bp_peers_message::signed_bp_peer::sig > >
+            member< gossip_bp_peers_message::signed_bp_peer, chain::signature_type, &gossip_bp_peers_message::signed_bp_peer::sig >
          >
+      >
       >;
 
    alignas(hardware_destructive_interference_sz)

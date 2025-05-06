@@ -238,7 +238,7 @@ namespace eosio {
    constexpr auto     def_max_clients = 25; // 0 for unlimited clients
    constexpr auto     def_max_nodes_per_host = 1;
    constexpr auto     def_conn_retry_wait = 30;
-   constexpr auto     def_txn_expire_wait = std::chrono::seconds(3);
+   constexpr auto     def_expire_timer_wait = std::chrono::seconds(3);
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
@@ -371,7 +371,7 @@ namespace eosio {
             };
       possible_connections                  allowed_connections{None};
 
-      boost::asio::steady_timer::duration   txn_exp_period{0};
+      boost::asio::steady_timer::duration   expire_timer_period{0};
       boost::asio::steady_timer::duration   resp_expected_period{0};
       std::chrono::milliseconds             keepalive_interval{std::chrono::milliseconds{def_keepalive_interval}};
 
@@ -3960,7 +3960,7 @@ namespace eosio {
    // thread safe
    void net_plugin_impl::start_expire_timer() {
       fc::lock_guard g( expire_timer_mtx );
-      expire_timer.expires_from_now( txn_exp_period);
+      expire_timer.expires_from_now( expire_timer_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
@@ -3999,7 +3999,11 @@ namespace eosio {
       uint32_t fork_db_root_num = get_fork_db_root_num();
       dispatcher.expire_blocks( fork_db_root_num );
       dispatcher.expire_txns();
-      fc_dlog( logger, "expire_txns ${n}us", ("n", time_point::now() - now) );
+      if (expire_gossip_bp_peers()) {
+         update_bp_producer_peers();
+         connection::send_gossip_bp_peers_initial_message_to_peers();
+      }
+      fc_dlog( logger, "expire run time ${n}us", ("n", time_point::now() - now) );
 
       start_expire_timer();
    }
@@ -4051,7 +4055,7 @@ namespace eosio {
       // update peer public keys from chainbase db
       if (cc.configured_peer_keys_updated()) {
          try {
-            update_bp_producer_peers(cc);
+            update_bp_producer_peers();
             connection::send_gossip_bp_peers_initial_message_to_peers();
          } catch (fc::exception& e) {
             fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
@@ -4357,7 +4361,7 @@ namespace eosio {
 
          peer_log_format = options.at( "peer-log-format" ).as<string>();
 
-         txn_exp_period = def_txn_expire_wait;
+         expire_timer_period = def_expire_timer_wait;
          p2p_dedup_cache_expire_time_us = fc::seconds( options.at( "p2p-dedup-cache-expire-time-sec" ).as<uint32_t>() );
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
