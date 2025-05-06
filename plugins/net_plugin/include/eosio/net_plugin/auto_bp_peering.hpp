@@ -21,7 +21,9 @@ class bp_connection_manager {
  public:
 #endif
 
-   static constexpr size_t max_bp_peers_per_producer = 8;
+   static constexpr size_t           max_bp_peers_per_producer = 8;
+   static constexpr fc::microseconds bp_peer_expiration = fc::hours(1);
+
    gossip_bp_index_t      gossip_bps;
 
    struct listen_endpoint_t {
@@ -178,7 +180,14 @@ public:
 
       for (size_t i = 0; i < listen_endpoints.size(); ++i) {
          if (listen_endpoints[i].find(":nobpgoss") == std::string::npos) {
-            config.bp_gossip_listen_endpoints.emplace(listen_endpoints[i], server_addresses[i], outbound_server_addresses[i]);
+            // only set outbound_server_address if diff host than server_address to save bandwidth
+            auto [host, port, type] = net_utils::split_host_port_type(server_addresses[i]);
+            if (host == outbound_server_addresses[i]) {
+               host.clear();
+            } else {
+               host = outbound_server_addresses[i];
+            }
+            config.bp_gossip_listen_endpoints.emplace(listen_endpoints[i], server_addresses[i], host);
          }
       }
       EOS_ASSERT(!config.bp_gossip_listen_endpoints.empty(), chain::plugin_config_exception,
@@ -186,19 +195,21 @@ public:
    }
 
    // Called when configured bp peer key changes
+   // Called from main thread
    void update_bp_producer_peers(const chain::controller& cc) {
       assert(!config.my_bp_peer_accounts.empty());
       fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
       bool initial_updated = false;
       // normally only one bp peer account except in testing scenarios or test chains
+      block_timestamp_type expire = cc.head().block_time() + bp_peer_expiration;
       for (const auto& my_bp_account : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
          for (const auto& le : config.bp_gossip_listen_endpoints) {
             std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
             if (peer_info && peer_info->key) {
                if (!initial_updated) {
                   // update initial so always an active one
-                  gossip_bp_peers_message::bp_peer signed_empty{.producer_name = my_bp_account}; // .server_address not set for initial message
+                  gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = my_bp_account}}; // .server_address not set for initial message
                   signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
                   EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
                              "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
@@ -207,15 +218,18 @@ public:
                }
                // update gossip_bps
                auto& prod_idx = gossip_bps.index.get<by_producer>();
-               gossip_bp_peers_message::bp_peer peer{
-                  .producer_name = my_bp_account,
-                  .server_address = le.server_address,
-                  .outbound_server_address = le.outbound_address};
+               gossip_bp_peers_message::signed_bp_peer peer{
+                  { .producer_name = my_bp_account,
+                    .server_address = le.server_address,
+                    .outbound_server_address = le.outbound_address,
+                    .expiration = expire }
+               };
                peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
                EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
                           "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
                if (auto i = prod_idx.find(boost::make_tuple(my_bp_account, boost::cref(le.server_address))); i != prod_idx.end()) {
                   gossip_bps.index.modify(i, [&peer](auto& v) {
+                     v.expiration = peer.expiration;
                      v.sig = peer.sig;
                   });
                } else {
@@ -313,7 +327,7 @@ public:
 
       const controller& cc = self()->chain_plug->chain();
       bool invalid_message = false;
-      auto is_peer_key_valid = [&](const gossip_bp_peers_message::bp_peer& peer) -> bool {
+      auto is_peer_key_valid = [&](const gossip_bp_peers_message::signed_bp_peer& peer) -> bool {
          try {
             if (peer.sig.is_webauthn()) {
                fc_dlog(self()->get_logger(), "Peer ${p} signature is webauthn, not allowed.", ("p", peer.producer_name));
@@ -500,7 +514,15 @@ public:
       fc::lock_guard g(gossip_bps.mtx);
       vector<gossip_bp_peers_message::bp_peer> peers;
       for (const auto& p : gossip_bps.index) {
-         peers.emplace_back(p);
+         // no need to include sig
+         // report host of server_address if outbound_server_address not provided
+         peers.push_back(gossip_bp_peers_message::bp_peer{
+            p.producer_name,
+            p.server_address,
+            p.outbound_server_address.empty() ? std::get<0>(net_utils::split_host_port_type(p.server_address)) : p.outbound_server_address,
+            p.expiration
+            // no need to report sig
+         });
       }
       return peers;
    }
