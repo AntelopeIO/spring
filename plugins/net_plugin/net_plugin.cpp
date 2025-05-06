@@ -404,6 +404,9 @@ namespace eosio {
       boost::asio::deadline_timer           accept_error_timer{thread_pool.get_executor()};
 
 
+      alignas(hardware_destructive_interference_sz)
+      std::atomic<fc::time_point>           head_block_time;
+
       struct chain_info_t {
          block_id_type fork_db_root_id;
          uint32_t      fork_db_root_num = 0;
@@ -3167,15 +3170,17 @@ namespace eosio {
    void net_plugin_impl::update_chain_info() {
       controller& cc = chain_plug->chain();
       uint32_t fork_db_root_num = 0, head_num = 0, fork_db_head_num = 0;
+      auto head = cc.head();
       {
          fc::lock_guard g( chain_info_mtx );
          chain_info.fork_db_root_id = cc.fork_db_root().id();
          chain_info.fork_db_root_num = fork_db_root_num = block_header::num_from_id(chain_info.fork_db_root_id);
-         chain_info.head_id = cc.head().id();
+         chain_info.head_id = head.id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
          chain_info.fork_db_head_id = cc.fork_db_head().id();
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
       }
+      head_block_time = head.block_time();
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
 
@@ -3183,15 +3188,17 @@ namespace eosio {
    void net_plugin_impl::update_chain_info(const block_id_type& fork_db_root_id) {
       controller& cc = chain_plug->chain();
       uint32_t fork_db_root_num = 0, head_num = 0, fork_db_head_num = 0;
+      auto head = cc.head();
       {
          fc::lock_guard g( chain_info_mtx );
          chain_info.fork_db_root_id = fork_db_root_id;
          chain_info.fork_db_root_num = fork_db_root_num = block_header::num_from_id(fork_db_root_id);
-         chain_info.head_id = cc.head().id();
+         chain_info.head_id = head.id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
          chain_info.fork_db_head_id = cc.fork_db_head().id();
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
       }
+      head_block_time = head.block_time();
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
 

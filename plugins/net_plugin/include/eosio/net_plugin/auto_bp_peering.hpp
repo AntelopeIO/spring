@@ -23,6 +23,7 @@ class bp_connection_manager {
 
    static constexpr size_t           max_bp_peers_per_producer = 8;
    static constexpr fc::microseconds bp_peer_expiration = fc::hours(1);
+   static constexpr fc::microseconds bp_peer_expiration_variance = fc::hours(1) + fc::minutes(15);
 
    gossip_bp_index_t      gossip_bps;
 
@@ -356,13 +357,22 @@ public:
          return true;
       };
 
+      const auto head_block_time = self()->head_block_time.load();
+      const block_timestamp_type expire = head_block_time + bp_peer_expiration_variance;
+      auto is_expiration_valid = [&](const gossip_bp_peers_message::signed_bp_peer& peer) -> bool {
+         if (initial_msg)
+            return true; // initial message has no expiration
+         return peer.expiration > head_block_time && peer.expiration < expire;
+      };
+
       fc::lock_guard g(gossip_bps.mtx);
       auto& sig_idx = gossip_bps.index.get<by_sig>();
       for (auto i = msg.peers.begin(); i != msg.peers.end() && !invalid_message;) {
          const auto& peer = *i;
          bool have_sig = sig_idx.contains(peer.sig); // we already have it, already verified
-         if (!have_sig && !is_peer_key_valid(peer)) {
+         if (!have_sig && (!is_peer_key_valid(peer) || !is_expiration_valid(peer))) {
             // peer key may have changed or been removed on-chain, do not consider that a fatal error, just remove it
+            // may be expired, do not consider that fatal, just remove it
             i = msg.peers.erase(i);
          } else {
             ++i;
@@ -385,7 +395,8 @@ public:
          if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_address))); i != idx.end()) {
             if (i->sig != peer.sig) { // signature has changed, producer_name and server_address has not changed
                gossip_bps.index.modify(i, [&peer](auto& m) {
-                  m.sig = peer.sig; // update the signature, producer_name and server_address has not changed
+                  m.expiration = peer.expiration;
+                  m.sig = peer.sig; // update the signature, producer_name, server_address, outbound_address has not changed
                });
                diff = true;
             }
