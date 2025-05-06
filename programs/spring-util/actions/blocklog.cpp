@@ -365,7 +365,7 @@ int blocklog_actions::read_log() {
    }
 
    if(opt->as_json_array)
-      *out << "]" << '\n';
+      *out << "]\n";
    rt.report();
 
    return 0;
