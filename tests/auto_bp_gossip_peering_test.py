@@ -168,11 +168,16 @@ try:
             Utils.Print(f"ERROR: expect {name} has connections to {scheduled_producers}, got connections to {peers}")
             connection_failure = True
             break
+        num_peers_found = 0
         for p in bp_peers["payload"]:
             if p["producer_name"] not in peers:
                 Utils.Print(f"ERROR: expect bp peer {p} in peer list")
                 connection_failure = True
                 break
+            else:
+                num_peers_found += 1
+
+        assert(num_peers_found == len(peers))
 
     testSuccessful = not connection_failure
 
