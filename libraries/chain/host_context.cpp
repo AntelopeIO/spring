@@ -106,9 +106,9 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // execute the sync call
-            auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+            auto rc = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
-            if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
+            if (rc == execution_status::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
                return handle_call_failure();
             }
          } catch( const wasm_exit&) {}
@@ -508,4 +508,22 @@ int host_context::db_end_i64( name code, name scope, name table ) {
    return keyval_cache.cache_table( *tab );
 }
 
+bool host_context::is_eos_vm_oc_whitelisted() const {
+   return receiver.prefix() == config::system_account_name || // "eosio"_n
+          control.is_eos_vm_oc_whitelisted(receiver);
+}
+
+// Context             |    OC?
+//-------------------------------------------------------------------------------
+// Building block      | baseline, OC for whitelisted
+// Applying block      | OC unless a producer, OC for whitelisted including producers
+// Speculative API trx | baseline, OC for whitelisted
+// Speculative P2P trx | baseline, OC for whitelisted
+// Compute trx         | baseline, OC for whitelisted
+// Read only trx       | OC
+bool host_context::should_use_eos_vm_oc()const {
+   return is_eos_vm_oc_whitelisted() // all whitelisted accounts use OC always
+          || (is_applying_block() && !control.is_producer_node()) // validating/applying block
+          || trx_context.is_read_only();
+}
 } /// eosio::chain

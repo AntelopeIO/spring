@@ -13,7 +13,8 @@
 
 namespace eosio { namespace chain {
 
-class apply_context;
+class host_context;
+enum class execution_status : int64_t;  // full definition is in wasm_interface.hpp
 
 namespace eosvmoc {
 
@@ -26,7 +27,7 @@ class executor {
       executor(const code_cache_base& cc);
       ~executor();
 
-      void execute(const code_descriptor& code, memory& mem, apply_context& context);
+      execution_status execute(const code_descriptor& code, memory& mem, host_context& context);
 
    private:
       uint8_t* code_mapping;

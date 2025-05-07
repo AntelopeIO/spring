@@ -47,6 +47,24 @@ namespace eosio { namespace chain {
          my->runtime_interface->init_thread_local_data();
       }
    }
+
+   void wasm_interface::set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      // OC tierup and OC runtime are mutually exclusive
+      if (my->eosvmoc) {
+         my->eosvmoc->set_num_threads_for_call_res_pools(num_threads);
+      } else if (my->wasm_runtime_time == wasm_interface::vm_type::eos_vm_oc && my->runtime_interface) {
+         my->runtime_interface->set_num_threads_for_call_res_pools(num_threads);
+      }
+   }
+
+   void wasm_interface::set_max_call_depth_for_call_res_pools(uint32_t depth) {
+      // OC tierup and OC runtime are mutually exclusive
+      if (my->eosvmoc) {
+         my->eosvmoc->set_max_call_depth_for_call_res_pools(depth);
+      } else if (my->wasm_runtime_time == wasm_interface::vm_type::eos_vm_oc && my->runtime_interface) {
+         my->runtime_interface->set_max_call_depth_for_call_res_pools(depth);
+      }
+   }
 #endif
 
    void wasm_interface::validate(const controller& control, const bytes& code) {
@@ -87,14 +105,8 @@ namespace eosio { namespace chain {
       my->current_lib(lib);
    }
 
-   void wasm_interface::apply( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
-      if (substitute_apply && substitute_apply(code_hash, vm_type, vm_version, context))
-         return;
-      my->apply( code_hash, vm_type, vm_version, context );
-   }
-
-   sync_call_return_code wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
-      return my->do_sync_call( code_hash, vm_type, vm_version, context );
+   execution_status wasm_interface::execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
+      return my->execute( code_hash, vm_type, vm_version, context );
    }
 
    bool wasm_interface::is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const {
