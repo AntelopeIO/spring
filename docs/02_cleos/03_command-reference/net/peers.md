@@ -58,7 +58,7 @@ cleos -u http://127.0.0.1:8001 net peers
       "head_num": 128,
       "head_id": "0000008072eb0fc043770e44a5db5dedfbd86db9aa5c41b28618f1b9343c2d22",
       "os": "osx",
-      "agent": "EOS Test Agent",
+      "agent": "Vaulta Test Agent",
       "generation": 4
     }
   },{
@@ -79,7 +79,7 @@ cleos -u http://127.0.0.1:8001 net peers
       "head_num": 130,
       "head_id": "0000008248cc3498b4bbf14a183711d9a73a36517a8069367a343bd4060fed14",
       "os": "osx",
-      "agent": "EOS Test Agent",
+      "agent": "Vaulta Test Agent",
       "generation": 3
     }
   },{
@@ -104,7 +104,7 @@ cleos -u http://127.0.0.1:8001 net peers
       "head_num": 126,
       "head_id": "0000007eccafd4f32a437b5fd8b111b326e2da8d0bcb832036984841b81ab64e",
       "os": "osx",
-      "agent": "EOS Test Agent",
+      "agent": "Vaulta Test Agent",
       "generation": 4
     }
   }

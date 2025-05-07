@@ -100,7 +100,7 @@ struct eosvmoc_tier {
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          if(eosvmoc_tierup != wasm_interface::vm_oc_enable::oc_none) {
-            EOS_ASSERT(vm != wasm_interface::vm_type::eos_vm_oc, wasm_exception, "You can't use EOS VM OC as the base runtime when tier up is activated");
+            EOS_ASSERT(vm != wasm_interface::vm_type::eos_vm_oc, wasm_exception, "You can't use Vaulta VM OC as the base runtime when tier up is activated");
             eosvmoc = std::make_unique<eosvmoc_tier>(data_dir, eosvmoc_config, d, [this](boost::asio::io_context& ctx, const digest_type& code_id, fc::time_point queued_time) {
                async_compile_complete(ctx, code_id, queued_time);
             });
@@ -122,7 +122,7 @@ struct eosvmoc_tier {
                if (ec)
                   return;
                if (executing_code_hash.load() == code_id) {
-                  ilog("EOS VM OC tier up interrupting ${id}", ("id", code_id));
+                  ilog("Vaulta VM OC tier up interrupting ${id}", ("id", code_id));
                   eos_vm_oc_compile_interrupt = true;
                   main_thread_timer.interrupt_timer();
                }
@@ -149,11 +149,11 @@ struct eosvmoc_tier {
                m.write_window = context.control.is_write_window();
                cd = eosvmoc->cc.get_descriptor_for_code(m, code_hash, vm_version, failure);
             } catch (...) {
-               // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
-               // In the future, consider moving bits of EOS VM that can fire exceptions and such out of this call path
+               // swallow errors here, if Vaulta VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
+               // In the future, consider moving bits of Vaulta VM that can fire exceptions and such out of this call path
                static bool once_is_enough;
                if (!once_is_enough)
-                  elog("EOS VM OC has encountered an unexpected failure");
+                  elog("Vaulta VM OC has encountered an unexpected failure");
                once_is_enough = true;
             }
             if (cd) {
@@ -185,10 +185,10 @@ struct eosvmoc_tier {
          } catch (const interrupt_exception& e) {
             if (allow_oc_interrupt && eos_vm_oc_compile_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
-               dlog("EOS VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
+               dlog("Vaulta VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
                     ("r", context.get_receiver())("a", context.get_action().account)
                     ("act", context.get_action().name)("h", code_hash)("c", eos_vm_oc_compile_interrupt_count));
-               EOS_THROW(interrupt_oc_exception, "EOS VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
+               EOS_THROW(interrupt_oc_exception, "Vaulta VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
                     ("r", context.get_receiver())("a", context.get_action().account)
                     ("act", context.get_action().name)("h", code_hash)("c", eos_vm_oc_compile_interrupt_count));
             }

@@ -731,9 +731,9 @@ class PtbArgumentsHandler(object):
                                          execution. \"eos-vm\" : A WebAssembly interpreter.",
                                          choices=["eos-vm-jit", "eos-vm"], default="eos-vm-jit")
         ptbBaseParserGroup.add_argument("--contracts-console", help=argparse.SUPPRESS if suppressHelp else "print contract's output to console", action='store_true')
-        ptbBaseParserGroup.add_argument("--eos-vm-oc-cache-size-mb", type=int, help=argparse.SUPPRESS if suppressHelp else "Maximum size (in MiB) of the EOS VM OC code cache", default=1024)
-        ptbBaseParserGroup.add_argument("--eos-vm-oc-compile-threads", type=int, help=argparse.SUPPRESS if suppressHelp else "Number of threads to use for EOS VM OC tier-up", default=1)
-        ptbBaseParserGroup.add_argument("--non-prods-eos-vm-oc-enable", help=argparse.SUPPRESS if suppressHelp else "Enable EOS VM OC tier-up runtime on non producer nodes", action='store_true')
+        ptbBaseParserGroup.add_argument("--eos-vm-oc-cache-size-mb", type=int, help=argparse.SUPPRESS if suppressHelp else "Maximum size (in MiB) of the Vaulta VM OC code cache", default=1024)
+        ptbBaseParserGroup.add_argument("--eos-vm-oc-compile-threads", type=int, help=argparse.SUPPRESS if suppressHelp else "Number of threads to use for Vaulta VM OC tier-up", default=1)
+        ptbBaseParserGroup.add_argument("--non-prods-eos-vm-oc-enable", help=argparse.SUPPRESS if suppressHelp else "Enable Vaulta VM OC tier-up runtime on non producer nodes", action='store_true')
         ptbBaseParserGroup.add_argument("--block-log-retain-blocks", type=int, help=argparse.SUPPRESS if suppressHelp else "If set to greater than 0, periodically prune the block log to\
                                          store only configured number of most recent blocks. If set to 0, no blocks are be written to the block log;\
                                          block log file is removed after startup.", default=None)

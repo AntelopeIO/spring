@@ -61,7 +61,7 @@ cleos -u http://127.0.0.1:8002 net status localhost:9001
     "head_num": 185,
     "head_id": "000000b9f79e2394a48738fb3c8c87dac944094648c23818427e1d44375b6034",
     "os": "osx",
-    "agent": "EOS Test Agent",
+    "agent": "Vaulta Test Agent",
     "generation": 1
   }
 }

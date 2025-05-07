@@ -143,7 +143,7 @@ namespace eosioboot {
           *
           * @details Assigns a specific action from a contract to a permission you have created. Five system
           * actions can not be linked `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, and `canceldelay`.
-          * This is useful because when doing authorization checks, the EOSIO based blockchain starts with the
+          * This is useful because when doing authorization checks, the Vaulta based blockchain starts with the
           * action needed to be authorized (and the contract belonging to), and looks up which permission
           * is needed to pass authorization validation. If a link is set, that permission is used for authoraization
           * validation otherwise then active is the default, with the exception of `eosio.any`.

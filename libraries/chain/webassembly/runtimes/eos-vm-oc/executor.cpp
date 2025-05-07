@@ -24,7 +24,7 @@
 
 #if defined(__has_feature)
 #if __has_feature(shadow_call_stack)
-#error EOS VM OC is not compatible with Clang ShadowCallStack
+#error Vaulta VM OC is not compatible with Clang ShadowCallStack
 #endif
 #endif
 

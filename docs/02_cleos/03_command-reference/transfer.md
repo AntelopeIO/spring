@@ -2,9 +2,9 @@
 Transfer tokens from account to account
 
 ## Positional Parameters
-- `sender` _TEXT_ - The account sending EOS
-- `recipient` _TEXT_ - The account receiving EOS
-- `amount` _UINT_ - The amount of EOS to send
+- `sender` _TEXT_ - The account sending A
+- `recipient` _TEXT_ - The account receiving A
+- `amount` _UINT_ - The amount of A to send
 - `memo` _TEXT_ - The memo for the transfer
 
 ## Options

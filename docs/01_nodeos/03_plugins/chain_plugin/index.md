@@ -221,23 +221,23 @@ Config Options for eosio::chain_plugin:
                                         locked in to memory, and will use huge
                                         pages if available.
 
-  --eos-vm-oc-cache-size-mb arg (=1024) Maximum size (in MiB) of the EOS VM OC
+  --eos-vm-oc-cache-size-mb arg (=1024) Maximum size (in MiB) of the Vaulta VM OC
                                         code cache
-  --eos-vm-oc-compile-threads arg (=1)  Number of threads to use for EOS VM OC
+  --eos-vm-oc-compile-threads arg (=1)  Number of threads to use for Vaulta VM OC
                                         tier-up
-  --eos-vm-oc-enable arg (=auto)        Enable EOS VM OC tier-up runtime
+  --eos-vm-oc-enable arg (=auto)        Enable Vaulta VM OC tier-up runtime
                                         ('auto', 'all', 'none').
-                                        'auto' - EOS VM OC tier-up is enabled
+                                        'auto' - Vaulta VM OC tier-up is enabled
                                         for eosio.* accounts, read-only trxs,
                                         and except on producers applying
                                         blocks.
-                                        'all'  - EOS VM OC tier-up is enabled
+                                        'all'  - Vaulta VM OC tier-up is enabled
                                         for all contract execution.
-                                        'none' - EOS VM OC tier-up is
+                                        'none' - Vaulta VM OC tier-up is
                                         completely disabled.
 
   --eos-vm-oc-whitelist arg (=xsat,vaulta)
-                                        EOS VM OC tier-up whitelist account
+                                        Vaulta VM OC tier-up whitelist account
                                         suffixes for tier-up runtime 'auto'.
   --enable-account-queries arg (=0)     enable queries to find accounts by
                                         various metadata.

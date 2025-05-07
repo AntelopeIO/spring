@@ -357,14 +357,14 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
                   elog("eos-vm-oc-compile-threads must be set to a non-zero value");
                   EOS_ASSERT(false, plugin_exception, "");
                }
-         }), "Number of threads to use for EOS VM OC tier-up")
+         }), "Number of threads to use for Vaulta VM OC tier-up")
          ("eos-vm-oc-enable", bpo::value<chain::wasm_interface::vm_oc_enable>()->default_value(chain::wasm_interface::vm_oc_enable::oc_auto),
-          "Enable EOS VM OC tier-up runtime ('auto', 'all', 'none').\n"
-          "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
-          "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
-          "'none' - EOS VM OC tier-up is completely disabled.\n")
+          "Enable Vaulta VM OC tier-up runtime ('auto', 'all', 'none').\n"
+          "'auto' - Vaulta VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
+          "'all'  - Vaulta VM OC tier-up is enabled for all contract execution.\n"
+          "'none' - Vaulta VM OC tier-up is completely disabled.\n")
          ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{"xsat", "vaulta"}),
-          "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
+          "Vaulta VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
@@ -1459,7 +1459,7 @@ uint64_t convert_to_type(const string& str, const string& desc) {
       return s.to_uint64_t();
    } catch( ... ) { }
 
-   if (str.find(',') != string::npos) { // fix #6274 only match formats like 4,EOS
+   if (str.find(',') != string::npos) { // fix #6274 only match formats like 4,A
       try {
          auto symb = eosio::chain::symbol::from_string(str);
          return symb.value();

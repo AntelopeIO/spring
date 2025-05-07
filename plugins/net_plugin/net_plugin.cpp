@@ -3439,7 +3439,7 @@ namespace eosio {
 
    // some clients before leap 5.0 provided microsecond epoch instead of nanosecond epoch
    std::chrono::nanoseconds normalize_epoch_to_ns(int64_t x) {
-      //        1686211688888 milliseconds - 2023-06-08T08:08:08.888, 5yrs from EOS genesis 2018-06-08T08:08:08.888
+      //        1686211688888 milliseconds - 2023-06-08T08:08:08.888, 5yrs from Vaulta genesis 2018-06-08T08:08:08.888
       //     1686211688888000 microseconds
       //  1686211688888000000 nanoseconds
       if (x >= 1686211688888000000) // nanoseconds
@@ -4293,7 +4293,7 @@ namespace eosio {
            "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
          ("p2p-producer-peer", boost::program_options::value<vector<string>>()->composing()->multitoken(),
            "Producer peer name of this node used to retrieve peer key from on-chain peerkeys table. Private key of peer key should be configured via signature-provider.")
-         ( "agent-name", bpo::value<string>()->default_value("EOS Test Agent"), "The name supplied to identify this node amongst the peers.")
+         ( "agent-name", bpo::value<string>()->default_value("Vaulta Test Agent"), "The name supplied to identify this node amongst the peers.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
          ( "peer-private-key", bpo::value<vector<string>>()->composing()->multitoken(),

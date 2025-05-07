@@ -44,7 +44,7 @@ Config Options for eosio::net_plugin:
   --p2p-accept-transactions arg (=1)    Allow transactions received over p2p
                                         network to be evaluated and relayed if
                                         valid.
-  --agent-name arg (=EOS Test Agent)    The name supplied to identify this node
+  --agent-name arg (=Vaulta Test Agent)    The name supplied to identify this node
                                         amongst the peers.
   --allowed-connection arg (=any)       Can be 'any' or 'producers' or
                                         'specified' or 'none'. If 'specified',

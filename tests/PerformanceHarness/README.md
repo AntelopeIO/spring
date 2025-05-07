@@ -597,11 +597,11 @@ Performance Test Basic Base:
                         "eos-vm" : A WebAssembly interpreter.
   --contracts-console   print contract's output to console
   --eos-vm-oc-cache-size-mb EOS_VM_OC_CACHE_SIZE_MB
-                        Maximum size (in MiB) of the EOS VM OC code cache
+                        Maximum size (in MiB) of the Vaulta VM OC code cache
   --eos-vm-oc-compile-threads EOS_VM_OC_COMPILE_THREADS
-                        Number of threads to use for EOS VM OC tier-up
+                        Number of threads to use for Vaulta VM OC tier-up
   --non-prods-eos-vm-oc-enable
-                        Enable EOS VM OC tier-up runtime on non producer nodes
+                        Enable Vaulta VM OC tier-up runtime on non producer nodes
   --block-log-retain-blocks BLOCK_LOG_RETAIN_BLOCKS
                         If set to greater than 0, periodically prune the block log to store only configured number of most recent blocks.
                         If set to 0, no blocks are be written to the block log; block log file is removed after startup.
@@ -754,11 +754,11 @@ Performance Test Basic Base:
                         "eos-vm" : A WebAssembly interpreter. (default: eos-vm-jit)
   --contracts-console   print contract's output to console (default: False)
   --eos-vm-oc-cache-size-mb EOS_VM_OC_CACHE_SIZE_MB
-                        Maximum size (in MiB) of the EOS VM OC code cache (default: 1024)
+                        Maximum size (in MiB) of the Vaulta VM OC code cache (default: 1024)
   --eos-vm-oc-compile-threads EOS_VM_OC_COMPILE_THREADS
-                        Number of threads to use for EOS VM OC tier-up (default: 1)
+                        Number of threads to use for Vaulta VM OC tier-up (default: 1)
   --non-prods-eos-vm-oc-enable
-                        Enable EOS VM OC tier-up runtime on non producer nodes (default: False)
+                        Enable Vaulta VM OC tier-up runtime on non producer nodes (default: False)
   --block-log-retain-blocks BLOCK_LOG_RETAIN_BLOCKS
                         If set to greater than 0, periodically prune the block log to store only configured number of most recent blocks.
                         If set to 0, no blocks are be written to the block log; block log file is removed after startup. (default: None)
@@ -1496,7 +1496,7 @@ Finally, the full detail test report for each of the determined max TPS throughp
         "_p2pAutoBpPeerNodeosDefault": null,
         "_p2pAutoBpPeerNodeosArg": "--p2p-auto-bp-peer",
         "agentName": null,
-        "_agentNameNodeosDefault": "EOS Test Agent",
+        "_agentNameNodeosDefault": "Vaulta Test Agent",
         "_agentNameNodeosArg": "--agent-name",
         "allowedConnection": null,
         "_allowedConnectionNodeosDefault": "any",
@@ -2152,7 +2152,7 @@ The Performance Test Basic generates, by default, a report that details results 
         "_p2pAutoBpPeerNodeosDefault": null,
         "_p2pAutoBpPeerNodeosArg": "--p2p-auto-bp-peer",
         "agentName": null,
-        "_agentNameNodeosDefault": "EOS Test Agent",
+        "_agentNameNodeosDefault": "Vaulta Test Agent",
         "_agentNameNodeosArg": "--agent-name",
         "allowedConnection": null,
         "_allowedConnectionNodeosDefault": "any",

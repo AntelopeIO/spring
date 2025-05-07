@@ -37,7 +37,7 @@ code_cache_async::code_cache_async(const std::filesystem::path& data_dir, const 
    _result_queue(eosvmoc_config.threads * 2),
    _threads(eosvmoc_config.threads)
 {
-   FC_ASSERT(_threads, "EOS VM OC requires at least 1 compile thread");
+   FC_ASSERT(_threads, "Vaulta VM OC requires at least 1 compile thread");
    assert(_compile_complete_func);
 
    wait_on_compile_monitor_message();
@@ -89,7 +89,7 @@ void code_cache_async::write_message(const digest_type& code_id, const eosvmoc_m
    _outstanding_compiles_and_poison.emplace(code_id, false);
    ++_outstanding_compiles;
    if (!write_message_with_fds(_compile_monitor_write_socket, message, fds)) {
-      wlog("EOS VM failed to communicate to OOP manager");
+      wlog("Vaulta VM failed to communicate to OOP manager");
    }
 }
 
@@ -125,7 +125,7 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
                _cache_index.push_front(cd);
             },
             [&](const compilation_result_unknownfailure&) {
-               wlog("code ${c} failed to tier-up with EOS VM OC", ("c", result.code.code_id));
+               wlog("code ${c} failed to tier-up with Vaulta VM OC", ("c", result.code.code_id));
                _blacklist.emplace(result.code.code_id);
             },
             [&](const compilation_result_toofull&) {
@@ -226,7 +226,7 @@ code_cache_sync::~code_cache_sync() {
    _compile_monitor_write_socket.shutdown(local::datagram_protocol::socket::shutdown_send);
    auto [success, message, fds] = read_message_with_fds(_compile_monitor_read_socket);
    if(success)
-      elog("unexpected response from EOS VM OC compile monitor during shutdown");
+      elog("unexpected response from Vaulta VM OC compile monitor during shutdown");
 }
 
 const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode m, const digest_type& code_id, const uint8_t& vm_version) {
@@ -275,7 +275,7 @@ code_cache_base::code_cache_base(const std::filesystem::path& data_dir, const eo
    auto create_code_cache_file = [&] {
       EOS_ASSERT(eosvmoc_config.cache_size >= allocator_t::get_min_size(total_header_size), database_exception, "configured code cache size is too small");
       std::ofstream ofs(_cache_file_path.generic_string(), std::ofstream::trunc);
-      EOS_ASSERT(ofs.good(), database_exception, "unable to create EOS VM Optimized Compiler code cache");
+      EOS_ASSERT(ofs.good(), database_exception, "unable to create Vaulta VM Optimized Compiler code cache");
       std::filesystem::resize_file(_cache_file_path, eosvmoc_config.cache_size);
       bip::file_mapping creation_mapping(_cache_file_path.generic_string().c_str(), bip::read_write);
       bip::mapped_region creation_region(creation_mapping, bip::read_write);
@@ -292,7 +292,7 @@ code_cache_base::code_cache_base(const std::filesystem::path& data_dir, const eo
       EOS_ASSERT(!hs.fail(), bad_database_version_exception, "failed to read code cache header");
       memcpy((char*)&cache_header, header_buff + header_offset, sizeof(cache_header));
 
-      EOS_ASSERT(cache_header.id == header_id, bad_database_version_exception, "existing EOS VM OC code cache not compatible with this version");
+      EOS_ASSERT(cache_header.id == header_id, bad_database_version_exception, "existing Vaulta VM OC code cache not compatible with this version");
       EOS_ASSERT(!cache_header.dirty, database_exception, "code cache is dirty");
    };
 
@@ -306,7 +306,7 @@ code_cache_base::code_cache_base(const std::filesystem::path& data_dir, const eo
       if (created_file)
          throw;
 
-      ilog("EOS VM optimized Compiler code cache corrupt, recreating");
+      ilog("Vaulta VM optimized Compiler code cache corrupt, recreating");
       create_code_cache_file();
       check_code_cache();
    }
@@ -349,7 +349,7 @@ code_cache_base::code_cache_base(const std::filesystem::path& data_dir, const eo
       }
       allocator->deallocate(code_mapping + cache_header.serialized_descriptor_index);
 
-      ilog("EOS VM Optimized Compiler code cache loaded with ${c} entries; ${f} of ${t} bytes free", ("c", number_entries)("f", allocator->get_free_memory())("t", allocator->get_size()));
+      ilog("Vaulta VM Optimized Compiler code cache loaded with ${c} entries; ${f} of ${t} bytes free", ("c", number_entries)("f", allocator->get_free_memory())("t", allocator->get_size()));
    }
    munmap(code_mapping, eosvmoc_config.cache_size);
 

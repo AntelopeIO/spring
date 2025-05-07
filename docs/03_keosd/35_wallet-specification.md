@@ -1,8 +1,8 @@
 ---
-content_title: EOS Wallet Specification
+content_title: Vaulta Wallet Specification
 ---
 
-## EOS Wallet Import Format (WIF)
+## Vaulta Wallet Import Format (WIF)
 
 Wallet Import Format is an encoding for a private EDSA key.  EOS uses the same version, checksum, and encoding scheme as the Bitcoin WIF addresses and should be compatible with existing libraries [1].
 
@@ -36,7 +36,7 @@ Considerations:
 0000000000000000000000000000000000000000000000000000000000000000
 ```
 
-2. Add a 0x80 byte in front.  This byte represents the Bitcoin mainnet.  EOS uses the same version byte.  When encoded the version byte helps to identify this as a private key.  Unlike Bitcoin, EOS always uses compressed public keys (derived from a private key) and therefore does not suffix the private key with a 0x01 byte.
+2. Add a 0x80 byte in front.  This byte represents the Bitcoin mainnet.  Vaulta uses the same version byte.  When encoded the version byte helps to identify this as a private key.  Unlike Bitcoin, Vaulta always uses compressed public keys (derived from a private key) and therefore does not suffix the private key with a 0x01 byte.
 
 ```
 800000000000000000000000000000000000000000000000000000000000000000
@@ -128,7 +128,7 @@ ce145d282834c009c24410812a60588c1085b63d65a7effc2e0a5e3a2e21b236
 
 ## [Base58check](https://www.npmjs.com/package/base58check)
 
-Base58Check is a JavaScript implementation of this algorithm and may be used to encode and decode EOS WIF private keys.
+Base58Check is a JavaScript implementation of this algorithm and may be used to encode and decode Vaulta WIF private keys.
 
 ```sh
 base58check = require('base58check')

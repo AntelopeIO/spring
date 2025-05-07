@@ -9,7 +9,7 @@
    cleos contains documentation for all of its commands. For a list of all commands known to cleos, simply run it with no arguments:
 ```
 $ ./cleos
-Command Line Interface to EOSIO Client
+Command Line Interface to Vaulta Client
 Usage: programs/cleos/cleos [OPTIONS] SUBCOMMAND
 
 Options:
