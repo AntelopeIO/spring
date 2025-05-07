@@ -598,7 +598,6 @@ public:
    std::vector<char>        last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
    const uint32_t           sync_call_depth = 0; // depth for sync call
    uint32_t                 sync_call_ordinal = 1;  // the order of a sync call
-   bool                     receiver_supports_sync_call = false;  // whether or not the receiver contract has valid sync_call entry point
 
    generic_index<index64_object>                                  idx64;
    generic_index<index128_object>                                 idx128;

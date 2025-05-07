@@ -27,14 +27,12 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
 
       bool is_main_thread() { return _main_thread_id == std::this_thread::get_id(); };
 
-      eosio::chain::execution_status execute(host_context& context) override {
+      void execute(host_context& context) override {
          eosio::chain::eosvmoc::code_cache_sync::mode m;
          m.whitelisted = context.is_eos_vm_oc_whitelisted();
          m.write_window = context.control.is_write_window();
          const code_descriptor* const cd = _eosvmoc_runtime.cc.get_descriptor_for_code_sync(m, _code_hash, _vm_version);
          EOS_ASSERT(cd, wasm_execution_error, "EOS VM OC instantiation failed");
-
-         eosio::chain::execution_status status = eosio::chain::execution_status::executed;
 
          if (context.is_sync_call()) {  // sync call on either main thread or read only thread
             auto exec = _eosvmoc_runtime.acquire_call_exec();
@@ -43,14 +41,13 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
                _eosvmoc_runtime.release_call_exec(exec);
                _eosvmoc_runtime.release_call_mem(context.sync_call_depth, mem);
             });
-            status = exec->execute(*cd, *mem, context);
+            exec->execute(*cd, *mem, context);
          } else if ( is_main_thread() ) {  // action on main thread
-            status = _eosvmoc_runtime.exec.execute(*cd, _eosvmoc_runtime.mem, context);
-         } else {  // action on read only thread
-            status = _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
+            _eosvmoc_runtime.exec.execute(*cd, _eosvmoc_runtime.mem, context);
          }
-
-         return status;
+         else {  // action on read only thread
+            _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
+         }
       }
 
       const digest_type              _code_hash;
@@ -71,7 +68,7 @@ eosvmoc_runtime::~eosvmoc_runtime() {
 }
 
 std::unique_ptr<wasm_instantiated_module_interface> eosvmoc_runtime::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                        const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& ) {
+                                                                                        const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) {
    return std::make_unique<eosvmoc_instantiated_module>(code_hash, vm_type, *this);
 }
 

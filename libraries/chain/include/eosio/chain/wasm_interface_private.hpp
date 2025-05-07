@@ -43,7 +43,6 @@ namespace eosio { namespace chain {
          std::unique_ptr<wasm_instantiated_module_interface>  module;
          uint8_t                                              vm_type = 0;
          uint8_t                                              vm_version = 0;
-         bool                                                 sync_call_supported = false;
       };
       struct by_hash;
       struct by_last_block_num;
@@ -149,7 +148,7 @@ struct eosvmoc_tier {
       }
 #endif
 
-      execution_status execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
+      void execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
          bool attempt_tierup = false;
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
@@ -222,8 +221,6 @@ struct eosvmoc_tier {
             }
             throw;
          }
-
-         return execution_status::executed;
       }
 
       // used for testing
@@ -314,7 +311,6 @@ struct eosvmoc_tier {
          if (it != wasm_instantiation_cache.end()) {
             // An instantiated module's module should never be null.
             assert(it->module);
-            context.receiver_supports_sync_call = it->sync_call_supported;
             return it->module;
          }
 
@@ -324,19 +320,14 @@ struct eosvmoc_tier {
             .last_block_num_used = UINT32_MAX,
             .module = nullptr,
             .vm_type = vm_type,
-            .vm_version = vm_version,
-            .sync_call_supported = false
+            .vm_version = vm_version
          } ).first;
          auto timer_pause = fc::make_scoped_exit([&](){
             context.trx_context.resume_billing_timer();
          });
          context.trx_context.pause_billing_timer();
          wasm_instantiation_cache.modify(it, [&](auto& c) {
-            bool sync_call_supported = false;
-
-            c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version, sync_call_supported);  // sets sync_call_supported
-            c.sync_call_supported = sync_call_supported;
-            context.receiver_supports_sync_call = sync_call_supported;
+            c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version);
          });
          return it->module;
       }
