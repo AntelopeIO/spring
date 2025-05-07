@@ -54,9 +54,6 @@ class memory {
       // Memory uses beyond this limit will be handled by mprotect.
       static constexpr uint32_t sliced_pages_for_ro_thread = 10;
 
-      // This needs to be revisited.
-      static constexpr uint32_t sliced_pages_sync_call = 1;
-
       // Changed from -cb_offset == EOS_VM_OC_CONTROL_BLOCK_OFFSET to get around
       // of compile warning about comparing integers of different signedness
       static_assert(EOS_VM_OC_CONTROL_BLOCK_OFFSET + cb_offset == 0, "EOS VM OC control block offset has slid out of place somehow");

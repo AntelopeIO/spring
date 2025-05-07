@@ -10,6 +10,7 @@
 
 #include <eosio/chain/webassembly/eos-vm-oc/eos-vm-oc.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/memory.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc/memory_pools.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/executor.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/code_cache.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
@@ -42,8 +43,8 @@ class eosvmoc_runtime : public eosio::chain::wasm_runtime_interface {
       // For sync calls
       eosvmoc::executor* acquire_call_exec();
       void release_call_exec(eosvmoc::executor* e);
-      eosvmoc::memory* acquire_call_mem();
-      void release_call_mem(eosvmoc::memory* m);
+      eosvmoc::memory* acquire_call_mem(uint32_t call_depth);
+      void release_call_mem(uint32_t call_depth, eosvmoc::memory* m);
       void set_num_threads_for_call_res_pools(uint32_t num_threads);
       void set_max_call_depth_for_call_res_pools(uint32_t depth);
 
@@ -54,7 +55,7 @@ class eosvmoc_runtime : public eosio::chain::wasm_runtime_interface {
 
       // For sync calls
       call_resource_pool<eosvmoc::executor> exec_pool;
-      call_resource_pool<eosvmoc::memory> mem_pool;
+      memory_pools mem_pools;
 
       // Defined in eos-vm-oc.cpp. Used for non-main thread in multi-threaded execution
       thread_local static std::unique_ptr<eosvmoc::executor> exec_thread_local;

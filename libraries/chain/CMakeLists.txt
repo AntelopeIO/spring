@@ -22,6 +22,7 @@ if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
    set(CHAIN_EOSVMOC_SOURCES webassembly/runtimes/eos-vm-oc/code_cache.cpp
                              webassembly/runtimes/eos-vm-oc/executor.cpp
                              webassembly/runtimes/eos-vm-oc/memory.cpp
+                             webassembly/runtimes/eos-vm-oc/memory_pools.cpp
                              webassembly/runtimes/eos-vm-oc/intrinsic.cpp
                              webassembly/runtimes/eos-vm-oc/LLVMJIT.cpp
                              webassembly/runtimes/eos-vm-oc/LLVMEmitIR.cpp
