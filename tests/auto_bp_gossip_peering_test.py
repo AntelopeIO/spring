@@ -125,9 +125,11 @@ try:
             errorExit(f"Failed to relaunch node {nodeId}")
 
     # give time for messages to be gossiped around
+    cluster.getNode(producerNodes-1).waitForHeadToAdvance(blocksToAdvance=60)
+    blockNum = cluster.getNode(0).getBlockNum()
     for nodeId in range(0, producerNodes):
-        Utils.Print("Wait for defproducert on node ", nodeId)
-        cluster.getNode(nodeId).waitForHeadToAdvance(5)
+        Utils.Print(f"Wait for block ${blockNum} on node ", nodeId)
+        cluster.getNode(nodeId).waitForBlock(blockNum)
 
     # retrieve the producer stable producer schedule
     scheduled_producers = []

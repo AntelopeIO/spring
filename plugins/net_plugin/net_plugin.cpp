@@ -915,9 +915,8 @@ namespace eosio {
 
       void send_gossip_bp_peers_initial_message();
       void send_gossip_bp_peers_message();
-      void send_gossip_bp_peers_message_to_bp_peers();
    public:
-      static void send_gossip_bp_peers_initial_message_to_peers();
+      static void send_gossip_bp_peers_message_to_bp_peers();
 
       bool populate_handshake( handshake_message& hello ) const;
 
@@ -3404,6 +3403,8 @@ namespace eosio {
             send_handshake();
          }
 
+      } else if (msg.generation == 2) {
+         // wait for second handshake to avoid sending out on a duplicate connection
          send_gossip_bp_peers_initial_message();
       }
 
@@ -3795,25 +3796,10 @@ namespace eosio {
    void connection::send_gossip_bp_peers_initial_message() {
       if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
+      peer_dlog(this, "sending initial gossip_bp_peers_message");
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
       if (sb)
          enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
-   }
-
-   // thread safe, called from main thread
-   void connection::send_gossip_bp_peers_initial_message_to_peers() {
-      assert(my_impl->bp_gossip_enabled());
-      const send_buffer_type& sb = my_impl->get_gossip_bp_initial_send_buffer();
-      if (!sb)
-         return;
-      my_impl->connections.for_each_connection([sb](const connection_ptr& c) {
-         gossip_buffer_factory factory;
-         if (c->bp_connection != bp_connection_type::bp_gossip && c->socket_is_open()) {
-            boost::asio::post(c->strand, [sb, c]() {
-               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
-            });
-         }
-      });
    }
 
    // called from connection strand
@@ -3821,17 +3807,18 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       gossip_buffer_factory factory;
       const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
+      peer_dlog(this, "sending gossip_bp_peers_message");
       enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
    }
 
-   // called from connection strand, thread safe
    void connection::send_gossip_bp_peers_message_to_bp_peers() {
       assert(my_impl->bp_gossip_enabled());
-      my_impl->connections.for_each_connection([this](const connection_ptr& c) {
+      my_impl->connections.for_each_connection([](const connection_ptr& c) {
          gossip_buffer_factory factory;
-         if (this != c.get() && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
+         if (c->protocol_version >= proto_gossip_bp_peers && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
             const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
             boost::asio::post(c->strand, [sb, c]() {
+               peer_dlog(c, "sending gossip_bp_peers_message");
                c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
             });
          }
@@ -4001,7 +3988,7 @@ namespace eosio {
       dispatcher.expire_txns();
       if (expire_gossip_bp_peers()) {
          update_bp_producer_peers();
-         connection::send_gossip_bp_peers_initial_message_to_peers();
+         connection::send_gossip_bp_peers_message_to_bp_peers();
       }
       fc_dlog( logger, "expire run time ${n}us", ("n", time_point::now() - now) );
 
@@ -4056,7 +4043,7 @@ namespace eosio {
       if (cc.configured_peer_keys_updated()) {
          try {
             update_bp_producer_peers();
-            connection::send_gossip_bp_peers_initial_message_to_peers();
+            connection::send_gossip_bp_peers_message_to_bp_peers();
          } catch (fc::exception& e) {
             fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
          }

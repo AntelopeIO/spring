@@ -233,6 +233,7 @@ public:
                           "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
                if (auto i = prod_idx.find(boost::make_tuple(my_bp_account, boost::cref(le.server_address))); i != prod_idx.end()) {
                   gossip_bps.index.modify(i, [&peer](auto& v) {
+                     v.outbound_server_address = peer.outbound_server_address;
                      v.expiration = peer.expiration;
                      v.sig = peer.sig;
                   });
@@ -396,17 +397,28 @@ public:
       bool diff = false;
       for (const auto& peer : msg.peers) {
          if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_address))); i != idx.end()) {
-            if (i->sig != peer.sig) { // signature has changed, producer_name and server_address has not changed
+            if (i->sig != peer.sig && peer.expiration >= i->expiration) { // signature has changed, producer_name and server_address has not changed
                gossip_bps.index.modify(i, [&peer](auto& m) {
+                  m.outbound_server_address = peer.outbound_server_address;
                   m.expiration = peer.expiration;
-                  m.sig = peer.sig; // update the signature, producer_name, server_address, outbound_address has not changed
+                  m.sig = peer.sig;
                });
                diff = true;
             }
          } else {
-            if (idx.count(peer.producer_name) >= max_bp_peers_per_producer) {
-               // only allow max_bp_peers_per_producer, choose one to remove
-               gossip_bps.index.erase(idx.find(peer.producer_name));
+            auto r = idx.equal_range(peer.producer_name);
+            if (std::distance(r.first, r.second) >= max_bp_peers_per_producer) {
+               // remove entry with min expiration
+               auto min_expiration_itr = r.first;
+               auto min_expiration = min_expiration_itr->expiration;
+               ++r.first;
+               for (; r.first != r.second; ++r.first) {
+                  if (r.first->expiration < min_expiration) {
+                     min_expiration = r.first->expiration;
+                     min_expiration_itr = r.first;
+                  }
+               }
+               gossip_bps.index.erase(min_expiration_itr);
             }
             gossip_bps.index.insert(peer);
             diff = true;
