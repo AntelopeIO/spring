@@ -48,6 +48,9 @@ public:
    bool is_active() const { return _active; }
 
    // must be called from the main thread
+   block_num_type last_update() const { return _last_block_num; }
+
+   // must be called from the main thread
    // return true if update_peer_keys should be called with new map of peer keys
    bool should_update(block_num_type block_num) { return _active && (_last_block_num == 0 || block_num % 120 == 0); }
 

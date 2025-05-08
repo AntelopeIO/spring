@@ -848,7 +848,9 @@ namespace eosio {
       std::atomic<uint16_t>   protocol_version = 0;
       uint16_t                net_version = net_version_max;
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
-      enum class bp_connection_type { non_bp, bp_config, bp_gossip };
+      // bp_config = p2p-auto-bp-peer, bp_gossip = validated gossip connection,
+      // bp_gossip_validating = only used when connection received before peer keys available
+      enum class bp_connection_type { non_bp, bp_config, bp_gossip, bp_gossip_validating };
       std::atomic<bp_connection_type> bp_connection = bp_connection_type::non_bp;
       block_status_monitor    block_status_monitor_;
       std::atomic<time_point> last_vote_received;
@@ -1448,6 +1450,7 @@ namespace eosio {
       last_vote_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
+      bp_connection = bp_connection_type::non_bp;
 
       uint32_t head_num = my_impl->get_chain_head_num();
       if (last_received_block_num >= head_num) {
@@ -3403,8 +3406,6 @@ namespace eosio {
             send_handshake();
          }
 
-      } else if (msg.generation == 2) {
-         // wait for second handshake to avoid sending out on a duplicate connection
          send_gossip_bp_peers_initial_message();
       }
 
@@ -3759,6 +3760,7 @@ namespace eosio {
          return;
 
       if (!my_impl->bp_gossip_initialized()) {
+         bp_connection = bp_connection_type::bp_gossip_validating;
          peer_dlog(this, "received gossip_bp_peers_message before bp gossip initialized");
          return;
       }
@@ -3798,8 +3800,11 @@ namespace eosio {
          return;
       peer_dlog(this, "sending initial gossip_bp_peers_message");
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
-      if (sb)
+      if (sb) {
          enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
+      } else {
+         peer_ilog(this, "no initial gossip_bp_peers_message to send");
+      }
    }
 
    // called from connection strand
@@ -3815,12 +3820,18 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       my_impl->connections.for_each_connection([](const connection_ptr& c) {
          gossip_buffer_factory factory;
-         if (c->protocol_version >= proto_gossip_bp_peers && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
-            const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
-            boost::asio::post(c->strand, [sb, c]() {
-               peer_dlog(c, "sending gossip_bp_peers_message");
-               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
-            });
+         if (c->protocol_version >= proto_gossip_bp_peers && c->socket_is_open()) {
+            if (c->bp_connection == bp_connection_type::bp_gossip) {
+               const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
+               boost::asio::post(c->strand, [sb, c]() {
+                  peer_dlog(c, "sending gossip_bp_peers_message");
+                  c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
+               });
+            } else if (c->bp_connection == bp_connection_type::bp_config || c->bp_connection == bp_connection_type::bp_gossip_validating) {
+               boost::asio::post(c->strand, [c]() {
+                  c->send_gossip_bp_peers_initial_message();
+               });
+            }
          }
       });
    }
@@ -4023,6 +4034,20 @@ namespace eosio {
          on_pending_schedule(*pending_producers);
       }
       on_active_schedule(chain_plug->chain().active_producers());
+
+      // update peer public keys from chainbase db
+      chain::controller& cc = chain_plug->chain();
+      if (cc.configured_peer_keys_updated()) {
+         boost::asio::post(thread_pool.get_executor(), [this]() {
+            try {
+               update_bp_producer_peers();
+               my_impl->connect_to_active_bp_peers();
+               connection::send_gossip_bp_peers_message_to_bp_peers();
+            } catch (fc::exception& e) {
+               fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
+            }
+         });
+      }
    }
 
    // called from application thread
@@ -4037,16 +4062,6 @@ namespace eosio {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
-      }
-
-      // update peer public keys from chainbase db
-      if (cc.configured_peer_keys_updated()) {
-         try {
-            update_bp_producer_peers();
-            connection::send_gossip_bp_peers_message_to_bp_peers();
-         } catch (fc::exception& e) {
-            fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
-         }
       }
    }
 
@@ -4292,11 +4307,11 @@ namespace eosio {
             "Disable block notice and block nack. All blocks received will be broadcast to all peers unless already received.")
          ( "p2p-auto-bp-peer", bpo::value< vector<string> >()->composing(),
            "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule proximity\n."
-           "  Syntax: account,host:port\n"
+           "  Syntax: bp_account,host:port\n"
            "  Example,\n"
-           "    eosproducer1,p2p.eos.io:9876\n"
-           "    eosproducer2,p2p.trx.eos.io:9876:trx\n"
-           "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
+           "    producer1,p2p.prod.io:9876\n"
+           "    producer2,p2p.trx.myprod.io:9876:trx\n"
+           "    producer3,p2p.blk.example.io:9876:blk\n")
          ("p2p-producer-peer", boost::program_options::value<vector<string>>()->composing()->multitoken(),
            "Producer peer name of this node used to retrieve peer key from on-chain peerkeys table. Private key of peer key should be configured via signature-provider.")
          ( "agent-name", bpo::value<string>()->default_value("Vault Agent"), "The name supplied to identify this node amongst the peers.")
@@ -4571,10 +4586,6 @@ namespace eosio {
          return host;
       });
 
-      if (bp_gossip_enabled()) {
-         set_bp_gossip_listen_endpoints(listen_addresses, p2p_server_addresses, p2p_outbound_server_addresses);
-      }
-
       {
          chain::controller& cc = chain_plug->chain();
          cc.accepted_block_header().connect( [my = shared_from_this()]( const block_signal_params& t ) {
@@ -4600,7 +4611,11 @@ namespace eosio {
          cc.voted_block().connect( broadcast_vote );
 
          if (bp_gossip_enabled()) {
+            update_chain_info();
+            set_bp_gossip_listen_endpoints(listen_addresses, p2p_server_addresses, p2p_outbound_server_addresses);
             cc.set_peer_keys_retrieval_active(configured_bp_peer_accounts());
+            // Can't update bp producer peer messages here because update_peer_keys requires a read-only trx which
+            // requires a speculative block to run in. Wait for the first on block.
          }
       }
 
