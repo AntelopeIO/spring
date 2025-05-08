@@ -63,6 +63,10 @@ class bp_connection_manager {
    static std::string to_string(const Container<account_name, Rest...>& peers) {
       return boost::algorithm::join(peers | boost::adaptors::transformed([](auto& p) { return p.to_string(); }), ",");
    }
+   template <template <typename...> typename Container, typename... Rest>
+   static std::string to_string(const Container<std::string, Rest...>& peers) {
+      return boost::algorithm::join(peers, ",");
+   }
 
    // Only called from main thread
    peer_name_set_t active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
@@ -207,8 +211,10 @@ public:
       // normally only one bp peer account except in testing scenarios or test chains
       const controller& cc = self()->chain_plug->chain();
       block_timestamp_type expire = self()->head_block_time.load() + bp_peer_expiration;
+      fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message with expiration ${e}", ("e", expire));
       for (const auto& my_bp_account : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
          for (const auto& le : config.bp_gossip_listen_endpoints) {
+            fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", my_bp_account)("s", le.server_address));
             std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
             if (peer_info && peer_info->key) {
                if (!initial_updated) {
@@ -240,6 +246,8 @@ public:
                } else {
                   gossip_bps.index.emplace(peer);
                }
+            } else {
+               fc_wlog(self()->get_logger(), "On-chain peer key not found for configured BP ${a}", ("a", my_bp_account));
             }
          }
       }
@@ -478,7 +486,10 @@ public:
       {
          fc::lock_guard gm(mtx);
          active_bps = active_bp_accounts(active_schedule);
+         fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
+
          addresses = find_gossip_bp_addresses(active_bps, "connect");
+         fc_dlog(self()->get_logger(), "active addresses: ${a}", ("a", to_string(addresses)));
       }
 
       for (const auto& add : addresses) {
