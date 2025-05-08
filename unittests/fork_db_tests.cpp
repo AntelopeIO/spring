@@ -168,9 +168,9 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
 } FC_LOG_AND_RETHROW();
 
 BOOST_FIXTURE_TEST_CASE(remove_block_num_test, generate_fork_db_state) try {
-   BOOST_TEST(fork_db.size() == 14);
+   BOOST_TEST(fork_db.size() == 14u);
    fork_db.remove(13); // remove all >= 13
-   BOOST_TEST(fork_db.size() == 8); // 6 blocks >= 13
+   BOOST_TEST(fork_db.size() == 8u); // 6 blocks >= 13
 
    for (auto& i : all) {
       if (i->block_num() < 13) {
