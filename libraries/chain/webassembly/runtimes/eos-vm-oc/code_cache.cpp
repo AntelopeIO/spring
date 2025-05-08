@@ -73,7 +73,7 @@ void code_cache_async::wait_on_compile_monitor_message() {
       --_outstanding_compiles;
 
       const auto& msg = std::get<wasm_compilation_result_message>(message);
-      bool p = _result_queue.push(msg);
+      [[maybe_unused]] const bool p = _result_queue.push(msg);
       assert(p);
 
       _compile_complete_func(_ctx, msg.code.code_id, msg.queued_time);
@@ -139,7 +139,7 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
 
    g.lock();
    for (const auto& e : erased) {
-      auto c = _outstanding_compiles_and_poison.erase(e);
+      [[maybe_unused]] const auto c = _outstanding_compiles_and_poison.erase(e);
       assert(c > 0);
    }
    g.unlock();
