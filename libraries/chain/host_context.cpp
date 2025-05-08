@@ -101,6 +101,11 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             return handle_call_failure();
          }
 
+         const code_object* const codeobject = db.find<code_object, by_code_hash>(boost::make_tuple(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version));
+         if (!codeobject || !codeobject->sync_call_supported) {
+            return handle_call_failure();
+         }
+
          // use a new sync_call_context for next sync call
          sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, is_next_call_read_only, data);
 

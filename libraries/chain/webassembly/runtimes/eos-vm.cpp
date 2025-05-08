@@ -65,7 +65,20 @@ struct setcode_options {
    static constexpr bool allow_zero_blocktype = true;
 };
 
-void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) {
+static bool module_has_valid_sync_call(module& mod) {
+   bool supported = false;
+   const uint32_t i = mod.get_exported_function("sync_call");
+   if (i < std::numeric_limits<uint32_t>::max()) {
+      const vm::func_type& function_type = mod.get_function_type(i);
+      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
+         supported = true;
+      }
+   }
+   return supported;
+}
+
+validate_result validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) {
+   bool sync_call_supported = false;
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code.size(), nullptr);
@@ -80,13 +93,20 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
                     ("module", std::string((char*)imports[i].module_str.raw(), imports[i].module_str.size()))
                     ("fn", std::string((char*)imports[i].field_str.raw(), imports[i].field_str.size())));
       }
+
+      sync_call_supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return validate_result {
+      .sync_call_supported = sync_call_supported
+   };
 }
 
-void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
+validate_result validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
    EOS_ASSERT(code.size() <= cfg.max_module_bytes, wasm_serialization_error, "Code too large");
+   bool sync_call_supported = false;
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<wasm_config> bkend(code_ptr, code.size(), nullptr, cfg);
@@ -106,9 +126,33 @@ void validate( const controller& control, const bytes& code, const wasm_config& 
       EOS_ASSERT(apply_idx < std::numeric_limits<uint32_t>::max(), wasm_serialization_error, "apply not exported");
       const vm::func_type& apply_type = bkend.get_module().get_function_type(apply_idx);
       EOS_ASSERT((apply_type == vm::host_function{{vm::i64, vm::i64, vm::i64}, {}}), wasm_serialization_error, "apply has wrong type");
+
+      sync_call_supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return validate_result {
+      .sync_call_supported = sync_call_supported
+   };
+}
+
+bool is_sync_call_supported(const char* code_bytes, size_t code_size) {
+   wasm_code_ptr code_ptr((uint8_t*)code_bytes, code_size);
+   bool supported = false;
+   try {
+      // NOTE: if we ever relax WASM validation via some protocol feature in the future,
+      // we cannot simply create a backend using the default `setcode_options`.
+      // The caller of `is_sync_call_supported()` (`code_object::reflector_init()`)
+      // needs to pass in `controller` so we know what protocol features are enabled
+      // to decide what kind of backend to create. Or `code_object::sync_call_supported`
+      // needs to be populated explicitly when snapshot is read.
+      eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code_size, nullptr);
+      supported = module_has_valid_sync_call(bkend.get_module());
+   } catch(vm::exception& e) {
+      EOS_THROW(wasm_serialization_error, e.detail());
+   }
+   return supported;
 }
 
 // Be permissive on apply.

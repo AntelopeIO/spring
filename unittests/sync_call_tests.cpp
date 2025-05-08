@@ -1097,9 +1097,6 @@ static const char no_sync_call_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
-   // disable temporarily
-   return;
-
    create_accounts_and_set_code(entry_point_validation_caller_wast, no_sync_call_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
@@ -1121,10 +1118,26 @@ static const char invalid_entry_point_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
-   // disable temporarily
-   return;
-
    create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+} FC_LOG_AND_RETHROW() }
+
+// Number of parameters are mismatched
+static const char entry_point_num_parms_mismatched_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64)) ;; data_size is missing
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify sync call return -1 if sync call entry point signature is invalid
+BOOST_AUTO_TEST_CASE(entry_point_num_parms_mismatched_test)  { try {
+   call_tester t({ {"caller"_n, entry_point_validation_caller_wast},
+                   {"callee"_n, entry_point_num_parms_mismatched_wast} });
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
 } FC_LOG_AND_RETHROW() }

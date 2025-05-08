@@ -67,13 +67,12 @@ namespace eosio { namespace chain {
    }
 #endif
 
-   void wasm_interface::validate(const controller& control, const bytes& code) {
+   webassembly::eos_vm_runtime::validate_result wasm_interface::validate(const controller& control, const bytes& code) {
       const auto& pso = control.db().get<protocol_state_object>();
 
       if (control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
          const auto& gpo = control.get_global_properties();
-         webassembly::eos_vm_runtime::validate( control, code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
-         return;
+         return webassembly::eos_vm_runtime::validate( control, code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
       }
       Module module;
       try {
@@ -88,11 +87,15 @@ namespace eosio { namespace chain {
       wasm_validations::wasm_binary_validation validator(control, module);
       validator.validate();
 
-      webassembly::eos_vm_runtime::validate( code, pso.whitelisted_intrinsics );
+      return webassembly::eos_vm_runtime::validate( code, pso.whitelisted_intrinsics );
 
       //there are a couple opportunties for improvement here--
       //Easy: Cache the Module created here so it can be reused for instantiaion
       //Hard: Kick off instantiation in a separate thread at this location
+   }
+
+   bool wasm_interface::is_sync_call_supported(const char* code_bytes, size_t code_size) {
+      return webassembly::eos_vm_runtime::is_sync_call_supported(code_bytes, code_size);
    }
 
    void wasm_interface::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
