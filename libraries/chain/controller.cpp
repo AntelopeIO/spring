@@ -2148,13 +2148,18 @@ struct controller_impl {
 
       if (conf.truncate_at_block > 0 && chain_head.is_valid()) {
          if (chain_head.block_num() == conf.truncate_at_block && fork_db_has_root()) {
-            fork_db_.apply<void>([&](auto& fork_db) {
-               if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
-                  ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
-                        ("t", conf.truncate_at_block)("h", head->block_num()));
-                  fork_db.remove(conf.truncate_at_block + 1);
-               }
-            });
+            if (fork_db_.version_in_use() == fork_database::in_use_t::both) {
+               // in savanna transition
+               wlog("In the middle of Savanna transition, truncate-at-block not allowed, ignoring truncate-at-block ${b}", ("b", conf.truncate_at_block));
+            } else {
+               fork_db_.apply<void>([&](auto& fork_db) {
+                  if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
+                     ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
+                           ("t", conf.truncate_at_block)("h", head->block_num()));
+                     fork_db.remove(conf.truncate_at_block + 1);
+                  }
+               });
+            }
          }
       }
 

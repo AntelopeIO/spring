@@ -16,7 +16,7 @@
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/finalizer_authority.hpp>
-#include <eosio/chain/webassembly/eos-vm-oc.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc/intrinsic.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>

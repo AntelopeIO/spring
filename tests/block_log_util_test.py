@@ -70,8 +70,8 @@ try:
     Print("Kill the node we want to verify its block log")
     node0.kill(signal.SIGTERM)
 
-    Print("Wait for node0's head block to become irreversible")
-    node1.waitForBlock(headBlockNum, blockType=BlockType.lib, timeout=90)
+    Print("Let's have node1's head advance a few blocks")
+    node1.waitForBlock(headBlockNum+4, timeout=10)
     infoAfter=node1.getInfo(exitOnError=True)
     headBlockNumAfter=infoAfter["head_block_num"]
 
@@ -101,6 +101,22 @@ try:
     foundBlockNums=checkBlockLog(blockLog, [headBlockNum, headBlockNumAfter])
     assert foundBlockNums[0], "Couldn't find \"%d\" in blocklog:\n\"%s\"\n" % (foundBlockNums[0], blockLog)
     assert not foundBlockNums[1], "Should not find \"%d\" in blocklog:\n\"%s\"\n" % (foundBlockNums[1], blockLog)
+
+    Print("Retrieve the blocklog only for node 0")
+    blockLog_only=cluster.getBlockLog(0, blockLogAction=BlockLogAction.return_blocks_only_log)
+    assert len(blockLog_only) < len(blockLog), "retrieving blockLog only is expected to be smaller than with fork_db"
+
+    # check that the last block in the blocklog only is lib
+    blockLog_lib = blockLog_only[-1]["block_num"]
+    assert blockLog_lib == lib or blockLog_lib == lib+1, "last block number of blockLog_only is expected to be lib, or maybe lib+1"
+
+    Print("Retrieve the fork_db only for node 0")
+    fork_db_only=cluster.getBlockLog(0, blockLogAction=BlockLogAction.return_blocks_only_fork_db)
+    assert len(fork_db_only) < len(blockLog), "retrieving fork_db only is expected to be smaller than with block log"
+    assert len(fork_db_only) + len(blockLog_only) == len(blockLog), "size mismatch"
+    assert fork_db_only[0]["block_num"] == blockLog_lib+1, "first block number of fork_db_only is expected to be lib+1"
+    forkdb_head = fork_db_only[-1]["block_num"]
+    assert forkdb_head == headBlockNum or forkdb_head == headBlockNum + 1, "last block number of fork_db_only is expected to be headBlockNum, or maybe headBlockNum + 1 if head advanced after getInfo"
 
     output=cluster.getBlockLog(0, blockLogAction=BlockLogAction.smoke_test)
     expectedStr="no problems found"
