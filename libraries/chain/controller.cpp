@@ -3391,8 +3391,10 @@ struct controller_impl {
 
    void update_peer_keys() {
       // if syncing or replaying old blocks don't bother updating peer keys
-      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
-         return;
+      if (peer_keys_db.last_update() > 0) { // can't have been updated unless active
+         if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+            return;
+      }
 
       try {
          auto block_num = chain_head.block_num() + 1;
@@ -5864,7 +5866,7 @@ std::optional<peer_info_t> controller::get_peer_info(name n) const {
 }
 
 bool controller::configured_peer_keys_updated() {
-   return my->peer_keys_db.configured_peer_keys_updated();
+   return my->peer_keys_db.is_active() && my->peer_keys_db.configured_peer_keys_updated();
 }
 
 getpeerkeys_res_t controller::get_top_producer_keys() {
