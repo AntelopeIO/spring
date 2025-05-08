@@ -49,7 +49,9 @@ class BlockLogAction(EnumType):
 addEnum(BlockLogAction, "make_index")
 addEnum(BlockLogAction, "trim")
 addEnum(BlockLogAction, "smoke_test")
-addEnum(BlockLogAction, "return_blocks")
+addEnum(BlockLogAction, "return_blocks")              # returns both block log and fork_db blocks
+addEnum(BlockLogAction, "return_blocks_only_log")     # returns block log blocks
+addEnum(BlockLogAction, "return_blocks_only_fork_db") # returns fork_db blocks
 
 ###########################################################################################
 class Utils:
@@ -413,8 +415,14 @@ class Utils:
         blockLogActionStr=None
         returnType=ReturnType.raw
         if blockLogAction==BlockLogAction.return_blocks:
-            blockLogActionStr=" print-log --as-json-array "
-            returnType=ReturnType.json
+            blockLogActionStr = " print-log --as-json-array "
+            returnType = ReturnType.json
+        elif blockLogAction==BlockLogAction.return_blocks_only_log:
+            blockLogActionStr = " print-log --as-json-array --print-from=block_log "
+            returnType = ReturnType.json
+        elif blockLogAction==BlockLogAction.return_blocks_only_fork_db:
+            blockLogActionStr = " print-log --as-json-array --print-from=fork_db "
+            returnType = ReturnType.json
         elif blockLogAction==BlockLogAction.make_index:
             blockLogActionStr=" make-index "
         elif blockLogAction==BlockLogAction.trim:
