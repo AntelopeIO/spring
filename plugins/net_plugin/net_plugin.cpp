@@ -97,7 +97,7 @@ namespace eosio {
             >,
             composite_key_compare< std::less<transaction_id_type>, std::less<> >
          >,
-         hashed_non_unique<
+         ordered_non_unique<
             tag< struct by_connection_id >,
             member< node_transaction_state, uint32_t, &node_transaction_state::connection_id >
          >,
