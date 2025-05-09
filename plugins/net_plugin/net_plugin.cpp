@@ -2659,7 +2659,7 @@ namespace eosio {
          if (cp->protocol_version >= proto_block_nack && !my_impl->p2p_disable_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
                // only send block_notice if we didn't produce the block, otherwise broadcast the block below
-               if (!my_impl->is_producer(b->producer)) {
+               if (!my_impl->producer_plug->producer_accounts().contains(b->producer)) {
                   const auto& send_buffer = block_notice_buff_factory.get_send_buffer( block_notice_message{b->previous, id} );
                   boost::asio::post(cp->strand, [cp, send_buffer, bnum]() {
                      cp->latest_blk_time = std::chrono::steady_clock::now();
@@ -4308,7 +4308,7 @@ namespace eosio {
            "    producer3,p2p.blk.example.io:9876:blk\n")
          ("p2p-bp-gossip-endpoint", boost::program_options::value<vector<string>>()->composing()->multitoken(),
            "The BP account, inbound connection endpoint, outbound connection IP address. "
-           "The BP account is the producer peer name to retrieve peer-key from on-chain peerkeys table registered on-chain via regpeerkey action. "
+           "The BP account is the producer name. Used to retrieve peer-key from on-chain peerkeys table registered on-chain via regpeerkey action. "
            "The inbound connection endpoint is typically the listen endpoint of this node. "
            "The outbound connection IP address is typically the IP address of this node. Peer will use this value to allow access through firewall. "
            "Private key of peer-key should be configured via signature-provider.\n"
@@ -4512,7 +4512,7 @@ namespace eosio {
       fc_ilog( logger, "my node_id is ${id}", ("id", node_id ));
 
       producer_plug = app().find_plugin<producer_plugin>();
-      set_producer_accounts(producer_plug->producer_accounts());
+      assert(producer_plug);
 
       thread_pool.start( thread_pool_size, []( const fc::exception& e ) {
          elog("Exception in net thread, exiting: ${e}", ("e", e.to_detail_string()));
@@ -4578,7 +4578,7 @@ namespace eosio {
          cc.voted_block().connect( broadcast_vote );
 
          if (bp_gossip_enabled()) {
-            cc.set_peer_keys_retrieval_active(configured_bp_peer_accounts());
+            cc.set_peer_keys_retrieval_active(my_bp_gossip_accounts());
             // Can't update bp producer peer messages here because update_peer_keys requires a read-only trx which
             // requires a speculative block to run in. Wait for the first on block.
          }

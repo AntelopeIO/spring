@@ -21,10 +21,10 @@ class bp_connection_manager {
  public:
 #endif
 
-   static constexpr size_t           max_bp_peers_per_producer = 8;
-   static constexpr fc::microseconds bp_peer_expiration = fc::hours(1);
-   static constexpr fc::microseconds my_bp_peer_expiration = fc::minutes(30); // resend my bp_peer info every 30 minutes
-   static constexpr fc::microseconds bp_peer_expiration_variance = fc::hours(1) + fc::minutes(15);
+   static constexpr size_t           max_bp_gossip_peers_per_producer = 8;
+   static constexpr fc::microseconds bp_gossip_peer_expiration = fc::hours(1);
+   static constexpr fc::microseconds my_bp_gossip_peer_expiration = fc::minutes(30); // resend my bp_peer info every 30 minutes
+   static constexpr fc::microseconds bp_gossip_peer_expiration_variance = bp_gossip_peer_expiration + fc::minutes(15);
 
    gossip_bp_index_t      gossip_bps;
 
@@ -38,22 +38,23 @@ class bp_connection_manager {
 
    // the following members are thread-safe, only modified during plugin startup
    struct config_t {
-      flat_map<account_name, net_utils::endpoint>   bp_peer_addresses;
-      flat_map<net_utils::endpoint, account_name>   bp_peer_accounts;
-      peer_name_set_t                               my_bp_accounts;         // block producer --producer-name
-      peer_name_set_t                               my_bp_peer_accounts;    // peer key account of --p2p-bp-gossip-endpoint, for bp gossip
+      // p2p-auto-bp-peer
+      flat_map<account_name, net_utils::endpoint>   auto_bp_addresses;      // --p2p-auto-bp-peer account->endpoint
+      flat_map<net_utils::endpoint, account_name>   auto_bp_accounts;       // --p2p-auto-bp-peer endpoint->account
+      // p2p-bp-gossip-endpoint
+      name_set_t                                    my_bp_gossip_accounts;  // producer account of --p2p-bp-gossip-endpoint, for bp gossip
       flat_set<bp_gossip_endpoint_t>                bp_gossip_endpoints;    // [inbound_endpoint,outbound_ip_address] to bp gossip
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
-   peer_name_set_t        pending_bps;
+   name_set_t             pending_bps;
    uint32_t               pending_schedule_version = 0;
    uint32_t               active_schedule_version  = 0;
 
    fc::mutex                     mtx;
    gossip_buffer_initial_factory initial_gossip_msg_factory GUARDED_BY(mtx);
-   peer_name_set_t               active_bps GUARDED_BY(mtx);
-   peer_name_set_t               active_schedule GUARDED_BY(mtx);
+   name_set_t                    active_bps GUARDED_BY(mtx);
+   name_set_t                    active_schedule GUARDED_BY(mtx);
 
    Derived*       self() { return static_cast<Derived*>(this); }
    const Derived* self() const { return static_cast<const Derived*>(this); }
@@ -68,24 +69,24 @@ class bp_connection_manager {
    }
 
    // Only called from main thread
-   peer_name_set_t active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
+   name_set_t active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
-      peer_name_set_t result;
+      name_set_t result;
       for (const auto& auth : schedule) {
-         if (config.bp_peer_addresses.contains(auth.producer_name) || prod_idx.contains(auth.producer_name))
+         if (config.auto_bp_addresses.contains(auth.producer_name) || prod_idx.contains(auth.producer_name))
             result.insert(auth.producer_name);
       }
       return result;
    }
 
    // called from net threads
-   peer_name_set_t active_bp_accounts(const peer_name_set_t& active_schedule) const REQUIRES(mtx) {
+   name_set_t active_bp_accounts(const name_set_t& active_schedule) const REQUIRES(mtx) {
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
-      peer_name_set_t result;
+      name_set_t result;
       for (const auto& a : active_schedule) {
-         if (config.bp_peer_addresses.contains(a) || prod_idx.contains(a))
+         if (config.auto_bp_addresses.contains(a) || prod_idx.contains(a))
             result.insert(a);
       }
       return result;
@@ -98,34 +99,24 @@ class bp_connection_manager {
    }
 
    // for testing
-   peer_name_set_t get_active_bps() {
+   name_set_t get_active_bps() {
       fc::lock_guard g(mtx);
       return active_bps;
    }
    // for testing
-   void set_active_bps(peer_name_set_t bps) {
+   void set_active_bps(name_set_t bps) {
       fc::lock_guard g(mtx);
       active_bps = std::move(bps);
    }
 
 public:
    // the following accessors are thread-safe
-   // return true if bp gossip enabled (node has a configured producer peer account and signature provider for the account)
-   bool bp_gossip_enabled() const { return !config.my_bp_peer_accounts.empty(); }
+   // return true if bp gossip enabled (node has a configured producer peer account)
+   bool bp_gossip_enabled() const { return !config.my_bp_gossip_accounts.empty(); }
    // return true if auto bp peering of manually configured bp peers is configured or if bp gossip enabled
-   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() || bp_gossip_enabled(); }
-   peer_name_set_t configured_bp_peer_accounts() const { return config.my_bp_peer_accounts; }
+   bool auto_bp_peering_enabled() const { return !config.auto_bp_addresses.empty() || bp_gossip_enabled(); }
+   name_set_t my_bp_gossip_accounts() const { return config.my_bp_gossip_accounts; }
    bool bp_gossip_initialized() { return !!get_gossip_bp_initial_send_buffer(); }
-
-   // Only called at plugin startup
-   void set_producer_accounts(const std::set<account_name>& accounts) {
-      config.my_bp_accounts.insert(accounts.begin(), accounts.end());
-   }
-
-   // thread safe, my_bp_accounts only modified during plugin startup
-   bool is_producer(account_name account) const {
-      return config.my_bp_accounts.contains(account);
-   }
 
    // Only called at plugin startup.
    // set manually configured [producer_account,endpoint] to use as proposer schedule changes.
@@ -147,8 +138,8 @@ public:
             net_utils::endpoint e{host, port};
 
             fc_dlog(self()->get_logger(), "Setting p2p-auto-bp-peer ${a} -> ${d}", ("a", account)("d", addr));
-            config.bp_peer_accounts[e]        = account;
-            config.bp_peer_addresses[account] = std::move(e);
+            config.auto_bp_accounts[e]        = account;
+            config.auto_bp_addresses[account] = std::move(e);
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
                        "The account ${a} supplied by --p2p-auto-bp-peer option is invalid", ("a", aname));
@@ -177,11 +168,11 @@ public:
                        "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas", ("e", entry));
             aname = entry.substr(0, comma_pos);
             account_name account(aname);
-            config.my_bp_peer_accounts.emplace(account);
+            config.my_bp_gossip_accounts.emplace(account);
             auto rest = entry.substr(comma_pos + 1);
             comma_pos = rest.find(',');
             EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
-                       "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas", ("e", entry));
+                       "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas, second comma is missing", ("e", entry));
             auto inbound_server_endpoint = rest.substr(0, comma_pos);
             const auto& [host, port, type] = net_utils::split_host_port_type(inbound_server_endpoint);
             EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
@@ -193,7 +184,7 @@ public:
             auto is_valid_ip_address = [](const std::string& ip_str) {
                try {
                   boost::asio::ip::address::from_string(ip_str);
-               } catch (const boost::system::system_error& ) {
+               } catch ( ... ) {
                   return false;
                }
                return true;
@@ -213,15 +204,15 @@ public:
    // thread-safe
    // Called when configured bp peer key changes
    void update_bp_producer_peers() {
-      assert(!config.my_bp_peer_accounts.empty());
+      assert(!config.my_bp_gossip_accounts.empty());
       fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
       bool initial_updated = false;
       // normally only one bp peer account except in testing scenarios or test chains
       const controller& cc = self()->chain_plug->chain();
-      block_timestamp_type expire = self()->head_block_time.load() + bp_peer_expiration;
+      block_timestamp_type expire = self()->head_block_time.load() + bp_gossip_peer_expiration;
       fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message with expiration ${e}", ("e", expire));
-      for (const auto& my_bp_account : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
+      for (const auto& my_bp_account : config.my_bp_gossip_accounts) { // my_bp_gossip_accounts not modified after plugin startup
          for (const auto& le : config.bp_gossip_endpoints) {
             fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", my_bp_account)("s", le.server_endpoint));
             std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
@@ -270,7 +261,7 @@ public:
       std::string type;
       std::tie(e.host, e.port, type) = eosio::net_utils::split_host_port_type(conn->log_p2p_address);
 
-      if (config.bp_peer_accounts.count(e)) {
+      if (config.auto_bp_accounts.count(e)) {
          conn->bp_connection = Connection::bp_connection_type::bp_config;
       }
    }
@@ -333,7 +324,7 @@ public:
             if (prev != nullptr) {
                if (prev->producer_name == peer.producer_name) {
                   ++num_per_producer;
-                  if (num_per_producer > max_bp_peers_per_producer)
+                  if (num_per_producer > max_bp_gossip_peers_per_producer)
                      return false; // more than allowed per producer
                   if (prev->server_endpoint == peer.server_endpoint)
                      return false; // duplicate entries not allowed
@@ -379,7 +370,7 @@ public:
       };
 
       const auto head_block_time = self()->head_block_time.load();
-      const block_timestamp_type expire = head_block_time + bp_peer_expiration_variance;
+      const block_timestamp_type expire = head_block_time + bp_gossip_peer_expiration_variance;
       auto is_expiration_valid = [&](const gossip_bp_peers_message::signed_bp_peer& peer) -> bool {
          if (initial_msg)
             return true; // initial message has no expiration
@@ -424,7 +415,7 @@ public:
             }
          } else {
             auto r = idx.equal_range(peer.producer_name);
-            if (std::distance(r.first, r.second) >= max_bp_peers_per_producer) {
+            if (std::distance(r.first, r.second) >= max_bp_gossip_peers_per_producer) {
                // remove entry with min expiration
                auto min_expiration_itr = r.first;
                auto min_expiration = min_expiration_itr->expiration;
@@ -459,9 +450,9 @@ public:
       idx.erase(ex_lo, ex_up);
       if (ex_up != idx.end()) {
          ex_lo = ex_up;
-         ex_up = idx.upper_bound(head_block_time + my_bp_peer_expiration);
+         ex_up = idx.upper_bound(head_block_time + my_bp_gossip_peer_expiration);
          auto my_bp_account_will_expire = std::ranges::any_of(ex_lo, ex_up, [&](const auto& i) {
-            return config.my_bp_accounts.contains(i.producer_name);
+            return config.my_bp_gossip_accounts.contains(i.producer_name);
          });
          return my_bp_account_will_expire;
       }
@@ -469,12 +460,12 @@ public:
       return false;
    }
 
-   flat_set<std::string> find_gossip_bp_addresses(const peer_name_set_t& accounts, const char* desc) const {
+   flat_set<std::string> find_gossip_bp_addresses(const name_set_t& accounts, const char* desc) const {
       flat_set<std::string> addresses;
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
       for (const auto& account : accounts) {
-         if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+         if (auto i = config.auto_bp_addresses.find(account); i != config.auto_bp_addresses.end()) {
             fc_dlog(self()->get_logger(), "${d} manual bp peer ${p}", ("d", desc)("p", i->second));
             addresses.insert(i->second.address());
          }
@@ -559,14 +550,14 @@ public:
 
          fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
 
-         peer_name_set_t peers_to_stay;
+         name_set_t peers_to_stay;
          std::set_union(active_bps.begin(), active_bps.end(), pending_bps.begin(), pending_bps.end(),
                         std::inserter(peers_to_stay, peers_to_stay.begin()));
          gm.unlock();
 
          fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
 
-         peer_name_set_t peers_to_drop;
+         name_set_t peers_to_drop;
          std::set_difference(old_bps.begin(), old_bps.end(), peers_to_stay.begin(), peers_to_stay.end(),
                              std::inserter(peers_to_drop, peers_to_drop.end()));
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
@@ -586,12 +577,12 @@ public:
       vector<gossip_bp_peers_message::bp_peer> peers;
       for (const auto& p : gossip_bps.index) {
          // no need to include sig
-         peers.push_back(gossip_bp_peers_message::bp_peer{
+         peers.emplace_back(
             p.producer_name,
             p.server_endpoint,
             p.outbound_ip_address,
             p.expiration
-         });
+         );
       }
       return peers;
    }

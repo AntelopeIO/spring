@@ -27,7 +27,7 @@ struct peer_info_t {
 };
 
 using peer_key_map_t = boost::unordered_flat_map<name, peer_info_t, std::hash<name>>;
-using peer_name_set_t = flat_set<name>;
+using name_set_t = flat_set<name>;
 
 /**
  * This class caches the on-chain public keys that BP use to sign the `gossip_bp_peers`
@@ -39,7 +39,7 @@ public:
    peer_keys_db_t() = default;
 
    // called on startup with configured bp peers of the node
-   void set_active(peer_name_set_t configured_bp_peers) {
+   void set_active(name_set_t configured_bp_peers) {
       _configured_bp_peers = std::move(configured_bp_peers);
       _active = true;
    }
@@ -48,7 +48,7 @@ public:
    bool is_active() const { return _active; }
 
    // must be called from the main thread
-   block_num_type last_update() const { return _last_block_num; }
+   block_num_type last_block_num_update() const { return _last_block_num; }
 
    // must be called from the main thread
    // return true if update_peer_keys should be called with new map of peer keys
@@ -67,7 +67,7 @@ public:
 private:
    bool               _active = false;       // if not active (the default), no update occurs
    block_num_type     _last_block_num = 0;
-   peer_name_set_t    _configured_bp_peers;  // no updates occurs
+   name_set_t         _configured_bp_peers;  // no updates occurs
    std::atomic<bool>  _configured_bp_peers_updated{false};
 
    mutable fc::mutex  _m;

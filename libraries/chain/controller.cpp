@@ -3391,7 +3391,7 @@ struct controller_impl {
 
    void update_peer_keys() {
       // if syncing or replaying old blocks don't bother updating peer keys
-      if (peer_keys_db.last_update() > 0) { // can't have been updated unless active
+      if (peer_keys_db.last_block_num_update() > 0) { // can't have been updated unless active
          if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
             return;
       }
@@ -5857,7 +5857,7 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+void controller::set_peer_keys_retrieval_active(name_set_t configured_bp_peers) {
    my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
