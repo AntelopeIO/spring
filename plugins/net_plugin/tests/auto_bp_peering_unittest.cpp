@@ -56,7 +56,7 @@ struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_
                      // prodk is intentionally skipped
                      "prodl,127.0.0.1:8012"s, "prodm,127.0.0.1:8013"s, "prodn,127.0.0.1:8014"s, "prodo,127.0.0.1:8015"s,
                      "prodp,127.0.0.1:8016"s, "prodq,127.0.0.1:8017"s, "prodr,127.0.0.1:8018"s, "prods,127.0.0.1:8019"s,
-                     "prodt,127.0.0.1:8020"s, "produ,127.0.0.1:8021"s });
+                     "prodt,127.0.0.1:8020"s, "produ,127.0.0.1:8021"s }, {});
    }
 
    fc::logger get_logger() const { return fc::logger::get(DEFAULT_LOGGER); }
@@ -75,15 +75,15 @@ const std::vector<std::string> peer_addresses{
 BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
 
    mock_net_plugin plugin;
-   BOOST_CHECK_THROW(plugin.set_configured_bp_peers({ "producer17,127.0.0.1:8888"s }), eosio::chain::plugin_config_exception);
-   BOOST_CHECK_THROW(plugin.set_configured_bp_peers({ "producer1"s }), eosio::chain::plugin_config_exception);
+   BOOST_CHECK_THROW(plugin.set_configured_bp_peers({ "producer17,127.0.0.1:8888"s }, {}), eosio::chain::plugin_config_exception);
+   BOOST_CHECK_THROW(plugin.set_configured_bp_peers({ "producer1"s }, {}), eosio::chain::plugin_config_exception);
 
    plugin.set_configured_bp_peers({
          "producer1,127.0.0.1:8888:blk"s,
          "producer2,127.0.0.1:8889:trx"s,
          "producer3,127.0.0.1:8890"s,
          "producer4,127.0.0.1:8891"s
-   });
+   }, {});
    BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer1"_n], endpoint("127.0.0.1", "8888"));
    BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer2"_n], endpoint("127.0.0.1", "8889"));
    BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer3"_n], endpoint("127.0.0.1", "8890"));
