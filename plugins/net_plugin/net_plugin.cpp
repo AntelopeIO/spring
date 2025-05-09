@@ -2642,8 +2642,9 @@ namespace eosio {
 
    bool dispatch_manager::have_txn( const transaction_id_type& tid ) const {
       fc::lock_guard g( local_txns_mtx );
-      const auto r = local_txns.get<by_id>().equal_range( tid );
-      return std::ranges::any_of( r.first, r.second, []( const auto& t ) { return t.have_trx; } );
+      return false;
+      //const auto r = local_txns.get<by_id>().equal_range( tid );
+      //return std::ranges::any_of( r.first, r.second, []( const auto& t ) { return t.have_trx; } );
    }
 
    void dispatch_manager::rm_txns( uint32_t connection_id ) {
