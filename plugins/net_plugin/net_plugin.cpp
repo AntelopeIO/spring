@@ -357,7 +357,6 @@ namespace eosio {
        */
       vector<string>                        p2p_addresses;
       vector<string>                        p2p_server_addresses;
-      vector<string>                        p2p_outbound_server_addresses;
       const string&                         get_first_p2p_address() const;
 
       vector<chain::public_key_type>        allowed_peers; ///< peer keys allowed to connect
@@ -3765,7 +3764,7 @@ namespace eosio {
          return;
       }
 
-      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].server_address.empty();
+      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].server_endpoint.empty();
       if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
@@ -4271,28 +4270,23 @@ namespace eosio {
    {
       cfg.add_options()
          ( "p2p-listen-endpoint", bpo::value< vector<string> >()->default_value( vector<string>(1, string("0.0.0.0:9876:0")) ),
-           "The actual host:port[:trx|:blk][:nobpgoss][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times."
+           "The actual host:port[:trx|:blk][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times."
            " The optional rate cap will limit per connection block sync bandwidth to the specified rate. Total"
            " allowed bandwidth is the rate-cap multiplied by the connection count limit. A number alone will be"
            " interpreted as bytes per second. The number may be suffixed with units. Supported units are:"
            " 'B/s', 'KB/s', 'MB/s, 'GB/s', 'TB/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'."
            " Transactions and blocks outside sync mode are not throttled."
            " The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
-           " The optional 'nobpgoss' indicates to not gossip to other bp peers."
            " Examples:\n"
-           "   192.168.0.100:9876:1MiB/s\n"
+           "   192.168.0.100:9875\n"
+           "   192.168.0.101:9876:1MiB/s\n"
            "   node.eos.io:9877:trx:1512KB/s\n"
-           "   node.eos.io:9878:trx:nobpgoss:1512KB/s\n"
            "   node.eos.io:9879:0.5GB/s\n"
            "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9879:250KB/s")
          ( "p2p-server-address", bpo::value< vector<string> >(),
            "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
            " May be used as many times as p2p-listen-endpoint."
            " If provided, the first address will be used in handshakes with other nodes; otherwise the default is used.")
-         ( "p2p-outbound-server-address", bpo::value< vector<string> >(),
-           "An externally accessible host for identifying the address this node will connect from. Defaults to p2p-server-address without port."
-           " May be used as many times as p2p-listen-endpoint."
-           " Sent with gossip BP peer messages to communicate the address this peer will connect from. Can be used by peer to configure firewall.")
          ( "p2p-peer-address", bpo::value< vector<string> >()->composing(),
            "The public endpoint of a peer node to connect to. Use multiple p2p-peer-address options as needed to compose a network.\n"
            " Syntax: host:port[:trx|:blk]\n"
@@ -4306,14 +4300,23 @@ namespace eosio {
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
             "Disable block notice and block nack. All blocks received will be broadcast to all peers unless already received.")
          ( "p2p-auto-bp-peer", bpo::value< vector<string> >()->composing(),
-           "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule proximity\n."
+           "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule. Not gossipped.\n"
            "  Syntax: bp_account,host:port\n"
-           "  Example,\n"
+           "  Example:\n"
            "    producer1,p2p.prod.io:9876\n"
            "    producer2,p2p.trx.myprod.io:9876:trx\n"
            "    producer3,p2p.blk.example.io:9876:blk\n")
-         ("p2p-producer-peer", boost::program_options::value<vector<string>>()->composing()->multitoken(),
-           "Producer peer name of this node used to retrieve peer key from on-chain peerkeys table. Private key of peer key should be configured via signature-provider.")
+         ("p2p-bp-gossip-endpoint", boost::program_options::value<vector<string>>()->composing()->multitoken(),
+           "The BP account, inbound connection endpoint, outbound connection IP address. "
+           "The BP account is the producer peer name to retrieve peer-key from on-chain peerkeys table registered on-chain via regpeerkey action. "
+           "The inbound connection endpoint is typically the listen endpoint of this node. "
+           "The outbound connection IP address is typically the IP address of this node. Peer will use this value to allow access through firewall. "
+           "Private key of peer-key should be configured via signature-provider.\n"
+           " Syntax: bp_account,inbound_endpoint,outbound_ip_address\n"
+           " Example:\n"
+           "   myprod,myhostname.com:9876,198.51.100.1\n"
+           "   myprod,myhostname2.com:9876,[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"
+           )
          ( "agent-name", bpo::value<string>()->default_value("Vault Agent"), "The name supplied to identify this node amongst the peers.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
@@ -4426,21 +4429,6 @@ namespace eosio {
          }
          p2p_server_addresses.resize(p2p_addresses.size()); // extend with empty entries as needed
 
-         if( options.count( "p2p-outbound-server-address" ) ) {
-            p2p_outbound_server_addresses = options.at( "p2p-outbound-server-address" ).as<vector<string>>();
-            EOS_ASSERT( p2p_outbound_server_addresses.size() <= p2p_addresses.size(), chain::plugin_config_exception,
-                        "p2p-outbound-server-address may not be specified more times than p2p-listen-endpoint" );
-            for( const auto& addr: p2p_outbound_server_addresses ) {
-               EOS_ASSERT( addr.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
-                           "p2p-outbound-server-address ${a} too long, must be less than ${m}",
-                           ("a", addr)("m", net_utils::max_p2p_address_length) );
-               const auto& [host, port, type] = net_utils::split_host_port_type(addr);
-               EOS_ASSERT( !host.empty() && port.empty() && type.empty(), chain::plugin_config_exception,
-                           "Invalid p2p-outbound-server-address ${p}, syntax 'host' without port", ("p", addr));
-            }
-         }
-         p2p_outbound_server_addresses.resize(p2p_addresses.size()); // extend with empty entries as needed
-
          thread_pool_size = options.at( "net-threads" ).as<uint16_t>();
          EOS_ASSERT( thread_pool_size > 0, chain::plugin_config_exception,
                      "net-threads ${num} must be greater than 0", ("num", thread_pool_size) );
@@ -4469,10 +4457,10 @@ namespace eosio {
             });
          }
 
-         if ( options.count("p2p-producer-peer") ) {
+         if ( options.count( "p2p-bp-gossip-endpoint" ) ) {
+            set_bp_producer_peers(options.at( "p2p-bp-gossip-endpoint" ).as<vector<string>>());
             EOS_ASSERT(options.count("signature-provider"), chain::plugin_config_exception,
-                       "signature-provider of associated key required for p2p-producer-peer");
-            set_bp_producer_peers(options.at("p2p-producer-peer").as<vector<string>>());
+                       "signature-provider of associated key required for p2p-bp-gossip-endpoint");
          }
 
          if( options.count( "allowed-connection" )) {
@@ -4543,7 +4531,7 @@ namespace eosio {
 
       std::vector<string> listen_addresses = p2p_addresses;
 
-      assert( p2p_addresses.size() == p2p_server_addresses.size() && p2p_addresses.size() == p2p_outbound_server_addresses.size() );
+      assert( p2p_addresses.size() == p2p_server_addresses.size() );
       std::transform(p2p_addresses.begin(), p2p_addresses.end(), p2p_server_addresses.begin(), 
                      p2p_addresses.begin(), [](const string& p2p_address, const string& p2p_server_address) {
          if( !p2p_server_address.empty() ) {
@@ -4563,27 +4551,6 @@ namespace eosio {
             return hostname + ":" + port + (type.empty() ? "" : ":" + type);
          }
          return p2p_address;
-      });
-      p2p_server_addresses = p2p_addresses;
-      std::transform(p2p_server_addresses.begin(), p2p_server_addresses.end(), p2p_outbound_server_addresses.begin(),
-                     p2p_outbound_server_addresses.begin(), [](const string& p2p_server_address, const string& p2p_outbound_server_address) {
-          if( !p2p_outbound_server_address.empty() ) {
-             return p2p_outbound_server_address;
-          }
-
-          const auto& [host, port, type] = net_utils::split_host_port_type(p2p_server_address);
-          if( host.empty() || host == "0.0.0.0" || host == "[::]") {
-            boost::system::error_code ec;
-            auto hostname = host_name( ec );
-            if( ec.value() != boost::system::errc::success ) {
-
-               FC_THROW_EXCEPTION( fc::invalid_arg_exception,
-                                    "Unable to retrieve host_name. ${msg}", ("msg", ec.message()));
-
-            }
-            return hostname;
-         }
-         return host;
       });
 
       {
@@ -4611,8 +4578,6 @@ namespace eosio {
          cc.voted_block().connect( broadcast_vote );
 
          if (bp_gossip_enabled()) {
-            update_chain_info();
-            set_bp_gossip_listen_endpoints(listen_addresses, p2p_server_addresses, p2p_outbound_server_addresses);
             cc.set_peer_keys_retrieval_active(configured_bp_peer_accounts());
             // Can't update bp producer peer messages here because update_peer_keys requires a read-only trx which
             // requires a speculative block to run in. Wait for the first on block.

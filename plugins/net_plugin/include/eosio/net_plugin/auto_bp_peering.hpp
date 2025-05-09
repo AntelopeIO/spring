@@ -28,22 +28,21 @@ class bp_connection_manager {
 
    gossip_bp_index_t      gossip_bps;
 
-   struct listen_endpoint_t {
-      std::string listen_endpoint;  // full host:port:type
-      std::string server_address;   // externally known host:port:type
-      std::string outbound_address; // externally known outbound address
+   struct bp_gossip_endpoint_t {
+      std::string server_endpoint;      // externally known inbound endpoint host:port
+      std::string outbound_ip_address;  // externally known outbound IP address
 
-      auto operator<=>(const listen_endpoint_t& rhs) const = default;
-      bool operator==(const listen_endpoint_t& rhs) const = default;
+      auto operator<=>(const bp_gossip_endpoint_t& rhs) const = default;
+      bool operator==(const bp_gossip_endpoint_t& rhs) const = default;
    };
 
    // the following members are thread-safe, only modified during plugin startup
    struct config_t {
       flat_map<account_name, net_utils::endpoint>   bp_peer_addresses;
       flat_map<net_utils::endpoint, account_name>   bp_peer_accounts;
-      peer_name_set_t                               my_bp_accounts;             // block producer --producer-name
-      peer_name_set_t                               my_bp_peer_accounts;        // peer key account --p2p-producer-peer, for bp gossip
-      flat_set<listen_endpoint_t>                   bp_gossip_listen_endpoints; // listen endpoints to bp gossip
+      peer_name_set_t                               my_bp_accounts;         // block producer --producer-name
+      peer_name_set_t                               my_bp_peer_accounts;    // peer key account of --p2p-bp-gossip-endpoint, for bp gossip
+      flat_set<bp_gossip_endpoint_t>                bp_gossip_endpoints;    // [inbound_endpoint,outbound_ip_address] to bp gossip
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
@@ -132,13 +131,16 @@ public:
    // set manually configured [producer_account,endpoint] to use as proposer schedule changes.
    // These are not gossiped.
    void set_configured_bp_peers(const std::vector<std::string>& peers) {
+      assert(!peers.empty());
       for (const auto& entry : peers) {
+         std::string aname;
          try {
             auto comma_pos = entry.find(',');
             EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
-                       "p2p-auto-bp-peer must consist of an account name and server address separated by a comma");
-            auto         addr = entry.substr(comma_pos + 1);
-            account_name account(entry.substr(0, comma_pos));
+                       "p2p-auto-bp-peer ${e} must consist of an account name and server address separated by a comma", ("e", entry));
+            auto addr = entry.substr(comma_pos + 1);
+            aname = entry.substr(0, comma_pos);
+            account_name account(aname);
             const auto& [host, port, type] = net_utils::split_host_port_type(addr);
             EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
                         "Invalid p2p-auto-bp-peer ${p}, syntax host:port:[trx|blk]", ("p", addr));
@@ -149,7 +151,7 @@ public:
             config.bp_peer_addresses[account] = std::move(e);
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
-                       "the account ${a} supplied by --p2p-auto-bp-peer option is invalid", ("a", entry));
+                       "The account ${a} supplied by --p2p-auto-bp-peer option is invalid", ("a", aname));
          }
       }
    }
@@ -159,46 +161,53 @@ public:
    void for_each_bp_peer_address(T&& fun) const {
       fc::lock_guard g(gossip_bps.mtx);
       for (const auto& bp_peer : gossip_bps.index) {
-         fun(bp_peer.server_address);
+         fun(bp_peer.server_endpoint);
       }
    }
 
    // Only called at plugin startup
-   // The configued p2p-producer-peer for bp gossip
-   void set_bp_producer_peers(const std::vector<std::string>& peers) {
-      for (const auto& entry : peers) {
+   // The configured p2p-bp-gossip-endpoint [producer_account,inbound_server_endpoint,outbound_ip_address] for bp gossip
+   void set_bp_producer_peers(const std::vector<std::string>& bp_gossip_endpoints) {
+      assert(!bp_gossip_endpoints.empty());
+      for (const auto& entry : bp_gossip_endpoints) {
+         std::string aname;
          try {
-            config.my_bp_peer_accounts.emplace(chain::name(entry));
+            auto comma_pos = entry.find(',');
+            EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
+                       "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas", ("e", entry));
+            aname = entry.substr(0, comma_pos);
+            account_name account(aname);
+            config.my_bp_peer_accounts.emplace(account);
+            auto rest = entry.substr(comma_pos + 1);
+            comma_pos = rest.find(',');
+            EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
+                       "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas", ("e", entry));
+            auto inbound_server_endpoint = rest.substr(0, comma_pos);
+            const auto& [host, port, type] = net_utils::split_host_port_type(inbound_server_endpoint);
+            EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+                        "Invalid p2p-bp-gossip-endpoint inbound server endpoint ${p}, syntax host:port", ("p", inbound_server_endpoint));
+            auto outbound_ip_address = rest.substr(comma_pos + 1);
+            EOS_ASSERT( outbound_ip_address.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
+                        "p2p-bp-gossip-endpoint outbound-ip-address ${a} too long, must be less than ${m}",
+                        ("a", outbound_ip_address)("m", net_utils::max_p2p_address_length) );
+            auto is_valid_ip_address = [](const std::string& ip_str) {
+               try {
+                  boost::asio::ip::address::from_string(ip_str);
+               } catch (const boost::system::system_error& ) {
+                  return false;
+               }
+               return true;
+            };
+            EOS_ASSERT( is_valid_ip_address(outbound_ip_address), chain::plugin_config_exception,
+                        "Invalid p2p-bp-gossip-endpoint outbound ip address ${p}, syntax ip-address", ("p", outbound_ip_address));
+
+            fc_dlog(self()->get_logger(), "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
+            config.bp_gossip_endpoints.emplace(inbound_server_endpoint, outbound_ip_address);
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
-                       "the producer ${p} supplied by --p2p-producer-peer option is invalid", ("p", entry));
+                       "The account ${a} supplied by --p2p-bp-gossip-endpoint option is invalid", ("a", aname));
          }
       }
-   }
-
-   // Only called at plugin startup
-   // The listen endpoints of this node to bp gossip.
-   void set_bp_gossip_listen_endpoints(const std::vector<std::string>& listen_endpoints,
-                                       const std::vector<std::string>& server_addresses,
-                                       const std::vector<std::string>& outbound_server_addresses) {
-      assert(listen_endpoints.size() == server_addresses.size() && listen_endpoints.size() == outbound_server_addresses.size());
-      if (!bp_gossip_enabled())
-         return;
-
-      for (size_t i = 0; i < listen_endpoints.size(); ++i) {
-         if (listen_endpoints[i].find(":nobpgoss") == std::string::npos) {
-            // only set outbound_server_address if diff host than server_address to save bandwidth
-            auto [host, port, type] = net_utils::split_host_port_type(server_addresses[i]);
-            if (host == outbound_server_addresses[i]) {
-               host.clear();
-            } else {
-               host = outbound_server_addresses[i];
-            }
-            config.bp_gossip_listen_endpoints.emplace(listen_endpoints[i], server_addresses[i], host);
-         }
-      }
-      EOS_ASSERT(!config.bp_gossip_listen_endpoints.empty(), chain::plugin_config_exception,
-                 "No listen endpoints specified for bp gossip");
    }
 
    // thread-safe
@@ -213,13 +222,13 @@ public:
       block_timestamp_type expire = self()->head_block_time.load() + bp_peer_expiration;
       fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message with expiration ${e}", ("e", expire));
       for (const auto& my_bp_account : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
-         for (const auto& le : config.bp_gossip_listen_endpoints) {
-            fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", my_bp_account)("s", le.server_address));
+         for (const auto& le : config.bp_gossip_endpoints) {
+            fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", my_bp_account)("s", le.server_endpoint));
             std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
             if (peer_info && peer_info->key) {
                if (!initial_updated) {
                   // update initial so always an active one
-                  gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = my_bp_account}}; // .server_address not set for initial message
+                  gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = my_bp_account}}; // .server_endpoint not set for initial message
                   signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
                   EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
                              "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
@@ -230,16 +239,16 @@ public:
                auto& prod_idx = gossip_bps.index.get<by_producer>();
                gossip_bp_peers_message::signed_bp_peer peer{
                   { .producer_name = my_bp_account,
-                    .server_address = le.server_address,
-                    .outbound_server_address = le.outbound_address,
+                    .server_endpoint = le.server_endpoint,
+                    .outbound_ip_address = le.outbound_ip_address,
                     .expiration = expire }
                };
                peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
                EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
                           "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
-               if (auto i = prod_idx.find(boost::make_tuple(my_bp_account, boost::cref(le.server_address))); i != prod_idx.end()) {
+               if (auto i = prod_idx.find(boost::make_tuple(my_bp_account, boost::cref(le.server_endpoint))); i != prod_idx.end()) {
                   gossip_bps.index.modify(i, [&peer](auto& v) {
-                     v.outbound_server_address = peer.outbound_server_address;
+                     v.outbound_ip_address = peer.outbound_ip_address;
                      v.expiration = peer.expiration;
                      v.sig = peer.sig;
                   });
@@ -247,7 +256,7 @@ public:
                   gossip_bps.index.emplace(peer);
                }
             } else {
-               fc_wlog(self()->get_logger(), "On-chain peer key not found for configured BP ${a}", ("a", my_bp_account));
+               fc_wlog(self()->get_logger(), "On-chain peer-key not found for configured BP ${a}", ("a", my_bp_account));
             }
          }
       }
@@ -307,7 +316,7 @@ public:
       if (msg.peers.empty())
          return false;
       // initial case, no server_addresses to validate
-      bool initial_msg = msg.peers.size() == 1 && msg.peers[0].server_address.empty();
+      bool initial_msg = msg.peers.size() == 1 && msg.peers[0].server_endpoint.empty();
       if (!initial_msg) {
          // validate structure and data of msg
          auto valid_address = [](const std::string& addr) -> bool {
@@ -319,14 +328,14 @@ public:
          for (const auto& peer : msg.peers) {
             if (peer.producer_name.empty())
                return false; // invalid bp_peer data
-            if (!valid_address(peer.server_address))
+            if (!valid_address(peer.server_endpoint))
                return false; // invalid address
             if (prev != nullptr) {
                if (prev->producer_name == peer.producer_name) {
                   ++num_per_producer;
                   if (num_per_producer > max_bp_peers_per_producer)
                      return false; // more than allowed per producer
-                  if (prev->server_address == peer.server_address)
+                  if (prev->server_endpoint == peer.server_endpoint)
                      return false; // duplicate entries not allowed
                } else if (prev->producer_name > peer.producer_name) {
                   return false; // required to be sorted
@@ -404,10 +413,10 @@ public:
       auto& idx = gossip_bps.index.get<by_producer>();
       bool diff = false;
       for (const auto& peer : msg.peers) {
-         if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_address))); i != idx.end()) {
-            if (i->sig != peer.sig && peer.expiration >= i->expiration) { // signature has changed, producer_name and server_address has not changed
+         if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_endpoint))); i != idx.end()) {
+            if (i->sig != peer.sig && peer.expiration >= i->expiration) { // signature has changed, producer_name and server_endpoint has not changed
                gossip_bps.index.modify(i, [&peer](auto& m) {
-                  m.outbound_server_address = peer.outbound_server_address;
+                  m.outbound_ip_address = peer.outbound_ip_address;
                   m.expiration = peer.expiration;
                   m.sig = peer.sig;
                });
@@ -471,8 +480,8 @@ public:
          }
          auto r = prod_idx.equal_range(account);
          for (auto i = r.first; i != r.second; ++i) {
-            fc_dlog(self()->get_logger(), "${d} gossip bp peer ${p}", ("d", desc)("p", i->server_address));
-            addresses.insert(i->server_address);
+            fc_dlog(self()->get_logger(), "${d} gossip bp peer ${p}", ("d", desc)("p", i->server_endpoint));
+            addresses.insert(i->server_endpoint);
          }
       }
       return addresses;
@@ -577,13 +586,11 @@ public:
       vector<gossip_bp_peers_message::bp_peer> peers;
       for (const auto& p : gossip_bps.index) {
          // no need to include sig
-         // report host of server_address if outbound_server_address not provided
          peers.push_back(gossip_bp_peers_message::bp_peer{
             p.producer_name,
-            p.server_address,
-            p.outbound_server_address.empty() ? std::get<0>(net_utils::split_host_port_type(p.server_address)) : p.outbound_server_address,
+            p.server_endpoint,
+            p.outbound_ip_address,
             p.expiration
-            // no need to report sig
          });
       }
       return peers;

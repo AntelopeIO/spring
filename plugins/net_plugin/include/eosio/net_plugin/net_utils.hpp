@@ -127,7 +127,7 @@ namespace detail {
    inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
 
       using std::string;
-      // host:port[:trx|:blk][:nobpgoss][:<rate>]   // nobpgoss & rate are discarded
+      // host:port[:trx|:blk][:<rate>]   // rate is discarded
       if (peer_add.empty()) return {};
 
       constexpr bool should_throw = false;
