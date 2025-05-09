@@ -3764,7 +3764,7 @@ namespace eosio {
          return;
       }
 
-      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].server_endpoint.empty();
+      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].bp_peer_info.empty();
       if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
@@ -4449,12 +4449,8 @@ namespace eosio {
                         "agent-name too long, must be less than ${m}", ("m", net_utils::max_handshake_str_length) );
          }
 
-         if ( options.count( "p2p-auto-bp-peer")) {
-            set_configured_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>());
-            for_each_bp_peer_address([&peers](const auto& addr) {
-               EOS_ASSERT(std::find(peers.begin(), peers.end(), addr) == peers.end(), chain::plugin_config_exception,
-                          "\"${a}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.", ("a",addr));
-            });
+         if (options.count( "p2p-auto-bp-peer")) {
+            set_configured_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>(), peers);
          }
 
          if ( options.count( "p2p-bp-gossip-endpoint" ) ) {
@@ -4664,7 +4660,7 @@ namespace eosio {
       return my->connections.connection_statuses();
    }
 
-   vector<gossip_bp_peers_message::bp_peer> net_plugin::bp_gossip_peers()const {
+   vector<gossip_peer> net_plugin::bp_gossip_peers()const {
       return my->bp_gossip_peers();
    }
 
