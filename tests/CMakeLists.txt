@@ -146,9 +146,9 @@ add_subdirectory( PerformanceHarness )
 
 find_package(Threads)
 add_executable(ship_client ship_client.cpp)
-target_link_libraries(ship_client abieos Boost::program_options Boost::system Boost::algorithm Boost::asio Boost::beast Threads::Threads)
+target_link_libraries(ship_client eosio_chain Boost::program_options Boost::system Boost::algorithm Boost::asio Boost::beast Threads::Threads)
 add_executable(ship_streamer ship_streamer.cpp)
-target_link_libraries(ship_streamer abieos Boost::program_options Boost::system Boost::asio Boost::beast Threads::Threads)
+target_link_libraries(ship_streamer eosio_chain Boost::program_options Boost::system Boost::asio Boost::beast Threads::Threads)
 
 add_np_test(NAME cluster_launcher COMMAND tests/cluster_launcher.py -v ${UNSHARE})
 add_np_test(NAME cluster_launcher_if COMMAND tests/cluster_launcher.py --activate-if -v ${UNSHARE})
