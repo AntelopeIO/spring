@@ -17,11 +17,12 @@ bool peer_keys_db_t::configured_peer_keys_updated() {
 
 void peer_keys_db_t::update_peer_keys(block_num_type block_num, const getpeerkeys_res_t& v) {
    assert(_active);
-   _last_block_num = block_num;
 
    if (v.empty())
       return;
    
+   _last_block_num = block_num;
+
    // create hash_map of current top selected producers (according to "getpeerkeys"_n in system contracts)
    // ----------------------------------------------------------------------------------------------------
    peer_key_map_t current;

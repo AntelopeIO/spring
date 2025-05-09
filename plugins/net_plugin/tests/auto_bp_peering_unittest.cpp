@@ -84,18 +84,18 @@ BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
          "producer3,127.0.0.1:8890"s,
          "producer4,127.0.0.1:8891"s
    }, {});
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer1"_n], endpoint("127.0.0.1", "8888"));
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer2"_n], endpoint("127.0.0.1", "8889"));
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer3"_n], endpoint("127.0.0.1", "8890"));
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_addresses["producer4"_n], endpoint("127.0.0.1", "8891"));
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_addresses["producer1"_n], endpoint("127.0.0.1", "8888"));
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_addresses["producer2"_n], endpoint("127.0.0.1", "8889"));
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_addresses["producer3"_n], endpoint("127.0.0.1", "8890"));
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_addresses["producer4"_n], endpoint("127.0.0.1", "8891"));
 
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8888")], "producer1"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8889")], "producer2"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8890")], "producer3"_n);
-   BOOST_CHECK_EQUAL(plugin.config.bp_peer_accounts[endpoint("127.0.0.1", "8891")], "producer4"_n);
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_accounts[endpoint("127.0.0.1", "8888")], "producer1"_n);
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_accounts[endpoint("127.0.0.1", "8889")], "producer2"_n);
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_accounts[endpoint("127.0.0.1", "8890")], "producer3"_n);
+   BOOST_CHECK_EQUAL(plugin.config.auto_bp_accounts[endpoint("127.0.0.1", "8891")], "producer4"_n);
 }
 
-bool operator==(const eosio::chain::peer_name_set_t& a, const eosio::chain::peer_name_set_t& b) {
+bool operator==(const eosio::chain::name_set_t& a, const eosio::chain::name_set_t& b) {
    return std::equal(a.begin(), a.end(), b.begin(), b.end());
 }
 
@@ -104,7 +104,7 @@ bool operator==(const std::vector<std::string>& a, const std::vector<std::string
 }
 
 namespace boost::container {
-std::ostream& boost_test_print_type(std::ostream& os, const eosio::chain::peer_name_set_t& accounts) {
+std::ostream& boost_test_print_type(std::ostream& os, const eosio::chain::name_set_t& accounts) {
    os << "{";
    const char* sep = "";
    for (auto e : accounts) {
@@ -148,7 +148,7 @@ const eosio::chain::producer_authority_schedule test_schedule2{
      { "prodd"_n, {} }, { "prodh"_n, {} }, { "prodl"_n, {} } }
 };
 
-const eosio::chain::peer_name_set_t producers_minus_prodkt{
+const eosio::chain::name_set_t producers_minus_prodkt{
    "proda"_n, "prodb"_n, "prodc"_n, "prodd"_n, "prode"_n, "prodf"_n,
    "prodg"_n, "prodh"_n, "prodi"_n, "prodj"_n,
    // "prodk"_n, not part of the peer addresses
@@ -175,7 +175,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.on_pending_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
-   BOOST_TEST(plugin.pending_bps == (eosio::chain::peer_name_set_t{ "prodj"_n, "prodm"_n }));
+   BOOST_TEST(plugin.pending_bps == (eosio::chain::name_set_t{ "prodj"_n, "prodm"_n }));
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
 
    // when it is in sync and on_pending_schedule is called
@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
 
    plugin.on_pending_schedule(reset_schedule1);
-   BOOST_TEST(plugin.pending_bps == eosio::chain::peer_name_set_t{});
+   BOOST_TEST(plugin.pending_bps == eosio::chain::name_set_t{});
 }
 
 BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
@@ -218,7 +218,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    plugin.on_active_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{}));
-   BOOST_TEST(plugin.get_active_bps() == (eosio::chain::peer_name_set_t{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
+   BOOST_TEST(plugin.get_active_bps() == (eosio::chain::name_set_t{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 0u);
 
    // when it is in sync and on_active_schedule is called
