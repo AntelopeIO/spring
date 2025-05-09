@@ -139,18 +139,23 @@ namespace eosio {
    struct gossip_bp_peers_message {
       struct bp_peer {
          eosio::name               producer_name;
-         std::string               server_address;
-         // sig over [producer_name, server_address]
-         signature_type            sig;
+         std::string               server_endpoint;         // externally available address to connect to
+         std::string               outbound_ip_address;     // empty if equal to server_endpoint ip address
+         block_timestamp_type      expiration;              // head block to remove bp_peer
 
          digest_type digest() const;
+
          bool operator==(const bp_peer&) const = default;
          bool operator<(const bp_peer& rhs) const {
-            return std::tie(producer_name, server_address) < std::tie(rhs.producer_name, rhs.server_address);
+            // [producer_name, server_endpoint] is unique
+            return std::tie(producer_name, server_endpoint) < std::tie(rhs.producer_name, rhs.server_endpoint);
          }
       };
+      struct signed_bp_peer : bp_peer {
+         signature_type            sig;
+      };
 
-      std::vector<bp_peer> peers;
+      std::vector<signed_bp_peer> peers;
    };
 
    using net_message = std::variant<handshake_message,
@@ -215,7 +220,8 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
-FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(sig) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_endpoint)(outbound_ip_address)(expiration) )
+FC_REFLECT_DERIVED(eosio::gossip_bp_peers_message::signed_bp_peer, (eosio::gossip_bp_peers_message::bp_peer), (sig) )
 FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
 /**

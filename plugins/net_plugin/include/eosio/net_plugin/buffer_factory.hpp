@@ -156,7 +156,7 @@ namespace eosio {
          const uint32_t which_size = fc::raw::pack_size( unsigned_int( which ) );
          // content size
          size_t s = fc::raw::pack_size( unsigned_int((uint32_t)gossip_bp_peers.index.size()) ); // match vector pack
-         for (const auto& peer : gossip_bp_peers.index.get<by_producer>()) {
+         for (const gossip_bp_peers_message::signed_bp_peer& peer : gossip_bp_peers.index.get<by_producer>()) {
             s += fc::raw::pack_size( peer );
          }
          const uint32_t payload_size = which_size + s;
@@ -169,7 +169,7 @@ namespace eosio {
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
          fc::raw::pack( ds, unsigned_int((uint32_t)gossip_bp_peers.index.size()) );
-         for (const auto& peer : gossip_bp_peers.index.get<by_producer>()) {
+         for (const gossip_bp_peers_message::signed_bp_peer& peer : gossip_bp_peers.index.get<by_producer>()) {
             fc::raw::pack( ds, peer );
          }
 
@@ -180,7 +180,7 @@ namespace eosio {
    struct gossip_buffer_initial_factory : public buffer_factory {
 
       // called on startup
-      void set_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
+      void set_initial_send_buffer(const gossip_bp_peers_message::signed_bp_peer& signed_empty) {
          send_buffer = create_initial_send_buffer(signed_empty);
       }
 
@@ -191,7 +191,7 @@ namespace eosio {
 
    private:
 
-      static send_buffer_type create_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
+      static send_buffer_type create_initial_send_buffer(const gossip_bp_peers_message::signed_bp_peer& signed_empty) {
          constexpr uint32_t which = to_index(msg_type_t::gossip_bp_peers_message);
 
          // match net_message static_variant pack

@@ -41,6 +41,7 @@ namespace eosio {
         string                            disconnect( const string& endpoint );
         std::optional<connection_status>  status( const string& endpoint )const;
         vector<connection_status>         connections()const;
+        vector<gossip_bp_peers_message::bp_peer> bp_gossip_peers()const;
 
         struct p2p_per_connection_metrics {
             struct connection_metric {

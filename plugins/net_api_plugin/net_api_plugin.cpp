@@ -63,7 +63,9 @@ void net_api_plugin::plugin_startup() {
             INVOKE_R_R(net_mgr, status, std::string), 201),
        CALL_WITH_400(net, net_ro, net_mgr, connections,
             INVOKE_R_V(net_mgr, connections), 201),
-   } );
+       CALL_WITH_400(net, net_ro, net_mgr, bp_gossip_peers,
+            INVOKE_R_V(net_mgr, bp_gossip_peers), 201),
+  } );
 }
 
 void net_api_plugin::plugin_initialize(const variables_map& options) {
