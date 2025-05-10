@@ -10,9 +10,6 @@
 [submodule "libraries/rapidjson"]
 	path = libraries/rapidjson
 	url = https://github.com/Tencent/rapidjson/
-[submodule "tests/abieos"]
-	path = tests/abieos
-	url = https://github.com/AntelopeIO/abieos
 [submodule "libraries/libfc/include/fc/crypto/webauthn_json"]
 	path = libraries/libfc/include/fc/crypto/webauthn_json
 	url = https://github.com/Tencent/rapidjson/

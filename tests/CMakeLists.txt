@@ -129,26 +129,15 @@ add_np_test(NAME block_log_util_if_test COMMAND tests/block_log_util_test.py --a
 add_np_test(NAME block_log_retain_blocks_test COMMAND tests/block_log_retain_blocks_test.py -v ${UNSHARE})
 add_np_test(NAME block_log_retain_blocks_if_test COMMAND tests/block_log_retain_blocks_test.py --activate-if -v ${UNSHARE})
 
-option(ABIEOS_ONLY_LIBRARY "define and build the ABIEOS library" ON)
-set(ABIEOS_INSTALL_COMPONENT "dev")
-set(SKIP_SUBMODULE_TEST ON)
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-   set(CMAKE_BUILD_TYPE "StopAbieosFromTouchingThis")
-   add_subdirectory(abieos)
-   unset(CMAKE_BUILD_TYPE)
-else()
-   add_subdirectory(abieos)
-endif()
-
 add_subdirectory( TestHarness )
 add_subdirectory( trx_generator )
 add_subdirectory( PerformanceHarness )
 
 find_package(Threads)
 add_executable(ship_client ship_client.cpp)
-target_link_libraries(ship_client abieos Boost::program_options Boost::system Boost::algorithm Boost::asio Boost::beast Threads::Threads)
+target_link_libraries(ship_client eosio_chain Boost::program_options Boost::system Boost::algorithm Boost::asio Boost::beast Threads::Threads)
 add_executable(ship_streamer ship_streamer.cpp)
-target_link_libraries(ship_streamer abieos Boost::program_options Boost::system Boost::asio Boost::beast Threads::Threads)
+target_link_libraries(ship_streamer eosio_chain Boost::program_options Boost::system Boost::asio Boost::beast Threads::Threads)
 
 add_np_test(NAME cluster_launcher COMMAND tests/cluster_launcher.py -v ${UNSHARE})
 add_np_test(NAME cluster_launcher_if COMMAND tests/cluster_launcher.py --activate-if -v ${UNSHARE})
