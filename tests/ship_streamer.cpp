@@ -16,6 +16,8 @@ using mvo = fc::mutable_variant_object;
 
 namespace bpo = boost::program_options;
 
+static const eosio::chain::abi_serializer::yield_function_t null_yield_function{};
+
 int main(int argc, char* argv[]) {
    boost::asio::io_context ctx;
    boost::asio::ip::tcp::resolver resolver(ctx);
@@ -70,7 +72,7 @@ int main(int argc, char* argv[]) {
          std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
          abi_string = std::regex_replace(abi_string, scrub_all_tables, "");
 
-         abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), {});
+         abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), null_yield_function);
          //state history may have 'bytes' larger than MAX_SIZE_OF_BYTE_ARRAYS, so divert 'bytes' to an impl that does not have that check
          abi.add_specialized_unpack_pack("bytes", std::make_pair<eosio::chain::abi_serializer::unpack_function, eosio::chain::abi_serializer::pack_function>(
             [](fc::datastream<const char*>& stream, bool is_array, bool is_optional, const eosio::chain::abi_serializer::yield_function_t& yield) {
@@ -118,7 +120,7 @@ int main(int argc, char* argv[]) {
                                                     ("fetch_block", fetch_block)
                                                     ("fetch_traces", fetch_traces)
                                                     ("fetch_deltas", fetch_deltas)
-                                                    ("fetch_finality_data", fetch_finality_data)}, {});
+                                                    ("fetch_finality_data", fetch_finality_data)}, null_yield_function);
       stream.write(boost::asio::buffer(get_status_bytes));
       stream.read_message_max(0);
 
@@ -131,7 +133,7 @@ int main(int argc, char* argv[]) {
          stream.read(buffer);
 
          fc::datastream<const char*> ds((const char*)buffer.data().data(), buffer.data().size());
-         const fc::variant result = abi.binary_to_variant("result", ds, {});
+         const fc::variant result = abi.binary_to_variant("result", ds, null_yield_function);
 
          FC_ASSERT(result.is_array(),                                                        "result should have been an array (variant) but it's not");
          FC_ASSERT(result.size() == 2,                                                       "result was an array but did not contain 2 items like a variant should");

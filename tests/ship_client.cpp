@@ -19,6 +19,8 @@ namespace ws = boost::beast::websocket;
 
 namespace bpo = boost::program_options;
 
+static const eosio::chain::abi_serializer::yield_function_t null_yield_function{};
+
 int main(int argc, char* argv[]) {
    boost::asio::io_context ctx;
    boost::asio::ip::tcp::resolver resolver(ctx);
@@ -72,7 +74,7 @@ int main(int argc, char* argv[]) {
             std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
             abi_string = std::regex_replace(abi_string, scrub_all_tables, "");
 
-            abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), {});
+            abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), null_yield_function);
          }
          stream.binary(true);
 
@@ -92,14 +94,14 @@ int main(int argc, char* argv[]) {
 
          while(num_requests--) {
             const eosio::chain::bytes get_status_bytes = abi.variant_to_binary("request",
-               fc::variants{request_result_types[num_requests%2].get_status_request, mvo()}, {});
+               fc::variants{request_result_types[num_requests%2].get_status_request, mvo()}, null_yield_function);
             stream.write(boost::asio::buffer(get_status_bytes));
 
             boost::beast::flat_buffer buffer;
             stream.read(buffer);
 
             fc::datastream<const char*> ds((const char*)buffer.data().data(), buffer.data().size());
-            const fc::variant result = abi.binary_to_variant("result", ds, {});
+            const fc::variant result = abi.binary_to_variant("result", ds, null_yield_function);
 
             FC_ASSERT(result.is_array(),                                                           "result should have been an array (variant) but it's not");
             FC_ASSERT(result.size() == 2,                                                          "result was an array but did not contain 2 items like a variant should");

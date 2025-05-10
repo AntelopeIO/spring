@@ -21,6 +21,8 @@ using namespace eosio::chain;
 using namespace eosio::testing;
 using namespace std::literals;
 
+static const abi_serializer::yield_function_t null_yield_function{};
+
 namespace eosio::state_history {
 
 template <typename ST>
@@ -82,7 +84,7 @@ public:
    variants deserialize_data(deltas_vector::iterator &it, const std::string& type, const std::string& in_variant_type) {
       variants result;
       for(size_t i=0; i < it->rows.obj.size(); i++) {
-         fc::variant v = shipabi.binary_to_variant(in_variant_type, it->rows.obj[i].second, {});
+         fc::variant v = shipabi.binary_to_variant(in_variant_type, it->rows.obj[i].second, null_yield_function);
          BOOST_REQUIRE(v.is_array() && v.size() == 2 && v[0ul].is_string());
          BOOST_REQUIRE_EQUAL(v[0ul].get_string(), type);
          result.push_back(std::move(v[1ul]));
@@ -92,7 +94,7 @@ public:
 
 private:
    deltas_vector v;
-   abi_serializer shipabi = abi_serializer(json::from_string(eosio::state_history::ship_abi_without_tables()).as<abi_def>(), {});
+   abi_serializer shipabi = abi_serializer(json::from_string(eosio::state_history::ship_abi_without_tables()).as<abi_def>(), null_yield_function);
 };
 
 using table_deltas_testers = boost::mpl::list<table_deltas_tester<legacy_tester>,
@@ -651,8 +653,8 @@ static variants get_traces(eosio::state_history::log_catalog& log, block_num_typ
    auto     entry = get_decompressed_entry(log, block_num);
 
    if (entry.size()) {
-      abi_serializer shipabi = abi_serializer(json::from_string(eosio::state_history::ship_abi_without_tables()).as<abi_def>(), {});
-      return shipabi.binary_to_variant("transaction_trace[]", entry, {}).get_array();
+      abi_serializer shipabi = abi_serializer(json::from_string(eosio::state_history::ship_abi_without_tables()).as<abi_def>(), null_yield_function);
+      return shipabi.binary_to_variant("transaction_trace[]", entry, null_yield_function).get_array();
    }
    return variants();
 }
