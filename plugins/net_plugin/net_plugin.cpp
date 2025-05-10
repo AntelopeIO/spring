@@ -2610,7 +2610,7 @@ namespace eosio {
       fc::time_point_sec now{fc::time_point::now()};
       fc::lock_guard g( local_txns_mtx );
       auto& conn_idx = local_txns.get<by_connection_id>();
-      auto count = conn_idx.count( connection_id );
+      auto count = 0; //conn_idx.count( connection_id );
 
       bool add = true;
       if( count > 0 ) {
