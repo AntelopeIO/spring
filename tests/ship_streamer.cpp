@@ -20,7 +20,6 @@ int main(int argc, char* argv[]) {
    boost::asio::io_context ctx;
    boost::asio::ip::tcp::resolver resolver(ctx);
    boost::beast::websocket::stream<boost::asio::ip::tcp::socket> stream(ctx);
-   eosio::chain::abi_def abidef;
    eosio::chain::abi_serializer abi;
 
    bpo::options_description cli("ship_streamer command line options");
@@ -71,8 +70,28 @@ int main(int argc, char* argv[]) {
          std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
          abi_string = std::regex_replace(abi_string, scrub_all_tables, "");
 
-         abidef = fc::json::from_string(abi_string).as<eosio::chain::abi_def>();
-         abi = eosio::chain::abi_serializer(abidef, eosio::chain::abi_serializer::create_depth_yield_function());
+         abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), {});
+         //state history may have 'bytes' larger than MAX_SIZE_OF_BYTE_ARRAYS, so divert 'bytes' to an impl that does not have that check
+         abi.add_specialized_unpack_pack("bytes", std::make_pair<eosio::chain::abi_serializer::unpack_function, eosio::chain::abi_serializer::pack_function>(
+            [](fc::datastream<const char*>& stream, bool is_array, bool is_optional, const eosio::chain::abi_serializer::yield_function_t& yield) {
+               FC_ASSERT(!is_array, "sorry, this kludge doesn't support arrays");
+               if(is_optional) {
+                  bool present = false;
+                  fc::raw::unpack(stream, present);
+                  if(!present)
+                     return fc::variant();
+               }
+               fc::unsigned_int sz;
+               fc::raw::unpack(stream, sz);
+               if(sz == 0u)
+                  return fc::variant("");
+               std::vector<char> data(sz);
+               stream.read(data.data(), sz);
+               return fc::variant(fc::to_hex(data.data(),data.size()));
+         },
+         [](const fc::variant&, fc::datastream<char*>&, bool, bool, const eosio::chain::abi_serializer::yield_function_t&) {
+            FC_ASSERT(false, "sorry, this kludge can't write out bytes");
+         }));
       }
 
       //struct get_blocks_request_v0 {
