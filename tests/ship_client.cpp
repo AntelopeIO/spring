@@ -23,7 +23,6 @@ int main(int argc, char* argv[]) {
    boost::asio::io_context ctx;
    boost::asio::ip::tcp::resolver resolver(ctx);
    ws::stream<boost::asio::ip::tcp::socket> tcp_stream(ctx);
-   eosio::chain::abi_def abidef;
    eosio::chain::abi_serializer abi;
 
    unixs::socket unix_socket(ctx);
@@ -73,8 +72,7 @@ int main(int argc, char* argv[]) {
             std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
             abi_string = std::regex_replace(abi_string, scrub_all_tables, "");
 
-            abidef = fc::json::from_string(abi_string).as<eosio::chain::abi_def>();
-            abi = eosio::chain::abi_serializer(abidef, eosio::chain::abi_serializer::create_depth_yield_function());
+            abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), {});
          }
          stream.binary(true);
 
@@ -94,20 +92,19 @@ int main(int argc, char* argv[]) {
 
          while(num_requests--) {
             const eosio::chain::bytes get_status_bytes = abi.variant_to_binary("request",
-               fc::variants{request_result_types[num_requests%2].get_status_request, mvo()},
-               eosio::chain::abi_serializer::create_depth_yield_function());
+               fc::variants{request_result_types[num_requests%2].get_status_request, mvo()}, {});
             stream.write(boost::asio::buffer(get_status_bytes));
 
             boost::beast::flat_buffer buffer;
             stream.read(buffer);
 
             fc::datastream<const char*> ds((const char*)buffer.data().data(), buffer.data().size());
-            const fc::variant result = abi.binary_to_variant("result", ds, eosio::chain::abi_serializer::create_depth_yield_function());
+            const fc::variant result = abi.binary_to_variant("result", ds, {});
 
             FC_ASSERT(result.is_array(),                                                           "result should have been an array (variant) but it's not");
             FC_ASSERT(result.size() == 2,                                                          "result was an array but did not contain 2 items like a variant should");
-            FC_ASSERT(result[(size_t)0] == request_result_types[num_requests%2].get_status_result, "result type doesn't look like expected get_status_result_vX");
-            const fc::variant_object& resultobj = result[(size_t)1].get_object();
+            FC_ASSERT(result[0ul] == request_result_types[num_requests%2].get_status_result, "result type doesn't look like expected get_status_result_vX");
+            const fc::variant_object& resultobj = result[1ul].get_object();
             FC_ASSERT(resultobj.contains("head"),                                                  "cannot find 'head' in result");
             FC_ASSERT(resultobj["head"].is_object(),                                               "'head' is not an object");
             FC_ASSERT(resultobj["head"].get_object().contains("block_num"),                        "'head' does not contain 'block_num'");
@@ -125,7 +122,7 @@ int main(int argc, char* argv[]) {
             else {
                std::cout << "," << std::endl;
             }
-            std::cout << "{ \"" << result[(size_t)0].as_string() << "\":" << std::endl;
+            std::cout << "{ \"" << result[0ul].as_string() << "\":" << std::endl;
             std::cout << fc::json::to_pretty_string(resultobj) << std::endl << "}" << std::endl;
 
             last_block_num = this_block_num;

@@ -118,8 +118,7 @@ int main(int argc, char* argv[]) {
                                                     ("fetch_block", fetch_block)
                                                     ("fetch_traces", fetch_traces)
                                                     ("fetch_deltas", fetch_deltas)
-                                                    ("fetch_finality_data", fetch_finality_data)},
-         eosio::chain::abi_serializer::create_depth_yield_function());
+                                                    ("fetch_finality_data", fetch_finality_data)}, {});
       stream.write(boost::asio::buffer(get_status_bytes));
       stream.read_message_max(0);
 
@@ -132,12 +131,12 @@ int main(int argc, char* argv[]) {
          stream.read(buffer);
 
          fc::datastream<const char*> ds((const char*)buffer.data().data(), buffer.data().size());
-         const fc::variant result = abi.binary_to_variant("result", ds, eosio::chain::abi_serializer::create_depth_yield_function());
+         const fc::variant result = abi.binary_to_variant("result", ds, {});
 
          FC_ASSERT(result.is_array(),                                                        "result should have been an array (variant) but it's not");
          FC_ASSERT(result.size() == 2,                                                       "result was an array but did not contain 2 items like a variant should");
-         FC_ASSERT(result[(size_t)0] == "get_blocks_result_v1",                              "result type doesn't look like get_blocks_result_v1");
-         const fc::variant_object& resultobj = result[(size_t)1].get_object();
+         FC_ASSERT(result[0ul] == "get_blocks_result_v1",                                    "result type doesn't look like get_blocks_result_v1");
+         const fc::variant_object& resultobj = result[1ul].get_object();
          FC_ASSERT(resultobj.contains("head"),                                               "cannot find 'head' in result");
          FC_ASSERT(resultobj["head"].is_object(),                                            "'head' is not an object");
          FC_ASSERT(resultobj["head"].get_object().contains("block_num"),                     "'head' does not contain 'block_num'");
