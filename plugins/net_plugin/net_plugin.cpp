@@ -224,12 +224,15 @@ namespace eosio {
       bool have_block(const block_id_type& blkid) const;
       void rm_block(const block_id_type& blkid);
 
-      // returns the number of tracked ids for connecion_id
-      size_t add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
-                           uint32_t connection_id, bool have_trx );
+      // returns the number of tracked ids of connection, returns 0 if already have trx on any connection
+      struct add_peer_txn_info {
+         uint32_t num_tracked_ids = 0;
+         bool have_trx = false; // true if we already have received the trx
+      };
+      add_peer_txn_info add_peer_txn(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
+      size_t add_peer_txn_notice(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
       bool peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const;
-      bool have_txn( const transaction_id_type& tid ) const;
-      void rm_txns( uint32_t connection_id );
+      void rm_txns( connection& c );
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
@@ -847,6 +850,9 @@ namespace eosio {
       alignas(hardware_destructive_interference_sz)
       std::atomic<uint32_t>   trx_in_progress_size{0};
 
+      // number of entries in local txn cache local_txns, all connections guarded by local_txns_mtx
+      uint32_t                trx_entries_size{0};
+
       fc::time_point          last_dropped_trx_msg_time;
       const uint32_t          connection_id;
       int16_t                 sent_handshake_count = 0;
@@ -1459,7 +1465,7 @@ namespace eosio {
       last_vote_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
-      my_impl->dispatcher.rm_txns(connection_id);
+      my_impl->dispatcher.rm_txns(*this);
 
       uint32_t head_num = my_impl->get_chain_head_num();
       if (last_received_block_num >= head_num) {
@@ -2603,23 +2609,19 @@ namespace eosio {
       index.erase(p.first, p.second);
    }
 
-   size_t
-   dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
-                                   uint32_t connection_id, bool have_trx )
+   dispatch_manager::add_peer_txn_info dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
    {
       fc::time_point_sec now{fc::time_point::now()};
       fc::lock_guard g( local_txns_mtx );
-      auto& conn_idx = local_txns.get<by_connection_id>();
-      auto count = conn_idx.count( connection_id );
+
+      auto& id_idx = local_txns.get<by_id>();
+      const auto r = id_idx.equal_range( id );
+      bool have_trx = std::ranges::any_of( r.first, r.second, []( const auto& t ) { return t.have_trx; } );
 
       bool add = true;
-      if( count > 0 ) {
-         auto& id_idx = local_txns.get<by_id>();
-         if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), connection_id ) ); tptr != id_idx.end()) {
-            add = false;
-            if (have_trx && !tptr->have_trx)
-               tptr->have_trx = true;
-         }
+      if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), c.connection_id ) ); tptr != id_idx.end()) {
+         add = false;
+         tptr->have_trx = true;
       }
       if (add) {
          // expire at either transaction expiration or configured max expire time whichever is less
@@ -2627,12 +2629,32 @@ namespace eosio {
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
-            .connection_id = connection_id,
+            .connection_id = c.connection_id,
             .expires = expires,
-            .have_trx = have_trx } );
-         ++count;
+            .have_trx = true } );
+         ++c.trx_entries_size;
       }
-      return count;
+      return { c.trx_entries_size, have_trx };
+   }
+
+   size_t dispatch_manager::add_peer_txn_notice( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
+   {
+      fc::time_point_sec now{fc::time_point::now()};
+      fc::lock_guard g( local_txns_mtx );
+
+      auto& id_idx = local_txns.get<by_id>();
+      if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), c.connection_id ) ); tptr == id_idx.end()) {
+         // expire at either transaction expiration or configured max expire time whichever is less
+         time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
+         expires = std::min( trx_expires, expires );
+         local_txns.insert( node_transaction_state{
+            .id = id,
+            .connection_id = c.connection_id,
+            .expires = expires,
+            .have_trx = false } );
+         ++c.trx_entries_size;
+      }
+      return c.trx_entries_size;
    }
 
    bool dispatch_manager::peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const {
@@ -2640,30 +2662,39 @@ namespace eosio {
       return local_txns.get<by_id>().contains( std::make_tuple( std::ref( id ), connection_id ) );
    }
 
-   bool dispatch_manager::have_txn( const transaction_id_type& tid ) const {
+   void dispatch_manager::rm_txns( connection& c ) {
       fc::lock_guard g( local_txns_mtx );
-      const auto r = local_txns.get<by_id>().equal_range( tid );
-      return std::ranges::any_of( r.first, r.second, []( const auto& t ) { return t.have_trx; } );
-   }
-
-   void dispatch_manager::rm_txns( uint32_t connection_id ) {
-      fc::lock_guard g( local_txns_mtx );
-      local_txns.get<by_connection_id>().erase( connection_id );
+      local_txns.get<by_connection_id>().erase( c.connection_id );
+      c.trx_entries_size = 0;
    }
 
    void dispatch_manager::expire_txns() {
       size_t start_size = 0, end_size = 0;
       fc::time_point_sec now{time_point::now()};
 
+      // collect connections before acquiring local_txns_mtx as connections_mtx can be held while acquiring local_txns_mtx
+      std::unordered_map<uint32_t, connection_ptr> connections;
+      my_impl->connections.for_each_connection( [&connections]( const connection_ptr& c ) {
+         // we don't enforce block-only connection doesn't send trx, so process all open connections
+         if( c->socket_is_open() ) {
+            connections[c->connection_id] = c;
+         }
+      } );
+
       fc::unique_lock g( local_txns_mtx );
       start_size = local_txns.size();
       auto& old = local_txns.get<by_expiry>();
       auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
       auto ex_up = old.upper_bound( now );
-      old.erase( ex_lo, ex_up );
+      while(ex_lo!=ex_up){
+         --connections[ex_lo->connection_id]->trx_entries_size;
+         ex_lo=old.erase(ex_lo);
+      }
+
       g.unlock();
 
-      fc_dlog( logger, "expire_local_txns size ${s} removed ${r}", ("s", start_size)( "r", start_size - end_size ) );
+      // todo: switch back to debug level, for performance test output
+      fc_ilog( logger, "expire_local_txns size ${s} removed ${r}", ("s", start_size)( "r", start_size - end_size ) );
    }
 
    void dispatch_manager::expire_blocks( uint32_t fork_db_root_num ) {
@@ -3187,8 +3218,7 @@ namespace eosio {
          return true;
       }
 
-      bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
-      size_t connection_count = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id, true );
+      auto[connection_count, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
       if (connection_count > def_max_trx_per_connection) {
          peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
          close();
@@ -3242,7 +3272,7 @@ namespace eosio {
          return true;
       }
 
-      size_t connection_count = my_impl->dispatcher.add_peer_txn( msg.id, msg.expiration, connection_id, false );
+      size_t connection_count = my_impl->dispatcher.add_peer_txn_notice( msg.id, msg.expiration, *this );
       if (connection_count > def_max_trx_per_connection) {
          peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
          close();
