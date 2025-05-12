@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
          //state history may have 'bytes' larger than MAX_SIZE_OF_BYTE_ARRAYS, so divert 'bytes' to an impl that does not have that check
          abi.add_specialized_unpack_pack("bytes", std::make_pair<eosio::chain::abi_serializer::unpack_function, eosio::chain::abi_serializer::pack_function>(
             [](fc::datastream<const char*>& stream, bool is_array, bool is_optional, const eosio::chain::abi_serializer::yield_function_t& yield) {
-               FC_ASSERT(!is_array, "sorry, this kludge doesn't support arrays");
+               FC_ASSERT(!is_array, "sorry, this kludge doesn't support bytes[]");
                if(is_optional) {
                   bool present = false;
                   fc::raw::unpack(stream, present);
