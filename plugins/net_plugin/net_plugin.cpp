@@ -261,6 +261,7 @@ namespace eosio {
       struct connection_detail {
          std::string host;
          connection_ptr c;
+         uint32_t id() const;
       };
 
       using connection_details_index = multi_index_container<
@@ -273,6 +274,10 @@ namespace eosio {
             ordered_unique<
                tag<struct by_connection>,
                key<&connection_detail::c>
+            >,
+            ordered_unique<
+               tag<struct by_connection_id>,
+               const_mem_fun<connection_detail, uint32_t, &connection_detail::id>
             >
          >
       >;
@@ -350,6 +355,10 @@ namespace eosio {
 
       template <typename UnaryPredicate>
       bool any_of_block_connections(UnaryPredicate&& p) const;
+
+      template <typename Function>
+      void with_connection_lock(Function&& f) const;
+
    }; // connections_manager
 
    class net_plugin_impl : public std::enable_shared_from_this<net_plugin_impl>,
@@ -1140,7 +1149,10 @@ namespace eosio {
          c->handle_message( msg );
       }
    };
-   
+
+   uint32_t connections_manager::connection_detail::id() const {
+      return c->connection_id;
+   }
 
    template<typename Function>
    bool connections_manager::any_of_supplied_peers( Function&& f ) const {
@@ -1192,6 +1204,11 @@ namespace eosio {
       return false;
    }
 
+   template <typename Function>
+   void connections_manager::with_connection_lock(Function&& f) const {
+      std::shared_lock g(connections_mtx);
+      f(connections);
+   }
 
    //---------------------------------------------------------------------------
 
@@ -2680,32 +2697,29 @@ namespace eosio {
    }
 
    void dispatch_manager::expire_txns() {
-      size_t start_size = 0, end_size = 0;
-      fc::time_point_sec now{time_point::now()};
+      fc::time_point now = time_point::now();
 
       // collect connections before acquiring local_txns_mtx as connections_mtx can be held while acquiring local_txns_mtx
-      std::unordered_map<uint32_t, connection_ptr> connections;
-      my_impl->connections.for_each_connection( [&connections]( const connection_ptr& c ) {
-         // we don't enforce block-only connection doesn't send trx, so process all open connections
-         if( c->socket_is_open() ) {
-            connections[c->connection_id] = c;
+      size_t start_size = 0, end_size = 0;
+      my_impl->connections.with_connection_lock([&](const connections_manager::connection_details_index& connections) {
+         auto& conn_idx = connections.get<by_connection_id>();
+         fc::lock_guard g( local_txns_mtx );
+         start_size = local_txns.size();
+         auto& old = local_txns.get<by_expiry>();
+         auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
+         auto ex_up = old.upper_bound( fc::time_point_sec{now - fc::seconds(5)} ); // allow for some clock-skew
+         while (ex_lo != ex_up) {
+            if (auto itr = conn_idx.find( ex_lo->connection_id ); itr != conn_idx.end()) {
+               assert(itr->c);
+               --itr->c->trx_entries_size;
+            }
+            ex_lo=old.erase(ex_lo);
          }
-      } );
-
-      fc::unique_lock g( local_txns_mtx );
-      start_size = local_txns.size();
-      auto& old = local_txns.get<by_expiry>();
-      auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
-      auto ex_up = old.upper_bound( now );
-      while(ex_lo!=ex_up){
-         --connections[ex_lo->connection_id]->trx_entries_size;
-         ex_lo=old.erase(ex_lo);
-      }
-
-      g.unlock();
+         end_size = local_txns.size();
+      });
 
       // todo: switch back to debug level, for performance test output
-      fc_ilog( logger, "expire_local_txns size ${s} removed ${r}", ("s", start_size)( "r", start_size - end_size ) );
+      fc_ilog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
    }
 
    void dispatch_manager::expire_blocks( uint32_t fork_db_root_num ) {
