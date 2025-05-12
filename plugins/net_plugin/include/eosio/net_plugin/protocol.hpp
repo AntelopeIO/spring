@@ -148,7 +148,7 @@ namespace eosio {
          eosio::name               producer_name;
          std::vector<char>         bp_peer_info;         // serialized bp_peer_info
 
-         digest_type digest() const;
+         digest_type digest(const chain_id_type& chain_id) const;
       };
       struct signed_bp_peer : bp_peer {
          signature_type  sig; // signature over bp_peer

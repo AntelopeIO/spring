@@ -213,7 +213,7 @@ public:
                if (!initial_updated) {
                   // update initial so always an active one
                   gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = my_bp_account}}; // .server_endpoint not set for initial message
-                  signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
+                  signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest(self()->chain_id));
                   EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
                              "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
                   initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
@@ -224,7 +224,7 @@ public:
                gossip_bp_peers_message::signed_bp_peer peer{ {.producer_name = my_bp_account} };
                peer.cached_bp_peer_info.emplace(le.server_endpoint, le.outbound_ip_address, expire);
                peer.bp_peer_info = fc::raw::pack<gossip_bp_peers_message::bp_peer_info_v1>(*peer.cached_bp_peer_info);
-               peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
+               peer.sig = self()->sign_compact(*peer_info->key, peer.digest(self()->chain_id));
                EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
                           "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
                if (auto i = prod_idx.find(std::make_tuple(my_bp_account, std::cref(le.server_endpoint))); i != prod_idx.end()) {
@@ -347,7 +347,7 @@ public:
             std::optional<peer_info_t> peer_info = cc.get_peer_info(peer.producer_name);
             if (peer_info && peer_info->key) {
                constexpr bool check_canonical = false;
-               public_key_type pk(peer.sig, peer.digest(), check_canonical);
+               public_key_type pk(peer.sig, peer.digest(self()->chain_id), check_canonical);
                if (pk != *peer_info->key) {
                   fc_dlog(self()->get_logger(), "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
                           ("p", peer.producer_name)("pk", pk)("k", *peer_info->key));

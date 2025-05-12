@@ -3746,9 +3746,9 @@ namespace eosio {
       }
    }
 
-   digest_type gossip_bp_peers_message::bp_peer::digest() const {
+   digest_type gossip_bp_peers_message::bp_peer::digest(const chain_id_type& chain_id) const {
       digest_type::encoder enc;
-      fc::raw::pack(enc, my_impl->chain_id);
+      fc::raw::pack(enc, chain_id);
       fc::raw::pack(enc, *this);
       return enc.result();
    }
