@@ -2615,15 +2615,26 @@ namespace eosio {
       fc::lock_guard g( local_txns_mtx );
 
       auto& id_idx = local_txns.get<by_id>();
-      const auto r = id_idx.equal_range( id );
-      bool have_trx = std::ranges::any_of( r.first, r.second, []( const auto& t ) { return t.have_trx; } );
 
-      bool add = true;
-      if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), c.connection_id ) ); tptr != id_idx.end()) {
-         add = false;
-         tptr->have_trx = true;
+      auto [have_trx, have_conn] = [&]() -> std::tuple<bool, bool> {
+         const auto r = id_idx.equal_range(id);
+         bool have_conn = false;
+         for (auto itr = r.first; itr != r.second; ++itr) {
+            have_conn |= itr->connection_id == c.connection_id;
+            if (itr->have_trx)
+               return {true, have_conn};
+            itr->have_trx = true; // set on other connections as we go so we can exit this loop sooner in the future
+         }
+         return {false, have_conn};
+      }();
+
+      if (!have_conn && have_trx) { // we didn't find connection and we didn't search all the connections
+         if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), c.connection_id ) ); tptr != id_idx.end()) {
+            have_conn = true;
+            tptr->have_trx = true;
+         }
       }
-      if (add) {
+      if (!have_conn) {
          // expire at either transaction expiration or configured max expire time whichever is less
          time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
