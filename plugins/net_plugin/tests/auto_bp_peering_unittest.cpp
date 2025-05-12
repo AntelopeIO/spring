@@ -283,3 +283,49 @@ BOOST_AUTO_TEST_CASE(test_exceeding_connection_limit) {
    BOOST_CHECK(plugin.exceeding_connection_limit(plugin.connections.connections[6]));
    BOOST_CHECK(!plugin.exceeding_connection_limit(plugin.connections.connections[7]));
 }
+
+struct bp_peer_info_v2 : eosio::gossip_bp_peers_message::bp_peer_info_v1 {
+   std::string extra;
+};
+
+FC_REFLECT_DERIVED(bp_peer_info_v2, (eosio::gossip_bp_peers_message::bp_peer_info_v1), (extra))
+
+BOOST_AUTO_TEST_CASE(test_bp_peer_info_v2) {
+
+   const eosio::chain_id_type chain_id = eosio::chain_id_type::empty_chain_id();
+   fc::crypto::private_key pk = fc::crypto::private_key::generate();
+   auto public_key = pk.get_public_key();
+
+   bp_peer_info_v2 v2{{"hostname.com", "127.0.0.1", eosio::block_timestamp_type{7}}, "extra"};
+
+   eosio::gossip_bp_peers_message msg;
+   {
+      eosio::gossip_bp_peers_message::signed_bp_peer peer{{.version = 2, .producer_name = eosio::name("producer")}};
+      peer.bp_peer_info = fc::raw::pack(v2);
+      peer.sig = pk.sign(peer.digest(chain_id));
+      msg.peers.emplace_back(peer);
+   }
+
+   auto& peer = msg.peers[0];
+
+   // verify v1 can process data
+   fc::crypto::public_key v1k(peer.sig, peer.digest(chain_id));
+   BOOST_TEST(v1k == public_key);
+
+   // verify can unpack v1
+   eosio::gossip_bp_peers_message::bp_peer_info_v1 v1 = fc::raw::unpack<eosio::gossip_bp_peers_message::bp_peer_info_v1>(peer.bp_peer_info);
+   BOOST_TEST(v1.server_endpoint == "hostname.com");
+   BOOST_TEST(v1.outbound_ip_address == "127.0.0.1");
+   BOOST_TEST(v1.expiration == eosio::block_timestamp_type{7});
+
+   // verify v2 can process data
+   fc::crypto::public_key v2k(peer.sig, peer.digest(chain_id));
+   BOOST_TEST(v2k == public_key);
+
+   bp_peer_info_v2 v2b = fc::raw::unpack<bp_peer_info_v2>(peer.bp_peer_info);
+   BOOST_TEST(v2b.server_endpoint == "hostname.com");
+   BOOST_TEST(v2b.outbound_ip_address == "127.0.0.1");
+   BOOST_TEST(v2b.expiration == eosio::block_timestamp_type{7});
+   BOOST_TEST(v2b.expiration == eosio::block_timestamp_type{7});
+   BOOST_TEST(v2b.extra == "extra");
+}
