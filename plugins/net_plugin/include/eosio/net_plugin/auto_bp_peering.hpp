@@ -43,7 +43,7 @@ class bp_connection_manager {
       flat_map<net_utils::endpoint, account_name>   auto_bp_accounts;       // --p2p-auto-bp-peer endpoint->account
       // p2p-bp-gossip-endpoint
       name_set_t                                    my_bp_gossip_accounts;  // producer account of --p2p-bp-gossip-endpoint, for bp gossip
-      flat_set<bp_gossip_endpoint_t>                bp_gossip_endpoints;    // [inbound_endpoint,outbound_ip_address] to bp gossip
+      std::vector<bp_gossip_endpoint_t>             bp_gossip_endpoints;    // [inbound_endpoint,outbound_ip_address] to bp gossip
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
@@ -193,7 +193,7 @@ public:
                         "Invalid p2p-bp-gossip-endpoint outbound ip address ${p}, syntax ip-address", ("p", outbound_ip_address));
 
             fc_dlog(self()->get_logger(), "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
-            config.bp_gossip_endpoints.emplace(inbound_server_endpoint, outbound_ip_address);
+            config.bp_gossip_endpoints.emplace_back(inbound_server_endpoint, outbound_ip_address);
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
                        "The account ${a} supplied by --p2p-bp-gossip-endpoint option is invalid", ("a", aname));
