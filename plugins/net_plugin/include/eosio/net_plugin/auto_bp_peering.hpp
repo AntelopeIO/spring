@@ -60,10 +60,12 @@ class bp_connection_manager {
    const Derived* self() const { return static_cast<const Derived*>(this); }
 
    template <template <typename...> typename Container, typename... Rest>
+   requires std::is_same_v<typename Container<account_name, Rest...>::value_type, account_name>
    static std::string to_string(const Container<account_name, Rest...>& peers) {
       return boost::algorithm::join(peers | boost::adaptors::transformed([](auto& p) { return p.to_string(); }), ",");
    }
    template <template <typename...> typename Container, typename... Rest>
+   requires std::is_same_v<typename Container<std::string, Rest...>::value_type, std::string>
    static std::string to_string(const Container<std::string, Rest...>& peers) {
       return boost::algorithm::join(peers, ",");
    }
