@@ -88,12 +88,8 @@ class Utils:
     @staticmethod
     def checkOutputFileWrite(time, cmd, output, error):
         stop=Utils.timestamp()
-        if not os.path.isdir(Utils.TestLogRoot):
-            if Utils.Debug: Utils.Print("TestLogRoot creating dir %s in dir: %s" % (Utils.TestLogRoot, os.getcwd()))
-            os.mkdir(Utils.TestLogRoot)
-        if not os.path.isdir(Utils.DataPath):
-            if Utils.Debug: Utils.Print("DataPath creating dir %s in dir: %s" % (Utils.DataPath, os.getcwd()))
-            os.mkdir(Utils.DataPath)
+        os.makedirs(Utils.TestLogRoot, exist_ok=True)
+        os.makedirs(Utils.DataPath, exist_ok=True)
         if not hasattr(Utils, "checkOutputFile"):
             Utils.checkOutputFilename=f"{Utils.DataPath}/subprocess_results.log"
             if Utils.Debug: Utils.Print("opening %s in dir: %s" % (Utils.checkOutputFilename, os.getcwd()))
