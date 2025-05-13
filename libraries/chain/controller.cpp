@@ -3392,9 +3392,8 @@ struct controller_impl {
    void update_peer_keys() {
       if (!peer_keys_db.is_active())
          return;
-      // Since get_top_producer_keys() can't be called on startup, call it on first call to update_peer_keys().
       // if syncing or replaying old blocks don't bother updating peer keys.
-      if (peer_keys_db.last_block_num_update() > 0 && fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+      if (fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
          return;
 
       try {
