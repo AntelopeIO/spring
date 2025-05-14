@@ -43,7 +43,7 @@ class bp_connection_manager {
       flat_map<account_name, net_utils::endpoint>   auto_bp_addresses;      // --p2p-auto-bp-peer account->endpoint
       flat_map<net_utils::endpoint, account_name>   auto_bp_accounts;       // --p2p-auto-bp-peer endpoint->account
       // p2p-bp-gossip-endpoint, producer account -> [inbound_endpoint,outbound_ip_address] for bp gossip
-      flat_map<account_name, std::vector<bp_gossip_endpoint_t>>  my_bp_gossip_accounts;
+      std::unordered_map<account_name, std::vector<bp_gossip_endpoint_t>>  my_bp_gossip_accounts;
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
@@ -191,6 +191,10 @@ public:
                         "Invalid p2p-bp-gossip-endpoint outbound ip address ${p}, syntax ip-address", ("p", outbound_ip_address));
 
             fc_dlog(self()->get_logger(), "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
+            EOS_ASSERT(std::ranges::find_if(config.my_bp_gossip_accounts[account],
+                                            [&](const auto& e) { return e.server_endpoint == inbound_server_endpoint; }) == config.my_bp_gossip_accounts[account].end(),
+                       chain::plugin_config_exception, "Duplicate p2p-bp-gossip-endpoint for: ${a}, inbound server endpoint: ${i}",
+                       ("a", account)("i", inbound_server_endpoint));
             config.my_bp_gossip_accounts[account].emplace_back(inbound_server_endpoint, outbound_ip_address);
             EOS_ASSERT(config.my_bp_gossip_accounts[account].size() <= max_bp_gossip_peers_per_producer, chain::plugin_config_exception,
                        "Too many p2p-bp-gossip-endpoint for ${a}, max ${m}", ("a", account)("m", max_bp_gossip_peers_per_producer));
@@ -259,7 +263,7 @@ public:
       std::string type;
       std::tie(e.host, e.port, type) = eosio::net_utils::split_host_port_type(conn->log_p2p_address);
 
-      if (config.auto_bp_accounts.count(e)) {
+      if (config.auto_bp_accounts.contains(e)) {
          conn->bp_connection = Connection::bp_connection_type::bp_config;
       }
    }
