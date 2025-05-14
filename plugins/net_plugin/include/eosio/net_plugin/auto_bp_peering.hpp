@@ -173,7 +173,7 @@ public:
                        "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas, second comma is missing", ("e", entry));
             auto inbound_server_endpoint = rest.substr(0, comma_pos);
             const auto& [host, port, type] = net_utils::split_host_port_type(inbound_server_endpoint);
-            EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+            EOS_ASSERT( !host.empty() && !port.empty() && type.empty(), chain::plugin_config_exception,
                         "Invalid p2p-bp-gossip-endpoint inbound server endpoint ${p}, syntax host:port", ("p", inbound_server_endpoint));
             auto outbound_ip_address = rest.substr(comma_pos + 1);
             EOS_ASSERT( outbound_ip_address.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
@@ -310,7 +310,7 @@ public:
          // validate structure and data of msg
          auto valid_endpoint = [](const std::string& addr) -> bool {
             const auto& [host, port, type] = net_utils::split_host_port_type(addr);
-            return !host.empty() && !port.empty();
+            return !host.empty() && !port.empty() && type.empty();
          };
          try {
             const gossip_bp_peers_message::signed_bp_peer* prev = nullptr;
