@@ -384,10 +384,12 @@ public:
 
       fc::lock_guard g(gossip_bps.mtx);
       auto& sig_idx = gossip_bps.index.get<by_sig>();
-      for (auto i = msg.peers.begin(); i != msg.peers.end() && !invalid_message;) {
+      for (auto i = msg.peers.begin(); i != msg.peers.end();) {
          const auto& peer = *i;
          bool have_sig = sig_idx.contains(peer.sig); // we already have it, already verified
          if (!have_sig && (!is_peer_key_valid(peer) || !is_expiration_valid(peer))) {
+            if (invalid_message)
+               return false;
             // peer key may have changed or been removed on-chain, do not consider that a fatal error, just remove it
             // may be expired, do not consider that fatal, just remove it
             i = msg.peers.erase(i);
@@ -395,9 +397,6 @@ public:
             ++i;
          }
       }
-
-      if (invalid_message)
-         return false;
 
       return true; // empty is checked by caller
    }
