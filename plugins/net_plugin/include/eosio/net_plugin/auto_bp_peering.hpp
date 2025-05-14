@@ -378,11 +378,11 @@ public:
       };
 
       const auto head_block_time = self()->head_block_time.load();
-      const block_timestamp_type expire = head_block_time + bp_gossip_peer_expiration_variance;
+      const block_timestamp_type latest_acceptable_expiration_time = head_block_time + bp_gossip_peer_expiration_variance;
       auto is_expiration_valid = [&](const gossip_bp_peers_message::signed_bp_peer& peer) -> bool {
          if (initial_msg)
             return true; // initial message has no expiration
-         return peer.expiration > head_block_time && peer.expiration < expire;
+         return peer.expiration > head_block_time && peer.expiration < latest_acceptable_expiration_time;
       };
 
       fc::lock_guard g(gossip_bps.mtx);
