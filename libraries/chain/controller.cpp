@@ -3390,11 +3390,11 @@ struct controller_impl {
    } /// start_block
 
    void update_peer_keys() {
-      // if syncing or replaying old blocks don't bother updating peer keys
-      if (peer_keys_db.last_block_num_update() > 0) { // can't have been updated unless active
-         if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
-            return;
-      }
+      if (!peer_keys_db.is_active())
+         return;
+      // if syncing or replaying old blocks don't bother updating peer keys.
+      if (fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+         return;
 
       try {
          auto block_num = chain_head.block_num() + 1;
