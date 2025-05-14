@@ -9,8 +9,8 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr, createAccountKeys
 # auto_bp_gossip_peering_test
 #
 # This test sets up  a cluster with 21 producers nodeos, each nodeos is configured with only one producer and only
-# connects to the bios node. Moreover, each producer nodeos is also configured with a p2p-producer-peer so that each
-# one can automatically establish p2p connections to other bps. Test verifies connections are established when
+# connects to the bios node. Moreover, each producer nodeos is also configured with a p2p-bp-gossip-endpoint so that
+# each one can automatically establish p2p connections to other bps. Test verifies connections are established when
 # producer schedule is active.
 #
 ###############################################################
@@ -115,19 +115,22 @@ try:
         Utils.Print("Wait for last regpeerkey to be final on ", nodeId)
         cluster.getNode(nodeId).waitForTransFinalization(trans['transaction_id'])
 
-    # relaunch with p2p-producer-peer
+    # relaunch with p2p-bp-gossip-endpoint
     for nodeId in range(0, producerNodes):
-        Utils.Print(f"Relaunch node {nodeId} with p2p-producer-peer")
+        Utils.Print(f"Relaunch node {nodeId} with p2p-bp-gossip-endpoint")
         node = cluster.getNode(nodeId)
         node.kill(signal.SIGTERM)
         producer_name = "defproducer" + chr(ord('a') + nodeId)
-        if not node.relaunch(chainArg=" --enable-stale-production --p2p-producer-peer " + producer_name):
+        server_address = getHostName(nodeId)
+        if not node.relaunch(chainArg=f" --enable-stale-production --p2p-bp-gossip-endpoint {producer_name},{server_address},127.0.0.1"):
             errorExit(f"Failed to relaunch node {nodeId}")
 
     # give time for messages to be gossiped around
+    cluster.getNode(producerNodes-1).waitForHeadToAdvance(blocksToAdvance=60)
+    blockNum = cluster.getNode(0).getBlockNum()
     for nodeId in range(0, producerNodes):
-        Utils.Print("Wait for defproducert on node ", nodeId)
-        cluster.getNode(nodeId).waitForHeadToAdvance(5)
+        Utils.Print(f"Wait for block ${blockNum} on node ", nodeId)
+        cluster.getNode(nodeId).waitForBlock(blockNum)
 
     # retrieve the producer stable producer schedule
     scheduled_producers = []
@@ -141,6 +144,8 @@ try:
         # retrieve the connections in each node and check if each connects to the other bps in the schedule
         connections = cluster.nodes[nodeId].processUrllibRequest("net", "connections")
         if Utils.Debug: Utils.Print(f"v1/net/connections: {connections}")
+        bp_peers = cluster.nodes[nodeId].processUrllibRequest("net", "bp_gossip_peers")
+        if Utils.Debug: Utils.Print(f"v1/net/bp_gossip_peers: {bp_peers}")
         peers = []
         for conn in connections["payload"]:
             if conn["is_socket_open"] is False:
@@ -166,6 +171,16 @@ try:
             Utils.Print(f"ERROR: expect {name} has connections to {scheduled_producers}, got connections to {peers}")
             connection_failure = True
             break
+        num_peers_found = 0
+        for p in bp_peers["payload"]:
+            if p["producer_name"] not in peers:
+                Utils.Print(f"ERROR: expect bp peer {p} in peer list")
+                connection_failure = True
+                break
+            else:
+                num_peers_found += 1
+
+        assert(num_peers_found == len(peers))
 
     testSuccessful = not connection_failure
 

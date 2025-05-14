@@ -429,7 +429,7 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
-         void set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers);
+         void set_peer_keys_retrieval_active(name_set_t configured_bp_peers);
          std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
          bool configured_peer_keys_updated(); // thread safe
          // used for testing, only call with an active pending block from main thread
