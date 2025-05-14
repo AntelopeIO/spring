@@ -298,19 +298,25 @@ BOOST_AUTO_TEST_CASE(test_bp_peer_info_v2) {
 
    bp_peer_info_v2 v2{{"hostname.com", "127.0.0.1", eosio::block_timestamp_type{7}}, "extra"};
 
-   eosio::gossip_bp_peers_message msg;
+   std::vector<char> packed_msg;
    {
+      eosio::gossip_bp_peers_message msg;
       eosio::gossip_bp_peers_message::signed_bp_peer peer{{.version = 2, .producer_name = eosio::name("producer")}};
       peer.bp_peer_info = fc::raw::pack(v2);
       peer.sig = pk.sign(peer.digest(chain_id));
       msg.peers.emplace_back(peer);
+      packed_msg = fc::raw::pack(msg);
    }
+
+   auto msg = fc::raw::unpack<eosio::gossip_bp_peers_message>(packed_msg);
 
    auto& peer = msg.peers[0];
 
    // verify v1 can process data
    fc::crypto::public_key v1k(peer.sig, peer.digest(chain_id));
    BOOST_TEST(v1k == public_key);
+   BOOST_TEST(peer.version.value == 2u);
+   BOOST_TEST(peer.producer_name == eosio::name("producer"));
 
    // verify can unpack v1
    eosio::gossip_bp_peers_message::bp_peer_info_v1 v1 = fc::raw::unpack<eosio::gossip_bp_peers_message::bp_peer_info_v1>(peer.bp_peer_info);

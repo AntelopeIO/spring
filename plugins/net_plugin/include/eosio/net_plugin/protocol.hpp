@@ -226,7 +226,7 @@ FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
 FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer_info_v1, (server_endpoint)(outbound_ip_address)(expiration) )
-FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(bp_peer_info) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (version)(producer_name)(bp_peer_info) )
 FC_REFLECT_DERIVED(eosio::gossip_bp_peers_message::signed_bp_peer, (eosio::gossip_bp_peers_message::bp_peer), (sig) )
 FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
