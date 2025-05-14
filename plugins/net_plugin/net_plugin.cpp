@@ -2699,24 +2699,33 @@ namespace eosio {
    void dispatch_manager::expire_txns() {
       fc::time_point now = time_point::now();
 
-      // collect connections before acquiring local_txns_mtx as connections_mtx can be held while acquiring local_txns_mtx
       size_t start_size = 0, end_size = 0;
-      my_impl->connections.with_connection_lock([&](const connections_manager::connection_details_index& connections) {
-         auto& conn_idx = connections.get<by_connection_id>();
+      flat_map<uint32_t, uint32_t> expired_trxs_for_connection;
+      {
          fc::lock_guard g( local_txns_mtx );
          start_size = local_txns.size();
          auto& old = local_txns.get<by_expiry>();
          auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
          auto ex_up = old.upper_bound( fc::time_point_sec{now - fc::seconds(5)} ); // allow for some clock-skew
          while (ex_lo != ex_up) {
-            if (auto itr = conn_idx.find( ex_lo->connection_id ); itr != conn_idx.end()) {
-               assert(itr->c);
-               --itr->c->trx_entries_size;
-            }
+            ++expired_trxs_for_connection[ex_lo->connection_id];
             ex_lo=old.erase(ex_lo);
          }
          end_size = local_txns.size();
-      });
+      }
+
+      if (!expired_trxs_for_connection.empty()) {
+         my_impl->connections.with_connection_lock([&](const connections_manager::connection_details_index& connections) {
+            // acquire connections_mtx before acquiring local_txns_mtx as connections_mtx can be held while acquiring local_txns_mtx
+            fc::lock_guard g( local_txns_mtx );
+            auto& conn_idx = connections.get<by_connection_id>();
+            for (auto [conn_id, count] : expired_trxs_for_connection) {
+               if (auto itr = conn_idx.find( conn_id ); itr != conn_idx.end()) {
+                  itr->c->trx_entries_size -= count;
+               }
+            }
+         });
+      }
 
       // todo: switch back to debug level, for performance test output
       fc_ilog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
