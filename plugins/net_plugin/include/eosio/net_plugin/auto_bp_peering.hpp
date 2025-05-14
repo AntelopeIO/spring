@@ -41,9 +41,8 @@ class bp_connection_manager {
       // p2p-auto-bp-peer
       flat_map<account_name, net_utils::endpoint>   auto_bp_addresses;      // --p2p-auto-bp-peer account->endpoint
       flat_map<net_utils::endpoint, account_name>   auto_bp_accounts;       // --p2p-auto-bp-peer endpoint->account
-      // p2p-bp-gossip-endpoint
-      name_set_t                                    my_bp_gossip_accounts;  // producer account of --p2p-bp-gossip-endpoint, for bp gossip
-      std::vector<bp_gossip_endpoint_t>             bp_gossip_endpoints;    // [inbound_endpoint,outbound_ip_address] to bp gossip
+      // p2p-bp-gossip-endpoint, producer account -> [inbound_endpoint,outbound_ip_address] for bp gossip
+      flat_map<account_name, std::vector<bp_gossip_endpoint_t>>  my_bp_gossip_accounts;
    } config; // thread safe only because modified at plugin startup currently
 
    // the following members are only accessed from main thread
@@ -117,7 +116,12 @@ public:
    bool bp_gossip_enabled() const { return !config.my_bp_gossip_accounts.empty(); }
    // return true if auto bp peering of manually configured bp peers is configured or if bp gossip enabled
    bool auto_bp_peering_enabled() const { return !config.auto_bp_addresses.empty() || bp_gossip_enabled(); }
-   name_set_t my_bp_gossip_accounts() const { return config.my_bp_gossip_accounts; }
+   name_set_t my_bp_gossip_accounts() const {
+      name_set_t result;
+      for (const auto& a : config.my_bp_gossip_accounts)
+         result.insert(a.first);
+      return result;
+   }
    bool bp_gossip_initialized() { return !!get_gossip_bp_initial_send_buffer(); }
 
    // Only called at plugin startup.
@@ -170,7 +174,6 @@ public:
                        "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas", ("e", entry));
             aname = entry.substr(0, comma_pos);
             account_name account(aname);
-            config.my_bp_gossip_accounts.emplace(account);
             auto rest = entry.substr(comma_pos + 1);
             comma_pos = rest.find(',');
             EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
@@ -195,7 +198,9 @@ public:
                         "Invalid p2p-bp-gossip-endpoint outbound ip address ${p}, syntax ip-address", ("p", outbound_ip_address));
 
             fc_dlog(self()->get_logger(), "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
-            config.bp_gossip_endpoints.emplace_back(inbound_server_endpoint, outbound_ip_address);
+            config.my_bp_gossip_accounts[account].emplace_back(inbound_server_endpoint, outbound_ip_address);
+            EOS_ASSERT(config.my_bp_gossip_accounts[account].size() <= max_bp_gossip_peers_per_producer, chain::plugin_config_exception,
+                       "Too many p2p-bp-gossip-endpoint for ${a}, max ${m}", ("a", account)("m", max_bp_gossip_peers_per_producer));
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
                        "The account ${a} supplied by --p2p-bp-gossip-endpoint option is invalid", ("a", aname));
@@ -215,42 +220,43 @@ public:
       block_timestamp_type expire = self()->head_block_time.load() + bp_gossip_peer_expiration;
       fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message with expiration ${e}", ("e", expire));
       for (const auto& my_bp_account : config.my_bp_gossip_accounts) { // my_bp_gossip_accounts not modified after plugin startup
-         for (const auto& le : config.bp_gossip_endpoints) {
-            fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", my_bp_account)("s", le.server_endpoint));
-            std::optional<peer_info_t> peer_info = cc.get_peer_info(my_bp_account);
-            if (peer_info && peer_info->key) {
-               if (!initial_updated) {
-                  // update initial so always an active one
-                  gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = my_bp_account}}; // .server_endpoint not set for initial message
-                  signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
-                  EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
-                             "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", peer_info->key->to_string({})));
-                  initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
-                  initial_updated = true;
-               }
-               // update gossip_bps
-               auto& prod_idx = gossip_bps.index.get<by_producer>();
-               gossip_bp_peers_message::signed_bp_peer peer{
-                  { .producer_name = my_bp_account,
-                    .server_endpoint = le.server_endpoint,
-                    .outbound_ip_address = le.outbound_ip_address,
-                    .expiration = expire }
-               };
-               peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
-               EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
-                          "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
-               if (auto i = prod_idx.find(boost::make_tuple(my_bp_account, boost::cref(le.server_endpoint))); i != prod_idx.end()) {
-                  gossip_bps.index.modify(i, [&peer](auto& v) {
-                     v.outbound_ip_address = peer.outbound_ip_address;
-                     v.expiration = peer.expiration;
-                     v.sig = peer.sig;
-                  });
-               } else {
-                  gossip_bps.index.emplace(peer);
-               }
-            } else {
-               fc_wlog(self()->get_logger(), "On-chain peer-key not found for configured BP ${a}", ("a", my_bp_account));
+         const auto& bp_account = my_bp_account.first;
+         std::optional<peer_info_t> peer_info = cc.get_peer_info(bp_account);
+         if (peer_info && peer_info->key) {
+            for (const auto& le : my_bp_account.second) {
+               fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", bp_account)("s", le.server_endpoint));
+                  if (!initial_updated) {
+                     // update initial so always an active one
+                     gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = bp_account}}; // .server_endpoint not set for initial message
+                     signed_empty.sig = self()->sign_compact(*peer_info->key, signed_empty.digest());
+                     EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
+                                "Unable to sign empty gossip bp peer of ${a}, private key not found for ${k}", ("a", bp_account)("k", peer_info->key->to_string({})));
+                     initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
+                     initial_updated = true;
+                  }
+                  // update gossip_bps
+                  auto& prod_idx = gossip_bps.index.get<by_producer>();
+                  gossip_bp_peers_message::signed_bp_peer peer{
+                     { .producer_name = bp_account,
+                       .server_endpoint = le.server_endpoint,
+                       .outbound_ip_address = le.outbound_ip_address,
+                       .expiration = expire }
+                  };
+                  peer.sig = self()->sign_compact(*peer_info->key, peer.digest());
+                  EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
+                             "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", peer_info->key->to_string({})));
+                  if (auto i = prod_idx.find(boost::make_tuple(bp_account, boost::cref(le.server_endpoint))); i != prod_idx.end()) {
+                     gossip_bps.index.modify(i, [&peer](auto& v) {
+                        v.outbound_ip_address = peer.outbound_ip_address;
+                        v.expiration = peer.expiration;
+                        v.sig = peer.sig;
+                     });
+                  } else {
+                     gossip_bps.index.emplace(peer);
+                  }
             }
+         } else {
+            fc_wlog(self()->get_logger(), "On-chain peer-key not found for configured BP ${a}", ("a", bp_account));
          }
       }
    }
