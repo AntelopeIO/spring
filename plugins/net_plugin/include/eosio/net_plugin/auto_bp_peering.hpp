@@ -403,9 +403,10 @@ public:
       for (const auto& peer : msg.peers) {
          if (auto i = idx.find(std::make_tuple(peer.producer_name, std::cref(peer.server_endpoint()))); i != idx.end()) {
             if (i->sig != peer.sig && peer.expiration() >= i->expiration()) { // signature has changed, producer_name and server_endpoint has not changed
+               assert(peer.cached_bp_peer_info); // unpacked in validate_gossip_bp_peers_message()
                gossip_bps.index.modify(i, [&peer](auto& m) {
                   m.bp_peer_info = peer.bp_peer_info;
-                  m.cached_bp_peer_info = fc::raw::unpack<gossip_bp_peers_message::bp_peer_info_v1>(peer.bp_peer_info);
+                  m.cached_bp_peer_info = peer.cached_bp_peer_info;
                   m.sig = peer.sig;
                });
                diff = true;
