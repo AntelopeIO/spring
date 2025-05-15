@@ -3412,8 +3412,10 @@ struct controller_impl {
    } /// start_block
 
    void update_peer_keys() {
-      // if syncing or replaying old blocks don't bother updating peer keys
-      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+      if (!peer_keys_db.is_active())
+         return;
+      // if syncing or replaying old blocks don't bother updating peer keys.
+      if (fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
          return;
 
       try {
@@ -5877,7 +5879,7 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+void controller::set_peer_keys_retrieval_active(name_set_t configured_bp_peers) {
    my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
@@ -5886,7 +5888,7 @@ std::optional<peer_info_t> controller::get_peer_info(name n) const {
 }
 
 bool controller::configured_peer_keys_updated() {
-   return my->peer_keys_db.configured_peer_keys_updated();
+   return my->peer_keys_db.is_active() && my->peer_keys_db.configured_peer_keys_updated();
 }
 
 getpeerkeys_res_t controller::get_top_producer_keys() {
