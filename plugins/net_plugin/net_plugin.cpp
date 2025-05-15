@@ -98,10 +98,6 @@ namespace eosio {
             composite_key_compare< std::less<transaction_id_type>, std::less<> >
          >,
          ordered_non_unique<
-            tag< struct by_connection_id >,
-            member< node_transaction_state, uint32_t, &node_transaction_state::connection_id >
-         >,
-         ordered_non_unique<
             tag< struct by_expiry >,
             member< node_transaction_state, fc::time_point_sec, &node_transaction_state::expires > >
          >
@@ -232,7 +228,6 @@ namespace eosio {
       add_peer_txn_info add_peer_txn(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
       size_t add_peer_txn_notice(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
       bool peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const;
-      void rm_txns( connection& c );
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
@@ -1489,7 +1484,6 @@ namespace eosio {
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
       bp_connection = bp_connection_type::non_bp;
-      my_impl->dispatcher.rm_txns(*this);
 
       uint32_t head_num = my_impl->get_chain_head_num();
       if (last_received_block_num >= head_num) {
@@ -2695,12 +2689,6 @@ namespace eosio {
    bool dispatch_manager::peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const {
       fc::lock_guard g( local_txns_mtx );
       return local_txns.get<by_id>().contains( std::make_tuple( std::ref( id ), connection_id ) );
-   }
-
-   void dispatch_manager::rm_txns( connection& c ) {
-      fc::lock_guard g( local_txns_mtx );
-      local_txns.get<by_connection_id>().erase( c.connection_id );
-      c.trx_entries_size = 0;
    }
 
    void dispatch_manager::expire_txns() {
