@@ -3,6 +3,7 @@
 #include <boost/test/unit_test.hpp>
 #include <contracts.hpp>
 #include <test_contracts.hpp>
+#include <eosio/state_history/abi.hpp>
 #include <eosio/state_history/create_deltas.hpp>
 #include <eosio/state_history/log_catalog.hpp>
 #include <eosio/state_history/trace_converter.hpp>
@@ -13,8 +14,6 @@
 
 #include "test_cfd_transaction.hpp"
 
-#include <eosio/stream.hpp>
-#include <eosio/ship_protocol.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/copy.hpp>
 
@@ -22,11 +21,7 @@ using namespace eosio::chain;
 using namespace eosio::testing;
 using namespace std::literals;
 
-extern const char* const state_history_plugin_abi;
-
-bool operator==(const eosio::checksum256& lhs, const transaction_id_type& rhs) {
-   return memcmp(lhs.extract_as_byte_array().data(), rhs.data(), rhs.data_size()) == 0;
-}
+static const abi_serializer::yield_function_t null_yield_function{};
 
 namespace eosio::state_history {
 
@@ -86,18 +81,20 @@ public:
       return make_pair(it != v.end(), it);
    }
 
-   template <typename A, typename B>
-   vector<A> deserialize_data(deltas_vector::iterator &it) {
-      vector<A> result;
+   variants deserialize_data(deltas_vector::iterator &it, const std::string& type, const std::string& in_variant_type) {
+      variants result;
       for(size_t i=0; i < it->rows.obj.size(); i++) {
-         eosio::input_stream stream{it->rows.obj[i].second.data(), it->rows.obj[i].second.size()};
-         result.push_back(std::get<A>(eosio::from_bin<B>(stream)));
+         fc::variant v = shipabi.binary_to_variant(in_variant_type, it->rows.obj[i].second, null_yield_function);
+         BOOST_REQUIRE(v.is_array() && v.size() == 2 && v[0ul].is_string());
+         BOOST_REQUIRE_EQUAL(v[0ul].get_string(), type);
+         result.push_back(std::move(v[1ul]));
       }
       return result;
    }
 
 private:
    deltas_vector v;
+   abi_serializer shipabi = abi_serializer(json::from_string(eosio::state_history::ship_abi_without_tables()).as<abi_def>(), null_yield_function);
 };
 
 using table_deltas_testers = boost::mpl::list<table_deltas_tester<legacy_tester>,
@@ -130,8 +127,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_creation, T, table_deltas_test
    auto &it_account = result.second;
    BOOST_REQUIRE_EQUAL(it_account->rows.obj.size(), 1u);
 
-   auto accounts = chain.template deserialize_data<eosio::ship_protocol::account_v0, eosio::ship_protocol::account>(it_account);
-   BOOST_REQUIRE_EQUAL(accounts[0].name.to_string(), "newacc");
+   const variants accounts = chain.deserialize_data(it_account, "account_v0", "account");
+   BOOST_REQUIRE_EQUAL(accounts[0]["name"].get_string(), "newacc");
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_metadata, T, table_deltas_testers) {
@@ -146,9 +143,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_metadata, T, table_deltas_test
    auto &it_account_metadata = result.second;
    BOOST_REQUIRE_EQUAL(it_account_metadata->rows.obj.size(), 1u);
 
-   auto accounts_metadata = chain.template deserialize_data<eosio::ship_protocol::account_metadata_v0, eosio::ship_protocol::account_metadata>(it_account_metadata);
-   BOOST_REQUIRE_EQUAL(accounts_metadata[0].name.to_string(), "newacc");
-   BOOST_REQUIRE_EQUAL(accounts_metadata[0].privileged, false);
+   const variants accounts_metadata = chain.deserialize_data(it_account_metadata, "account_metadata_v0", "account_metadata");
+   BOOST_REQUIRE_EQUAL(accounts_metadata[0]["name"].get_string(), "newacc");
+   BOOST_REQUIRE_EQUAL(accounts_metadata[0]["privileged"].as_bool(), false);
 }
 
 
@@ -164,12 +161,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_permission, T, table_deltas_te
    BOOST_REQUIRE(result.first);
    auto &it_permission = result.second;
    BOOST_REQUIRE_EQUAL(it_permission->rows.obj.size(), 2u);
-   auto accounts_permissions = chain.template deserialize_data<eosio::ship_protocol::permission_v0, eosio::ship_protocol::permission>(it_permission);
+   const variants accounts_permissions = chain.deserialize_data(it_permission, "permission_v0", "permission");
    for(size_t i = 0; i < accounts_permissions.size(); i++)
    {
       BOOST_REQUIRE_EQUAL(it_permission->rows.obj[i].first, true);
-      BOOST_REQUIRE_EQUAL(accounts_permissions[i].owner.to_string(), "newacc");
-      BOOST_REQUIRE_EQUAL(accounts_permissions[i].name.to_string(), expected_permission_names[i]);
+      BOOST_REQUIRE_EQUAL(accounts_permissions[i]["owner"].get_string(), "newacc");
+      BOOST_REQUIRE_EQUAL(accounts_permissions[i]["name"].get_string(), expected_permission_names[i]);
    }
 }
 
@@ -196,10 +193,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_permission_creation_and_deleti
    auto &it_permission = result.second;
    BOOST_REQUIRE_EQUAL(it_permission->rows.obj.size(), 3u);
    BOOST_REQUIRE_EQUAL(it_permission->rows.obj[2].first, true);
-   auto accounts_permissions = chain.template deserialize_data<eosio::ship_protocol::permission_v0, eosio::ship_protocol::permission>(it_permission);
-   BOOST_REQUIRE_EQUAL(accounts_permissions[2].owner.to_string(), "newacc");
-   BOOST_REQUIRE_EQUAL(accounts_permissions[2].name.to_string(), "mypermission");
-   BOOST_REQUIRE_EQUAL(accounts_permissions[2].parent.to_string(), "active");
+   variants accounts_permissions = chain.deserialize_data(it_permission, "permission_v0", "permission");
+   BOOST_REQUIRE_EQUAL(accounts_permissions[2]["owner"].get_string(), "newacc");
+   BOOST_REQUIRE_EQUAL(accounts_permissions[2]["name"].get_string(), "mypermission");
+   BOOST_REQUIRE_EQUAL(accounts_permissions[2]["parent"].get_string(), "active");
 
    chain.produce_block();
 
@@ -211,10 +208,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_permission_creation_and_deleti
    auto &it_permission_del = result.second;
    BOOST_REQUIRE_EQUAL(it_permission_del->rows.obj.size(), 1u);
    BOOST_REQUIRE_EQUAL(it_permission_del->rows.obj[0].first, false);
-   accounts_permissions = chain.template deserialize_data<eosio::ship_protocol::permission_v0, eosio::ship_protocol::permission>(it_permission_del);
-   BOOST_REQUIRE_EQUAL(accounts_permissions[0].owner.to_string(), "newacc");
-   BOOST_REQUIRE_EQUAL(accounts_permissions[0].name.to_string(), "mypermission");
-   BOOST_REQUIRE_EQUAL(accounts_permissions[0].parent.to_string(), "active");
+   accounts_permissions = chain.deserialize_data(it_permission_del, "permission_v0", "permission");
+   BOOST_REQUIRE_EQUAL(accounts_permissions[0]["owner"].get_string(), "newacc");
+   BOOST_REQUIRE_EQUAL(accounts_permissions[0]["name"].get_string(), "mypermission");
+   BOOST_REQUIRE_EQUAL(accounts_permissions[0]["parent"].get_string(), "active");
 }
 
 
@@ -228,7 +225,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_permission_modification, T, ta
          public_key_type("PUB_WA_WdCPfafVNxVMiW5ybdNs83oWjenQXvSt1F49fg9mv7qrCiRwHj5b38U3ponCFWxQTkDsMC"s), // Test for correct serialization of WA key, see issue #9087
          public_key_type("PUB_K1_12wkBET2rRgE8pahuaczxKbmv7ciehqsne57F9gtzf1PVb7Rf7o"s),
          public_key_type("PUB_R1_6FPFZqw5ahYrR9jD96yDbbDNTdKtNqRbze6oTDLntrsANgQKZu"s)};
-   const int K1_storage_type_which_value = 0;
 
    for(auto &key: keys) {
       // Modify the permission authority
@@ -240,14 +236,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_account_permission_modification, T, ta
 
       auto &it_permission = result.second;
       BOOST_REQUIRE_EQUAL(it_permission->rows.obj.size(), 1u);
-      auto accounts_permissions = chain.template deserialize_data<eosio::ship_protocol::permission_v0, eosio::ship_protocol::permission>(it_permission);
-      BOOST_REQUIRE_EQUAL(accounts_permissions[0].owner.to_string(), "newacc");
-      BOOST_REQUIRE_EQUAL(accounts_permissions[0].name.to_string(), "active");
-      BOOST_REQUIRE_EQUAL(accounts_permissions[0].auth.keys.size(), 1u);
-      if(key.which() != K1_storage_type_which_value)
-         BOOST_REQUIRE_EQUAL(eosio::public_key_to_string(accounts_permissions[0].auth.keys[0].key), key.to_string({}));
-      else
-         BOOST_REQUIRE_EQUAL(eosio::public_key_to_string(accounts_permissions[0].auth.keys[0].key), "PUB_K1_12wkBET2rRgE8pahuaczxKbmv7ciehqsne57F9gtzf1PVb7Rf7o");
+      const variants accounts_permissions = chain.deserialize_data(it_permission, "permission_v0", "permission");
+      BOOST_REQUIRE_EQUAL(accounts_permissions[0]["owner"].get_string(), "newacc");
+      BOOST_REQUIRE_EQUAL(accounts_permissions[0]["name"].get_string(), "active");
+      BOOST_REQUIRE_EQUAL(accounts_permissions[0]["auth"]["keys"].size(), 1u);
+      BOOST_REQUIRE_EQUAL(accounts_permissions[0]["auth"]["keys"][0ul]["key"].get_string(), key.to_string({}));
 
       chain.produce_block();
    }
@@ -273,10 +266,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_permission_link, T, table_deltas_teste
    BOOST_REQUIRE(result.first);
    auto &it_permission_link = result.second;
    BOOST_REQUIRE_EQUAL(it_permission_link->rows.obj.size(), 1u);
-   auto permission_links = chain.template deserialize_data<eosio::ship_protocol::permission_link_v0, eosio::ship_protocol::permission_link>(it_permission_link);
-   BOOST_REQUIRE_EQUAL(permission_links[0].account.to_string(), "newacc");
-   BOOST_REQUIRE_EQUAL(permission_links[0].message_type.to_string(), "reqauth");
-   BOOST_REQUIRE_EQUAL(permission_links[0].required_permission.to_string(), "spending");
+   const variants permission_links = chain.deserialize_data(it_permission_link, "permission_link_v0", "permission_link");
+   BOOST_REQUIRE_EQUAL(permission_links[0]["account"].get_string(), "newacc");
+   BOOST_REQUIRE_EQUAL(permission_links[0]["message_type"].get_string(), "reqauth");
+   BOOST_REQUIRE_EQUAL(permission_links[0]["required_permission"].get_string(), "spending");
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_global_property_history, T, table_deltas_testers) {
@@ -295,9 +288,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_global_property_history, T, table_delt
    BOOST_REQUIRE(result.first);
    auto &it_global_property = result.second;
    BOOST_REQUIRE_EQUAL(it_global_property->rows.obj.size(), 1u);
-   auto global_properties = chain.template deserialize_data<eosio::ship_protocol::global_property_v1, eosio::ship_protocol::global_property>(it_global_property);
-   auto configuration = std::get<eosio::ship_protocol::chain_config_v1>(global_properties[0].configuration);
-   BOOST_REQUIRE_EQUAL(configuration.max_transaction_delay, 60u);
+   const variants global_properties = chain.deserialize_data(it_global_property, "global_property_v1", "global_property");
+   BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][0ul].get_string(), "chain_config_v1");
+   BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][1ul]["max_transaction_delay"].as_uint64(), 60u);
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_protocol_feature_history, T, table_deltas_testers) {
@@ -322,17 +315,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_protocol_feature_history, T, table_del
    BOOST_REQUIRE(result.first);
    auto &it_protocol_state = result.second;
    BOOST_REQUIRE_EQUAL(it_protocol_state->rows.obj.size(), 1u);
-   auto protocol_states = chain.template deserialize_data<eosio::ship_protocol::protocol_state_v0, eosio::ship_protocol::protocol_state>(it_protocol_state);
-   auto protocol_feature = std::get<eosio::ship_protocol::activated_protocol_feature_v0>(protocol_states[0].activated_protocol_features[0]);
-
-   auto digest_byte_array = protocol_feature.feature_digest.extract_as_byte_array();
-   char digest_array[digest_byte_array.size()];
-   for(size_t i=0; i < digest_byte_array.size(); i++) digest_array[i] = digest_byte_array[i];
-   eosio::chain::digest_type digest_in_delta(digest_array, digest_byte_array.size());
-
+   const variants protocol_states = chain.deserialize_data(it_protocol_state, "protocol_state_v0", "protocol_state");
+   BOOST_REQUIRE_EQUAL(protocol_states[0]["activated_protocol_features"][0ul][0ul].get_string(), "activated_protocol_feature_v0");
+   const digest_type digest_in_delta = protocol_states[0]["activated_protocol_features"][0ul][1ul]["feature_digest"].as<digest_type>();
    BOOST_REQUIRE_EQUAL(digest_in_delta, *d);
 }
-
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_contract, T, table_deltas_testers) {
    T chain;
@@ -358,31 +345,31 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_contract, T, table_deltas_testers) {
    BOOST_REQUIRE(result.first);
    auto &it_contract_table = result.second;
    BOOST_REQUIRE_EQUAL(it_contract_table->rows.obj.size(), 6u);
-   auto contract_tables = chain.template deserialize_data<eosio::ship_protocol::contract_table_v0, eosio::ship_protocol::contract_table>(it_contract_table);
-   BOOST_REQUIRE_EQUAL(contract_tables[0].table.to_string(), "hashobjs");
-   BOOST_REQUIRE_EQUAL(contract_tables[1].table.to_string(), "hashobjs....1");
-   BOOST_REQUIRE_EQUAL(contract_tables[2].table.to_string(), "numobjs");
-   BOOST_REQUIRE_EQUAL(contract_tables[3].table.to_string(), "numobjs.....1");
-   BOOST_REQUIRE_EQUAL(contract_tables[4].table.to_string(), "numobjs.....2");
-   BOOST_REQUIRE_EQUAL(contract_tables[5].table.to_string(), "numobjs.....3");
+   const variants contract_tables = chain.deserialize_data(it_contract_table, "contract_table_v0", "contract_table");
+   BOOST_REQUIRE_EQUAL(contract_tables[0]["table"].get_string(), "hashobjs");
+   BOOST_REQUIRE_EQUAL(contract_tables[1]["table"].get_string(), "hashobjs....1");
+   BOOST_REQUIRE_EQUAL(contract_tables[2]["table"].get_string(), "numobjs");
+   BOOST_REQUIRE_EQUAL(contract_tables[3]["table"].get_string(), "numobjs.....1");
+   BOOST_REQUIRE_EQUAL(contract_tables[4]["table"].get_string(), "numobjs.....2");
+   BOOST_REQUIRE_EQUAL(contract_tables[5]["table"].get_string(), "numobjs.....3");
 
    // Spot onto contract_row
    result = chain.find_table_delta("contract_row");
    BOOST_REQUIRE(result.first);
    auto &it_contract_row = result.second;
    BOOST_REQUIRE_EQUAL(it_contract_row->rows.obj.size(), 2u);
-   auto contract_rows = chain.template deserialize_data<eosio::ship_protocol::contract_row_v0, eosio::ship_protocol::contract_row>(it_contract_row);
-   BOOST_REQUIRE_EQUAL(contract_rows[0].table.to_string(), "hashobjs");
-   BOOST_REQUIRE_EQUAL(contract_rows[1].table.to_string(), "numobjs");
+   const variants contract_rows = chain.deserialize_data(it_contract_row, "contract_row_v0", "contract_row");
+   BOOST_REQUIRE_EQUAL(contract_rows[0]["table"].get_string(), "hashobjs");
+   BOOST_REQUIRE_EQUAL(contract_rows[1]["table"].get_string(), "numobjs");
 
    // Spot onto contract_index256
    result = chain.find_table_delta("contract_index256");
    BOOST_REQUIRE(result.first);
    auto &it_contract_index256 = result.second;
    BOOST_REQUIRE_EQUAL(it_contract_index256->rows.obj.size(), 2u);
-   auto contract_indices = chain.template deserialize_data<eosio::ship_protocol::contract_index256_v0, eosio::ship_protocol::contract_index256>(it_contract_index256);
-   BOOST_REQUIRE_EQUAL(contract_indices[0].table.to_string(), "hashobjs");
-   BOOST_REQUIRE_EQUAL(contract_indices[1].table.to_string(), "hashobjs....1");
+   const variants contract_indices = chain.deserialize_data(it_contract_index256, "contract_index256_v0", "contract_index256");
+   BOOST_REQUIRE_EQUAL(contract_indices[0]["table"].get_string(), "hashobjs");
+   BOOST_REQUIRE_EQUAL(contract_indices[1]["table"].get_string(), "hashobjs....1");
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_resources_history, T, table_deltas_testers) {
@@ -527,7 +514,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_resources_history, T, table_deltas_tes
       BOOST_REQUIRE(result.first);
       auto &it_contract_row = result.second;
       BOOST_REQUIRE_EQUAL(it_contract_row->rows.obj.size(), 8u);
-      auto contract_rows = chain.template deserialize_data<eosio::ship_protocol::contract_row_v0, eosio::ship_protocol::contract_row>(it_contract_row);
+      variants contract_rows = chain.deserialize_data(it_contract_row, "contract_row_v0", "contract_row");
 
       std::multiset<std::string> expected_contract_row_table_names {"abihash", "abihash", "hashobjs", "hashobjs", "hashobjs", "numobjs", "numobjs", "numobjs"};
 
@@ -535,8 +522,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_resources_history, T, table_deltas_tes
       std::multiset<std::string> result_contract_row_table_names;
       std::multiset<uint64_t> result_contract_row_table_primary_keys;
       for(auto &contract_row : contract_rows) {
-         result_contract_row_table_names.insert(contract_row.table.to_string());
-         result_contract_row_table_primary_keys.insert(contract_row.primary_key);
+         result_contract_row_table_names.insert(contract_row["table"].get_string());
+         result_contract_row_table_primary_keys.insert(contract_row["primary_key"].as_uint64());
       }
       BOOST_REQUIRE(expected_contract_row_table_names == result_contract_row_table_names);
       BOOST_REQUIRE(expected_contract_row_table_primary_keys == result_contract_row_table_primary_keys);
@@ -552,22 +539,22 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_resources_history, T, table_deltas_tes
       result = chain.find_table_delta("contract_row");
       BOOST_REQUIRE(result.first);
       BOOST_REQUIRE_EQUAL(it_contract_row->rows.obj.size(), 2u);
-      contract_rows = chain.template deserialize_data<eosio::ship_protocol::contract_row_v0, eosio::ship_protocol::contract_row>(it_contract_row);
+      contract_rows = chain.deserialize_data(it_contract_row, "contract_row_v0", "contract_row");
 
       for(size_t i=0; i < contract_rows.size(); i++) {
          BOOST_REQUIRE_EQUAL(it_contract_row->rows.obj[i].first, 0);
-         BOOST_REQUIRE_EQUAL(contract_rows[i].table.to_string(), "numobjs");
+         BOOST_REQUIRE_EQUAL(contract_rows[i]["table"].get_string(), "numobjs");
       }
 
       result = chain.find_table_delta("contract_index_double");
       BOOST_REQUIRE(result.first);
       auto &it_contract_index_double = result.second;
       BOOST_REQUIRE_EQUAL(it_contract_index_double->rows.obj.size(), 2u);
-      auto contract_index_double_elems = chain.template deserialize_data<eosio::ship_protocol::contract_index_double_v0, eosio::ship_protocol::contract_index_double>(it_contract_index_double);
+      const variants contract_index_double_elems = chain.deserialize_data(it_contract_index_double, "contract_index_double_v0", "contract_index_double");
 
       for(size_t i=0; i < contract_index_double_elems.size(); i++) {
          BOOST_REQUIRE_EQUAL(it_contract_index_double->rows.obj[i].first, 0);
-         BOOST_REQUIRE_EQUAL(contract_index_double_elems[i].table.to_string(), "numobjs.....2");
+         BOOST_REQUIRE_EQUAL(contract_index_double_elems[i]["table"].get_string(), "numobjs.....2");
       }
 
    }
@@ -662,16 +649,14 @@ static std::vector<char> get_decompressed_entry(eosio::state_history::log_catalo
    return bytes;
 }
 
-static std::vector<eosio::ship_protocol::transaction_trace> get_traces(eosio::state_history::log_catalog& log,
-                                                                       block_num_type            block_num) {
-   auto                                                          entry = get_decompressed_entry(log, block_num);
-   std::vector<eosio::ship_protocol::transaction_trace>          traces;
+static variants get_traces(eosio::state_history::log_catalog& log, block_num_type            block_num) {
+   auto     entry = get_decompressed_entry(log, block_num);
 
    if (entry.size()) {
-      eosio::input_stream traces_bin{ entry.data(), entry.data() + entry.size() };
-      BOOST_REQUIRE_NO_THROW(from_bin(traces, traces_bin));
+      abi_serializer shipabi = abi_serializer(json::from_string(eosio::state_history::ship_abi_without_tables()).as<abi_def>(), null_yield_function);
+      return shipabi.binary_to_variant("transaction_trace[]", entry, null_yield_function).get_array();
    }
-   return traces;
+   return variants();
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_splitted_log, T, state_history_testers) {
@@ -848,7 +833,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
 
    auto traces = get_traces(chain1.traces_log, b->block_num());
    bool trace_found = std::find_if(traces.begin(), traces.end(), [create_account_trace_id](const auto& v) {
-                         return std::get<eosio::ship_protocol::transaction_trace_v0>(v).id == create_account_trace_id;
+                         return v[1ul]["id"].template as<digest_type>() == create_account_trace_id;
                       }) != traces.end();
 
    return trace_found;
