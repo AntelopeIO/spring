@@ -1,6 +1,7 @@
 #pragma once
 #include <unordered_map>
 #include <fc/fwd.hpp>
+#include <fc/crypto/hash_concepts.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/string.hpp>
 
@@ -24,6 +25,7 @@ class sha224
     static sha224 hash( const std::string& );
 
     template<typename... T>
+    requires NotTwoArgsCharUint32<T...>
     static sha224 hash( const T&... t )
     { 
       sha224::encoder e; 

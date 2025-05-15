@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fc/fwd.hpp>
+#include <fc/crypto/hash_concepts.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/reflect/typename.hpp>
 
@@ -26,6 +27,7 @@ class ripemd160
     static ripemd160 hash( const std::string& );
 
     template<typename... T>
+    requires NotTwoArgsCharUint32<T...>
     static ripemd160 hash( const T&... t )
     { 
       ripemd160::encoder e; 
