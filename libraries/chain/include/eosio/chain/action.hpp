@@ -2,8 +2,11 @@
 
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <fc/crypto/digest.hpp>
 
 namespace eosio { namespace chain {
+
+   using namespace fc;
 
    struct permission_level {
       account_name    actor;
@@ -96,20 +99,9 @@ namespace eosio { namespace chain {
    };
 
    inline digest_type generate_action_digest(const action& act, const vector<char>& action_output) {
-      std::array<digest_type,2> hashes;
       const action_base& base = act;
-
-      fc::sha256::encoder enc;
-      fc::raw::pack(enc, base);
-      hashes[0] = enc.result();
-
-      enc.reset();
-      fc::raw::pack(enc, act.data, action_output);
-      hashes[1] = enc.result();
-
-      enc.reset();
-      fc::raw::pack(enc, hashes);
-      return enc.result();
+      const std::array<digest_type,2> hashes = {digest<digest_type>(base), digest<digest_type>(act.data, action_output)};
+      return digest<digest_type>(hashes);
    }
 
 } } /// namespace eosio::chain
