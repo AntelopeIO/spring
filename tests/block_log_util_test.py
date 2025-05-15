@@ -74,33 +74,17 @@ try:
     node1.waitForBlock(headBlockNum+4, timeout=10)
     infoAfter=node1.getInfo(exitOnError=True)
     headBlockNumAfter=infoAfter["head_block_num"]
-
-    def checkBlockLog(blockLog, blockNumsToFind, firstBlockNum=1):
-        foundBlockNums=[]
-        nextBlockNum=firstBlockNum
-        previous=0
-        nextIndex=0
-        for block in blockLog:
-            blockNum=block["block_num"]
-            if nextBlockNum!=blockNum:
-                Utils.errorExit("BlockLog should progress to the next block number, expected block number %d but got %d" % (nextBlockNum, blockNum))
-            if nextIndex<len(blockNumsToFind) and blockNum==blockNumsToFind[nextIndex]:
-                foundBlockNums.append(True)
-                nextIndex+=1
-            nextBlockNum+=1
-        while nextIndex<len(blockNumsToFind):
-            foundBlockNums.append(False)
-            if nextIndex<len(blockNumsToFind)-1:
-                assert blockNumsToFind[nextIndex+1] > blockNumsToFind[nextIndex], "expects passed in array, blockNumsToFind to increase from smallest to largest, %d is less than or equal to %d" % (next, previous)
-            nextIndex+=1
-
-        return foundBlockNums
+    Print(f"headBlockNum = {headBlockNum}, headBlockNumAfter = {headBlockNumAfter}")
 
     Print("Retrieve the whole blocklog for node 0")
     blockLog=cluster.getBlockLog(0)
-    foundBlockNums=checkBlockLog(blockLog, [headBlockNum, headBlockNumAfter])
-    assert foundBlockNums[0], "Couldn't find \"%d\" in blocklog:\n\"%s\"\n" % (foundBlockNums[0], blockLog)
-    assert not foundBlockNums[1], "Should not find \"%d\" in blocklog:\n\"%s\"\n" % (foundBlockNums[1], blockLog)
+    bl_nums = [b["block_num"] for b in blockLog]
+    bl_consecutive = all(bl_nums[i] - bl_nums[i - 1] == 1 for i in range(1, len(bl_nums)))
+    if not bl_consecutive:
+        Utils.errorExit(f"BlockLog block numbers should be consecutive, got: {bl_nums}")
+
+    assert headBlockNum in bl_nums, f"Couldn't find block #{headBlockNum} in blocklog:\n{bl_nums}\n"
+    assert headBlockNumAfter not in bl_nums, f"Should not find block #{headBlockNumAfter} in blocklog:\n{bl_nums}\n"
 
     Print("Retrieve the blocklog only for node 0")
     blockLog_only=cluster.getBlockLog(0, blockLogAction=BlockLogAction.return_blocks_only_log)
