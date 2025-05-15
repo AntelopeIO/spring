@@ -71,10 +71,11 @@ try:
     node0.kill(signal.SIGTERM)
 
     Print("Let's have node1's head advance a few blocks")
-    node1.waitForBlock(headBlockNum+4, timeout=10)
+    node1.waitForBlock(headBlockNum+4, timeout=18) # timeout should be > 12 in case it is node0's turn (has 2 producers/node)
     infoAfter=node1.getInfo(exitOnError=True)
     headBlockNumAfter=infoAfter["head_block_num"]
     Print(f"headBlockNum = {headBlockNum}, headBlockNumAfter = {headBlockNumAfter}")
+    assert headBlockNumAfter > headBlockNum, "head has not advanced on node1"
 
     Print("Retrieve the whole blocklog for node 0")
     blockLog=cluster.getBlockLog(0)
