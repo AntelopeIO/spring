@@ -32,6 +32,7 @@
 #include <boost/asio/steady_timer.hpp>
 #include <boost/multi_index/key.hpp>
 #include <boost/unordered/unordered_flat_set.hpp>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 #include <atomic>
 #include <cmath>
@@ -2692,7 +2693,7 @@ namespace eosio {
       fc::time_point now = time_point::now();
 
       size_t start_size = 0, end_size = 0;
-      flat_map<uint32_t, uint32_t> expired_trxs_for_connection;
+      boost::unordered_flat_map<uint32_t, uint32_t> expired_trxs_for_connection;
       {
          fc::lock_guard g( local_txns_mtx );
          start_size = local_txns.size();
