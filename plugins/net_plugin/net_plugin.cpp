@@ -6,6 +6,7 @@
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 #include <eosio/chain/types.hpp>
+#include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/block.hpp>
@@ -30,6 +31,8 @@
 #include <boost/asio/ip/host_name.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/multi_index/key.hpp>
+#include <boost/unordered/unordered_flat_set.hpp>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 #include <atomic>
 #include <cmath>
@@ -78,27 +81,23 @@ namespace eosio {
    static constexpr int64_t block_interval_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
 
+   using connection_id_set = boost::unordered_flat_set<uint32_t>;
    struct node_transaction_state {
-      transaction_id_type id;
-      time_point_sec  expires;        /// time after which this may be purged.
-      uint32_t        connection_id = 0;
+      transaction_id_type        id;
+      time_point_sec             expires;           // time after which this may be purged.
+      mutable connection_id_set  connection_ids;    // all connections trx or trx notice received or trx sent
+      mutable bool               have_trx = false;  // trx received, not just trx notice, mutable because not indexed
    };
-
-   struct by_expiry;
 
    typedef multi_index_container<
       node_transaction_state,
       indexed_by<
          ordered_unique<
             tag<by_id>,
-            composite_key< node_transaction_state,
-               member<node_transaction_state, transaction_id_type, &node_transaction_state::id>,
-               member<node_transaction_state, uint32_t, &node_transaction_state::connection_id>
-            >,
-            composite_key_compare< std::less<transaction_id_type>, std::less<> >
+            member<node_transaction_state, transaction_id_type, &node_transaction_state::id>
          >,
          ordered_non_unique<
-            tag< by_expiry >,
+            tag< struct by_expiry >,
             member< node_transaction_state, fc::time_point_sec, &node_transaction_state::expires > >
          >
       >
@@ -208,6 +207,7 @@ namespace eosio {
       : strand( io_context ) {}
 
       void bcast_transaction(const packed_transaction_ptr& trx);
+      void bcast_transaction_notify(const packed_transaction_ptr& trx);
       void rejected_transaction(const packed_transaction_ptr& trx);
       void bcast_block( const signed_block_ptr& b, const block_id_type& id );
 
@@ -219,13 +219,54 @@ namespace eosio {
       bool have_block(const block_id_type& blkid) const;
       void rm_block(const block_id_type& blkid);
 
-      bool add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id,
-                         const time_point_sec& now = time_point_sec(time_point::now()) );
-      bool have_txn( const transaction_id_type& tid ) const;
+      // returns the number of tracked ids of connection, returns 0 if already have trx on any connection
+      struct add_peer_txn_info {
+         uint32_t num_tracked_ids = 0;
+         bool have_trx = false; // true if we already have received the trx
+      };
+      add_peer_txn_info add_peer_txn(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
+      size_t add_peer_txn_notice(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
+      connection_id_set peer_connections(const transaction_id_type& id) const;
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
    };
+
+   /**
+    *  For a while, network version was a 16 bit value equal to the second set of 16 bits
+    *  of the current build's git commit id. We are now replacing that with an integer protocol
+    *  identifier. Based on historical analysis of all git commit identifiers, the larges gap
+    *  between ajacent commit id values is shown below.
+    *  these numbers were found with the following commands on the master branch:
+    *
+    *  git log | grep "^commit" | awk '{print substr($2,5,4)}' | sort -u > sorted.txt
+    *  rm -f gap.txt; prev=0; for a in $(cat sorted.txt); do echo $prev $((0x$a - 0x$prev)) $a >> gap.txt; prev=$a; done; sort -k2 -n gap.txt | tail
+    *
+    *  DO NOT EDIT net_version_base OR net_version_range!
+    */
+   constexpr uint16_t net_version_base = 0x04b5;
+   constexpr uint16_t net_version_range = 106;
+   /**
+    *  If there is a change to network protocol or behavior, increment net version to identify
+    *  the need for compatibility hooks
+    */
+   enum class proto_version_t : uint16_t {
+      base = 0,
+      explicit_sync = 1,       // version at time of eosio 1.0
+      block_id_notify = 2,     // reserved. feature was removed. next net_version should be 3
+      pruned_types = 3,        // eosio 2.1: supports new signed_block & packed_transaction types
+      heartbeat_interval = 4,        // eosio 2.1: supports configurable heartbeat interval
+      dup_goaway_resolution = 5,     // eosio 2.1: support peer address based duplicate connection resolution
+      dup_node_id_goaway = 6,        // eosio 2.1: support peer node_id based duplicate connection resolution
+      leap_initial = 7,              // leap client, needed because none of the 2.1 versions are supported
+      block_range = 8,               // include block range in notice_message
+      savanna = 9,                   // savanna, adds vote_message
+      block_nack = 10,               // adds block_nack_message & block_notice_message
+      gossip_bp_peers = 11,          // adds gossip_bp_peers_message
+      trx_notice = 12                // adds transaction_notice_message
+   };
+
+   constexpr proto_version_t net_version_max = proto_version_t::trx_notice;
 
    /**
     * default value initializers
@@ -242,12 +283,16 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
+   constexpr auto     def_trx_notice_min_size = 200; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
+   constexpr auto     def_max_trx_per_connection = 100000;
+   constexpr auto     def_allowed_clock_skew = fc::seconds(15);
 
    class connections_manager {
    public:
       struct connection_detail {
          std::string host;
          connection_ptr c;
+         uint32_t id() const;
       };
 
       using connection_details_index = multi_index_container<
@@ -260,6 +305,10 @@ namespace eosio {
             ordered_unique<
                tag<struct by_connection>,
                key<&connection_detail::c>
+            >,
+            ordered_unique<
+               tag<struct by_connection_id>,
+               const_mem_fun<connection_detail, uint32_t, &connection_detail::id>
             >
          >
       >;
@@ -337,6 +386,10 @@ namespace eosio {
 
       template <typename UnaryPredicate>
       bool any_of_block_connections(UnaryPredicate&& p) const;
+
+      template <typename Function>
+      void with_connection_lock(Function&& f) const;
+
    }; // connections_manager
 
    class net_plugin_impl : public std::enable_shared_from_this<net_plugin_impl>,
@@ -418,6 +471,9 @@ namespace eosio {
       
       std::function<void()> increment_failed_p2p_connections;
       std::function<void()> increment_dropped_trxs;
+
+      alignas(hardware_destructive_interference_sz)
+      std::atomic<fc::microseconds> max_trx_lifetime; // cached on-chain value of max_transaction_lifetime
       
    private:
       alignas(hardware_destructive_interference_sz)
@@ -481,7 +537,7 @@ namespace eosio {
        */
       chain::signature_type sign_compact(const chain::public_key_type& signer, const fc::sha256& digest) const;
 
-      constexpr static uint16_t to_protocol_version(uint16_t v);
+      constexpr static proto_version_t to_protocol_version(uint16_t v);
 
       void plugin_initialize(const variables_map& options);
       void plugin_startup();
@@ -507,42 +563,6 @@ namespace eosio {
    }
 
    static net_plugin_impl *my_impl;
-
-   /**
-    *  For a while, network version was a 16 bit value equal to the second set of 16 bits
-    *  of the current build's git commit id. We are now replacing that with an integer protocol
-    *  identifier. Based on historical analysis of all git commit identifiers, the larges gap
-    *  between ajacent commit id values is shown below.
-    *  these numbers were found with the following commands on the master branch:
-    *
-    *  git log | grep "^commit" | awk '{print substr($2,5,4)}' | sort -u > sorted.txt
-    *  rm -f gap.txt; prev=0; for a in $(cat sorted.txt); do echo $prev $((0x$a - 0x$prev)) $a >> gap.txt; prev=$a; done; sort -k2 -n gap.txt | tail
-    *
-    *  DO NOT EDIT net_version_base OR net_version_range!
-    */
-   constexpr uint16_t net_version_base = 0x04b5;
-   constexpr uint16_t net_version_range = 106;
-   /**
-    *  If there is a change to network protocol or behavior, increment net version to identify
-    *  the need for compatibility hooks
-    */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-   constexpr uint16_t proto_base = 0;
-   constexpr uint16_t proto_explicit_sync = 1;       // version at time of eosio 1.0
-   constexpr uint16_t proto_block_id_notify = 2;     // reserved. feature was removed. next net_version should be 3
-   constexpr uint16_t proto_pruned_types = 3;        // eosio 2.1: supports new signed_block & packed_transaction types
-   constexpr uint16_t proto_heartbeat_interval = 4;        // eosio 2.1: supports configurable heartbeat interval
-   constexpr uint16_t proto_dup_goaway_resolution = 5;     // eosio 2.1: support peer address based duplicate connection resolution
-   constexpr uint16_t proto_dup_node_id_goaway = 6;        // eosio 2.1: support peer node_id based duplicate connection resolution
-   constexpr uint16_t proto_leap_initial = 7;              // leap client, needed because none of the 2.1 versions are supported
-   constexpr uint16_t proto_block_range = 8;               // include block range in notice_message
-   constexpr uint16_t proto_savanna = 9;                   // savanna, adds vote_message
-   constexpr uint16_t proto_block_nack = 10;               // adds block_nack_message & block_notice_message
-   constexpr uint16_t proto_gossip_bp_peers = 11;          // adds gossip_bp_peers_message
-#pragma GCC diagnostic pop
-
-   constexpr uint16_t net_version_max = proto_gossip_bp_peers;
 
    struct peer_sync_state {
       enum class sync_t {
@@ -622,7 +642,7 @@ namespace eosio {
                            const send_buffer_type& buff,
                            std::function<void(boost::system::error_code, std::size_t)> callback) {
          fc::lock_guard g( _mtx );
-         if( net_msg == msg_type_t::packed_transaction ) {
+         if( net_msg == msg_type_t::packed_transaction || net_msg == msg_type_t::transaction_notice_message ) {
             _trx_write_queue.emplace_back( buff, std::move(callback) );
          } else if (queue == queue_t::block_sync) {
             _sync_write_queue.emplace_back( buff, std::move(callback) );
@@ -837,6 +857,9 @@ namespace eosio {
       alignas(hardware_destructive_interference_sz)
       std::atomic<uint32_t>   trx_in_progress_size{0};
 
+      // number of entries in local txn cache local_txns, all connections guarded by local_txns_mtx
+      uint32_t                trx_entries_size{0};
+
       fc::time_point          last_dropped_trx_msg_time;
       const uint32_t          connection_id;
       int16_t                 sent_handshake_count = 0;
@@ -844,8 +867,8 @@ namespace eosio {
       alignas(hardware_destructive_interference_sz)
       std::atomic<bool>       peer_syncing_from_us{false};
 
-      std::atomic<uint16_t>   protocol_version = 0;
-      uint16_t                net_version = net_version_max;
+      std::atomic<proto_version_t>   protocol_version = proto_version_t::base;
+      proto_version_t                net_version = net_version_max;
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
       // bp_config = p2p-auto-bp-peer, bp_gossip = validated gossip connection,
       // bp_gossip_validating = only used when connection received before peer keys available
@@ -911,6 +934,7 @@ namespace eosio {
 
       bool process_next_block_message(uint32_t message_length);
       bool process_next_trx_message(uint32_t message_length);
+      bool process_next_trx_notice_message(uint32_t message_length);
       bool process_next_vote_message(uint32_t message_length);
       void update_endpoints(const tcp::endpoint& endpoint = tcp::endpoint());
 
@@ -1024,6 +1048,7 @@ namespace eosio {
       void handle_message( const block_notice_message& msg);
       void handle_message( gossip_bp_peers_message& msg);
       void handle_message( const gossip_bp_peers_message& msg) = delete;
+      void handle_message( const transaction_notice_message& msg);
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
@@ -1040,7 +1065,7 @@ namespace eosio {
             ( "_lip", local_endpoint_ip )
             ( "_lport", local_endpoint_port )
             ( "_agent", short_agent_name )
-            ( "_nver", protocol_version.load() );
+            ( "_nver", static_cast<uint16_t>(protocol_version.load()) );
          return mvo;
       }
 
@@ -1124,7 +1149,10 @@ namespace eosio {
          c->handle_message( msg );
       }
    };
-   
+
+   uint32_t connections_manager::connection_detail::id() const {
+      return c->connection_id;
+   }
 
    template<typename Function>
    bool connections_manager::any_of_supplied_peers( Function&& f ) const {
@@ -1176,6 +1204,11 @@ namespace eosio {
       return false;
    }
 
+   template <typename Function>
+   void connections_manager::with_connection_lock(Function&& f) const {
+      std::shared_lock g(connections_mtx);
+      f(connections);
+   }
 
    //---------------------------------------------------------------------------
 
@@ -2255,7 +2288,7 @@ namespace eosio {
          peer_dlog( c, "handshake msg.froot ${fr}, msg.fhead ${fh}, msg.id ${id}.. sync 2, fhead ${h}, froot ${r}",
                     ("fr", msg.fork_db_root_num)("fh", msg.fork_db_head_num)("id", msg.fork_db_head_id.str().substr(8,16))
                     ("h", chain_info.fork_db_head_num)("r", chain_info.fork_db_root_num) );
-         if (msg.generation > 1 || c->protocol_version > proto_base) {
+         if (msg.generation > 1 || c->protocol_version > proto_version_t::base) {
             controller& cc = my_impl->chain_plug->chain();
             notice_message note;
             note.known_trx.pending = chain_info.fork_db_root_num;
@@ -2263,7 +2296,7 @@ namespace eosio {
             note.known_blocks.mode = last_irr_catch_up;
             note.known_blocks.pending = chain_info.fork_db_head_num;
             note.known_blocks.ids.push_back(chain_info.fork_db_head_id);
-            if (c->protocol_version >= proto_block_range) {
+            if (c->protocol_version >= proto_version_t::block_range) {
                // begin, more efficient to encode a block num instead of retrieving actual block id
                note.known_blocks.ids.push_back(make_block_id(cc.earliest_available_block_num()));
             }
@@ -2284,14 +2317,14 @@ namespace eosio {
          peer_dlog( c, "handshake msg.froot ${fr}, msg.fhead ${fh}, msg.id ${id}.. sync 4, fhead ${h}, froot ${r}",
                     ("fr", msg.fork_db_root_num)("fh", msg.fork_db_head_num)("id", msg.fork_db_head_id.str().substr(8,16))
                     ("h", chain_info.fork_db_head_num)("r", chain_info.fork_db_root_num) );
-         if (msg.generation > 1 ||  c->protocol_version > proto_base) {
+         if (msg.generation > 1 ||  c->protocol_version > proto_version_t::base) {
             controller& cc = my_impl->chain_plug->chain();
             notice_message note;
             note.known_trx.mode = none;
             note.known_blocks.mode = catch_up;
             note.known_blocks.pending = chain_info.fork_db_head_num;
             note.known_blocks.ids.push_back(chain_info.fork_db_head_id);
-            if (c->protocol_version >= proto_block_range) {
+            if (c->protocol_version >= proto_version_t::block_range) {
                // begin, more efficient to encode a block num instead of retrieving actual block id
                note.known_blocks.ids.push_back(make_block_id(cc.earliest_available_block_num()));
             }
@@ -2593,42 +2626,103 @@ namespace eosio {
       index.erase(p.first, p.second);
    }
 
-   bool dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
-                                        uint32_t connection_id, const time_point_sec& now ) {
+   dispatch_manager::add_peer_txn_info dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
+   {
       fc::lock_guard g( local_txns_mtx );
-      auto tptr = local_txns.get<by_id>().find( std::make_tuple( std::ref( id ), connection_id ) );
-      bool added = (tptr == local_txns.end());
-      if( added ) {
+
+      auto& id_idx = local_txns.get<by_id>();
+      bool already_have_trx = false;
+      if (auto tptr = id_idx.find( id ); tptr != id_idx.end()) {
+         if (tptr->connection_ids.insert(c.connection_id).second)
+            ++c.trx_entries_size;
+         already_have_trx = tptr->have_trx;
+         if (!already_have_trx) {
+            time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
+            expires = std::min( trx_expires, expires );
+            local_txns.modify(tptr, [&](auto& v) {
+               v.expires = expires;
+               v.have_trx = true;
+            });
+         }
+      } else {
          // expire at either transaction expiration or configured max expire time whichever is less
-         time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
+         time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
             .expires = expires,
-            .connection_id = connection_id} );
+            .connection_ids = {c.connection_id},
+            .have_trx = true } );
+         ++c.trx_entries_size;
       }
-      return added;
+      return {c.trx_entries_size, already_have_trx};
    }
 
-   bool dispatch_manager::have_txn( const transaction_id_type& tid ) const {
+   size_t dispatch_manager::add_peer_txn_notice( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
+   {
       fc::lock_guard g( local_txns_mtx );
-      const auto tptr = local_txns.get<by_id>().find( tid );
-      return tptr != local_txns.end();
+
+      auto& id_idx = local_txns.get<by_id>();
+      if (auto tptr = id_idx.find( id ); tptr != id_idx.end()) {
+         if (tptr->connection_ids.insert(c.connection_id).second)
+            ++c.trx_entries_size;
+      } else {
+         // expire at either transaction expiration or configured max expire time whichever is less
+         time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
+         expires = std::min( trx_expires, expires );
+         local_txns.insert( node_transaction_state{
+            .id = id,
+            .expires = expires,
+            .connection_ids = {c.connection_id},
+            .have_trx = false } );
+         ++c.trx_entries_size;
+      }
+      return c.trx_entries_size;
+   }
+
+   connection_id_set dispatch_manager::peer_connections(const transaction_id_type& id) const {
+      fc::lock_guard g( local_txns_mtx );
+      auto& id_idx = local_txns.get<by_id>();
+      if (auto tptr = id_idx.find(id); tptr != id_idx.end()) {
+         return tptr->connection_ids;
+      }
+      return {};
    }
 
    void dispatch_manager::expire_txns() {
+      fc::time_point now = time_point::now();
+
       size_t start_size = 0, end_size = 0;
-      fc::time_point_sec now{time_point::now()};
+      boost::unordered_flat_map<uint32_t, uint32_t> expired_trxs_for_connection;
+      {
+         fc::lock_guard g( local_txns_mtx );
+         start_size = local_txns.size();
+         auto& old = local_txns.get<by_expiry>();
+         auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
+         auto ex_up = old.upper_bound( fc::time_point_sec{now - def_allowed_clock_skew} ); // allow for some clock-skew
+         while (ex_lo != ex_up) {
+            for (const auto& cid : ex_lo->connection_ids)
+               ++expired_trxs_for_connection[cid];
+            ex_lo=old.erase(ex_lo);
+         }
+         end_size = local_txns.size();
+      }
 
-      fc::unique_lock g( local_txns_mtx );
-      start_size = local_txns.size();
-      auto& old = local_txns.get<by_expiry>();
-      auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
-      auto ex_up = old.upper_bound( now );
-      old.erase( ex_lo, ex_up );
-      g.unlock();
+      if (!expired_trxs_for_connection.empty()) {
+         my_impl->connections.with_connection_lock([&](const connections_manager::connection_details_index& connections) {
+            // acquire connections_mtx before acquiring local_txns_mtx as connections_mtx can be held while acquiring local_txns_mtx
+            fc::lock_guard g( local_txns_mtx );
+            auto& conn_idx = connections.get<by_connection_id>();
+            for (auto [conn_id, count] : expired_trxs_for_connection) {
+               if (auto itr = conn_idx.find( conn_id ); itr != conn_idx.end()) {
+                  itr->c->trx_entries_size -= count;
+               }
+            }
+         });
+      }
 
-      fc_dlog( logger, "expire_local_txns size ${s} removed ${r}", ("s", start_size)( "r", start_size - end_size ) );
+      // todo: switch back to debug level logging after performance test
+      fc_ilog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
    }
 
    void dispatch_manager::expire_blocks( uint32_t fork_db_root_num ) {
@@ -2656,7 +2750,7 @@ namespace eosio {
             return;
          }
 
-         if (cp->protocol_version >= proto_block_nack && !my_impl->p2p_disable_block_nack) {
+         if (cp->protocol_version >= proto_version_t::block_nack && !my_impl->p2p_disable_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
                // only send block_notice if we didn't produce the block, otherwise broadcast the block below
                if (!my_impl->producer_plug->producer_accounts().contains(b->producer)) {
@@ -2688,7 +2782,7 @@ namespace eosio {
       my_impl->connections.for_each_block_connection( [exclude_peer, msg]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
-         if (cp->protocol_version < proto_savanna) return true;
+         if (cp->protocol_version < proto_version_t::savanna) return true;
          boost::asio::post(cp->strand, [cp, msg]() {
             if (vote_logger.is_enabled(fc::log_level::debug))
                peer_dlog(cp, "sending vote msg");
@@ -2701,19 +2795,37 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      const fc::time_point_sec now{fc::time_point::now()};
-      my_impl->connections.for_each_connection( [this, &trx, &now, &buff_factory]( const connection_ptr& cp ) {
+      std::optional<connection_id_set> trx_connections;
+      my_impl->connections.for_each_connection( [&]( const connection_ptr& cp ) {
          if( !cp->is_transactions_connection() || !cp->current() ) {
             return;
          }
-         if( !add_peer_txn(trx->id(), trx->expiration(), cp->connection_id, now) ) {
+         if (!trx_connections)
+            trx_connections = peer_connections(trx->id());
+         if( trx_connections->contains(cp->connection_id) ) {
             return;
          }
 
          const send_buffer_type& sb = buff_factory.get_send_buffer( trx );
-         fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
+         fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}, size ${s}", ("id", trx->id())("cid", cp->connection_id)("s", sb->size()) );
          boost::asio::post(cp->strand, [cp, sb]() {
             cp->enqueue_buffer( msg_type_t::packed_transaction, std::nullopt, queued_buffer::queue_t::general, sb, go_away_reason::no_reason );
+         } );
+      } );
+   }
+
+   // called from any thread
+   void dispatch_manager::bcast_transaction_notify(const packed_transaction_ptr& trx) {
+      trx_buffer_factory buff_factory;
+      my_impl->connections.for_each_connection( [&]( const connection_ptr& cp ) {
+         if( cp->protocol_version < proto_version_t::trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
+            return;
+         }
+
+         const send_buffer_type& sb = buff_factory.get_notice_send_buffer( trx );
+         fc_dlog( logger, "sending trx notice: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
+         boost::asio::post(cp->strand, [cp, sb]() {
+            cp->enqueue_buffer( msg_type_t::transaction_notice_message, std::nullopt, queued_buffer::queue_t::general, sb, go_away_reason::no_reason );
          } );
       } );
    }
@@ -2989,6 +3101,8 @@ namespace eosio {
             return process_next_block_message( message_length );
          } else if( net_msg == msg_type_t::packed_transaction ) {
             return process_next_trx_message( message_length );
+         } else if( net_msg == msg_type_t::transaction_notice_message ) {
+            return process_next_trx_notice_message( message_length );
          } else if( net_msg == msg_type_t::vote_message ) {
             return process_next_vote_message( message_length );
          } else {
@@ -3097,6 +3211,7 @@ namespace eosio {
 
       const unsigned long trx_in_progress_sz = this->trx_in_progress_size.load();
 
+      auto now = fc::time_point::now();
       auto ds = pending_message_buffer.create_datastream();
       unsigned_int which{};
       fc::raw::unpack( ds, which );
@@ -3107,21 +3222,51 @@ namespace eosio {
          char reason[72];
          snprintf(reason, 72, "Dropping trx, too many trx in progress %lu bytes", trx_in_progress_sz);
          my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason);
-         if (fc::time_point::now() - fc::seconds(1) >= last_dropped_trx_msg_time) {
-            last_dropped_trx_msg_time = fc::time_point::now();
-            if (my_impl->increment_dropped_trxs) {
-               my_impl->increment_dropped_trxs();
-            }
+         if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
+            last_dropped_trx_msg_time = now;
             peer_wlog(this, reason);
+         }
+         if (my_impl->increment_dropped_trxs) {
+            my_impl->increment_dropped_trxs();
          }
          return true;
       }
-      bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
-      my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id );
+      // allow for some clock skew on this node
+      if (ptr->expiration() < fc::time_point_sec{now - def_allowed_clock_skew} ||
+          ptr->expiration() > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + def_allowed_clock_skew}) {
+         std::string reason = "Dropping trx with expiration " + ptr->expiration().to_iso_string();
+         my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason.c_str());
+         if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
+            last_dropped_trx_msg_time = fc::time_point::now();
+            peer_dlog(this, "${r}", ("r", std::move(reason)));
+         }
+         if (my_impl->increment_dropped_trxs) {
+            my_impl->increment_dropped_trxs();
+         }
+         return true;
+      }
+
+      auto[trx_count_for_connection, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
+      if (trx_count_for_connection > def_max_trx_per_connection) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", trx_count_for_connection));
+         close();
+         return true;
+      }
 
       if( have_trx ) {
          peer_dlog( this, "got a duplicate transaction - dropping" );
          return true;
+      }
+
+      const auto& tid = ptr->id();
+      peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
+
+      if (message_length < def_trx_notice_min_size) {
+         // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
+         fc_dlog( logger, "trx notice not sent, trx size ${s}", ("s", message_length));
+      } else {
+         fc_dlog( logger, "send trx notice, trx size ${s}", ("s", message_length));
+         my_impl->dispatcher.bcast_transaction_notify(ptr);
       }
 
       handle_message( ptr );
@@ -3129,6 +3274,44 @@ namespace eosio {
    }
 
    // called from connection strand
+   bool connection::process_next_trx_notice_message(uint32_t message_length) {
+      if( !my_impl->p2p_accept_transactions ) {
+         peer_dlog( this, "p2p-accept-transaction=false - dropping trx notice" );
+         pending_message_buffer.advance_read_ptr( message_length );
+         return true;
+      }
+      if (my_impl->sync_master->syncing_from_peer()) {
+         peer_dlog(this, "syncing, dropping trx notice");
+         pending_message_buffer.advance_read_ptr( message_length );
+         return true;
+      }
+
+      auto ds = pending_message_buffer.create_datastream();
+      unsigned_int which{};
+      fc::raw::unpack( ds, which );
+      transaction_notice_message msg;
+      fc::raw::unpack( ds, msg );
+
+      auto now = fc::time_point::now();
+      // allow for some clock skew on this node
+      if (msg.expiration < fc::time_point_sec{now - def_allowed_clock_skew} ||
+          msg.expiration > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + def_allowed_clock_skew}) {
+         peer_dlog(this, "Dropping trx notice with expiration ${e}", ("e", msg.expiration));
+         return true;
+      }
+
+      size_t connection_count = my_impl->dispatcher.add_peer_txn_notice( msg.id, msg.expiration, *this );
+      if (connection_count > def_max_trx_per_connection) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
+         close();
+      }
+
+      handle_message( msg );
+
+      return true;
+   }
+
+// called from connection strand
    bool connection::process_next_vote_message(uint32_t message_length) {
       if( !my_impl->p2p_accept_votes ) {
          peer_dlog( this, "p2p_accept_votes=false - dropping vote" );
@@ -3149,7 +3332,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::send_block_nack(const block_id_type& block_id) {
-      if (protocol_version < proto_block_nack || my_impl->p2p_disable_block_nack)
+      if (protocol_version < proto_version_t::block_nack || my_impl->p2p_disable_block_nack)
          return;
 
       if (my_impl->sync_master->syncing_from_peer())
@@ -3182,10 +3365,17 @@ namespace eosio {
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
       }
       head_block_time = head.block_time();
+
+      static uint32_t update_interval = -1;
+      if (++update_interval % 1000 == 0) {
+         const auto& chain_configuration = cc.get_global_properties().configuration;
+         max_trx_lifetime = fc::seconds(chain_configuration.max_transaction_lifetime);
+      }
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
 
    // call only from main application thread
+   // called from irreversible block signal
    void net_plugin_impl::update_chain_info(const block_id_type& fork_db_root_id) {
       controller& cc = chain_plug->chain();
       uint32_t fork_db_root_num = 0, head_num = 0, fork_db_head_num = 0;
@@ -3202,7 +3392,6 @@ namespace eosio {
       head_block_time = head.block_time();
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
-
 
    net_plugin_impl::chain_info_t net_plugin_impl::get_chain_info() const {
       fc::lock_guard g( chain_info_mtx );
@@ -3357,9 +3546,9 @@ namespace eosio {
          protocol_version = net_plugin_impl::to_protocol_version(msg.network_version);
          if( protocol_version != net_version ) {
             peer_ilog( this, "Local network version different: ${nv} Remote version: ${mnv}",
-                       ("nv", net_version)("mnv", protocol_version.load()) );
+                       ("nv", static_cast<uint16_t>(net_version))("mnv", static_cast<uint16_t>(protocol_version.load())) );
          } else {
-            peer_dlog( this, "Local network version: ${nv}", ("nv", net_version) );
+            peer_dlog( this, "Local network version: ${nv}", ("nv", static_cast<uint16_t>(net_version)) );
          }
 
          conn_node_id = msg.node_id;
@@ -3394,9 +3583,9 @@ namespace eosio {
          }
 
          // we don't support the 2.1 packed_transaction & signed_block, so tell 2.1 clients we are 2.0
-         if( protocol_version >= proto_pruned_types && protocol_version < proto_leap_initial ) {
+         if( protocol_version >= proto_version_t::pruned_types && protocol_version < proto_version_t::leap_initial ) {
             sent_handshake_count = 0;
-            net_version = proto_explicit_sync;
+            net_version = proto_version_t::explicit_sync;
             send_handshake();
             return;
          }
@@ -3603,7 +3792,7 @@ namespace eosio {
          return;
       }
       case normal : {
-         if (protocol_version >= proto_block_nack) {
+         if (protocol_version >= proto_version_t::block_nack) {
             if (msg.req_blocks.ids.size() == 2 && msg.req_trx.ids.empty()) {
                const block_id_type& req_id = msg.req_blocks.ids[0]; // 0 - req_id, 1 - peer_head_id
                peer_dlog( this, "${d} request_message:normal #${bn}:${id}",
@@ -3746,6 +3935,11 @@ namespace eosio {
       }
    }
 
+   // called from connection strand
+   void connection::handle_message( const transaction_notice_message& msg ) {
+      peer_dlog( this, "received transaction_notice_message ${id}", ("id", msg.id) );
+   }
+
    digest_type gossip_bp_peers_message::bp_peer::digest(const chain_id_type& chain_id) const {
       digest_type::encoder enc;
       fc::raw::pack(enc, chain_id);
@@ -3795,7 +3989,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::send_gossip_bp_peers_initial_message() {
-      if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
+      if (protocol_version < proto_version_t::gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
       peer_dlog(this, "sending initial gossip_bp_peers_message");
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
@@ -3819,7 +4013,7 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       my_impl->connections.for_each_connection([](const connection_ptr& c) {
          gossip_buffer_factory factory;
-         if (c->protocol_version >= proto_gossip_bp_peers && c->socket_is_open()) {
+         if (c->protocol_version >= proto_version_t::gossip_bp_peers && c->socket_is_open()) {
             if (c->bp_connection == bp_connection_type::bp_gossip) {
                const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
                boost::asio::post(c->strand, [sb, c]() {
@@ -3841,10 +4035,6 @@ namespace eosio {
 
    // called from connection strand
    void connection::handle_message( const packed_transaction_ptr& trx ) {
-      const auto& tid = trx->id();
-
-      peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
-
       size_t trx_size = calc_trx_size( trx );
       trx_in_progress_size += trx_size;
       my_impl->chain_plug->accept_transaction( trx,
@@ -3890,7 +4080,7 @@ namespace eosio {
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
          try {
             if (cc.is_producer_node()) {
-               EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
+               EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + def_allowed_clock_skew), block_from_the_future,
                           "received a block from the future, rejecting it: ${id}", ("id", id));
             }
             // this will return empty optional<block_handle> if block is not linkable
@@ -4219,7 +4409,7 @@ namespace eosio {
       // nothing as changed since last handshake and one was sent recently, so skip sending
       if (chain_info.fork_db_head_id == hello.fork_db_head_id && (hello.time + hs_delay > now))
          return false;
-      hello.network_version = net_version_base + net_version;
+      hello.network_version = net_version_base + static_cast<uint16_t>(net_version);
       hello.fork_db_root_num = chain_info.fork_db_root_num;
       hello.fork_db_root_id = chain_info.fork_db_root_id;
       hello.fork_db_head_num = chain_info.fork_db_head_num;
@@ -4664,12 +4854,12 @@ namespace eosio {
       return my->bp_gossip_peers();
    }
 
-   constexpr uint16_t net_plugin_impl::to_protocol_version(uint16_t v) {
+   constexpr proto_version_t net_plugin_impl::to_protocol_version(uint16_t v) {
       if (v >= net_version_base) {
          v -= net_version_base;
-         return (v > net_version_range) ? 0 : v;
+         return (v > net_version_range) ? proto_version_t::base : static_cast<proto_version_t>(v);
       }
-      return 0;
+      return proto_version_t::base;
    }
 
    bool net_plugin_impl::is_lib_catchup() const {
