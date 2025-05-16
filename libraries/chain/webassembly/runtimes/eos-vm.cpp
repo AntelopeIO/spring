@@ -244,17 +244,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          // set wasm allocator per apply data
          bkend.set_wasm_allocator(&wasm_alloc);
 
-         using return_type = std::invoke_result_t<F>;
-         static_assert(std::is_void_v<return_type> || std::is_same_v<return_type, std::int64_t>,
-                       "return type of F must be either void or int64_t");  // Protect future misuse
          try {
             checktime_watchdog wd(context.trx_context.transaction_timer, multi_expr_callbacks_allowed);
-
-            if constexpr (std::is_void_v<return_type>) {
-               bkend.timed_run(std::move(wd), std::move(fn));
-            } else {
-               return bkend.timed_run(std::move(wd), std::move(fn));
-            }
+            return bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
          } catch(eosio::vm::wasm_memory_exception& e) {
@@ -263,8 +255,10 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure: ${d}", ("d", e.detail()));
          }
 
-         // This is to get around `no return` compile warning.
-         // `exe()` is a private method and we know the return type is either void or int64_t
+         // This is to get around `control reaches end of non-void function` compile warning.
+         using return_type = std::invoke_result_t<F>;
+         static_assert(std::is_void_v<return_type> || std::is_same_v<return_type, std::int64_t>,
+                       "return type of F must be either void or int64_t");  // Protect future misuse
          if constexpr (std::is_same_v<return_type, std::int64_t>) {
             return 0l;
          }
