@@ -83,7 +83,7 @@ namespace eosio { namespace chain {
          void current_lib(const uint32_t lib);
 
          //Calls apply/sync_call
-         void execute(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context);
+         int64_t execute(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context);
 
          //Returns true if the code is cached
          bool is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const;
