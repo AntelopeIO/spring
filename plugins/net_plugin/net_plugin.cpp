@@ -31,6 +31,7 @@
 #include <boost/asio/ip/host_name.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/multi_index/key.hpp>
+#include <boost/unordered/unordered_flat_set.hpp>
 
 #include <atomic>
 #include <cmath>
@@ -79,11 +80,12 @@ namespace eosio {
    static constexpr int64_t block_interval_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
 
+   using connection_id_set = boost::unordered_flat_set<uint32_t>;
    struct node_transaction_state {
-      transaction_id_type  id;
-      uint32_t             connection_id = 0;
-      time_point_sec       expires;              // time after which this may be purged.
-      mutable bool         have_trx = false;     // trx received, not just trx notice, mutable because not indexed
+      transaction_id_type        id;
+      time_point_sec             expires;           // time after which this may be purged.
+      mutable connection_id_set  connection_ids;    // all connections trx or trx notice received or trx sent
+      mutable bool               have_trx = false;  // trx received, not just trx notice, mutable because not indexed
    };
 
    typedef multi_index_container<
@@ -91,11 +93,7 @@ namespace eosio {
       indexed_by<
          ordered_unique<
             tag<by_id>,
-            composite_key< node_transaction_state,
-               member<node_transaction_state, transaction_id_type, &node_transaction_state::id>,
-               member<node_transaction_state, uint32_t, &node_transaction_state::connection_id>
-            >,
-            composite_key_compare< std::less<transaction_id_type>, std::less<> >
+            member<node_transaction_state, transaction_id_type, &node_transaction_state::id>
          >,
          ordered_non_unique<
             tag< struct by_expiry >,
@@ -227,7 +225,7 @@ namespace eosio {
       };
       add_peer_txn_info add_peer_txn(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
       size_t add_peer_txn_notice(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
-      bool peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const;
+      connection_id_set peer_connections(const transaction_id_type& id) const;
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
@@ -2629,66 +2627,58 @@ namespace eosio {
 
    dispatch_manager::add_peer_txn_info dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
    {
-      fc::time_point_sec now{fc::time_point::now()};
       fc::lock_guard g( local_txns_mtx );
 
       auto& id_idx = local_txns.get<by_id>();
-
-      auto [have_trx, have_conn] = [&]() -> std::tuple<bool, bool> {
-         const auto r = id_idx.equal_range(id);
-         bool have_conn = false;
-         for (auto itr = r.first; itr != r.second; ++itr) {
-            have_conn |= itr->connection_id == c.connection_id;
-            if (itr->have_trx)
-               return {true, have_conn};
-            itr->have_trx = true; // set on other connections as we go so we can exit this loop sooner in the future
-         }
-         return {false, have_conn};
-      }();
-
-      if (!have_conn && have_trx) { // we didn't find connection and we didn't search all the connections
-         if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), c.connection_id ) ); tptr != id_idx.end()) {
-            have_conn = true;
-            tptr->have_trx = true;
-         }
-      }
-      if (!have_conn) {
+      bool already_have_trx = false;
+      if (auto tptr = id_idx.find( id ); tptr != id_idx.end()) {
+         if (tptr->connection_ids.insert(c.connection_id).second)
+            ++c.trx_entries_size;
+         already_have_trx = tptr->have_trx;
+         tptr->have_trx = true;
+      } else {
          // expire at either transaction expiration or configured max expire time whichever is less
-         time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
+         time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
-            .connection_id = c.connection_id,
             .expires = expires,
+            .connection_ids = {c.connection_id},
             .have_trx = true } );
          ++c.trx_entries_size;
       }
-      return { c.trx_entries_size, have_trx };
+      return {c.trx_entries_size, already_have_trx};
    }
 
    size_t dispatch_manager::add_peer_txn_notice( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
    {
-      fc::time_point_sec now{fc::time_point::now()};
       fc::lock_guard g( local_txns_mtx );
 
       auto& id_idx = local_txns.get<by_id>();
-      if (auto tptr = id_idx.find( std::make_tuple( std::ref( id ), c.connection_id ) ); tptr == id_idx.end()) {
+      if (auto tptr = id_idx.find( id ); tptr != id_idx.end()) {
+         if (tptr->connection_ids.insert(c.connection_id).second)
+            ++c.trx_entries_size;
+      } else {
          // expire at either transaction expiration or configured max expire time whichever is less
-         time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
+         time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
-            .connection_id = c.connection_id,
             .expires = expires,
+            .connection_ids = {c.connection_id},
             .have_trx = false } );
          ++c.trx_entries_size;
       }
       return c.trx_entries_size;
    }
 
-   bool dispatch_manager::peer_has_txn( const transaction_id_type& id, uint32_t connection_id ) const {
+   connection_id_set dispatch_manager::peer_connections(const transaction_id_type& id) const {
       fc::lock_guard g( local_txns_mtx );
-      return local_txns.get<by_id>().contains( std::make_tuple( std::ref( id ), connection_id ) );
+      auto& id_idx = local_txns.get<by_id>();
+      if (auto tptr = id_idx.find(id); tptr != id_idx.end()) {
+         return tptr->connection_ids;
+      }
+      return {};
    }
 
    void dispatch_manager::expire_txns() {
@@ -2703,7 +2693,8 @@ namespace eosio {
          auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
          auto ex_up = old.upper_bound( fc::time_point_sec{now - fc::seconds(5)} ); // allow for some clock-skew
          while (ex_lo != ex_up) {
-            ++expired_trxs_for_connection[ex_lo->connection_id];
+            for (const auto& cid : ex_lo->connection_ids)
+               ++expired_trxs_for_connection[cid];
             ex_lo=old.erase(ex_lo);
          }
          end_size = local_txns.size();
@@ -2722,7 +2713,8 @@ namespace eosio {
          });
       }
 
-      fc_dlog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
+      // todo: switch back to debug level logging after performance test
+      fc_ilog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
    }
 
    void dispatch_manager::expire_blocks( uint32_t fork_db_root_num ) {
@@ -2795,11 +2787,14 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      my_impl->connections.for_each_connection( [this, &trx, &buff_factory]( const connection_ptr& cp ) {
+      std::optional<connection_id_set> trx_connections;
+      my_impl->connections.for_each_connection( [&]( const connection_ptr& cp ) {
          if( !cp->is_transactions_connection() || !cp->current() ) {
             return;
          }
-         if( peer_has_txn(trx->id(), cp->connection_id) ) {
+         if (!trx_connections)
+            trx_connections = peer_connections(trx->id());
+         if( trx_connections->contains(cp->connection_id) ) {
             return;
          }
 
@@ -2814,11 +2809,14 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction_notify(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      my_impl->connections.for_each_connection( [this, &trx, &buff_factory]( const connection_ptr& cp ) {
+      std::optional<connection_id_set> trx_connections;
+      my_impl->connections.for_each_connection( [&]( const connection_ptr& cp ) {
          if( cp->protocol_version < proto_trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
             return;
          }
-         if( peer_has_txn(trx->id(), cp->connection_id) ) {
+         if (!trx_connections)
+            trx_connections = peer_connections(trx->id());
+         if( trx_connections->contains(cp->connection_id) ) {
             return;
          }
 
