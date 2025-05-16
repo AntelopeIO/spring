@@ -165,7 +165,7 @@ executor::executor(const code_cache_base& cc) {
    mapping_is_executable = true;
 }
 
-void executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
+int64_t executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
    if(mapping_is_executable == false) {
       mprotect(code_mapping, code_mapping_size, PROT_EXEC|PROT_READ);
       mapping_is_executable = true;
@@ -251,6 +251,7 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
+   int64_t retval = 0;
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
          stack.run([&]{
@@ -272,7 +273,7 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
             } else if (code.call_offset) {
                const auto& ctx = static_cast<eosio::chain::sync_call_context&>(context);
                int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
-               call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
+               retval = call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
             } else {
                assert(false);
             }
@@ -289,6 +290,7 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
          std::rethrow_exception(*cb->eptr);
          break;
    }
+   return retval;
 }
 
 executor::~executor() {

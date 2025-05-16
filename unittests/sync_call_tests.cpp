@@ -74,8 +74,9 @@ static const char sync_call_in_same_account_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -129,8 +130,9 @@ static const char callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -187,8 +189,9 @@ static const char callee1_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -209,8 +212,9 @@ static const char callee2_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -265,7 +269,8 @@ static const char seq_callee1_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)(result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
@@ -280,8 +285,9 @@ static const char seq_callee2_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    ;; not used but needed for set_code validation
@@ -351,8 +357,9 @@ static const char loop_callee_wast[] = R"=====(
    (func $callee)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee)
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -419,8 +426,9 @@ static const char different_actions_callee1_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -438,8 +446,9 @@ static const char different_actions_callee2_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -502,8 +511,9 @@ static const char recursive_caller_wast[] = R"=====(
 
    ;; called recursively from callee
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $doit (i32.const 0)) ;; argument 0 to request doit to exit
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -524,8 +534,8 @@ static const char recursive_callee_wast[] = R"=====(
 
    ;; called from caller and calls caller again
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
-      (drop (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8)))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8))
    )
 
    (export "apply" (func $apply))
@@ -619,7 +629,7 @@ static const char basic_params_return_value_callee_wast[] = R"=====(
 
    ;; use get_call_data and set_call_return_value to get argument and store return value
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))
 
       i32.const 16      ;; address to store return value
@@ -629,6 +639,7 @@ static const char basic_params_return_value_callee_wast[] = R"=====(
       i32.store         ;; save the return value at address 16
 
       (call $set_call_return_value (i32.const 16)(i32.const 4)) ;; store the return value on host
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -673,7 +684,7 @@ static const char get_call_data_less_memory_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $get_call_data (i32.const 0)(i32.const 0)) ;; destination memory size is 0
       (i32.const 8)  ;; caller passes in 8 bytes. get_call_data should always return 8
       i32.ne
@@ -687,6 +698,7 @@ static const char get_call_data_less_memory_wast[] = R"=====(
       if             ;; assert if get_call_data did not return 8
          (call $assert (i32.const 0) (i32.const 0))
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -733,13 +745,14 @@ static const char no_parameters_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $get_call_data (i32.const 160)(i32.const 100)) ;; store call data in memory[160], with size 100
       (i32.const 0)  ;; caller did not pass in data. get_call_data should return 0
       i32.ne
       if             ;; assert if get_call_data did not return 0
          (call $assert (i32.const 0) (i32.const 0))
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -784,7 +797,8 @@ static const char no_return_value_caller_wast[] = R"=====(
 static const char no_return_value_callee_wast[] = R"=====(
 (module
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
@@ -807,7 +821,8 @@ static const char zero_return_value_size_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -857,9 +872,10 @@ static const char return_value_before_eosio_exit_callee_wast[] = R"=====(
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $set_call_return_value (i32.const 0)(i32.const 4)) ;; store the return value 1000 (length is 4) before calling eosio_exit
       (call $eosio_exit (i32.const 0))  ;; 0 is the exit code
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -920,8 +936,9 @@ static const char set_call_return_value_invalid_size_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $set_call_return_value (i32.const 16)(i32.const 524289)) ;; max allowed return value size is 512 KB (524288)
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1149,7 +1166,8 @@ static const char valid_flags_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -1173,7 +1191,8 @@ static const char invalid_flags_wast1[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -1199,7 +1218,8 @@ static const char invalid_flags_wast2[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -1244,7 +1264,7 @@ static const char direct_recursive_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (local $n i32)
 
       (drop (call $get_call_data (i32.const 0)(get_local $data_size))) ;; read function parameter into address 0
@@ -1266,6 +1286,7 @@ static const char direct_recursive_wast[] = R"=====(
                         (i32.const 4)          ;; size
          )) ;; recursive call to itself with `n - 1 `
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1303,7 +1324,7 @@ static const char indirect_recursive_caller_wast[] = R"=====(
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (local $n i32)
 
       (drop (call $get_call_data (i32.const 4)(get_local $data_size))) ;; read function parameter into memory[4]
@@ -1319,6 +1340,7 @@ static const char indirect_recursive_caller_wast[] = R"=====(
                (i32.const 4)          ;; size
          )
       ) ;; recursive call to to the sender with `n`
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1337,7 +1359,7 @@ static const char indirect_recursive_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (local $n i32)
 
       (drop (call $get_call_data (i32.const 0)(get_local $data_size))) ;; read function parameter into address 0
@@ -1360,6 +1382,7 @@ static const char indirect_recursive_callee_wast[] = R"=====(
                   (i32.const 4)          ;; size
          )) ;; recursive call to itself with `n - 1 `
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1512,11 +1535,12 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read the argument: index
       i32.const 0       ;; address of index (stored by get_call_data)
       i32.load          ;; load index
       call $callee
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1603,8 +1627,9 @@ static const char privilege_call_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_wasm_parameters_packed (i32.const 0) (i32.const 0) (i32.const 0))) ;; get_wasm_parameters_packed requires privilege
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1892,11 +1917,12 @@ static const char read_only_general_callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read the argument: index
       i32.const 0       ;; address of index (stored by get_call_data)
       i32.load          ;; load index
       call $callee
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1955,8 +1981,9 @@ static const char read_only_pass_along_callee_wast[] = R"=====(
    (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 1)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1973,8 +2000,9 @@ static const char read_only_pass_along_callee1_wast[] = R"=====(
    (global $callee2 i64 (i64.const 4729647296285769728))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 1)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1989,8 +2017,9 @@ static const char read_only_pass_along_callee2_wast[] = R"=====(
    (import "env" "db_store_i64" (func $db_store_i64 (param i64 i64 i64 i64 i32 i32) (result i32)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $db_store_i64 (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 0)(i32.const 0)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2146,10 +2175,11 @@ static const char basic_trace_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read parameter into memory[0]
 
       (call $set_call_return_value (i32.const 0)(get_local $data_size)) ;; returns the value of the parameter
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2222,10 +2252,11 @@ static const char trace_callee1_wast[] = R"=====(
    (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 12))
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
       (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee1" 12
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2244,9 +2275,10 @@ static const char trace_callee11_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 13))
       (call $set_call_return_value (i32.const 0)(i32.const 13)) ;; size of "I am callee11" 13
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2265,9 +2297,10 @@ static const char trace_callee2_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 12))
       (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee2" 12
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2383,8 +2416,9 @@ static const char trace_except_callee1_wast[] = R"=====(
    (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2401,8 +2435,9 @@ static const char trace_except_callee11_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2519,10 +2554,11 @@ static const char console_callee1_wast[] = R"=====(
    (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 26))
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 0)))
       (call $prints_l (i32.const 26)(i32.const 23))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2541,8 +2577,9 @@ static const char console_callee11_wast[] = R"=====(
    (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 16))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2560,8 +2597,9 @@ static const char console_callee2_wast[] = R"=====(
    (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 15))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2644,8 +2682,9 @@ static const char no_prints_before_synccall_callee_wast[] = R"=====(
    (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 12))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))

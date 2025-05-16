@@ -66,13 +66,13 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
       throw;
    };
 
-   auto handle_call_failure = [&]()
+   auto handle_call_failure = [&](int64_t error_id)
    {
       auto& call_trace = get_call_trace(ordinal);
-      call_trace.error_id = -1;
+      call_trace.error_id = error_id;
       finalize_call_trace(call_trace, start);
       trx_context.checktime();
-      return -1;
+      return error_id;
    };
 
    last_sync_call_return_value.clear(); // reset for current sync call
@@ -98,12 +98,12 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( call_receiver);
          if (receiver_account->code_hash.empty()) {
-            return handle_call_failure();
+            return handle_call_failure(static_cast<int64_t>(call_error_code::empty_receiver));
          }
 
          const code_object* const codeobject = db.find<code_object, by_code_hash>(boost::make_tuple(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version));
          if (!codeobject || !codeobject->sync_call_supported) {
-            return handle_call_failure();
+            return handle_call_failure(static_cast<int64_t>(call_error_code::sync_call_not_supported_by_receiver));
          }
 
          // use a new sync_call_context for next sync call
@@ -111,7 +111,10 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // execute the sync call
-            control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+            auto status = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+            if (status < 0) {
+               return handle_call_failure(status);
+            }
          } catch( const wasm_exit&) {}
 
          // Store return value here for the case when the contract sets the

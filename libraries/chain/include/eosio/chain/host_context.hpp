@@ -565,7 +565,13 @@ public:
 
    /// Sync call methods:
 
-   // sync calls can be initiated from actions or other sync calls
+   enum class call_error_code : int64_t {
+      sync_call_not_supported_by_receiver = -1, // receiver contract does not have sync_call entry point
+      unsupported_data_version            = -2, // version in the data header is not supported
+      called_function_not_found           = -3, // called function is not found in the receiver contract
+      empty_receiver                      = -4  // receiver contract code is empty
+   };
+   // Negative status indicates failure, positive or 0 is the size of return value of the called function
    int64_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
    uint32_t get_call_return_value(std::span<char> memory) const;
 

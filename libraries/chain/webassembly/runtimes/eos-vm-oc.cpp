@@ -27,7 +27,7 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
 
       bool is_main_thread() { return _main_thread_id == std::this_thread::get_id(); };
 
-      void execute(host_context& context) override {
+      int64_t execute(host_context& context) override {
          eosio::chain::eosvmoc::code_cache_sync::mode m;
          m.whitelisted = context.is_eos_vm_oc_whitelisted();
          m.write_window = context.control.is_write_window();
@@ -41,12 +41,12 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
                _eosvmoc_runtime.release_call_exec(exec);
                _eosvmoc_runtime.release_call_mem(context.sync_call_depth, mem);
             });
-            exec->execute(*cd, *mem, context);
+            return exec->execute(*cd, *mem, context);
          } else if ( is_main_thread() ) {  // action on main thread
-            _eosvmoc_runtime.exec.execute(*cd, _eosvmoc_runtime.mem, context);
+            return _eosvmoc_runtime.exec.execute(*cd, _eosvmoc_runtime.mem, context);
          }
          else {  // action on read only thread
-            _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
+            return _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
          }
       }
 
