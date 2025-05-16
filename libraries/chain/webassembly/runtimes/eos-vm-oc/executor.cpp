@@ -251,7 +251,7 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
-   int64_t retval = 0;
+   int64_t retval = 0; // This is for return value from wasm entry point. Default to 0. Do not modify it.
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
          stack.run([&]{
