@@ -232,6 +232,42 @@ namespace eosio {
    };
 
    /**
+    *  For a while, network version was a 16 bit value equal to the second set of 16 bits
+    *  of the current build's git commit id. We are now replacing that with an integer protocol
+    *  identifier. Based on historical analysis of all git commit identifiers, the larges gap
+    *  between ajacent commit id values is shown below.
+    *  these numbers were found with the following commands on the master branch:
+    *
+    *  git log | grep "^commit" | awk '{print substr($2,5,4)}' | sort -u > sorted.txt
+    *  rm -f gap.txt; prev=0; for a in $(cat sorted.txt); do echo $prev $((0x$a - 0x$prev)) $a >> gap.txt; prev=$a; done; sort -k2 -n gap.txt | tail
+    *
+    *  DO NOT EDIT net_version_base OR net_version_range!
+    */
+   constexpr uint16_t net_version_base = 0x04b5;
+   constexpr uint16_t net_version_range = 106;
+   /**
+    *  If there is a change to network protocol or behavior, increment net version to identify
+    *  the need for compatibility hooks
+    */
+   enum class proto_version_t : uint16_t {
+      base = 0,
+      explicit_sync = 1,       // version at time of eosio 1.0
+      block_id_notify = 2,     // reserved. feature was removed. next net_version should be 3
+      pruned_types = 3,        // eosio 2.1: supports new signed_block & packed_transaction types
+      heartbeat_interval = 4,        // eosio 2.1: supports configurable heartbeat interval
+      dup_goaway_resolution = 5,     // eosio 2.1: support peer address based duplicate connection resolution
+      dup_node_id_goaway = 6,        // eosio 2.1: support peer node_id based duplicate connection resolution
+      leap_initial = 7,              // leap client, needed because none of the 2.1 versions are supported
+      block_range = 8,               // include block range in notice_message
+      savanna = 9,                   // savanna, adds vote_message
+      block_nack = 10,               // adds block_nack_message & block_notice_message
+      gossip_bp_peers = 11,          // adds gossip_bp_peers_message
+      trx_notice = 12                // adds transaction_notice_message
+   };
+
+   constexpr proto_version_t net_version_max = proto_version_t::trx_notice;
+
+   /**
     * default value initializers
     */
    constexpr auto     def_send_buffer_size_mb = 4;
@@ -499,7 +535,7 @@ namespace eosio {
        */
       chain::signature_type sign_compact(const chain::public_key_type& signer, const fc::sha256& digest) const;
 
-      constexpr static uint16_t to_protocol_version(uint16_t v);
+      constexpr static proto_version_t to_protocol_version(uint16_t v);
 
       void plugin_initialize(const variables_map& options);
       void plugin_startup();
@@ -525,43 +561,6 @@ namespace eosio {
    }
 
    static net_plugin_impl *my_impl;
-
-   /**
-    *  For a while, network version was a 16 bit value equal to the second set of 16 bits
-    *  of the current build's git commit id. We are now replacing that with an integer protocol
-    *  identifier. Based on historical analysis of all git commit identifiers, the larges gap
-    *  between ajacent commit id values is shown below.
-    *  these numbers were found with the following commands on the master branch:
-    *
-    *  git log | grep "^commit" | awk '{print substr($2,5,4)}' | sort -u > sorted.txt
-    *  rm -f gap.txt; prev=0; for a in $(cat sorted.txt); do echo $prev $((0x$a - 0x$prev)) $a >> gap.txt; prev=$a; done; sort -k2 -n gap.txt | tail
-    *
-    *  DO NOT EDIT net_version_base OR net_version_range!
-    */
-   constexpr uint16_t net_version_base = 0x04b5;
-   constexpr uint16_t net_version_range = 106;
-   /**
-    *  If there is a change to network protocol or behavior, increment net version to identify
-    *  the need for compatibility hooks
-    */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-   constexpr uint16_t proto_base = 0;
-   constexpr uint16_t proto_explicit_sync = 1;       // version at time of eosio 1.0
-   constexpr uint16_t proto_block_id_notify = 2;     // reserved. feature was removed. next net_version should be 3
-   constexpr uint16_t proto_pruned_types = 3;        // eosio 2.1: supports new signed_block & packed_transaction types
-   constexpr uint16_t proto_heartbeat_interval = 4;        // eosio 2.1: supports configurable heartbeat interval
-   constexpr uint16_t proto_dup_goaway_resolution = 5;     // eosio 2.1: support peer address based duplicate connection resolution
-   constexpr uint16_t proto_dup_node_id_goaway = 6;        // eosio 2.1: support peer node_id based duplicate connection resolution
-   constexpr uint16_t proto_leap_initial = 7;              // leap client, needed because none of the 2.1 versions are supported
-   constexpr uint16_t proto_block_range = 8;               // include block range in notice_message
-   constexpr uint16_t proto_savanna = 9;                   // savanna, adds vote_message
-   constexpr uint16_t proto_block_nack = 10;               // adds block_nack_message & block_notice_message
-   constexpr uint16_t proto_gossip_bp_peers = 11;          // adds gossip_bp_peers_message
-   constexpr uint16_t proto_trx_notice = 12;               // adds transaction_notice_message
-#pragma GCC diagnostic pop
-
-   constexpr uint16_t net_version_max = proto_trx_notice;
 
    struct peer_sync_state {
       enum class sync_t {
@@ -866,8 +865,8 @@ namespace eosio {
       alignas(hardware_destructive_interference_sz)
       std::atomic<bool>       peer_syncing_from_us{false};
 
-      std::atomic<uint16_t>   protocol_version = 0;
-      uint16_t                net_version = net_version_max;
+      std::atomic<proto_version_t>   protocol_version = proto_version_t::base;
+      proto_version_t                net_version = net_version_max;
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
       // bp_config = p2p-auto-bp-peer, bp_gossip = validated gossip connection,
       // bp_gossip_validating = only used when connection received before peer keys available
@@ -1064,7 +1063,7 @@ namespace eosio {
             ( "_lip", local_endpoint_ip )
             ( "_lport", local_endpoint_port )
             ( "_agent", short_agent_name )
-            ( "_nver", protocol_version.load() );
+            ( "_nver", static_cast<uint16_t>(protocol_version.load()) );
          return mvo;
       }
 
@@ -2287,7 +2286,7 @@ namespace eosio {
          peer_dlog( c, "handshake msg.froot ${fr}, msg.fhead ${fh}, msg.id ${id}.. sync 2, fhead ${h}, froot ${r}",
                     ("fr", msg.fork_db_root_num)("fh", msg.fork_db_head_num)("id", msg.fork_db_head_id.str().substr(8,16))
                     ("h", chain_info.fork_db_head_num)("r", chain_info.fork_db_root_num) );
-         if (msg.generation > 1 || c->protocol_version > proto_base) {
+         if (msg.generation > 1 || c->protocol_version > proto_version_t::base) {
             controller& cc = my_impl->chain_plug->chain();
             notice_message note;
             note.known_trx.pending = chain_info.fork_db_root_num;
@@ -2295,7 +2294,7 @@ namespace eosio {
             note.known_blocks.mode = last_irr_catch_up;
             note.known_blocks.pending = chain_info.fork_db_head_num;
             note.known_blocks.ids.push_back(chain_info.fork_db_head_id);
-            if (c->protocol_version >= proto_block_range) {
+            if (c->protocol_version >= proto_version_t::block_range) {
                // begin, more efficient to encode a block num instead of retrieving actual block id
                note.known_blocks.ids.push_back(make_block_id(cc.earliest_available_block_num()));
             }
@@ -2316,14 +2315,14 @@ namespace eosio {
          peer_dlog( c, "handshake msg.froot ${fr}, msg.fhead ${fh}, msg.id ${id}.. sync 4, fhead ${h}, froot ${r}",
                     ("fr", msg.fork_db_root_num)("fh", msg.fork_db_head_num)("id", msg.fork_db_head_id.str().substr(8,16))
                     ("h", chain_info.fork_db_head_num)("r", chain_info.fork_db_root_num) );
-         if (msg.generation > 1 ||  c->protocol_version > proto_base) {
+         if (msg.generation > 1 ||  c->protocol_version > proto_version_t::base) {
             controller& cc = my_impl->chain_plug->chain();
             notice_message note;
             note.known_trx.mode = none;
             note.known_blocks.mode = catch_up;
             note.known_blocks.pending = chain_info.fork_db_head_num;
             note.known_blocks.ids.push_back(chain_info.fork_db_head_id);
-            if (c->protocol_version >= proto_block_range) {
+            if (c->protocol_version >= proto_version_t::block_range) {
                // begin, more efficient to encode a block num instead of retrieving actual block id
                note.known_blocks.ids.push_back(make_block_id(cc.earliest_available_block_num()));
             }
@@ -2742,7 +2741,7 @@ namespace eosio {
             return;
          }
 
-         if (cp->protocol_version >= proto_block_nack && !my_impl->p2p_disable_block_nack) {
+         if (cp->protocol_version >= proto_version_t::block_nack && !my_impl->p2p_disable_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
                // only send block_notice if we didn't produce the block, otherwise broadcast the block below
                if (!my_impl->producer_plug->producer_accounts().contains(b->producer)) {
@@ -2774,7 +2773,7 @@ namespace eosio {
       my_impl->connections.for_each_block_connection( [exclude_peer, msg]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
-         if (cp->protocol_version < proto_savanna) return true;
+         if (cp->protocol_version < proto_version_t::savanna) return true;
          boost::asio::post(cp->strand, [cp, msg]() {
             if (vote_logger.is_enabled(fc::log_level::debug))
                peer_dlog(cp, "sending vote msg");
@@ -2811,7 +2810,7 @@ namespace eosio {
       trx_buffer_factory buff_factory;
       std::optional<connection_id_set> trx_connections;
       my_impl->connections.for_each_connection( [&]( const connection_ptr& cp ) {
-         if( cp->protocol_version < proto_trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
+         if( cp->protocol_version < proto_version_t::trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
             return;
          }
          if (!trx_connections)
@@ -3330,7 +3329,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::send_block_nack(const block_id_type& block_id) {
-      if (protocol_version < proto_block_nack || my_impl->p2p_disable_block_nack)
+      if (protocol_version < proto_version_t::block_nack || my_impl->p2p_disable_block_nack)
          return;
 
       if (my_impl->sync_master->syncing_from_peer())
@@ -3544,9 +3543,9 @@ namespace eosio {
          protocol_version = net_plugin_impl::to_protocol_version(msg.network_version);
          if( protocol_version != net_version ) {
             peer_ilog( this, "Local network version different: ${nv} Remote version: ${mnv}",
-                       ("nv", net_version)("mnv", protocol_version.load()) );
+                       ("nv", static_cast<uint16_t>(net_version))("mnv", static_cast<uint16_t>(protocol_version.load())) );
          } else {
-            peer_dlog( this, "Local network version: ${nv}", ("nv", net_version) );
+            peer_dlog( this, "Local network version: ${nv}", ("nv", static_cast<uint16_t>(net_version)) );
          }
 
          conn_node_id = msg.node_id;
@@ -3581,9 +3580,9 @@ namespace eosio {
          }
 
          // we don't support the 2.1 packed_transaction & signed_block, so tell 2.1 clients we are 2.0
-         if( protocol_version >= proto_pruned_types && protocol_version < proto_leap_initial ) {
+         if( protocol_version >= proto_version_t::pruned_types && protocol_version < proto_version_t::leap_initial ) {
             sent_handshake_count = 0;
-            net_version = proto_explicit_sync;
+            net_version = proto_version_t::explicit_sync;
             send_handshake();
             return;
          }
@@ -3790,7 +3789,7 @@ namespace eosio {
          return;
       }
       case normal : {
-         if (protocol_version >= proto_block_nack) {
+         if (protocol_version >= proto_version_t::block_nack) {
             if (msg.req_blocks.ids.size() == 2 && msg.req_trx.ids.empty()) {
                const block_id_type& req_id = msg.req_blocks.ids[0]; // 0 - req_id, 1 - peer_head_id
                peer_dlog( this, "${d} request_message:normal #${bn}:${id}",
@@ -3987,7 +3986,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::send_gossip_bp_peers_initial_message() {
-      if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
+      if (protocol_version < proto_version_t::gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
       peer_dlog(this, "sending initial gossip_bp_peers_message");
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
@@ -4011,7 +4010,7 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       my_impl->connections.for_each_connection([](const connection_ptr& c) {
          gossip_buffer_factory factory;
-         if (c->protocol_version >= proto_gossip_bp_peers && c->socket_is_open()) {
+         if (c->protocol_version >= proto_version_t::gossip_bp_peers && c->socket_is_open()) {
             if (c->bp_connection == bp_connection_type::bp_gossip) {
                const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
                boost::asio::post(c->strand, [sb, c]() {
@@ -4407,7 +4406,7 @@ namespace eosio {
       // nothing as changed since last handshake and one was sent recently, so skip sending
       if (chain_info.fork_db_head_id == hello.fork_db_head_id && (hello.time + hs_delay > now))
          return false;
-      hello.network_version = net_version_base + net_version;
+      hello.network_version = net_version_base + static_cast<uint16_t>(net_version);
       hello.fork_db_root_num = chain_info.fork_db_root_num;
       hello.fork_db_root_id = chain_info.fork_db_root_id;
       hello.fork_db_head_num = chain_info.fork_db_head_num;
@@ -4852,12 +4851,12 @@ namespace eosio {
       return my->bp_gossip_peers();
    }
 
-   constexpr uint16_t net_plugin_impl::to_protocol_version(uint16_t v) {
+   constexpr proto_version_t net_plugin_impl::to_protocol_version(uint16_t v) {
       if (v >= net_version_base) {
          v -= net_version_base;
-         return (v > net_version_range) ? 0 : v;
+         return (v > net_version_range) ? proto_version_t::base : static_cast<proto_version_t>(v);
       }
-      return 0;
+      return proto_version_t::base;
    }
 
    bool net_plugin_impl::is_lib_catchup() const {
