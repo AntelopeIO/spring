@@ -2808,14 +2808,8 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction_notify(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      std::optional<connection_id_set> trx_connections;
       my_impl->connections.for_each_connection( [&]( const connection_ptr& cp ) {
          if( cp->protocol_version < proto_version_t::trx_notice || !cp->is_transactions_connection() || !cp->current() ) {
-            return;
-         }
-         if (!trx_connections)
-            trx_connections = peer_connections(trx->id());
-         if( trx_connections->contains(cp->connection_id) ) {
             return;
          }
 
@@ -3243,9 +3237,9 @@ namespace eosio {
          return true;
       }
 
-      auto[connection_count, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
-      if (connection_count > def_max_trx_per_connection) {
-         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
+      auto[trx_count_for_connection, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
+      if (trx_count_for_connection > def_max_trx_per_connection) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", trx_count_for_connection));
          close();
          return true;
       }
