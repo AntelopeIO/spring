@@ -1233,6 +1233,52 @@ BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
                          fc_exception_message_contains("least significant bits of sync call"));
 } FC_LOG_AND_RETHROW() }
 
+// Checks the return value of call() is the same as it was set by callee's entry point
+// Use -2 for testing
+static const char check_entry_point_return_value_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i64.const -2)  ;; callee entry point returns -2
+      i64.ne
+      if             ;; assert if $call did not return -2
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 16) "host function did not return -2")
+)
+)=====";
+
+static const char check_entry_point_return_value_callee_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const -2)   ;; return -2
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Verify return value from sync call entry point is passed to host function call()
+BOOST_AUTO_TEST_CASE(check_entry_point_return_value_callee_test)  { try {
+   call_tester t({ {"caller"_n, check_entry_point_return_value_caller_wast},
+                   {"callee"_n, check_entry_point_return_value_callee_wast} });
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
 // 1. reads an i32 value as an input from action
 // 2. makes a sync call to "callee"_n contract sync_call using the input as the argument
 static const char one_input_caller_wast[] = R"=====(
