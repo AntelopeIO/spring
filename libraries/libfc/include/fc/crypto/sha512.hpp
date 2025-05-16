@@ -1,6 +1,8 @@
 #pragma once
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
+#include <fc/crypto/hash_concepts.hpp>
+#include <fc/io/raw.hpp>
 
 namespace fc
 {
@@ -21,11 +23,12 @@ class sha512
     static sha512 hash( const char* d, uint32_t dlen );
     static sha512 hash( const std::string& );
 
-    template<typename T>
-    static sha512 hash( const T& t ) 
+    template<typename... T>
+    requires NotTwoArgsCharUint32<T...>
+    static sha512 hash( const T&... t )
     { 
       sha512::encoder e; 
-      e << t; 
+      fc::raw::pack(e,t...);
       return e.result(); 
     } 
 
