@@ -891,11 +891,6 @@ BOOST_AUTO_TEST_CASE(return_value_before_eosio_exit_test) { try {
    call_tester t({ {"caller"_n, return_value_before_eosio_exit_caller_wast},
                    {"callee"_n, return_value_before_eosio_exit_callee_wast} });
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    auto trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
    auto &atrace   = trx_trace->action_traces;
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace[0].return_value), 1000u);
@@ -1938,11 +1933,6 @@ BOOST_AUTO_TEST_CASE(read_only_general_test)  { try {
    call_tester t({{"caller"_n, read_only_general_caller_wast},
                   {"callee"_n, read_only_general_callee_wast}});
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    // Add privilege to callee account so we can test read-only check on privileged api
    t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
                  mvo()("account", "callee"_n)("is_priv", 1));
@@ -2039,11 +2029,6 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
                    {"callee1"_n, read_only_pass_along_callee1_wast},
                    {"callee2"_n, read_only_pass_along_callee2_wast} });
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    // First verify db_store_i64 is disaalowed
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
                          unaccessible_api,
@@ -2087,11 +2072,6 @@ BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
                    {"callee"_n,  read_only_pass_along_callee_wast},
                    {"callee1"_n, read_only_pass_along_callee1_wast},
                    {"callee2"_n, read_only_pass_along_callee2_wast} });
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    // Construct a read_only transaction
    action act;
@@ -2140,11 +2120,6 @@ BOOST_AUTO_TEST_CASE(trace_without_sync_call_test) { try {
    validating_tester t;
    account_name      acct;
 
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_one_account_and_set_code(no_sync_call_entry_point_wast, acct, t);
    auto  trx_trace = t.push_action(acct, "doit"_n, acct, {});
    auto& atrace    = trx_trace->action_traces;
@@ -2190,11 +2165,6 @@ static const char basic_trace_callee_wast[] = R"=====(
 // Verify call trace for a single sync call. Every field is validated
 BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(basic_trace_caller_wast, basic_trace_callee_wast, t);
 
@@ -2314,11 +2284,6 @@ static const char trace_callee2_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, trace_caller_wast);
@@ -2361,11 +2326,6 @@ BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
 BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_one_level_test) { try {
    validating_tester t;
    account_name      acct;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_one_account_and_set_code(invalid_flags_wast1, acct, t);
 
@@ -2450,11 +2410,6 @@ static const char trace_except_callee11_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
    validating_tester t;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -2615,11 +2570,6 @@ static const char console_callee2_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(console_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    account_name caller;
    create_one_account_and_set_code(console_caller_wast, caller, t);
 
@@ -2699,11 +2649,6 @@ static const char no_prints_before_synccall_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(no_prints_before_synccall_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    account_name caller;
    create_one_account_and_set_code(no_prints_before_synccall_caller_wast, caller, t);
 
@@ -2737,11 +2682,6 @@ BOOST_AUTO_TEST_CASE(contract_console_not_enabled_test) { try {
 
    t.execute_setup_policy( setup_policy::full );
    t.produce_block();
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
