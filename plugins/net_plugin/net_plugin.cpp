@@ -284,6 +284,7 @@ namespace eosio {
    constexpr auto     def_keepalive_interval = 10000;
    constexpr auto     def_trx_notice_min_size = 200; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
    constexpr auto     def_max_trx_per_connection = 100000;
+   constexpr auto     def_allowed_clock_skew = fc::seconds(15);
 
    class connections_manager {
    public:
@@ -2697,7 +2698,7 @@ namespace eosio {
          start_size = local_txns.size();
          auto& old = local_txns.get<by_expiry>();
          auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
-         auto ex_up = old.upper_bound( fc::time_point_sec{now - fc::seconds(5)} ); // allow for some clock-skew
+         auto ex_up = old.upper_bound( fc::time_point_sec{now - def_allowed_clock_skew} ); // allow for some clock-skew
          while (ex_lo != ex_up) {
             for (const auto& cid : ex_lo->connection_ids)
                ++expired_trxs_for_connection[cid];
@@ -3229,9 +3230,9 @@ namespace eosio {
          }
          return true;
       }
-      // allow for some (10 secs) clock skew on this node
-      if (ptr->expiration() < fc::time_point_sec{now - fc::seconds(10)} ||
-          ptr->expiration() > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + fc::seconds(10)}) {
+      // allow for some clock skew on this node
+      if (ptr->expiration() < fc::time_point_sec{now - def_allowed_clock_skew} ||
+          ptr->expiration() > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + def_allowed_clock_skew}) {
          std::string reason = "Dropping trx with expiration " + ptr->expiration().to_iso_string();
          my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason.c_str());
          if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
@@ -3291,9 +3292,9 @@ namespace eosio {
       fc::raw::unpack( ds, msg );
 
       auto now = fc::time_point::now();
-      // allow for some (10 secs) clock skew on this node
-      if (msg.expiration < fc::time_point_sec{now - fc::seconds(10)} ||
-          msg.expiration > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + fc::seconds(10)}) {
+      // allow for some clock skew on this node
+      if (msg.expiration < fc::time_point_sec{now - def_allowed_clock_skew} ||
+          msg.expiration > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + def_allowed_clock_skew}) {
          peer_dlog(this, "Dropping trx notice with expiration ${e}", ("e", msg.expiration));
          return true;
       }
@@ -4078,7 +4079,7 @@ namespace eosio {
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
          try {
             if (cc.is_producer_node()) {
-               EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
+               EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + def_allowed_clock_skew), block_from_the_future,
                           "received a block from the future, rejecting it: ${id}", ("id", id));
             }
             // this will return empty optional<block_handle> if block is not linkable
