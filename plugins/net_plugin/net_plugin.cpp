@@ -2634,7 +2634,14 @@ namespace eosio {
          if (tptr->connection_ids.insert(c.connection_id).second)
             ++c.trx_entries_size;
          already_have_trx = tptr->have_trx;
-         tptr->have_trx = true;
+         if (!already_have_trx) {
+            time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
+            expires = std::min( trx_expires, expires );
+            local_txns.modify(tptr, [&](auto& v) {
+               v.expires = expires;
+               v.have_trx = true;
+            });
+         }
       } else {
          // expire at either transaction expiration or configured max expire time whichever is less
          time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
