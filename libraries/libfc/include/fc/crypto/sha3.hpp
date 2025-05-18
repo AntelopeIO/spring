@@ -30,7 +30,6 @@ public:
 		return sha;
 	}
 	static sha3 hash(const std::string& s, bool is_nist=true) { return hash(s.c_str(), s.size(), is_nist); }
-	static sha3 hash(const sha3& s, bool is_nist=true) { return hash(s.data(), sizeof(s._hash), is_nist); }
 
 	template <typename T>
 	static sha3 hash(const T &t, bool is_nist=true)
