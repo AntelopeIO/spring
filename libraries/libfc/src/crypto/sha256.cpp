@@ -204,12 +204,6 @@ namespace fc {
         memset( bi.data(), char(0), sizeof(bi) );
   }
 
-  uint64_t hash64(const char* buf, size_t len)
-  {
-    sha256 sha_value = sha256::hash(buf,len);
-    return sha_value._hash[0];
-  }
-
     template<>
     unsigned int hmac<sha256>::internal_block_size() const { return 64; }
 } //end namespace fc
