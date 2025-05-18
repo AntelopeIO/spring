@@ -41,14 +41,6 @@ ripemd160::encoder::encoder() {
   reset();
 }
 
-ripemd160 ripemd160::hash( const fc::sha512& h )
-{
-  return hash( (const char*)&h, sizeof(h) );
-}
-ripemd160 ripemd160::hash( const fc::sha256& h )
-{
-  return hash( (const char*)&h, sizeof(h) );
-}
 ripemd160 ripemd160::hash( const char* d, uint32_t dlen ) {
   encoder e;
   e.write(d,dlen);

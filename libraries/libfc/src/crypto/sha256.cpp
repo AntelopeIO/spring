@@ -51,11 +51,6 @@ namespace fc {
       return hash( s.c_str(), s.size() );
     }
 
-    sha256 sha256::hash( const sha256& s )
-    {
-        return hash( s.data(), sizeof( s._hash ) );
-    }
-
     void sha256::encoder::write( const char* d, uint32_t dlen ) {
       SHA256_Update( &my->ctx, d, dlen);
     }

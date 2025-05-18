@@ -20,8 +20,6 @@ class ripemd160
     char*    data()const;
     size_t data_size()const { return 160/8; }
 
-    static ripemd160 hash( const fc::sha512& h );
-    static ripemd160 hash( const fc::sha256& h );
     static ripemd160 hash( const char* d, uint32_t dlen );
     static ripemd160 hash( const std::string& );
 
