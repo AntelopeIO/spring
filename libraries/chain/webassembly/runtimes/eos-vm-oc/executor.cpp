@@ -251,6 +251,8 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
+   int64_t ret_val = 0; // This is explicitly set in apply_func and call_func below. "default" case of the following switch is considered OK
+
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
          stack.run([&]{
@@ -269,11 +271,11 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
             if (context.is_action()) {
                void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
                apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
-               return 0l;
+               ret_val = 0;
             } else if (code.call_offset) {
                const auto& ctx = static_cast<eosio::chain::sync_call_context&>(context);
                int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
-               return call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
+               ret_val = call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
             } else {
                assert(false);
             }
@@ -295,11 +297,9 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
       case EOSVMOC_EXIT_EXCEPTION: //exception
          std::rethrow_exception(*cb->eptr);
          break;
-      default:
-         EOS_ASSERT(false, wasm_execution_error, "unexpected sigsetjmp return value");
    }
-   assert(false);
-   __builtin_unreachable();
+
+   return ret_val;
 }
 
 executor::~executor() {
