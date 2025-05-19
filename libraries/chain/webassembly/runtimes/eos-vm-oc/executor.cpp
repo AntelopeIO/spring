@@ -251,7 +251,6 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
-   int64_t retval = 0; // This is for return value from wasm entry point. Default to 0. Do not modify it.
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
          stack.run([&]{
@@ -270,10 +269,11 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
             if (context.is_action()) {
                void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
                apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
+               return 0l;
             } else if (code.call_offset) {
                const auto& ctx = static_cast<eosio::chain::sync_call_context&>(context);
                int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
-               retval = call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
+               return call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
             } else {
                assert(false);
             }
@@ -282,6 +282,12 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
       //case 1: clean eosio_exit
       case EOSVMOC_EXIT_CHECKTIME_FAIL:
          context.trx_context.checktime();
+
+         // If EOSVMOC_EXIT_CHECKTIME_FAIL is caught, context.trx_context.checktime()
+         // must throw. Otherwise we would have interrupted contract execution
+         // at some unknown time but still considered it completed successfully.
+         assert(false);
+         __builtin_unreachable();
          break;
       case EOSVMOC_EXIT_SEGV:
          EOS_ASSERT(false, wasm_execution_error, "access violation");
@@ -289,8 +295,11 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
       case EOSVMOC_EXIT_EXCEPTION: //exception
          std::rethrow_exception(*cb->eptr);
          break;
+      default:
+         EOS_ASSERT(false, wasm_execution_error, "unexpected sigsetjmp return value");
    }
-   return retval;
+   assert(false);
+   __builtin_unreachable();
 }
 
 executor::~executor() {

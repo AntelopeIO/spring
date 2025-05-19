@@ -249,18 +249,16 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             return bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
+
+            // If eosio::vm::timeout_exception is caught, context.trx_context.checktime()
+            // must throw. Otherwise we would have interrupted contract execution
+            // at some unknown time but still considered it completed successfully.
+            assert(false);
+            __builtin_unreachable();
          } catch(eosio::vm::wasm_memory_exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "access violation: ${d}", ("d", e.detail()));
          } catch(eosio::vm::exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure: ${d}", ("d", e.detail()));
-         }
-
-         // This is to get around `control reaches end of non-void function` compile warning.
-         using return_type = std::invoke_result_t<F>;
-         static_assert(std::is_void_v<return_type> || std::is_same_v<return_type, std::int64_t>,
-                       "return type of F must be either void or int64_t");  // Protect future misuse
-         if constexpr (std::is_same_v<return_type, std::int64_t>) {
-            return 0l;
          }
       }
 
