@@ -57,10 +57,10 @@ auto make_unique_trx( const chain_id_type& chain_id ) {
                                 testit{ nextid % 7 == 0 ? 0 : nextid} ); // fail some for duplicates
    }
    if( nextid % 13 == 0 ) { // fail some for invalid signature
-      auto bad_priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("kevin")));
+      auto bad_priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash_raw(std::string("kevin")));
       trx.sign( bad_priv_key, chain_id );
    } else {
-      auto priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("nathan")));
+      auto priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash_raw(std::string("nathan")));
       trx.sign( priv_key, chain_id );
    }
 

@@ -41,16 +41,6 @@ namespace fc {
       reset();
     }
 
-    sha256 sha256::hash( const char* d, uint32_t dlen ) {
-      encoder e;
-      e.write(d,dlen);
-      return e.result();
-    }
-
-    sha256 sha256::hash( const std::string& s ) {
-      return hash( s.c_str(), s.size() );
-    }
-
     void sha256::encoder::write( const char* d, uint32_t dlen ) {
       SHA256_Update( &my->ctx, d, dlen);
     }

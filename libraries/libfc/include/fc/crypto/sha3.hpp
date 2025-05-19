@@ -2,6 +2,7 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
+#include <fc/crypto/hash_concepts.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <boost/functional/hash.hpp>
 
@@ -23,12 +24,20 @@ public:
 	char* data();
 	size_t data_size() const { return 256 / 8; }
 
+	static sha3 hash_raw(const ContiguousCharSource auto& r, bool is_nist=true) {
+		encoder e;
+		e.write(r.data(), r.size());
+		return e.result(is_nist);
+	}
+
+	[[deprecated]]
 	static sha3 hash(const char *d, uint32_t dlen, bool is_nist=true) {
 		encoder e;
 		e.write(d, dlen);
 		const auto& sha = e.result(is_nist);
 		return sha;
 	}
+	[[deprecated]]
 	static sha3 hash(const std::string& s, bool is_nist=true) { return hash(s.c_str(), s.size(), is_nist); }
 
 	template <typename T>

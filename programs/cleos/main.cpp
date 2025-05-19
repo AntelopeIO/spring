@@ -3092,7 +3092,7 @@ int main( int argc, char** argv ) {
 
          fc::sha256 hash;
          if(wasm_v.size())
-            hash = fc::sha256::hash(wasm_v.data(), wasm_v.size());
+            hash = fc::sha256::hash_raw(wasm_v);
          code_hash = (string)hash;
 
          wasm = string(wasm_v.begin(), wasm_v.end());
@@ -3515,7 +3515,7 @@ int main( int argc, char** argv ) {
 
       if (!suppress_duplicate_check) {
          if (code_bytes.size()) {
-            new_hash = fc::sha256::hash(&(code_bytes[0]), code_bytes.size());
+            new_hash = fc::sha256::hash_raw(code_bytes);
          }
          duplicate = (old_hash == new_hash);
       }
