@@ -621,3 +621,5 @@ private:
 };
 
 } } // namespace eosio::chain
+
+FC_REFLECT_ENUM(eosio::chain::host_context::call_error_code, (sync_call_not_supported_by_receiver)(unsupported_data_version)(called_function_not_found)(empty_receiver));
