@@ -136,6 +136,9 @@ namespace eosio::chain {
 
          void checktime()const;
 
+         [[noreturn]]
+         void checktime_must_throw()const;  // Useful where checktime is expected to throw when called after eosvm/oc execution exits from check time fails
+
          template <typename DigestType>
          inline DigestType hash_with_checktime( const char* data, uint32_t datalen )const {
             const size_t bs = eosio::chain::config::hashing_checktime_block_size;

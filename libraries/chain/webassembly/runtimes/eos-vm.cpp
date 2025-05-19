@@ -248,13 +248,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             checktime_watchdog wd(context.trx_context.transaction_timer, multi_expr_callbacks_allowed);
             return bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
-            context.trx_context.checktime();
-
-            // If eosio::vm::timeout_exception is caught, context.trx_context.checktime()
-            // must throw. Otherwise we would have interrupted contract execution
-            // at some unknown time but still considered it completed successfully.
-            assert(false);
-            __builtin_unreachable();
+            context.trx_context.checktime_must_throw();
          } catch(eosio::vm::wasm_memory_exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "access violation: ${d}", ("d", e.detail()));
          } catch(eosio::vm::exception& e) {

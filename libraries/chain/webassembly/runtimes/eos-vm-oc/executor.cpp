@@ -283,13 +283,7 @@ int64_t executor::execute(const code_descriptor& code, memory& mem, host_context
          break;
       //case 1: clean eosio_exit
       case EOSVMOC_EXIT_CHECKTIME_FAIL:
-         context.trx_context.checktime();
-
-         // If EOSVMOC_EXIT_CHECKTIME_FAIL is caught, context.trx_context.checktime()
-         // must throw. Otherwise we would have interrupted contract execution
-         // at some unknown time but still considered it completed successfully.
-         assert(false);
-         __builtin_unreachable();
+         context.trx_context.checktime_must_throw();
          break;
       case EOSVMOC_EXIT_SEGV:
          EOS_ASSERT(false, wasm_execution_error, "access violation");
