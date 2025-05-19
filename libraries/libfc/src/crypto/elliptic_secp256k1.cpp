@@ -76,7 +76,7 @@ namespace fc { namespace ecc {
       size_t serialized_result_sz = sizeof(serialized_result);
       secp256k1_ec_pubkey_serialize(detail::_get_context(), (unsigned char*)&serialized_result.data, &serialized_result_sz, &secp_pubkey, SECP256K1_EC_COMPRESSED );
       FC_ASSERT( serialized_result_sz == sizeof(serialized_result) );
-      return fc::sha512::hash( serialized_result.begin() + 1, serialized_result.size() - 1 );
+      return fc::sha512::hash_raw( std::span(serialized_result.begin() + 1, serialized_result.size() - 1) );
     }
 
     private_key private_key::generate()
