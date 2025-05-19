@@ -576,10 +576,11 @@ BOOST_AUTO_TEST_CASE( execute_many_from_read_only_and_read_exclusive_queues ) {
    const auto run_on_main = std::count_if(rslts.cbegin(), rslts.cend(), [&](const auto& v){ return v == app->executor().get_main_thread_id(); });
 
    BOOST_REQUIRE_EQUAL(run_on_1+run_on_2+run_on_3+run_on_main, num_expected);
-   BOOST_CHECK(run_on_1 > 0);
-   BOOST_CHECK(run_on_2 > 0);
-   BOOST_CHECK(run_on_3 > 0);
-   BOOST_CHECK(run_on_main > 0);
+   // We expect at least one to run on every thread including main, but nothing guarantees that
+   BOOST_WARN(run_on_1 > 0);
+   BOOST_WARN(run_on_2 > 0);
+   BOOST_WARN(run_on_3 > 0);
+   BOOST_WARN(run_on_main > 0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
