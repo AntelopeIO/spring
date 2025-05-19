@@ -113,6 +113,8 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
             // execute the sync call
             auto status = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
             if (status < 0) {
+               EOS_ASSERT((status == -2 || status == -3), sync_call_invalid_status_exception, // unsupported_data_version or called_function_not_found
+                          "Unexpected sync call entry point return status ${status}: ", ("status", status));
                return handle_call_failure(status);
             }
          } catch( const wasm_exit&) {}
