@@ -35,15 +35,6 @@ sha1::encoder::encoder() {
   reset();
 }
 
-sha1 sha1::hash( const char* d, uint32_t dlen ) {
-  encoder e;
-  e.write(d,dlen);
-  return e.result();
-}
-sha1 sha1::hash( const std::string& s ) {
-  return hash( s.c_str(), s.size() );
-}
-
 void sha1::encoder::write( const char* d, uint32_t dlen ) {
   SHA1_Update( &my->ctx, d, dlen);
 }

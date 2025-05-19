@@ -41,15 +41,6 @@ ripemd160::encoder::encoder() {
   reset();
 }
 
-ripemd160 ripemd160::hash( const char* d, uint32_t dlen ) {
-  encoder e;
-  e.write(d,dlen);
-  return e.result();
-}
-ripemd160 ripemd160::hash( const std::string& s ) {
-  return hash( s.c_str(), s.size() );
-}
-
 void ripemd160::encoder::write( const char* d, uint32_t dlen ) {
   RIPEMD160_Update( &my->ctx, d, dlen);
 }

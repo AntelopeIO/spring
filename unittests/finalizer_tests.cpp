@@ -44,12 +44,12 @@ std::vector<FSI> create_random_fsi(size_t count) {
    // but compared to loaded ones which get the default values of 0.
    for (size_t i = 0; i < count; ++i) {
       res.push_back(FSI{
-         .last_vote             = block_ref{sha256::hash("vote"s + std::to_string(i)),
+         .last_vote             = block_ref{sha256::hash_raw("vote"s + std::to_string(i)),
                                             tstamp(i * 100 + 3),
-                                            sha256::hash("vote_digest"s + std::to_string(i)), 0, 0},
-         .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
+                                            sha256::hash_raw("vote_digest"s + std::to_string(i)), 0, 0},
+         .lock                  = block_ref{sha256::hash_raw("lock"s + std::to_string(i)),
                                             tstamp(i * 100),
-                                            sha256::hash("lock_digest"s + std::to_string(i)), 0, 0},
+                                            sha256::hash_raw("lock_digest"s + std::to_string(i)), 0, 0},
          .other_branch_latest_time = block_timestamp_type{}
       });
       if (i)

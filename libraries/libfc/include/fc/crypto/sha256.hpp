@@ -4,6 +4,7 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
+#include <fc/crypto/hash_concepts.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <boost/functional/hash.hpp>
 
@@ -32,8 +33,11 @@ class sha256
        return (_hash[0] | _hash[1] | _hash[2] | _hash[3]) == 0;
     }
 
-    static sha256 hash( const char* d, uint32_t dlen );
-    static sha256 hash( const std::string& );
+    static sha256 hash_raw(const ContiguousCharSource auto& r) {
+       encoder e;
+       e.write(r.data(), r.size());
+       return e.result();
+    }
 
     template<typename T>
     static sha256 hash( const T& t ) 

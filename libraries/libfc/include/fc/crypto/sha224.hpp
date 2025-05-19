@@ -1,6 +1,7 @@
 #pragma once
 #include <unordered_map>
 #include <fc/fwd.hpp>
+#include <fc/crypto/hash_concepts.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <fc/string.hpp>
 
@@ -20,8 +21,11 @@ class sha224
     const char* data()const;
     size_t data_size()const { return 224 / 8; }
 
-    static sha224 hash( const char* d, uint32_t dlen );
-    static sha224 hash( const std::string& );
+    static sha224 hash_raw(const ContiguousCharSource auto& r) {
+      encoder e;
+      e.write(r.data(), r.size());
+      return e.result();
+    }
 
     template<typename T>
     static sha224 hash( const T& t ) 

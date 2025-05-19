@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE(bls_sig_verif_finality_types) try {
   std::string s_view_number = std::to_string(view_number);
   std::string c_s = cmt + s_view_number;
 
-  fc::sha256 h1 = fc::sha256::hash(c_s);
+  fc::sha256 h1 = fc::sha256::hash_raw(c_s);
   fc::sha256 h2 = fc::sha256::hash( std::make_pair( h1, message_3 ) );
 
   std::vector<unsigned char> v = std::vector<unsigned char>(h2.data(), h2.data() + 32);

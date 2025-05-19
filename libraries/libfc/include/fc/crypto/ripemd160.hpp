@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fc/fwd.hpp>
+#include <fc/crypto/hash_concepts.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <fc/reflect/typename.hpp>
 
@@ -20,8 +21,11 @@ class ripemd160
     char*    data()const;
     size_t data_size()const { return 160/8; }
 
-    static ripemd160 hash( const char* d, uint32_t dlen );
-    static ripemd160 hash( const std::string& );
+    static ripemd160 hash_raw(const ContiguousCharSource auto& r) {
+      encoder e;
+      e.write(r.data(), r.size());
+      return e.result();
+    }
 
     template<typename T>
     static ripemd160 hash( const T& t ) 

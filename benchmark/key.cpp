@@ -13,7 +13,7 @@ namespace eosio::benchmark {
 
 void k1_sign_benchmarking() {
    auto payload = "Test Cases";
-   auto digest = sha256::hash(payload, const_strlen(payload));
+   auto digest = sha256::hash_raw(std::string_view(payload));
    auto private_key_string = std::string("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3");
    auto key = private_key(private_key_string);
 
@@ -40,7 +40,7 @@ void k1_benchmarking() {
 
 void r1_benchmarking() {
    auto payload = "Test Cases";
-   auto digest = sha256::hash(payload, const_strlen(payload));
+   auto digest = sha256::hash_raw(std::string_view(payload));
    auto key = private_key::generate<r1::private_key_shim>();
 
    auto sign_f = [&]() {
@@ -60,7 +60,7 @@ static fc::crypto::webauthn::signature make_webauthn_sig(const fc::crypto::r1::p
                                                          const std::string& json) {
 
    //webauthn signature is sha256(auth_data || client_data_hash)
-   fc::sha256 client_data_hash = fc::sha256::hash(json);
+   fc::sha256 client_data_hash = fc::sha256::hash_raw(json);
    fc::sha256::encoder e;
    e.write((char*)auth_data.data(), auth_data.size());
    e.write(client_data_hash.data(), client_data_hash.data_size());
@@ -82,8 +82,8 @@ static fc::crypto::webauthn::signature make_webauthn_sig(const fc::crypto::r1::p
 
 void wa_benchmarking() {
    static const r1::private_key priv = fc::crypto::r1::private_key::generate();
-   static const fc::sha256 d = fc::sha256::hash("sup"s);
-   static const fc::sha256 origin_hash = fc::sha256::hash("fctesting.invalid"s);
+   static const fc::sha256 d = fc::sha256::hash_raw("sup"s);
+   static const fc::sha256 origin_hash = fc::sha256::hash_raw("fctesting.invalid"s);
    std::string json = "{\"origin\":\"https://fctesting.invalid\",\"type\":\"webauthn.get\", \"challenge\":\"" + fc::base64url_encode(d.data(), d.data_size()) + "\"}";
    std::vector<uint8_t> auth_data(37);
    memcpy(auth_data.data(), origin_hash.data(), sizeof(origin_hash));

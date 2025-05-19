@@ -131,7 +131,7 @@ namespace eosio::testing {
             std::vector<uint8_t> auth_data(37);
             memcpy(auth_data.data(), _origin_hash.data(), sizeof(_origin_hash));
 
-            auto client_data_hash = fc::sha256::hash(json);
+            auto client_data_hash = fc::sha256::hash_raw(json);
             fc::sha256::encoder e;
             e.write((char*)auth_data.data(), auth_data.size());
             e.write(client_data_hash.data(), client_data_hash.data_size());
@@ -376,7 +376,7 @@ namespace eosio::testing {
 
          template< typename KeyType = fc::ecc::private_key_shim >
          static auto get_private_key( name keyname, string role = "owner" ) {
-            auto secret = fc::sha256::hash(keyname.to_string() + role);
+            auto secret = fc::sha256::hash_raw(keyname.to_string() + role);
             if constexpr (std::is_same_v<KeyType, mock::webauthn_private_key>) {
                return mock::webauthn_private_key::regenerate(secret);
             } else {
