@@ -192,52 +192,6 @@ struct bitset {
       return ds;
    }
 
-#if 0
-   void print() const {
-      auto s = to_string();
-      if (!s.empty())
-         printl(s.data(), s.size());
-   }
-
-   // binary representation
-   // ---------------------
-   // The bitset first encodes the number of bits it contains as a varint, then encodes
-   // (size+8-1)/8 bytes into the stream. The first byte represents bits 0-7, the next 8-15,
-   // and so on; i.e. LSB first.
-   // Within a byte, the least significant bit stores the smaller bitset index.
-   // Unused bits should be written as 0.
-   //
-   // This matches the storage scheme of bitset above
-   // ---------------------------------------------------------------------------------------
-   template <typename DataStream>
-   friend DataStream& operator>>(DataStream& stream, bitset& obj) {
-      unsigned_int num_bits(0);
-      stream >> num_bits;
-      obj.resize(num_bits.value);
-      if (obj.size() > 0) {
-         auto num_blocks = bitset::calc_num_blocks(obj.size());
-         for (size_t i = 0; i < num_blocks; ++i)
-            stream >> obj.byte(i);
-         obj.zero_unused_bits();
-         assert(obj.unused_bits_zeroed());
-      }
-      return stream;
-   }
-
-   template <typename DataStream>
-   friend DataStream& operator<<(DataStream& stream, const bitset& obj) {
-      unsigned_int num_bits(obj.size());
-      stream << num_bits;
-      if (obj.size() > 0) {
-         auto num_blocks = bitset::calc_num_blocks(obj.size());
-         assert(num_blocks >= 1);
-         for (size_t i = 0; i < num_blocks; ++i)
-            stream << obj.byte(i);
-      }
-      return stream;
-   }
-#endif
-
 private:
    size_type   m_num_bits{0}; // members order matters for comparison operators
    buffer_type m_bits;        // must be after `m_num_bits`
