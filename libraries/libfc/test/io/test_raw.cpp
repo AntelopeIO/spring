@@ -67,11 +67,11 @@ BOOST_AUTO_TEST_CASE(bitset_large_test)
 
 BOOST_AUTO_TEST_CASE(bitset_pack_unpack)
 {
-   //std::ofstream s("out", std::ios::out  | std::ios::binary );
+   std::vector<char> serialized; // to accumulate serialization bits from all calls to `check_pack_unpack`
 
    auto check_pack_unpack = [&](const fc::bitset& bs) {
       auto bytes = fc::raw::pack(bs);
-      //s.write(bytes.data(), bytes.size());
+      serialized.insert(serialized.end(), bytes.begin(), bytes.end());
       auto bs2 = fc::raw::unpack<fc::bitset>(bytes);
       BOOST_TEST(bs2 == bs);
    };
@@ -99,6 +99,14 @@ BOOST_AUTO_TEST_CASE(bitset_pack_unpack)
    check_pack_unpack(fc::bitset("01110011010100101001001001100000010000110"));
    check_pack_unpack(fc::bitset("0111001101010010111011001001001100000000000000110"));
    check_pack_unpack(fc::bitset("01110011010100101111001101100100100111111111111111111001"));
+
+   // verify that expected serialization doesn't change. bits generated with spring 1.2.
+   std::string ser_bits{"00010001010201040506140954000a54010dd40c0ed40c10540011a5e60013979a03155d6a0e19d9a5e6001ab24bcd"
+                        "011d925d6a0e1f4b76a9392126d9a5e600239864979a032986c024a5e60031060026d9a5e60038f9ff9f64f35273"};
+   std::vector<char> expected_serialization(ser_bits.size() / 2);
+   fc::from_hex(ser_bits, expected_serialization.data(), expected_serialization.size());
+
+   BOOST_TEST(serialized == expected_serialization);
 }
 
 BOOST_AUTO_TEST_CASE(bitset_small_test)
