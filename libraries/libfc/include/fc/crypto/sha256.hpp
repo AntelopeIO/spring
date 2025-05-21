@@ -4,13 +4,14 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
-#include <fc/io/raw_fwd.hpp>
+#include <fc/crypto/hash_concepts.hpp>
+#include <fc/io/raw.hpp>
 #include <boost/functional/hash.hpp>
 
 namespace fc
 {
 
-class sha256 
+class sha256
 {
   public:
     sha256();
@@ -36,11 +37,12 @@ class sha256
     static sha256 hash( const std::string& );
     static sha256 hash( const sha256& );
 
-    template<typename T>
-    static sha256 hash( const T& t ) 
+    template<typename... T>
+    requires NotTwoArgsCharUint32<T...>
+    static sha256 hash( const T&... t )
     { 
       sha256::encoder e; 
-      fc::raw::pack(e,t);
+      fc::raw::pack(e,t...);
       return e.result(); 
     } 
 
