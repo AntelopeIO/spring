@@ -18,6 +18,7 @@ add_executable( test_fc
         variant_estimated_size/test_variant_estimated_size.cpp
         test_base64.cpp
         test_escape_str.cpp
+        test_bitset.cpp
         test_bls.cpp
         test_ordered_diff.cpp
         main.cpp

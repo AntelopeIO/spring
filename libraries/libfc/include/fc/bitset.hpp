@@ -96,6 +96,14 @@ struct bitset {
       zero_unused_bits();
    }
 
+   bool all() const {
+      auto sz = size();
+      for (size_t i=0; i<sz; ++i)
+         if (!test(i))
+            return false;
+      return true;
+   }
+
    bool none() const {
       for (auto& byte : m_bits)
          if (byte)
