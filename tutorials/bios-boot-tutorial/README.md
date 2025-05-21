@@ -16,12 +16,12 @@ The `bios-boot-tutorial.py` script simulates the bios boot sequence.
 
 2. Install the latest [CDT binaries](https://github.com/AntelopeIO/cdt/releases) by following the steps provided in the README.
 
-3. Compile the latest [EOS System Contracts](https://github.com/eosnetworkfoundation/eos-system-contracts/releases). Replaces `release/*latest*` with the latest release branch.
+3. Compile the latest [System Contracts](https://github.com/eosnetworkfoundation/system-contracts/releases). Replaces `release/*latest*` with the latest release branch.
 
 ```bash
 $ cd ~
-$ git clone https://github.com/eosnetworkfoundation/eos-system-contracts
-$ cd ./eos-system-contracts/
+$ git clone https://github.com/VaultaFoundation/system-contracts
+$ cd ./system-contracts/
 $ git checkout release/*latest*
 $ mkdir build
 $ cd ./build
