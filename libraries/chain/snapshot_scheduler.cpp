@@ -2,7 +2,6 @@
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/pending_snapshot.hpp>
 #include <eosio/chain/snapshot_scheduler.hpp>
-#include <fc/scoped_exit.hpp>
 
 namespace eosio::chain {
 
@@ -16,7 +15,7 @@ void snapshot_scheduler::on_start_block(uint32_t height, chain::controller& chai
          dlog("snapshot scheduler creating a snapshot from the request [start_block_num:${start_block_num}, end_block_num=${end_block_num}, block_spacing=${block_spacing}], height=${height}",
               ("start_block_num", req.start_block_num)("end_block_num", req.end_block_num)("block_spacing", req.block_spacing)("height", height));
 
-         execute_snapshot(req.snapshot_request_id, chain);
+         execute_snapshot(req.snapshot_request_id, chain, req.next);
          snapshot_executed = true;
       }
    };
@@ -65,15 +64,17 @@ void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, cons
    }
 }
 
-snapshot_scheduler::snapshot_schedule_result snapshot_scheduler::schedule_snapshot(const snapshot_request_information& sri) {
-   auto& snapshot_by_value = _snapshot_requests.get<by_snapshot_value>();
-   auto existing = snapshot_by_value.find(std::make_tuple(sri.block_spacing, sri.start_block_num, sri.end_block_num));
-   EOS_ASSERT(existing == snapshot_by_value.end(), chain::duplicate_snapshot_request, "Duplicate snapshot request");
-   EOS_ASSERT(sri.start_block_num <= sri.end_block_num, chain::invalid_snapshot_request, "End block number should be greater or equal to start block number");
-   EOS_ASSERT(sri.start_block_num + sri.block_spacing <= sri.end_block_num, chain::invalid_snapshot_request, "Block spacing exceeds defined by start and end range");
+snapshot_scheduler::snapshot_schedule_result snapshot_scheduler::schedule_snapshot(const snapshot_request_information& sri, next_function<snapshot_information> next) {
+   try {
+      auto& snapshot_by_value = _snapshot_requests.get<by_snapshot_value>();
+      auto existing = snapshot_by_value.find(std::make_tuple(sri.block_spacing, sri.start_block_num, sri.end_block_num));
+      EOS_ASSERT(existing == snapshot_by_value.end(), chain::duplicate_snapshot_request, "Duplicate snapshot request");
+      EOS_ASSERT(sri.start_block_num <= sri.end_block_num, chain::invalid_snapshot_request, "End block number should be greater or equal to start block number");
+      EOS_ASSERT(sri.start_block_num + sri.block_spacing <= sri.end_block_num, chain::invalid_snapshot_request, "Block spacing exceeds defined by start and end range");
 
-   _snapshot_requests.emplace(snapshot_schedule_information{{_snapshot_id++}, {sri.block_spacing, sri.start_block_num, sri.end_block_num, sri.snapshot_description}, {}});
-   x_serialize();
+      _snapshot_requests.emplace(snapshot_schedule_information{{_snapshot_id++}, {sri.block_spacing, sri.start_block_num, sri.end_block_num, sri.snapshot_description}, {}, next});
+      x_serialize();
+   } CATCH_AND_CALL(next);
 
    // returning snapshot_schedule_result
    return snapshot_schedule_result{{_snapshot_id - 1}, {sri.block_spacing, sri.start_block_num, sri.end_block_num, sri.snapshot_description}};
@@ -131,11 +132,14 @@ void snapshot_scheduler::add_pending_snapshot_info(const snapshot_information& s
    }
 }
 
-void snapshot_scheduler::execute_snapshot(uint32_t srid, chain::controller& chain) {
+void snapshot_scheduler::execute_snapshot(uint32_t srid, chain::controller& chain, next_function<snapshot_information> http_next) {
    _inflight_sid = srid;
-   auto next = [srid, this](const chain::next_function_variant<snapshot_information>& result) {
+   auto next = [srid, this, http_next](const chain::next_function_variant<snapshot_information>& result) {
+      if (http_next)
+         http_next(result);
       if(std::holds_alternative<fc::exception_ptr>(result)) {
-         wlog("Snapshot creation error: ${d}", ("d", std::get<fc::exception_ptr>(result)->to_detail_string()));
+         if (!http_next)
+            wlog("Snapshot creation error: ${d}", ("d", std::get<fc::exception_ptr>(result)->to_detail_string()));
       } else {
          // success, snapshot finalized
          auto snapshot_info = std::get<snapshot_information>(result);
@@ -151,10 +155,10 @@ void snapshot_scheduler::execute_snapshot(uint32_t srid, chain::controller& chai
          }
       }
    };
-   create_snapshot(next, chain, {});
+   create_snapshot(next, chain);
 }
 
-void snapshot_scheduler::create_snapshot(next_function<snapshot_information> next, chain::controller& chain, std::function<void(void)> predicate) {
+void snapshot_scheduler::create_snapshot(next_function<snapshot_information> next, chain::controller& chain) {
    auto head_id = chain.head().id();
    const auto head_block_num = chain.head().block_num();
    const auto head_block_time = chain.head().block_time();
@@ -169,7 +173,6 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
    }
 
    auto write_snapshot = [&](const fs::path& p) -> void {
-      if(predicate) predicate();
       fs::create_directory(p.parent_path());
       auto snap_out = std::ofstream(p.generic_string(), (std::ios::out | std::ios::binary));
       auto writer = std::make_shared<ostream_snapshot_writer>(snap_out);
