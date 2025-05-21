@@ -43,11 +43,11 @@ struct bitset {
 
    bitset() = default;
 
-   bitset(size_type num_bits) {
+   explicit bitset(size_type num_bits) {
       resize(num_bits);
    }
 
-   bitset(std::string_view s) {
+   explicit bitset(std::string_view s) {
       *this = bitset::from_string(s);
    }
 
@@ -143,7 +143,7 @@ struct bitset {
       return m_bits[i];
    }
 
-   const uint8_t& byte(size_t i) const {
+   uint8_t byte(size_t i) const {
       assert(i < m_bits.size());
       return m_bits[i];
    }
