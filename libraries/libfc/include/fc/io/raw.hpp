@@ -12,6 +12,7 @@
 #include <fc/static_variant.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <fc/crypto/hex.hpp>
+#include <fc/bitset.hpp>
 #include <fc/bitutil.hpp>
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -36,8 +37,8 @@ namespace fc {
     template<typename Stream> void unpack( Stream& s,  Int<256>& n );
     template<typename Stream, typename T> void pack( Stream& s, const boost::multiprecision::number<T>& n );
     template<typename Stream, typename T> void unpack( Stream& s,  boost::multiprecision::number<T>& n );
-    template<typename Stream> void pack( Stream& s, const fc::dynamic_bitset& bs );
-    template<typename Stream> void unpack( Stream& s,  fc::dynamic_bitset& bs );
+    template<typename Stream> void pack( Stream& s, const fc::bitset& bs );
+    template<typename Stream> void unpack( Stream& s,  fc::bitset& bs );
 
     template<typename Stream, typename Arg0, typename... Args>
     inline void pack( Stream& s, const Arg0& a0, const Args&... args ) {
@@ -572,36 +573,35 @@ namespace fc {
     }
 
     template<typename Stream>
-    inline void pack( Stream& s, const fc::dynamic_bitset& value ) {
-      // pack the size of the bitset, not the number of blocks
+    inline void pack( Stream& s, const fc::bitset& value ) {
       const auto num_blocks = value.num_blocks();
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
-      fc::raw::pack( s, unsigned_int(value.size()) );
-      [[maybe_unused]] constexpr size_t word_size = sizeof(fc::dynamic_bitset::block_type) * CHAR_BIT;
-      assert(num_blocks == (value.size() + word_size - 1) / word_size);
-      // convert bitset to a vector of blocks
-      std::vector<fc::dynamic_bitset::block_type> blocks;
-      blocks.resize(num_blocks);
-      boost::to_block_range(value, blocks.begin());
-      // pack the blocks
-      for (const auto& b: blocks) {
-         fc::raw::pack( s, b );
+
+      // pack the size of the bitset, not the number of blocks
+      auto num_bits = value.size();
+      fc::raw::pack( s, unsigned_int(num_bits) );
+      if (num_bits > 0) {
+         // pack the blocks
+         for (size_t i = 0; i < num_blocks; ++i)
+            fc::raw::pack(s, value.byte(i));
       }
     }
 
     template<typename Stream>
-    inline void unpack( Stream& s, fc::dynamic_bitset& value ) {
+    inline void unpack( Stream& s, fc::bitset& value ) {
       // the packed size is the number of bits in the set, not the number of blocks
-      unsigned_int size; fc::raw::unpack( s, size );
-      constexpr size_t word_size = sizeof(fc::dynamic_bitset::block_type) * CHAR_BIT;
-      size_t num_blocks = (size + word_size - 1) / word_size;
+      unsigned_int size;
+      fc::raw::unpack( s, size );
+      size_t num_blocks = bitset::calc_num_blocks(size);
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
-      std::vector<fc::dynamic_bitset::block_type> blocks(num_blocks);
-      for( size_t i = 0; i < num_blocks; ++i ) {
-         fc::raw::unpack( s, blocks[i] );
+      value.resize(size);
+      if (size > 0) {
+         assert(num_blocks == value.num_blocks());
+         for (size_t i = 0; i < num_blocks; ++i)
+            fc::raw::unpack( s, value.byte(i) );
+         value.zero_unused_bits();
+         assert(value.unused_bits_zeroed());
       }
-      value = { blocks.cbegin(), blocks.cend() };
-      value.resize(size.value);
     }
 
     template<typename Stream, typename T>

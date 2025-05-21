@@ -8,7 +8,7 @@
 #include <fc/crypto/bls_private_key.hpp>
 #include <fc/crypto/bls_public_key.hpp>
 #include <fc/crypto/bls_signature.hpp>
-#include <fc/bitutil.hpp>
+#include <fc/bitset.hpp>
 #include <array>
 #include <map>
 #include <memory>
@@ -22,7 +22,7 @@ namespace eosio::chain {
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
    using bls_private_key         = fc::crypto::blslib::bls_private_key;
 
-   using vote_bitset_t = fc::dynamic_bitset;
+   using vote_bitset_t = fc::bitset;
    using bls_key_map_t = std::map<bls_public_key, bls_private_key>;
 
    constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };

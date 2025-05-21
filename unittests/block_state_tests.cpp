@@ -338,9 +338,10 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    bsp->weak_digest = weak_digest;
 
    {  // valid strong QC
-      vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      vote_bitset_t strong_votes;
+      strong_votes.resize(num_finalizers);
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
+      strong_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_signature sig_0 = active_private_keys[0].sign(strong_digest.to_uint8_span());
       bls_signature sig_2 = active_private_keys[2].sign(strong_digest.to_uint8_span());
@@ -357,11 +358,11 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // valid weak QC
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
       bls_signature strong_sig = active_private_keys[0].sign(strong_digest.to_uint8_span());
 
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      weak_votes.set(2);  // finalizer 2 voted with weight 3
       bls_signature weak_sig = active_private_keys[2].sign(weak_digest);
 
       bls_aggregate_signature agg_sig;
@@ -379,7 +380,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       bls_aggregate_signature agg_sig;
 
       for (auto i = 0u; i < num_finalizers; ++i) {
-         strong_votes[i] = 1;
+         strong_votes.set(i);
          sigs[i] = active_private_keys[i].sign(strong_digest.to_uint8_span());
          agg_sig.aggregate(sigs[i]);
       }
@@ -397,7 +398,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       bls_aggregate_signature agg_sig;
 
       for (auto i = 0u; i < num_finalizers; ++i) {
-         weak_votes[i] = 1;
+         weak_votes.set(i);
          sigs[i] = active_private_keys[i].sign(weak_digest);
          agg_sig.aggregate(sigs[i]);
       }
@@ -411,7 +412,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // strong QC quorum not met
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3 (threshold is 4)
+      strong_votes.set(2);  // finalizer 2 voted with weight 3 (threshold is 4)
 
       bls_aggregate_signature agg_sig;
       bls_signature sig_2 = active_private_keys[2].sign(strong_digest.to_uint8_span());
@@ -426,7 +427,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // weak QC quorum not met
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3 (threshold is 4)
+      weak_votes.set(2);  // finalizer 2 voted with weight 3 (threshold is 4)
 
       bls_aggregate_signature agg_sig;
       bls_signature sig_2 = active_private_keys[2].sign(weak_digest);
@@ -445,7 +446,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       vote_bitset_t strong_votes(num_finalizers + 1);
 
       // vote by finalizer 0
-      strong_votes[0] = 1;
+      strong_votes.set(0);
 
       // aggregate votes
       bls_aggregate_signature agg_sig;
@@ -465,7 +466,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       vote_bitset_t weak_votes(num_finalizers - 1);
 
       // vote by finalizer 0
-      weak_votes[0] = 1;
+      weak_votes.set(0);
 
       // aggregate votes
       bls_aggregate_signature agg_sig;
@@ -481,8 +482,8 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // strong QC with a wrong signing private key
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
+      strong_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_signature sig_0 = active_private_keys[0].sign(strong_digest.to_uint8_span());
       bls_signature sig_2 = active_private_keys[1].sign(strong_digest.to_uint8_span()); // signed by finalizer 1 which is not set in strong_votes
@@ -499,8 +500,8 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // strong QC with a wrong digest
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
+      strong_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_signature sig_0 = active_private_keys[0].sign(weak_digest); // should have used strong digest
       bls_signature sig_2 = active_private_keys[2].sign(strong_digest.to_uint8_span());
@@ -517,11 +518,11 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // weak QC with a wrong signing private key
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
       bls_signature strong_sig = active_private_keys[0].sign(strong_digest.to_uint8_span());
 
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      weak_votes.set(2);  // finalizer 2 voted with weight 3
       bls_signature weak_sig = active_private_keys[1].sign(weak_digest); // wrong key
 
       bls_aggregate_signature sig;
@@ -535,11 +536,11 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 
    {  // weak QC with a wrong digest
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
       bls_signature strong_sig = active_private_keys[0].sign(weak_digest); // wrong digest
 
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      weak_votes.set(2);  // finalizer 2 voted with weight 3
       bls_signature weak_sig = active_private_keys[2].sign(weak_digest);
 
       bls_aggregate_signature sig;
@@ -600,8 +601,8 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // valid strong QC
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
+      strong_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[0].sign(strong_digest.to_uint8_span()));
@@ -621,12 +622,12 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // valid weak QC
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
       bls_signature active_strong_sig = active_private_keys[0].sign(strong_digest.to_uint8_span());
       bls_signature pending_strong_sig = pending_private_keys[0].sign(strong_digest.to_uint8_span());
 
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      weak_votes.set(2);  // finalizer 2 voted with weight 3
       bls_signature active_weak_sig = active_private_keys[2].sign(weak_digest);
       bls_signature pending_weak_sig = pending_private_keys[2].sign(weak_digest);
 
@@ -649,7 +650,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
       bls_aggregate_signature pending_agg_sig;
 
       for (auto i = 0u; i < num_finalizers; ++i) {
-         strong_votes[i] = 1;
+         strong_votes.set(i);
          active_agg_sig.aggregate(active_private_keys[i].sign(strong_digest.to_uint8_span()));
          pending_agg_sig.aggregate(pending_private_keys[i].sign(strong_digest.to_uint8_span()));
       }
@@ -668,7 +669,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
       bls_aggregate_signature pending_agg_sig;
 
       for (auto i = 0u; i < num_finalizers; ++i) {
-         weak_votes[i] = 1;
+         weak_votes.set(i);
          active_agg_sig.aggregate(active_private_keys[i].sign(weak_digest));
          pending_agg_sig.aggregate(pending_private_keys[i].sign(weak_digest));
       }
@@ -683,7 +684,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // strong QC quorum not met
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3 (threshold is 4)
+      strong_votes.set(2);  // finalizer 2 voted with weight 3 (threshold is 4)
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[2].sign(strong_digest.to_uint8_span()));
@@ -700,7 +701,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // weak QC quorum not met
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3 (threshold is 4)
+      weak_votes.set(2);  // finalizer 2 voted with weight 3 (threshold is 4)
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[2].sign(weak_digest));
@@ -721,7 +722,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
       vote_bitset_t strong_votes(num_finalizers + 1);
 
       // vote by finalizer 0
-      strong_votes[0] = 1;
+      strong_votes.set(0);
 
       // aggregate votes
       bls_aggregate_signature active_agg_sig;
@@ -743,7 +744,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
       vote_bitset_t weak_votes(num_finalizers - 1);
 
       // vote by finalizer 0
-      weak_votes[0] = 1;
+      weak_votes.set(0);
 
       // aggregate votes
       bls_aggregate_signature active_agg_sig;
@@ -761,8 +762,8 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // strong QC with a wrong signing private key
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
+      strong_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[0].sign(strong_digest.to_uint8_span()));
@@ -781,8 +782,8 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // strong QC with a wrong digest
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
-      strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
+      strong_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[0].sign(weak_digest)); // should have used strong digest
@@ -801,10 +802,10 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // weak QC with a wrong signing private key
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
 
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      weak_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[0].sign(strong_digest.to_uint8_span()));
@@ -821,10 +822,10 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 
    {  // weak QC with a wrong digest
       vote_bitset_t strong_votes(num_finalizers);
-      strong_votes[0] = 1;  // finalizer 0 voted with weight 1
+      strong_votes.set(0);  // finalizer 0 voted with weight 1
 
       vote_bitset_t weak_votes(num_finalizers);
-      weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      weak_votes.set(2);  // finalizer 2 voted with weight 3
 
       bls_aggregate_signature active_agg_sig;
       active_agg_sig.aggregate(active_private_keys[0].sign(weak_digest)); // wrong digest
@@ -906,12 +907,12 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
       bls_aggregate_signature pending_agg_sig;
 
       vote_bitset_t init_votes(num_finalizers);
-      init_votes[2] = 1; // for meeting quorum
+      init_votes.set(2); // for meeting quorum
 
       if (vote_strong_on_active) {
          active_strong_votes = init_votes;
          if (*vote_strong_on_active) {
-            (*active_strong_votes)[0] = 1;  // dual finalizer votes
+            (*active_strong_votes).set(0);  // dual finalizer votes
             active_agg_sig.aggregate(active_private_keys[0].sign(strong_digest.to_uint8_span()));
          }
          active_agg_sig.aggregate(active_private_keys[2].sign(strong_digest.to_uint8_span()));
@@ -920,7 +921,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
       if (vote_weak_on_active) {
          active_weak_votes = init_votes;
          if (*vote_weak_on_active) {
-            (*active_weak_votes)[0] = 1;  // dual finalizer votes
+            (*active_weak_votes).set(0);  // dual finalizer votes
             active_agg_sig.aggregate(active_private_keys[0].sign(weak_digest));
          }
          active_agg_sig.aggregate(active_private_keys[2].sign(weak_digest));
@@ -929,7 +930,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
       if (vote_strong_on_pending) {
          pending_strong_votes = init_votes;
          if (*vote_strong_on_pending) {
-            (*pending_strong_votes)[1] = 1;  // dual finalizer votes with weight 1
+            (*pending_strong_votes).set(1);  // dual finalizer votes with weight 1
             pending_agg_sig.aggregate(pending_private_keys[1].sign(strong_digest.to_uint8_span()));
          }
          pending_agg_sig.aggregate(pending_private_keys[2].sign(strong_digest.to_uint8_span()));
@@ -938,7 +939,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
       if (vote_weak_on_pending) {
          pending_weak_votes = init_votes;
          if (*vote_weak_on_pending) {
-            (*pending_weak_votes)[1] = 1;  // dual finalizer votes with weight 1
+            (*pending_weak_votes).set(1);  // dual finalizer votes with weight 1
             pending_agg_sig.aggregate(pending_private_keys[1].sign(weak_digest));
          }
          pending_agg_sig.aggregate(pending_private_keys[2].sign(weak_digest));
