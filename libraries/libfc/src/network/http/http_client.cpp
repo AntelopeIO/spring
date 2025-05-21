@@ -320,7 +320,7 @@ public:
          }
 
          if (excp) {
-            throw *excp;
+            excp->rethrow();
          } else {
             FC_THROW("Request failed with 500 response, but response was not parseable");
          }

@@ -13,7 +13,7 @@
            (const chain::next_function_variant<call_result>& result) mutable {                                  \
               if (std::holds_alternative<fc::exception_ptr>(result)) {                                          \
                  try {                                                                                          \
-                    throw *std::get<fc::exception_ptr>(result);                                                 \
+                    std::get<fc::exception_ptr>(result)->rethrow();                                             \
                  } catch (...) {                                                                                \
                     http_plugin::handle_exception(#api_name, #call_name, body, cb);                             \
                  }                                                                                              \
@@ -28,7 +28,7 @@
                     chain::t_or_exception<call_result> result = http_fwd();                                     \
                     if (std::holds_alternative<fc::exception_ptr>(result)) {                                    \
                        try {                                                                                    \
-                          throw *std::get<fc::exception_ptr>(result);                                           \
+                          std::get<fc::exception_ptr>(result)->rethrow();                                       \
                        } catch (...) {                                                                          \
                           http_plugin::handle_exception(#api_name, #call_name, body, cb);                       \
                        }                                                                                        \
@@ -65,7 +65,7 @@
                    chain::t_or_exception<call_result> result = http_fwd();                                      \
                    if (std::holds_alternative<fc::exception_ptr>(result)) {                                     \
                       try {                                                                                     \
-                         throw *std::get<fc::exception_ptr>(result);                                            \
+                         std::get<fc::exception_ptr>(result)->rethrow();                                        \
                       } catch (...) {                                                                           \
                          http_plugin::handle_exception(#api_name, #call_name, body, cb);                        \
                       }                                                                                         \

@@ -491,8 +491,7 @@ namespace eosio::testing {
          for( auto itr = unapplied_transactions.begin(); itr != unapplied_transactions.end();  ) {
             auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
             if(!no_throw && trace->except) {
-               // this always throws an fc::exception, since the original exception is copied into an fc::exception
-               throw *trace->except;
+               trace->except->rethrow();
             }
             itr = unapplied_transactions.erase( itr );
             res.unapplied_transaction_traces.emplace_back( std::move(trace) );
@@ -503,8 +502,7 @@ namespace eosio::testing {
             for( const auto& trx : scheduled_trxs ) {
                auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
                if( !no_throw && trace->except ) {
-                  // this always throws an fc::exception, since the original exception is copied into an fc::exception
-                  throw *trace->except;
+                  trace->except->rethrow();
                }
             }
          }
@@ -737,7 +735,7 @@ namespace eosio::testing {
       auto fut = transaction_metadata::start_recover_keys( ptrx, control->get_thread_pool(), control->get_chain_id(), time_limit, transaction_metadata::trx_type::input );
       auto r = control->push_transaction( fut.get(), deadline, fc::microseconds::maximum(), billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
-      if( r->except ) throw *r->except;
+      if( r->except ) r->except->rethrow();
       return r;
    } FC_RETHROW_EXCEPTIONS( warn, "transaction_header: ${header}", ("header", transaction_header(trx.get_transaction()) )) }
 
@@ -764,7 +762,7 @@ namespace eosio::testing {
       auto r = control->push_transaction( fut.get(), deadline, fc::microseconds::maximum(), billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
       if (no_throw) return r;
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
-      if( r->except)  throw *r->except;
+      if( r->except)  r->except->rethrow();
       return r;
    } FC_RETHROW_EXCEPTIONS( warn, "transaction_header: ${header}, billed_cpu_time_us: ${billed}",
                             ("header", transaction_header(trx) ) ("billed", billed_cpu_time_us))
