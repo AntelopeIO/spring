@@ -48,6 +48,10 @@ void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, cons
       snapshots_by_height.erase(snapshots_by_height.begin());
    }
 
+   unschedule_snapshot_requests(lib_height);
+}
+
+void snapshot_scheduler::unschedule_snapshot_requests(block_num_type lib_height) {
    std::vector<uint32_t> unschedule_snapshot_request_ids;
    for(const auto& req: _snapshot_requests.get<0>()) {
       bool marked_for_deletion = (!req.block_spacing && lib_height >= req.start_block_num) || // if one time snapshot executed or scheduled for the past, it should be gone
@@ -63,6 +67,7 @@ void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, cons
       unschedule_snapshot(i);
    }
 }
+
 
 snapshot_scheduler::snapshot_schedule_result snapshot_scheduler::schedule_snapshot(const snapshot_request_information& sri, next_function<snapshot_information> next) {
    try {
@@ -195,6 +200,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
 
          ilog("Snapshot creation at block ${bn} complete; snapshot placed at ${fn}", ("bn", head_block_num)("fn", snapshot_path));
          next(snapshot_information{head_id, head_block_num, head_block_time, chain_snapshot_header::current_version, snapshot_path.generic_string()});
+         unschedule_snapshot_requests(head_block_num);
       }
       CATCH_AND_CALL(next);
       return;

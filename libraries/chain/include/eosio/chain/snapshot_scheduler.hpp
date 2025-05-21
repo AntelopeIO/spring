@@ -194,6 +194,7 @@ public:
    // snapshot scheduler handlers
    snapshot_schedule_result schedule_snapshot(const snapshot_request_information& sri, next_function<snapshot_information> next);
    snapshot_schedule_result unschedule_snapshot(uint32_t sri);
+   void unschedule_snapshot_requests(block_num_type lib_height);
    get_snapshot_requests_result get_snapshot_requests();
 
    // initialize with storage
