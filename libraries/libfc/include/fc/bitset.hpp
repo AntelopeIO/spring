@@ -207,7 +207,7 @@ private:
 };
 
 
-// ----------------  too_variant / from_variant conversions ----------------------------------------------
+// ----------------  to_variant / from_variant conversions ----------------------------------------------
 
 inline void to_variant(const fc::bitset& bs, fc::variant& v) {
    auto num_blocks = bs.num_blocks();
