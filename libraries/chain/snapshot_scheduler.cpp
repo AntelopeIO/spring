@@ -42,8 +42,7 @@ void snapshot_scheduler::on_irreversible_block(const signed_block_ptr& lib, cons
 
       try {
          next(pending->finalize(block_id, chain));
-      }
-      CATCH_AND_CALL(next);
+      } FC_LOG_AND_DROP();
 
       snapshots_by_height.erase(snapshots_by_height.begin());
    }
@@ -226,7 +225,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
                     "Unable to promote temp snapshot ${t} to pending ${p} for block number ${bn}: [code: ${ec}] ${message}",
                     ("t", temp_path.generic_string())("p", pending_path.generic_string())
                     ("bn", head_block_num)("ec", ec.value())("message", ec.message()));
-         ilog("Snapshot creation at block ${bn} complete; snapshot will be available once block becomes irreversible", ("bn", head_block_num));
+         ilog("Snapshot creation at block ${bn} complete; snapshot will be available once block ${b} becomes irreversible", ("bn", head_block_num)("b",head_id));
          _pending_snapshot_index.emplace(head_id, head_block_time, next, pending_path.generic_string(), snapshot_path.generic_string());
          add_pending_snapshot_info(snapshot_information{head_id, head_block_num, head_block_time, chain_snapshot_header::current_version, pending_path.generic_string()});
       }
