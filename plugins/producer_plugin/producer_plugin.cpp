@@ -1803,6 +1803,15 @@ void producer_plugin::create_snapshot(producer_plugin::next_function<chain::snap
    chain::controller& chain = my->chain_plug->chain();
    const auto head_block_num = chain.head().block_num();
 
+   auto reschedule = fc::make_scoped_exit([my=my]() { my->schedule_production_loop(); });
+
+   if (chain.is_building_block()) {
+      // abort the pending block
+      my->abort_block();
+   } else {
+      reschedule.cancel();
+   }
+
    // missing start/end is set to head block num, missing end to UINT32_MAX
    chain::snapshot_scheduler::snapshot_request_information sri = {
       .block_spacing   = 0,
