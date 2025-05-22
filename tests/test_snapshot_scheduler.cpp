@@ -20,16 +20,22 @@ BOOST_AUTO_TEST_CASE(snapshot_scheduler_test) {
    snapshot_scheduler scheduler;
 
    {
+      auto next = [](const chain::next_function_variant<snapshot_scheduler::snapshot_information>& result) {
+         if(std::holds_alternative<fc::exception_ptr>(result)) {
+            std::get<fc::exception_ptr>(result)->rethrow();
+         }
+      };
+
       // add/remove test
       snapshot_request_information sri1 = {.block_spacing = 100, .start_block_num = 5000, .end_block_num = 10000, .snapshot_description = "Example of recurring snapshot"};
       snapshot_request_information sri2 = {.block_spacing = 0, .start_block_num = 5200, .end_block_num = 5200, .snapshot_description = "Example of one-time snapshot"};
 
-      scheduler.schedule_snapshot(sri1);
-      scheduler.schedule_snapshot(sri2);
+      scheduler.schedule_snapshot(sri1, next);
+      scheduler.schedule_snapshot(sri2, next);
 
       BOOST_CHECK_EQUAL(2u, scheduler.get_snapshot_requests().snapshot_requests.size());
 
-      BOOST_CHECK_EXCEPTION(scheduler.schedule_snapshot(sri1), duplicate_snapshot_request, [](const fc::assert_exception& e) {
+      BOOST_CHECK_EXCEPTION(scheduler.schedule_snapshot(sri1, next), duplicate_snapshot_request, [](const fc::assert_exception& e) {
          return e.to_detail_string().find("Duplicate snapshot request") != std::string::npos;
       });
 
@@ -44,12 +50,12 @@ BOOST_AUTO_TEST_CASE(snapshot_scheduler_test) {
       BOOST_CHECK_EQUAL(0u, scheduler.get_snapshot_requests().snapshot_requests.size());
 
       snapshot_request_information sri_large_spacing = {.block_spacing = 1000, .start_block_num = 5000, .end_block_num = 5010};
-      BOOST_CHECK_EXCEPTION(scheduler.schedule_snapshot(sri_large_spacing), invalid_snapshot_request, [](const fc::assert_exception& e) {
+      BOOST_CHECK_EXCEPTION(scheduler.schedule_snapshot(sri_large_spacing, next), invalid_snapshot_request, [](const fc::assert_exception& e) {
          return e.to_detail_string().find("Block spacing exceeds defined by start and end range") != std::string::npos;
       });
 
       snapshot_request_information sri_start_end = {.block_spacing = 1000, .start_block_num = 50000, .end_block_num = 5000};
-      BOOST_CHECK_EXCEPTION(scheduler.schedule_snapshot(sri_start_end), invalid_snapshot_request, [](const fc::assert_exception& e) {
+      BOOST_CHECK_EXCEPTION(scheduler.schedule_snapshot(sri_start_end, next), invalid_snapshot_request, [](const fc::assert_exception& e) {
          return e.to_detail_string().find("End block number should be greater or equal to start block number") != std::string::npos;
       });
    }
