@@ -1812,15 +1812,22 @@ void producer_plugin::create_snapshot(producer_plugin::next_function<chain::snap
       reschedule.cancel();
    }
 
-   // missing start/end is set to head block num, missing end to UINT32_MAX
-   chain::snapshot_scheduler::snapshot_request_information sri = {
-      .block_spacing   = 0,
-      .start_block_num = head_block_num, // use head_block_num in case we are running in irreversible mode so it happens immediately
-      .end_block_num   = std::numeric_limits<uint32_t>::max(),
-      .snapshot_description = ""
-   };
-
-   my->_snapshot_scheduler.schedule_snapshot(sri, std::move(next));
+   if(chain.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+      // /v1/producer/create_snapshot is expected to immediately create a snapshot. When in irreversible mode this
+      // can't be completely faked by scheduling to create on the next start_block as a start_block might never happen.
+      // Create snapshot directly. Since in irreversible mode it can't be forked out there is no need to have the
+      // snapshot scheduler schedule the snapshot, just create it here and now.
+      my->_snapshot_scheduler.create_snapshot(std::move(next), chain);
+   } else {
+      // setup for execute on the next start block
+      chain::snapshot_scheduler::snapshot_request_information sri = {
+         .block_spacing   = 0,
+         .start_block_num = head_block_num + 1,
+         .end_block_num   = std::numeric_limits<uint32_t>::max(),
+         .snapshot_description = ""
+      };
+      my->_snapshot_scheduler.schedule_snapshot(sri, std::move(next));
+   }
 }
 
 chain::snapshot_scheduler::snapshot_schedule_result
