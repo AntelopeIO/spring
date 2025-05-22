@@ -212,13 +212,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
    auto& pending_by_id = _pending_snapshot_index.get<by_id>();
    auto existing = pending_by_id.find(head_id);
    if(existing != pending_by_id.end()) {
-      // if a snapshot at this block is already pending, attach this requests handler to it
-      pending_by_id.modify(existing, [&next](auto& entry) {
-         entry.next = [prev = entry.next, next](const next_function_variant<snapshot_information>& res) {
-            prev(res);
-            next(res);
-         };
-      });
+      // if a snapshot at this block is already pending, ignore
    } else {
       const auto& pending_path = pending_snapshot<snapshot_information>::get_pending_path(head_id, _snapshots_dir);
 
