@@ -293,7 +293,6 @@ namespace eosio {
       struct connection_detail {
          std::string host;
          connection_ptr c;
-         connection_id_t id() const;
       };
 
       using connection_details_index = multi_index_container<
@@ -306,10 +305,6 @@ namespace eosio {
             ordered_unique<
                tag<struct by_connection>,
                key<&connection_detail::c>
-            >,
-            ordered_unique<
-               tag<struct by_connection_id>,
-               const_mem_fun<connection_detail, connection_id_t, &connection_detail::id>
             >
          >
       >;
@@ -387,9 +382,6 @@ namespace eosio {
 
       template <typename UnaryPredicate>
       bool any_of_block_connections(UnaryPredicate&& p) const;
-
-      template <typename Function>
-      void with_connection_lock(Function&& f) const;
 
    }; // connections_manager
 
@@ -1151,10 +1143,6 @@ namespace eosio {
          c->handle_message( msg );
       }
    };
-
-   connection_id_t connections_manager::connection_detail::id() const {
-      return c->connection_id;
-   }
 
    template<typename Function>
    bool connections_manager::any_of_supplied_peers( Function&& f ) const {
