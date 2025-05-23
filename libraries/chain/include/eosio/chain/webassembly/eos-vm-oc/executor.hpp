@@ -26,7 +26,7 @@ class executor {
       executor(const code_cache_base& cc);
       ~executor();
 
-      void execute(const code_descriptor& code, memory& mem, host_context& context);
+      int64_t execute(const code_descriptor& code, memory& mem, host_context& context);
 
    private:
       uint8_t* code_mapping;

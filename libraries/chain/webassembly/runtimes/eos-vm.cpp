@@ -70,7 +70,7 @@ static bool module_has_valid_sync_call(module& mod) {
    const uint32_t i = mod.get_exported_function("sync_call");
    if (i < std::numeric_limits<uint32_t>::max()) {
       const vm::func_type& function_type = mod.get_function_type(i);
-      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}) {
+      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {vm::i64}}) {
          supported = true;
       }
    }
@@ -175,16 +175,16 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      void  execute(host_context& context) override {
+      int64_t execute(host_context& context) override {
          if (context.is_action()) {
-            apply(static_cast<apply_context&>(context));
+            return apply(static_cast<apply_context&>(context));
          } else {
-            do_sync_call(static_cast<sync_call_context&>(context));
+            return do_sync_call(static_cast<sync_call_context&>(context));
          }
       }
 
    private:
-      void do_sync_call(sync_call_context& context) {
+      int64_t do_sync_call(sync_call_context& context) {
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
          vm::wasm_allocator*                      wasm_alloc = context.control.acquire_sync_call_wasm_allocator();
@@ -196,20 +196,20 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
 
          apply_options opts = get_apply_options(context);
 
-         auto fn = [&]() {
+         auto fn = [&]() -> int64_t {
             eosio::chain::webassembly::interface iface(context);
             bkend.initialize(&iface, opts);
-            bkend.call(
-                iface, "env", "sync_call",
-                context.sender.to_uint64_t(),
-                context.receiver.to_uint64_t(),
-                static_cast<uint32_t>(context.data.size()));
+            return bkend.call_with_return(
+               iface, "env", "sync_call",
+               context.sender.to_uint64_t(),
+               context.receiver.to_uint64_t(),
+               static_cast<uint32_t>(context.data.size()))->to_i64();
          };
 
-         exe(context, bkend, exec_ctx, *wasm_alloc, fn, true);
+         return exe(context, bkend, exec_ctx, *wasm_alloc, fn, true);
       }
 
-      void apply(apply_context& context) {
+      int64_t apply(apply_context& context) {
          auto& bkend      = _runtime->_bkend;
          auto& exec_ctx   = _runtime->_exec_ctx;
          auto& wasm_alloc = context.control.get_wasm_allocator();
@@ -226,9 +226,11 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
 
          exe(context, bkend, exec_ctx, wasm_alloc, fn, false);
+         return 0;  // status of `apply` is not used
       }
 
-      void exe(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
+      template<typename F>
+      auto exe(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, F&& fn, bool multi_expr_callbacks_allowed) {
          // set up backend to share the compiled mod in the instantiated
          // module of the contract
          bkend.share(*_instantiated_module);
@@ -244,9 +246,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
 
          try {
             checktime_watchdog wd(context.trx_context.transaction_timer, multi_expr_callbacks_allowed);
-            bkend.timed_run(std::move(wd), std::move(fn));
+            return bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
-            context.trx_context.checktime();
+            context.trx_context.checktime_must_throw();
          } catch(eosio::vm::wasm_memory_exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "access violation: ${d}", ("d", e.detail()));
          } catch(eosio::vm::exception& e) {
@@ -276,7 +278,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          _original_code(code, code + code_size) {}
 
 
-      void execute(host_context& context) override {
+      int64_t execute(host_context& context) override {
          _instantiated_module->set_wasm_allocator(&context.control.get_wasm_allocator());
          apply_options opts;
          if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
@@ -304,6 +306,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          } catch(eosio::vm::exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure");
          }
+         return 0;
       }
 
       profile_data* start(apply_context& context) {

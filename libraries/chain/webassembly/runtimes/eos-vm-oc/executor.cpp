@@ -165,7 +165,7 @@ executor::executor(const code_cache_base& cc) {
    mapping_is_executable = true;
 }
 
-void executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
+int64_t executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
    if(mapping_is_executable == false) {
       mprotect(code_mapping, code_mapping_size, PROT_EXEC|PROT_READ);
       mapping_is_executable = true;
@@ -251,6 +251,8 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
+   int64_t ret_val = 0; // This is explicitly set in apply_func and call_func below. "default" case of the following switch is considered OK
+
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
          stack.run([&]{
@@ -269,10 +271,11 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
             if (context.is_action()) {
                void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
                apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
+               ret_val = 0;
             } else if (code.call_offset) {
                const auto& ctx = static_cast<eosio::chain::sync_call_context&>(context);
                int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
-               call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
+               ret_val = call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
             } else {
                assert(false);
             }
@@ -280,7 +283,7 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
          break;
       //case 1: clean eosio_exit
       case EOSVMOC_EXIT_CHECKTIME_FAIL:
-         context.trx_context.checktime();
+         context.trx_context.checktime_must_throw();
          break;
       case EOSVMOC_EXIT_SEGV:
          EOS_ASSERT(false, wasm_execution_error, "access violation");
@@ -289,6 +292,8 @@ void executor::execute(const code_descriptor& code, memory& mem, host_context& c
          std::rethrow_exception(*cb->eptr);
          break;
    }
+
+   return ret_val;
 }
 
 executor::~executor() {
