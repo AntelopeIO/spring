@@ -7,7 +7,9 @@
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/producer_schedule.hpp>
 
+#include <boost/asio/ip/address.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 
 namespace eosio::auto_bp_peering {
@@ -181,7 +183,7 @@ public:
                         ("a", outbound_ip_address)("m", net_utils::max_p2p_address_length) );
             auto is_valid_ip_address = [](const std::string& ip_str) {
                try {
-                  boost::asio::ip::address::from_string(ip_str);
+                  std::ignore = boost::asio::ip::make_address(ip_str);
                } catch ( ... ) {
                   return false;
                }
