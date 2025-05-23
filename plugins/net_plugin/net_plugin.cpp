@@ -221,7 +221,7 @@ namespace eosio {
 
       // returns the number of tracked ids of connection, returns 0 if already have trx on any connection
       struct add_peer_txn_info {
-         uint32_t num_tracked_ids = 0;
+         uint32_t trx_entries_size = 0;
          bool have_trx = false; // true if we already have received the trx
       };
       add_peer_txn_info add_peer_txn(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
@@ -285,7 +285,6 @@ namespace eosio {
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
    constexpr auto     def_trx_notice_min_size = 200; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
-   constexpr auto     def_max_trx_per_connection = 100000;
    constexpr auto     def_allowed_clock_skew = fc::seconds(15);
 
    class connections_manager {
@@ -3212,9 +3211,9 @@ namespace eosio {
          return true;
       }
 
-      auto[trx_count_for_connection, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
-      if (trx_count_for_connection > def_max_trx_per_connection) {
-         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", trx_count_for_connection));
+      auto[trx_entries_sz, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
+      if (trx_entries_sz > def_max_trx_entries_per_conn_size) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", trx_entries_sz));
          close();
          return true;
       }
@@ -3258,9 +3257,9 @@ namespace eosio {
       transaction_notice_message msg;
       fc::raw::unpack( ds, msg );
 
-      size_t connection_count = my_impl->dispatcher.add_peer_txn_notice( msg.id, *this );
-      if (connection_count > def_max_trx_per_connection) {
-         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
+      size_t trx_entries_sz = my_impl->dispatcher.add_peer_txn_notice( msg.id, *this );
+      if (trx_entries_sz > def_max_trx_entries_per_conn_size) {
+         peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", trx_entries_sz));
          close();
       }
 
