@@ -32,7 +32,6 @@
 #include <boost/asio/steady_timer.hpp>
 #include <boost/multi_index/key.hpp>
 #include <boost/unordered/unordered_flat_set.hpp>
-#include <boost/unordered/unordered_flat_map.hpp>
 
 #include <atomic>
 #include <cmath>
@@ -275,7 +274,8 @@ namespace eosio {
    constexpr auto     def_send_buffer_size_mb = 4;
    constexpr auto     def_send_buffer_size = 1024*1024*def_send_buffer_size_mb;
    constexpr auto     def_max_write_queue_size = def_send_buffer_size*10;
-   constexpr auto     def_max_trx_in_progress_size = 100*1024*1024; // 100 MB
+   constexpr uint32_t def_max_trx_in_progress_size = 100u*1024u*1024u; // 100 MB
+   constexpr uint32_t def_max_trx_entries_per_conn_size = 100u*1024u*1024u; // 100 MB = ~100K TPS
    constexpr auto     def_max_consecutive_immediate_connection_close = 9; // back off if client keeps closing
    constexpr auto     def_max_clients = 25; // 0 for unlimited clients
    constexpr auto     def_max_nodes_per_host = 1;
@@ -855,8 +855,12 @@ namespace eosio {
       alignas(hardware_destructive_interference_sz)
       std::atomic<uint32_t>   trx_in_progress_size{0};
 
-      // number of entries in local txn cache local_txns, all connections guarded by local_txns_mtx
-      uint32_t                trx_entries_size{0};
+      // approximate size of trx entries in the local txn cache local_txns, accessed by connection strand
+      uint32_t                   trx_entries_size{0};
+      fc::time_point             trx_entries_reset = fc::time_point::now();
+      // does not account for the overhead of the multindex entry, but this is just an approximation
+      static constexpr uint32_t  trx_full_entry_size = sizeof(node_transaction_state);
+      static constexpr uint32_t  trx_conn_entry_size = sizeof(connection_id_t);
 
       fc::time_point          last_dropped_trx_msg_time;
       const connection_id_t   connection_id;
@@ -1200,12 +1204,6 @@ namespace eosio {
          }
       }
       return false;
-   }
-
-   template <typename Function>
-   void connections_manager::with_connection_lock(Function&& f) const {
-      std::shared_lock g(connections_mtx);
-      f(connections);
    }
 
    //---------------------------------------------------------------------------
@@ -2632,7 +2630,7 @@ namespace eosio {
       bool already_have_trx = false;
       if (auto tptr = id_idx.find( id ); tptr != id_idx.end()) {
          if (tptr->connection_ids.insert(c.connection_id).second)
-            ++c.trx_entries_size;
+            c.trx_entries_size += connection::trx_conn_entry_size;
          already_have_trx = tptr->have_trx;
          if (!already_have_trx) {
             time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
@@ -2651,7 +2649,15 @@ namespace eosio {
             .expires = expires,
             .connection_ids = {c.connection_id},
             .have_trx = true } );
-         ++c.trx_entries_size;
+         c.trx_entries_size += connection::trx_full_entry_size;
+      }
+
+      if (c.trx_entries_size > def_max_trx_entries_per_conn_size) {
+         auto now = fc::time_point::now();
+         if (now - c.trx_entries_reset > my_impl->p2p_dedup_cache_expire_time_us) {
+            c.trx_entries_size = 0;
+            c.trx_entries_reset = now;
+         }
       }
       return {c.trx_entries_size, already_have_trx};
    }
@@ -2663,7 +2669,7 @@ namespace eosio {
       auto& id_idx = local_txns.get<by_id>();
       if (auto tptr = id_idx.find( id ); tptr != id_idx.end()) {
          if (tptr->connection_ids.insert(c.connection_id).second)
-            ++c.trx_entries_size;
+            c.trx_entries_size += connection::trx_conn_entry_size;
       } else {
          time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
          local_txns.insert( node_transaction_state{
@@ -2671,7 +2677,15 @@ namespace eosio {
             .expires = expires,
             .connection_ids = {c.connection_id},
             .have_trx = false } );
-         ++c.trx_entries_size;
+         c.trx_entries_size += connection::trx_full_entry_size;
+      }
+
+      if (c.trx_entries_size > def_max_trx_entries_per_conn_size) {
+         auto now = fc::time_point::now();
+         if (now - c.trx_entries_reset > my_impl->p2p_dedup_cache_expire_time_us) {
+            c.trx_entries_size = 0;
+            c.trx_entries_reset = now;
+         }
       }
       return c.trx_entries_size;
    }
@@ -2689,32 +2703,14 @@ namespace eosio {
       fc::time_point now = time_point::now();
 
       size_t start_size = 0, end_size = 0;
-      boost::unordered_flat_map<uint32_t, uint32_t> expired_trxs_for_connection;
       {
          fc::lock_guard g( local_txns_mtx );
          start_size = local_txns.size();
          auto& old = local_txns.get<by_expiry>();
          auto ex_lo = old.lower_bound( fc::time_point_sec( 0 ) );
          auto ex_up = old.upper_bound( fc::time_point_sec{now - def_allowed_clock_skew} ); // allow for some clock-skew
-         while (ex_lo != ex_up) {
-            for (const auto& cid : ex_lo->connection_ids)
-               ++expired_trxs_for_connection[cid];
-            ex_lo=old.erase(ex_lo);
-         }
+         old.erase( ex_lo, ex_up );
          end_size = local_txns.size();
-      }
-
-      if (!expired_trxs_for_connection.empty()) {
-         my_impl->connections.with_connection_lock([&](const connections_manager::connection_details_index& connections) {
-            // acquire connections_mtx before acquiring local_txns_mtx as connections_mtx can be held while acquiring local_txns_mtx
-            fc::lock_guard g( local_txns_mtx );
-            auto& conn_idx = connections.get<by_connection_id>();
-            for (auto [conn_id, count] : expired_trxs_for_connection) {
-               if (auto itr = conn_idx.find( conn_id ); itr != conn_idx.end()) {
-                  itr->c->trx_entries_size -= count;
-               }
-            }
-         });
       }
 
       // todo: switch back to debug level logging after performance test
@@ -3205,7 +3201,7 @@ namespace eosio {
          return true;
       }
 
-      const unsigned long trx_in_progress_sz = this->trx_in_progress_size.load();
+      const uint32_t trx_in_progress_sz = this->trx_in_progress_size.load();
 
       auto now = fc::time_point::now();
       auto ds = pending_message_buffer.create_datastream();
@@ -3216,7 +3212,7 @@ namespace eosio {
       fc::raw::unpack( ds, *ptr );
       if( trx_in_progress_sz > def_max_trx_in_progress_size) {
          char reason[72];
-         snprintf(reason, 72, "Dropping trx, too many trx in progress %lu bytes", trx_in_progress_sz);
+         snprintf(reason, 72, "Dropping trx, too many trx in progress %u bytes", trx_in_progress_sz);
          my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason);
          if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
             last_dropped_trx_msg_time = now;
