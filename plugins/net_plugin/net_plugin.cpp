@@ -225,7 +225,7 @@ namespace eosio {
          bool have_trx = false; // true if we already have received the trx
       };
       add_peer_txn_info add_peer_txn(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
-      size_t add_peer_txn_notice(const transaction_id_type& id, const time_point_sec& trx_expires, connection& c);
+      size_t add_peer_txn_notice(const transaction_id_type& id, connection& c);
       connection_id_set peer_connections(const transaction_id_type& id) const;
       void expire_txns();
 
@@ -472,9 +472,6 @@ namespace eosio {
       std::function<void()> increment_failed_p2p_connections;
       std::function<void()> increment_dropped_trxs;
 
-      alignas(hardware_destructive_interference_sz)
-      std::atomic<fc::microseconds> max_trx_lifetime; // cached on-chain value of max_transaction_lifetime
-      
    private:
       alignas(hardware_destructive_interference_sz)
       mutable fc::mutex             chain_info_mtx; // protects chain_info_t
@@ -2658,7 +2655,7 @@ namespace eosio {
       return {c.trx_entries_size, already_have_trx};
    }
 
-   size_t dispatch_manager::add_peer_txn_notice( const transaction_id_type& id, const time_point_sec& trx_expires, connection& c )
+   size_t dispatch_manager::add_peer_txn_notice( const transaction_id_type& id, connection& c )
    {
       fc::lock_guard g( local_txns_mtx );
 
@@ -2667,9 +2664,7 @@ namespace eosio {
          if (tptr->connection_ids.insert(c.connection_id).second)
             ++c.trx_entries_size;
       } else {
-         // expire at either transaction expiration or configured max expire time whichever is less
          time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
-         expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
             .expires = expires,
@@ -3231,20 +3226,6 @@ namespace eosio {
          }
          return true;
       }
-      // allow for some clock skew on this node
-      if (ptr->expiration() < fc::time_point_sec{now - def_allowed_clock_skew} ||
-          ptr->expiration() > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + def_allowed_clock_skew}) {
-         std::string reason = "Dropping trx with expiration " + ptr->expiration().to_iso_string();
-         my_impl->producer_plug->log_failed_transaction(ptr->id(), ptr, reason.c_str());
-         if (now - fc::seconds(1) >= last_dropped_trx_msg_time) {
-            last_dropped_trx_msg_time = fc::time_point::now();
-            peer_dlog(this, "${r}", ("r", std::move(reason)));
-         }
-         if (my_impl->increment_dropped_trxs) {
-            my_impl->increment_dropped_trxs();
-         }
-         return true;
-      }
 
       auto[trx_count_for_connection, have_trx] = my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), *this );
       if (trx_count_for_connection > def_max_trx_per_connection) {
@@ -3292,15 +3273,7 @@ namespace eosio {
       transaction_notice_message msg;
       fc::raw::unpack( ds, msg );
 
-      auto now = fc::time_point::now();
-      // allow for some clock skew on this node
-      if (msg.expiration < fc::time_point_sec{now - def_allowed_clock_skew} ||
-          msg.expiration > fc::time_point_sec{now + my_impl->max_trx_lifetime.load() + def_allowed_clock_skew}) {
-         peer_dlog(this, "Dropping trx notice with expiration ${e}", ("e", msg.expiration));
-         return true;
-      }
-
-      size_t connection_count = my_impl->dispatcher.add_peer_txn_notice( msg.id, msg.expiration, *this );
+      size_t connection_count = my_impl->dispatcher.add_peer_txn_notice( msg.id, *this );
       if (connection_count > def_max_trx_per_connection) {
          peer_wlog(this, "Max tracked trx reached ${c}, closing", ("c", connection_count));
          close();
@@ -3365,12 +3338,6 @@ namespace eosio {
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
       }
       head_block_time = head.block_time();
-
-      static uint32_t update_interval = -1;
-      if (++update_interval % 1000 == 0) {
-         const auto& chain_configuration = cc.get_global_properties().configuration;
-         max_trx_lifetime = fc::seconds(chain_configuration.max_transaction_lifetime);
-      }
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
 

@@ -138,7 +138,6 @@ namespace eosio {
 
    struct transaction_notice_message {
       transaction_id_type id;
-      time_point_sec      expiration;
    };
 
    struct gossip_bp_peers_message {
@@ -232,7 +231,7 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
-FC_REFLECT( eosio::transaction_notice_message, (id)(expiration) )
+FC_REFLECT( eosio::transaction_notice_message, (id) )
 FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer_info_v1, (server_endpoint)(outbound_ip_address)(expiration) )
 FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (version)(producer_name)(bp_peer_info) )
 FC_REFLECT_DERIVED(eosio::gossip_bp_peers_message::signed_bp_peer, (eosio::gossip_bp_peers_message::bp_peer), (sig) )
