@@ -564,16 +564,15 @@ public:
    account_name get_sync_call_sender() const { return receiver; } // current action or sync call's receiver is next call's sender
 
    /// Sync call methods:
-
    enum class call_error_code : int64_t {
-      sync_call_not_supported_by_receiver = -1, // receiver contract does not have sync_call entry point
-      unsupported_data_version            = -2, // version in the data header is not supported
-      called_function_not_found           = -3, // called function is not found in the receiver contract
-      empty_receiver                      = -4  // receiver contract code is empty
+      no_account_or_no_contract = -1, // Account does not exist or no contract is deployed on the account
+      sync_call_not_supported   = -2, // Contract deployed on account does not have necessary sync call entry point function
+      invalid_return_value      = -3  // Contract's sync call entry point function returned an invalid return value: positive or -1 to -9999
    };
-   // Negative status indicates failure, positive or 0 is the size of return value of the called function
-   int64_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
-   uint32_t get_call_return_value(std::span<char> memory) const;
+   static constexpr int64_t sync_call_executed = 0; // Sync call entry point function was executed to completion
+   static constexpr int64_t valid_sync_call_error_return_code_start = -10000; // The first valid error return code from sync call entry point function
+   int64_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data); // Negative return indicates a failure, positive or 0 is the size of return value of the called function
+   uint32_t get_call_return_value(std::span<char> memory) const; // Get the return value and store in `memory`
 
    virtual bool is_action() const { return false; }
    virtual bool is_sync_call() const { return false; }
@@ -622,4 +621,4 @@ private:
 
 } } // namespace eosio::chain
 
-FC_REFLECT_ENUM(eosio::chain::host_context::call_error_code, (sync_call_not_supported_by_receiver)(unsupported_data_version)(called_function_not_found)(empty_receiver));
+FC_REFLECT_ENUM(eosio::chain::host_context::call_error_code, (no_account_or_no_contract)(sync_call_not_supported)(invalid_return_value));

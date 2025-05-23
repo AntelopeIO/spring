@@ -90,20 +90,21 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
                     "sync call call data size must be less or equal to ${max_data_size} bytes", ("max_data_size", max_data_size));
 
          const auto* code = control.db().find<account_object, by_name>(call_receiver);
-         EOS_ASSERT(code != nullptr, sync_call_validate_exception,
-                    "sync call's receiver account ${r} does not exist", ("r", call_receiver));
+         if (code == nullptr) {
+            return handle_call_failure(static_cast<int64_t>(call_error_code::no_account_or_no_contract));
+         }
 
          EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::all_allowed_bits), sync_call_validate_exception,  // all but `std::bit_width(all_allowed_bits)` LSBs must be 0s
                     "only ${bits} least significant bits of sync call's flags (${flags}) can be set", ("bits", std::bit_width(static_cast<uint64_t>(sync_call_flags::all_allowed_bits)))("flags", flags));
 
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( call_receiver);
          if (receiver_account->code_hash.empty()) {
-            return handle_call_failure(static_cast<int64_t>(call_error_code::empty_receiver));
+            return handle_call_failure(static_cast<int64_t>(call_error_code::no_account_or_no_contract));
          }
 
          const code_object* const codeobject = db.find<code_object, by_code_hash>(boost::make_tuple(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version));
          if (!codeobject || !codeobject->sync_call_supported) {
-            return handle_call_failure(static_cast<int64_t>(call_error_code::sync_call_not_supported_by_receiver));
+            return handle_call_failure(static_cast<int64_t>(call_error_code::sync_call_not_supported));
          }
 
          // use a new sync_call_context for next sync call
@@ -112,10 +113,15 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
          try {
             // execute the sync call
             auto status = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
-            // 0: success, -2: unsupported_data_version, -3: called_function_not_found
-            EOS_ASSERT((status == 0 || status == -2 || status == -3), sync_call_invalid_status_exception,
-                       "Unexpected sync call entry point return status ${status}: ", ("status", status));
-            if (status < 0) {
+            // 0: success
+            // <= -10000: valid error return code
+            // otherwise (>0 || -1 .. -9999): invalid error return code
+            if (status != sync_call_executed &&
+                status > valid_sync_call_error_return_code_start) {
+               // convert invalid error code returned from sync call entry function to protocol call_error_code::invalid_return_value
+               status = static_cast<int64_t>(call_error_code::invalid_return_value);
+            }
+            if (status < sync_call_executed) {
                return handle_call_failure(status);
             }
          } catch( const wasm_exit&) {}

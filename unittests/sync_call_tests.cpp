@@ -564,19 +564,39 @@ BOOST_AUTO_TEST_CASE(recursive_calls) { try {
                          fc_exception_message_contains("recursively called"));
 } FC_LOG_AND_RETHROW() }
 
-// Verify sync call fails if receiver account does not exist
-BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
-   validating_tester t;
+// Verify sync call returns -1 if receiver account is not deployed
+static const char receiver_account_not_deployed_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
 
-   const auto& caller = account_name("caller");
-   t.create_account(caller);
-   t.set_code(caller, caller_wast);
-   t.set_abi(caller, doit_abi);
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
-   // The caller intends to call a function in "callee"_n account, which is not created. 
-   BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
-                         sync_call_validate_exception,
-                         fc_exception_message_contains("does not exist"));
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i64.const -1)
+      i64.ne
+      if ;; assert if $call did not return -1
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 16) "host function did not return -1")
+)
+)=====";
+
+// Verify sync call returns -1 if receiver account is not deployed
+BOOST_AUTO_TEST_CASE(receiver_account_not_deployed_caller_test)  { try {
+   // receiver_account_not_deployed_caller_wast calls "callee"_n account,
+   // which is not deployed in the test (we only deployed the caller contract).
+   call_tester t({ {"caller"_n, receiver_account_not_deployed_caller_wast} });
+
+   // receiver_account_not_deployed_caller_wast will throw if the return
+   // status is not -1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
 // 1. reads input from action
@@ -1087,14 +1107,14 @@ static const char entry_point_validation_caller_wast[] = R"=====(
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
       (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
 
-      (i64.const -1)  ;; callee does not export `sync_call`, $call should return -1
+      (i64.const -2)  ;; callee does not export `sync_call`, $call should return -2
       i64.ne
-      if             ;; assert if $call did not return -1
+      if             ;; assert if $call did not return -2
          (call $assert (i32.const 0) (i32.const 16))
       end
    )
 
-   (data (i32.const 16) "call host function did not return -1")
+   (data (i32.const 16) "call host function did not return -2")
 )
 )=====";
 
@@ -1105,13 +1125,13 @@ static const char no_sync_call_entry_point_wast[] = R"=====(
 )
 )=====";
 
-// Verify sync call return -1 if sync call entry point does not exist
+// Verify sync call return -2 if sync call entry point does not exist
 BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
    create_accounts_and_set_code(entry_point_validation_caller_wast, no_sync_call_entry_point_wast, t);
 
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -2
 } FC_LOG_AND_RETHROW() }
 
 
@@ -1126,7 +1146,7 @@ static const char invalid_entry_point_wast[] = R"=====(
 )
 )=====";
 
-// Verify sync call return -1 if sync call entry point signature is invalid
+// Verify sync call return -2 if sync call entry point signature is invalid
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
 
@@ -1146,12 +1166,12 @@ static const char entry_point_num_parms_mismatched_wast[] = R"=====(
 )
 )=====";
 
-// Verify sync call return -1 if sync call entry point signature is invalid
+// Verify sync call return -2 if sync call entry point signature is invalid
 BOOST_AUTO_TEST_CASE(entry_point_num_parms_mismatched_test)  { try {
    call_tester t({ {"caller"_n, entry_point_validation_caller_wast},
                    {"callee"_n, entry_point_num_parms_mismatched_wast} });
 
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -2
 } FC_LOG_AND_RETHROW() }
 
 // The last LSB is set
@@ -1233,9 +1253,9 @@ BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
                          fc_exception_message_contains("least significant bits of sync call"));
 } FC_LOG_AND_RETHROW() }
 
-// Checks the return value of call() is the same as it was set by callee's entry point
-// Use -2 for testing
-static const char check_entry_point_return_value_caller_wast[] = R"=====(
+// Checks an valid error code (less or equal to -10000) of entry point function is
+// passed as is to host function
+static const char check_entry_point_valid_error_code_caller_wast[] = R"=====(
 (module
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
@@ -1246,23 +1266,23 @@ static const char check_entry_point_return_value_caller_wast[] = R"=====(
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
       (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
 
-      (i64.const -2)  ;; callee entry point returns -2
+      (i64.const -10000)  ;; callee entry point returns -10000
       i64.ne
-      if             ;; assert if $call did not return -2
+      if             ;; assert if $call did not return -10000
          (call $assert (i32.const 0) (i32.const 16))
       end
    )
 
    (memory (export "memory") 1)
-   (data (i32.const 16) "host function did not return -2")
+   (data (i32.const 16) "host function did not return -10000")
 )
 )=====";
 
-static const char check_entry_point_return_value_callee_wast[] = R"=====(
+static const char check_entry_point_valid_error_code_callee_wast[] = R"=====(
 (module
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
-      (i64.const -2)   ;; return -2
+      (i64.const -10000)   ;; return -10000
    )
 
    (export "apply" (func $apply))
@@ -1271,10 +1291,56 @@ static const char check_entry_point_return_value_callee_wast[] = R"=====(
 )
 )=====";
 
-// Verify return value from sync call entry point is passed to host function call()
-BOOST_AUTO_TEST_CASE(check_entry_point_return_value_callee_test)  { try {
-   call_tester t({ {"caller"_n, check_entry_point_return_value_caller_wast},
-                   {"callee"_n, check_entry_point_return_value_callee_wast} });
+// Verify valid return value from sync call entry point is passed to host function call()
+BOOST_AUTO_TEST_CASE(check_entry_point_valid_error_code_callee_test)  { try {
+   call_tester t({ {"caller"_n, check_entry_point_valid_error_code_caller_wast},
+                   {"callee"_n, check_entry_point_valid_error_code_callee_wast} });
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
+// Checks invalid error code (not 0 or not <= -10000) of entry point function is converted to -3
+static const char check_entry_point_invalid_error_code_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i64.const -3)  ;; should convert to -3
+      i64.ne
+      if             ;; assert if $call did not return -3
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 16) "host function did not return -3")
+)
+)=====";
+
+// Return an invalid error code (-2)
+static const char check_entry_point_invalid_error_code_callee_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const -2)   ;; -2 is an invalid return code
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Verify invalid return value from sync call entry point is converted to -3
+BOOST_AUTO_TEST_CASE(check_entry_point_invalid_error_code_callee_test)  { try {
+   call_tester t({ {"caller"_n, check_entry_point_invalid_error_code_caller_wast},
+                   {"callee"_n, check_entry_point_invalid_error_code_callee_wast} });
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
