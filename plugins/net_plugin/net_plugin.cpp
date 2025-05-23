@@ -81,7 +81,8 @@ namespace eosio {
    static constexpr int64_t block_interval_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
 
-   using connection_id_set = boost::unordered_flat_set<uint32_t>;
+   using connection_id_t = uint32_t;
+   using connection_id_set = boost::unordered_flat_set<connection_id_t>;
    struct node_transaction_state {
       transaction_id_type        id;
       time_point_sec             expires;           // time after which this may be purged.
@@ -104,10 +105,10 @@ namespace eosio {
    node_transaction_index;
 
    struct peer_block_state {
-      block_id_type id;
-      uint32_t      connection_id = 0;
+      block_id_type      id;
+      connection_id_t    connection_id = 0;
 
-      uint32_t block_num() const { return block_header::num_from_id(id); }
+      block_num_type block_num() const { return block_header::num_from_id(id); }
    };
 
    struct by_connection_id;
@@ -117,9 +118,9 @@ namespace eosio {
       indexed_by<
          ordered_unique< tag<by_connection_id>,
                composite_key< peer_block_state,
-                     const_mem_fun<peer_block_state, uint32_t , &eosio::peer_block_state::block_num>,
+                     const_mem_fun<peer_block_state, block_num_type, &eosio::peer_block_state::block_num>,
                      member<peer_block_state, block_id_type, &eosio::peer_block_state::id>,
-                     member<peer_block_state, uint32_t, &eosio::peer_block_state::connection_id>
+                     member<peer_block_state, connection_id_t, &eosio::peer_block_state::connection_id>
                >,
                          composite_key_compare< std::less<>, std::less<block_id_type>, std::less<> >
          >
@@ -214,8 +215,8 @@ namespace eosio {
       void expire_blocks( uint32_t fork_db_root_num );
       void recv_notice(const connection_ptr& conn, const notice_message& msg, bool generated);
 
-      bool add_peer_block( const block_id_type& blkid, uint32_t connection_id );
-      bool peer_has_block(const block_id_type& blkid, uint32_t connection_id) const;
+      bool add_peer_block( const block_id_type& blkid, connection_id_t connection_id );
+      bool peer_has_block(const block_id_type& blkid, connection_id_t connection_id) const;
       bool have_block(const block_id_type& blkid) const;
       void rm_block(const block_id_type& blkid);
 
@@ -229,7 +230,7 @@ namespace eosio {
       connection_id_set peer_connections(const transaction_id_type& id) const;
       void expire_txns();
 
-      void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
+      void bcast_vote_msg( connection_id_t exclude_peer, const send_buffer_type& msg );
    };
 
    /**
@@ -292,7 +293,7 @@ namespace eosio {
       struct connection_detail {
          std::string host;
          connection_ptr c;
-         uint32_t id() const;
+         connection_id_t id() const;
       };
 
       using connection_details_index = multi_index_container<
@@ -308,7 +309,7 @@ namespace eosio {
             >,
             ordered_unique<
                tag<struct by_connection_id>,
-               const_mem_fun<connection_detail, uint32_t, &connection_detail::id>
+               const_mem_fun<connection_detail, connection_id_t, &connection_detail::id>
             >
          >
       >;
@@ -398,7 +399,7 @@ namespace eosio {
       uint16_t                                    thread_pool_size = 4;
       eosio::chain::named_thread_pool<struct net> thread_pool;
 
-      std::atomic<uint32_t>            current_connection_id{0};
+      std::atomic<connection_id_t>     current_connection_id{0};
 
       unique_ptr< sync_manager >       sync_master;
       dispatch_manager                 dispatcher {thread_pool.get_executor()};
@@ -488,7 +489,7 @@ namespace eosio {
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
       void on_irreversible_block( const signed_block_ptr& block, const block_id_type& id );
-      void broadcast_vote_message( uint32_t connection_id, vote_result_t status,
+      void broadcast_vote_message( connection_id_t connection_id, vote_result_t status,
                                    const vote_message_ptr& vote,
                                    const finalizer_authority_ptr& active_auth,
                                    const finalizer_authority_ptr& pending_auth);
@@ -620,7 +621,7 @@ namespace eosio {
       }
 
       // called from connection strand
-      bool ready_to_send(uint32_t connection_id) const {
+      bool ready_to_send(connection_id_t connection_id) const {
          fc::unique_lock g( _mtx );
          // if out_queue is not empty then async_write is in progress
          const bool async_write_in_progress = !_out_queue.empty();
@@ -858,7 +859,7 @@ namespace eosio {
       uint32_t                trx_entries_size{0};
 
       fc::time_point          last_dropped_trx_msg_time;
-      const uint32_t          connection_id;
+      const connection_id_t   connection_id;
       int16_t                 sent_handshake_count = 0;
 
       alignas(hardware_destructive_interference_sz)
@@ -1147,7 +1148,7 @@ namespace eosio {
       }
    };
 
-   uint32_t connections_manager::connection_detail::id() const {
+   connection_id_t connections_manager::connection_detail::id() const {
       return c->connection_id;
    }
 
@@ -2588,10 +2589,10 @@ namespace eosio {
    //------------------------------------------------------------------------
    // thread safe
 
-   bool dispatch_manager::add_peer_block( const block_id_type& blkid, uint32_t connection_id) {
-      uint32_t block_num = block_header::num_from_id(blkid);
+   bool dispatch_manager::add_peer_block( const block_id_type& blkid, connection_id_t connection_id) {
+      block_num_type block_num = block_header::num_from_id(blkid);
       fc::lock_guard g( blk_state_mtx );
-      auto bptr = blk_state.get<by_connection_id>().find( std::make_tuple(block_num, std::ref(blkid), connection_id) );
+      auto bptr = blk_state.get<by_connection_id>().find( std::forward_as_tuple(block_num, blkid, connection_id) );
       bool added = (bptr == blk_state.end());
       if( added ) {
          blk_state.insert( {blkid, connection_id} );
@@ -2599,27 +2600,27 @@ namespace eosio {
       return added;
    }
 
-   bool dispatch_manager::peer_has_block( const block_id_type& blkid, uint32_t connection_id ) const {
-      uint32_t block_num = block_header::num_from_id(blkid);
+   bool dispatch_manager::peer_has_block( const block_id_type& blkid, connection_id_t connection_id ) const {
+      block_num_type block_num = block_header::num_from_id(blkid);
       fc::lock_guard g(blk_state_mtx);
-      const auto blk_itr = blk_state.get<by_connection_id>().find( std::make_tuple(block_num, std::ref(blkid), connection_id) );
+      const auto blk_itr = blk_state.get<by_connection_id>().find( std::forward_as_tuple(block_num, blkid, connection_id) );
       return blk_itr != blk_state.end();
    }
 
    bool dispatch_manager::have_block( const block_id_type& blkid ) const {
-      uint32_t block_num = block_header::num_from_id(blkid);
+      block_num_type block_num = block_header::num_from_id(blkid);
       fc::lock_guard g(blk_state_mtx);
       const auto& index = blk_state.get<by_connection_id>();
-      auto blk_itr = index.find( std::make_tuple(block_num, std::ref(blkid)) );
+      auto blk_itr = index.find( std::forward_as_tuple(block_num, blkid) );
       return blk_itr != index.end();
    }
 
    void dispatch_manager::rm_block( const block_id_type& blkid ) {
-      uint32_t block_num = block_header::num_from_id(blkid);
+      block_num_type block_num = block_header::num_from_id(blkid);
       fc_dlog( logger, "rm_block ${n}, id: ${id}", ("n", block_num)("id", blkid));
       fc::lock_guard g(blk_state_mtx);
       auto& index = blk_state.get<by_connection_id>();
-      auto p = index.equal_range( std::make_tuple(block_num, std::ref(blkid)) );
+      auto p = index.equal_range( std::forward_as_tuple(block_num, blkid) );
       index.erase(p.first, p.second);
    }
 
@@ -2773,7 +2774,7 @@ namespace eosio {
       } );
    }
 
-   void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg ) {
+   void dispatch_manager::bcast_vote_msg( connection_id_t exclude_peer, const send_buffer_type& msg ) {
       my_impl->connections.for_each_block_connection( [exclude_peer, msg]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
@@ -4222,7 +4223,7 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::broadcast_vote_message(uint32_t connection_id, vote_result_t status,
+   void net_plugin_impl::broadcast_vote_message(connection_id_t connection_id, vote_result_t status,
                                                 const vote_message_ptr& msg,
                                                 const finalizer_authority_ptr& active_auth,
                                                 const finalizer_authority_ptr& pending_auth) {
