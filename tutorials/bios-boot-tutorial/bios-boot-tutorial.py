@@ -27,7 +27,11 @@ systemAccounts = [
     'eosio.token',
     'eosio.vpay',
     'eosio.rex',
-    'core.vaulta'
+    'eosio.fees',
+    'eosio.reward',
+    'eosio.wram',
+    'eosio.reserv',
+    'core.vaulta',
 ]
 
 def jsonArg(a):
