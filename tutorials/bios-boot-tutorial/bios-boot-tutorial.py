@@ -369,23 +369,23 @@ def stepSetSystemContract():
     # install eosio.system latest version
     retry(args.cleos + 'set contract eosio ' + args.core_contracts_dir + '/eosio.system/')
     # setpriv is only available after eosio.system is installed
-    run(args.cleos + 'push action eosio setpriv' + jsonArg(['eosio.msig', 1]) + '-p eosio@active')
-    run(args.cleos + 'push action eosio setpriv' + jsonArg(['core.vaulta', 1]) + '-p eosio@active')
-    run(args.cleos + 'set account permission core.vaulta active' + '--add-code' + '-p core.vaulta@active')
+    run(args.cleos + 'push action eosio setpriv' + jsonArg(['eosio.msig', 1]) + ' -p eosio@active')
+    run(args.cleos + 'push action eosio setpriv' + jsonArg(['core.vaulta', 1]) + ' -p eosio@active')
+    run(args.cleos + 'set account permission core.vaulta active' + ' --add-code ' + '-p core.vaulta@active')
     sleep(1)
     # install vaulta system contracts 
-    retry(args.cleos + 'set contract core.vaulta ' + args.vaulta_contracts_dir + ' system.wasm' + 'system.abi' + '-p core.vaulta@active')
+    retry(args.cleos + 'set contract core.vaulta ' + args.vaulta_contracts_dir + ' system.wasm' + ' system.abi' + ' -p core.vaulta@active')
     sleep(3)
 
 def stepInitSystemContract():
-    run(args.cleos + 'push action eosio init' + jsonArg(['0', '4,' + args.symbol]) + '-p eosio@active')
+    run(args.cleos + 'push action eosio init' + jsonArg(['0', '4,' + args.symbol]) + ' -p eosio@active')
     sleep(1)
     
 def stepIssueAToken():
     # get ram for core.vaulta needs it for tables 
-    run(args.cleos + 'push action eosio buyrambytes' + jsonArg(['eosio', 'core.vaulta', 200000]) + '-p eosio')
+    run(args.cleos + 'push action eosio buyrambytes' + jsonArg(['eosio', 'core.vaulta', 200000]) + ' -p eosio')
     # issue tokens 
-    run(args.cleos + 'push action core.vaulta init' + jsonArg(['2100000000.0000 A']) + '-p core.vaulta')
+    run(args.cleos + 'push action core.vaulta init' + jsonArg(['2100000000.0000 A']) + ' -p core.vaulta')
     sleep(1)
     
 def stepCreateStakedAccounts():
