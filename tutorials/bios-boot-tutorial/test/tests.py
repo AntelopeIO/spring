@@ -4,6 +4,10 @@ import os
 import pytest
 import json
 
+############# CONTEXT          #########################
+CURRENCY_SYMBOL = "EOS"
+DEFAULT_ENDPOINT = "127.0.0.1:8000"
+
 ############# HELPER FUNCTIONS #########################
 def create_key():
     result = subprocess.run(
@@ -46,6 +50,17 @@ def import_key(priv_key):
 
 ############### SESSION SCOPE ###########################
 @pytest.fixture(scope="session")
+def currency_symbol():
+    return CURRENCY_SYMBOL
+    
+@pytest.fixture(scope="session")
+def endpoint():
+    value = os.environ.get("ENDPOINT")
+    if not value:
+        print(f"[pytest] Warning: env variable ENDPOINT not set. Using default: {DEFAULT_ENDPOINT}")
+    return value or DEFAULT_ENDPOINT
+    
+@pytest.fixture(scope="session")
 def user_accounts():
     with open("accounts.json") as f:
         data = json.load(f)
@@ -59,9 +74,13 @@ def user_accounts():
 @pytest.mark.parametrize("from_account,to_account", [
     ("useraaaaaljm", "useraaaaalla"),
 ])
-def test_cleos_transfer_sys(from_account, to_account, user_accounts):
-    endpoint = os.environ.get("ENDPOINT")
-    assert endpoint, "Environment variable ENDPOINT must be set."
+def test_cleos_transfer_currency(
+    from_account,
+    to_account,
+    endpoint,
+    user_accounts,
+    currency_symbol):
+    assert endpoint, "ENDPOINT variable must be set."
     
     # Get from_account public and private key from helper
     from_pub_key, from_priv_key = get_keys_for_user(from_account, user_accounts)
@@ -71,7 +90,7 @@ def test_cleos_transfer_sys(from_account, to_account, user_accounts):
     transfer_data = {
         "from": from_account,
         "to": to_account,
-        "quantity": "1.0000 SYS",
+        "quantity": f"1.0000 {currency_symbol}",
         "memo": "init"
     }
 
@@ -98,9 +117,9 @@ def test_cleos_transfer_sys(from_account, to_account, user_accounts):
 
     # stdout validation
     expected_stdout_patterns = [
-        fr'#   eosio\.token <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 SYS","memo":"init"}}',
-        fr'#  {from_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 SYS","memo":"init"}}',
-        fr'#  {to_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 SYS","memo":"init"}}'
+        fr'#   eosio\.token <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
+        fr'#  {from_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
+        fr'#  {to_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}'
     ]
 
     stdout_lines = result.stdout.strip().splitlines()
@@ -118,9 +137,14 @@ def test_cleos_transfer_sys(from_account, to_account, user_accounts):
 @pytest.mark.parametrize("payer_account,new_account", [
     ("useraaaaaaae", "testnewusere"),  # Change these as needed
 ])
-def test_cleos_newaccount_output(payer_account, new_account,user_accounts):
-    endpoint = os.environ.get("ENDPOINT")
-    assert endpoint, "Environment variable ENDPOINT must be set."
+def test_cleos_newaccount_output(
+    payer_account,
+    new_account,
+    endpoint,
+    user_accounts,
+    currency_symbol):
+
+    assert endpoint, "ENDPOINT variable must be set."
 
     # Get payer's public and private key from helper
     payer_pub_key, payer_priv_key = get_keys_for_user(payer_account, user_accounts)
@@ -140,8 +164,8 @@ def test_cleos_newaccount_output(payer_account, new_account,user_accounts):
         new_account,
         pub,
         pub,
-        "--stake-net", "1.00 SYS",
-        "--stake-cpu", "1.00 SYS",
+        "--stake-net", f"1.00 {currency_symbol}",
+        "--stake-cpu", f"1.00 {currency_symbol}",
         "--buy-ram-bytes", "3000",
         "-p", f"{payer_account}@active"
     ]
@@ -167,9 +191,14 @@ def test_cleos_newaccount_output(payer_account, new_account,user_accounts):
 @pytest.mark.parametrize("from_account", [
     "useraaaaaljm",
 ])
-def test_cleos_transfer_sys(from_account, user_accounts):
+def test_cleos_transfer_vaulta_currency(
+    from_account,
+    user_accounts,
+    endpoint,
+    currency_symbol):
     endpoint = os.environ.get("ENDPOINT")
-    assert endpoint, "Environment variable ENDPOINT must be set."
+    
+    assert endpoint, "ENDPOINT variable must be set."
     
     # Get from_account public and private key from helper
     from_pub_key, from_priv_key = get_keys_for_user(from_account, user_accounts)
@@ -179,7 +208,7 @@ def test_cleos_transfer_sys(from_account, user_accounts):
     transfer_data = {
         "from": from_account,
         "to": "core.vaulta",
-        "quantity": "1.0000 SYS",
+        "quantity": "1.0000 {currency_symbol}",
         "memo": "init"
     }
 
@@ -206,9 +235,9 @@ def test_cleos_transfer_sys(from_account, user_accounts):
 
     # stdout validation
     expected_stdout_patterns = [
-        fr'#   eosio\.token <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 SYS","memo":"init"}}',
-        fr'#  {from_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 SYS","memo":"init"}}',
-        fr'#  {to_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 SYS","memo":"init"}}'
+        fr'#   eosio\.token <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
+        fr'#  {from_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
+        fr'#  {to_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}'
     ]
 
     stdout_lines = result.stdout.strip().splitlines()

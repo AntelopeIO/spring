@@ -60,5 +60,5 @@ $ pip install numpy
 $ cd ~
 $ git clone -b release/*latest* https://github.com/AntelopeIO/spring
 $ cd ./spring/tutorials/bios-boot-tutorial/
-$ python3 bios-boot-tutorial.py --cleos=cleos --nodeos=nodeos --keosd=keosd --core-contracts-dir="${CORE_CONTRACTS_DIRECTORY}" --vaulta-contracts-dir="${VAULTA_CONTRACTS_DIRECTOR}" -w -a
+$ python3 bios-boot-tutorial.py --cleos=cleos --nodeos=nodeos --keosd=keosd --core-contracts-dir="${CORE_CONTRACTS_DIRECTORY}" --vaulta-contracts-dir="${VAULTA_CONTRACTS_DIRECTOR}" --symbol="EOS" -w -a
 ```
