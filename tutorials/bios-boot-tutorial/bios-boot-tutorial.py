@@ -382,10 +382,8 @@ def stepInitSystemContract():
     sleep(1)
     
 def stepIssueAToken():
-    # get ram for core.vaulta needs it for tables 
-    run(args.cleos + 'push action eosio buyrambytes' + jsonArg(['eosio', 'core.vaulta', 200000]) + ' -p eosio')
     # issue tokens 
-    run(args.cleos + 'push action core.vaulta init' + jsonArg(['2100000000.0000 A']) + ' -p core.vaulta')
+    run(args.cleos + 'push action core.vaulta init' + jsonArg(['10000000000.0000 A']) + ' -p core.vaulta')
     sleep(1)
     
 def stepCreateStakedAccounts():
