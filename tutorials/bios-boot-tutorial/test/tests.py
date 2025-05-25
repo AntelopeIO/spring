@@ -1,4 +1,5 @@
 import subprocess
+import string
 import re
 import os
 import pytest
@@ -31,6 +32,14 @@ def create_key():
     public_key = public_key_match.group(1)
 
     return public_key, private_key
+    
+def check_user_exists(account_name, endpoint):
+    result = subprocess.run(
+        ["cleos", "--url", endpoint, "get", "account", account_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
 
 def get_keys_for_user(account_name, user_accounts):
     for user in user_accounts:
@@ -82,10 +91,7 @@ def test_cleos_transfer_currency(
     currency_symbol):
     assert endpoint, "ENDPOINT variable must be set."
     
-    # Get from_account public and private key from helper
-    from_pub_key, from_priv_key = get_keys_for_user(from_account, user_accounts)
-    # add to Wallet
-    import_key(from_priv_key)
+    # bios-boot-tutorial.py already loads keys into wallet
 
     transfer_data = {
         "from": from_account,
@@ -134,10 +140,21 @@ def test_cleos_transfer_currency(
 ##
 # Test Create New User
 ##
-@pytest.mark.parametrize("payer_account,new_account", [
-    ("useraaaaaaae", "testnewusere"),  # Change these as needed
+@pytest.mark.parametrize("payer_account", [
+    ("useraaaaaaae"),  # Change these as needed
 ])
-def test_cleos_newaccount_output(
+def test_newaccount(payer_account,endpoint,user_accounts,currency_symbol):
+    for single_char in string.ascii_lowercase:
+        new_account = f'testnewuser{single_char}'
+        if not check_user_exists(new_account, endpoint):
+            cleos_newaccount_output(payer_account,
+                new_account,
+                endpoint,
+                user_accounts,
+                currency_symbol)
+            break
+
+def cleos_newaccount_output(
     payer_account,
     new_account,
     endpoint,
@@ -146,10 +163,7 @@ def test_cleos_newaccount_output(
 
     assert endpoint, "ENDPOINT variable must be set."
 
-    # Get payer's public and private key from helper
-    payer_pub_key, payer_priv_key = get_keys_for_user(payer_account, user_accounts)
-    # add to Wallet
-    import_key(payer_priv_key)
+    # User keys are already imported into default wallet
 
     # Generate Keys
     pub, priv = create_key()
@@ -200,15 +214,13 @@ def test_cleos_transfer_vaulta_currency(
     
     assert endpoint, "ENDPOINT variable must be set."
     
-    # Get from_account public and private key from helper
-    from_pub_key, from_priv_key = get_keys_for_user(from_account, user_accounts)
-    # add to Wallet
-    import_key(from_priv_key)
+    # All user keys already imported into wallet 
+    to_account = "core.vaulta"
 
     transfer_data = {
         "from": from_account,
-        "to": "core.vaulta",
-        "quantity": "1.0000 {currency_symbol}",
+        "to": to_account,
+        "quantity": f"1.0000 {currency_symbol}",
         "memo": "init"
     }
 
@@ -237,7 +249,9 @@ def test_cleos_transfer_vaulta_currency(
     expected_stdout_patterns = [
         fr'#   eosio\.token <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
         fr'#  {from_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
-        fr'#  {to_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}'
+        fr'#  {to_account} <= eosio\.token::transfer\s+{{"from":"{from_account}","to":"{to_account}","quantity":"1.0000 {currency_symbol}","memo":"init"}}',
+        fr'#  {to_account} <= {to_account}::transfer\s+{{"from":"{to_account}","to":"{from_account}","quantity":"1.0000 A","memo":""}}',
+        fr'#  {from_account} <= {to_account}::transfer\s+{{"from":"{to_account}","to":"{from_account}","quantity":"1.0000 A","memo":""}}',
     ]
 
     stdout_lines = result.stdout.strip().splitlines()
