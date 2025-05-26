@@ -268,10 +268,10 @@ try:
         0 : "--enable-stale-production"
     }
     regularNodeosArgs = {
-        1 : "--read-mode irreversible --terminate-at-block 100 --truncate-at-block 100",
-        2 : "--read-mode head --terminate-at-block 125 --truncate-at-block 125",
+        1 : "--read-mode irreversible --terminate-at-block 125 --truncate-at-block 125",
+        2 : "--read-mode head --terminate-at-block 135 --truncate-at-block 135",
         3 : "--read-mode speculative --terminate-at-block 150 --truncate-at-block 150",
-        4 : "--read-mode irreversible --terminate-at-block 180 --truncate-at-block 180"
+        4 : "--read-mode irreversible --terminate-at-block 173 --truncate-at-block 173"
     }
     replayNodeosArgs = {
         5 : "--read-mode irreversible",
