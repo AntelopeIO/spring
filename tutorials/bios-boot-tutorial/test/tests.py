@@ -10,6 +10,8 @@ CURRENCY_SYMBOL = "EOS"
 DEFAULT_ENDPOINT = "127.0.0.1:8000"
 
 ############# HELPER FUNCTIONS #########################
+
+# Create New Key
 def create_key():
     result = subprocess.run(
         ["cleos", "create", "key", "--to-console"],
@@ -32,7 +34,8 @@ def create_key():
     public_key = public_key_match.group(1)
 
     return public_key, private_key
-    
+
+# Check Nodeos has account
 def check_user_exists(account_name, endpoint):
     result = subprocess.run(
         ["cleos", "--url", endpoint, "get", "account", account_name],
@@ -41,12 +44,29 @@ def check_user_exists(account_name, endpoint):
     )
     return result.returncode == 0
 
+# Return all the keys in wallet
+def get_wallet_keys():
+    result = subprocess.run(
+        "cleos wallet keys list | jq",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+    
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse JSON: {e}\nOutput was:\n{result.stdout}")
+
+# Return Keys from the account.json file that is part of bios-boot-tutorial
+# account.json is read as part of session function
 def get_keys_for_user(account_name, user_accounts):
     for user in user_accounts:
         if user["name"] == account_name:
             return user["pub"], user["pvt"]
     raise ValueError(f"Account '{account_name}' not found in user_accounts.")
 
+# Add A Key Pair to the Default Wallet
 def import_key(priv_key):
     import_key_command = [
         "cleos",
@@ -91,7 +111,13 @@ def test_cleos_transfer_currency(
     currency_symbol):
     assert endpoint, "ENDPOINT variable must be set."
     
-    # bios-boot-tutorial.py already loads keys into wallet
+    # get transaction signing key for from account user
+    sign_pub_key, sign_priv_key = get_keys_for_user(from_account, user_accounts)
+    # check if key is already in wallet 
+    wallet_pub_keys = get_wallet_keys()
+    # import key if it is not in wallet
+    if not sign_pub_key in wallet_pub_keys:
+        import_key(sign_priv_key)
 
     transfer_data = {
         "from": from_account,
@@ -141,7 +167,7 @@ def test_cleos_transfer_currency(
 # Test Create New User
 ##
 @pytest.mark.parametrize("payer_account", [
-    ("useraaaaaaae"),  # Change these as needed
+    ("useraaaaaaaa"),  # Change these as needed
 ])
 def test_newaccount(payer_account,endpoint,user_accounts,currency_symbol):
     for single_char in string.ascii_lowercase:
@@ -163,7 +189,13 @@ def cleos_newaccount_output(
 
     assert endpoint, "ENDPOINT variable must be set."
 
-    # User keys are already imported into default wallet
+    # get transaction signing key for from account user
+    sign_pub_key, sign_priv_key = get_keys_for_user(payer_account, user_accounts)
+    # check if key is already in wallet 
+    wallet_pub_keys = get_wallet_keys()
+    # import key if it is not in wallet
+    if not sign_pub_key in wallet_pub_keys:
+        import_key(sign_priv_key)
 
     # Generate Keys
     pub, priv = create_key()
@@ -214,7 +246,7 @@ def test_cleos_transfer_vaulta_currency(
     
     assert endpoint, "ENDPOINT variable must be set."
     
-    # All user keys already imported into wallet 
+    # All system user keys already imported into wallet 
     to_account = "core.vaulta"
 
     transfer_data = {
