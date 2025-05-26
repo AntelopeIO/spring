@@ -3293,7 +3293,7 @@ namespace eosio {
             return;
          }
 
-         short_agent_name = msg.agent.substr( msg.agent.size() > 1 && msg.agent[0] == '"' ? 1 : 0, 15);
+         short_agent_name = msg.agent.substr( msg.agent.size() > 1 && msg.agent[0] == '"' ? 1 : 0, 20);
          log_p2p_address = msg.p2p_address;
          fc::unique_lock g_conn( conn_mtx );
          p2p_address = msg.p2p_address;
@@ -4317,7 +4317,8 @@ namespace eosio {
            "   myprod,myhostname.com:9876,198.51.100.1\n"
            "   myprod,myhostname2.com:9876,[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"
            )
-         ( "agent-name", bpo::value<string>()->default_value("Vault Agent"), "The name supplied to identify this node amongst the peers.")
+         ( "agent-name", bpo::value<string>()->default_value("Spring {version}"),
+           "The name supplied to identify this node amongst the peers. {version} will be replaced with the version of this node.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
          ( "peer-private-key", bpo::value<vector<string>>()->composing()->multitoken(),
@@ -4345,7 +4346,7 @@ namespace eosio {
            "   _port  \tremote port number of peer\n\n"
            "   _lip   \tlocal IP address connected to peer\n\n"
            "   _lport \tlocal port number connected to peer\n\n"
-           "   _agent \tfirst 15 characters of agent-name of peer\n\n"
+           "   _agent \tfirst 20 characters of agent-name of peer\n\n"
            "   _nver  \tp2p protocol version\n\n")
          ( "p2p-keepalive-interval-ms", bpo::value<int>()->default_value(def_keepalive_interval), "peer heartbeat keepalive message interval in milliseconds")
 
@@ -4445,6 +4446,10 @@ namespace eosio {
          }
          if( options.count( "agent-name" )) {
             user_agent_name = options.at( "agent-name" ).as<string>();
+            const std::string version_str = "{version}";
+            if (auto i = user_agent_name.find(version_str); i != std::string::npos) {
+               user_agent_name = user_agent_name.replace(i, version_str.size(), app().version_string());
+            }
             EOS_ASSERT( user_agent_name.length() <= net_utils::max_handshake_str_length, chain::plugin_config_exception,
                         "agent-name too long, must be less than ${m}", ("m", net_utils::max_handshake_str_length) );
          }
