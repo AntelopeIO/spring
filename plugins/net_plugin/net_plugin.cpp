@@ -2700,8 +2700,7 @@ namespace eosio {
          end_size = local_txns.size();
       }
 
-      // todo: switch back to debug level logging after performance test
-      fc_ilog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
+      fc_dlog( logger, "expire_local_txns size ${s} removed ${r} in ${t}us", ("s", start_size)("r", start_size - end_size)("t", fc::time_point::now() - now) );
    }
 
    void dispatch_manager::expire_blocks( uint32_t fork_db_root_num ) {
