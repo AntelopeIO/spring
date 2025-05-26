@@ -31,6 +31,7 @@ systemAccounts = [
     'eosio.reward',
     'eosio.wram',
     'eosio.reserv',
+    'eosio.powup',
     'core.vaulta',
 ]
 
