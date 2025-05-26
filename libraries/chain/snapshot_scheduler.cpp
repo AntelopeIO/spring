@@ -210,9 +210,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
    // determine if this snapshot is already in-flight
    auto& pending_by_id = _pending_snapshot_index.get<by_id>();
    auto existing = pending_by_id.find(head_id);
-   if(existing != pending_by_id.end()) {
-      // if a snapshot at this block is already pending, ignore
-   } else {
+   if(existing == pending_by_id.end()) { // if a snapshot at this block is already pending, ignore
       const auto& pending_path = pending_snapshot<snapshot_information>::get_pending_path(head_id, _snapshots_dir);
 
       try {
