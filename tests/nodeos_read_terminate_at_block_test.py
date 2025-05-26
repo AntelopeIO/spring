@@ -268,6 +268,7 @@ try:
         0 : "--enable-stale-production"
     }
     regularNodeosArgs = {
+        # choose a block number past Savanna transition as we do not support terminate-at-block during transition.
         1 : "--read-mode irreversible --terminate-at-block 125 --truncate-at-block 125",
         2 : "--read-mode head --terminate-at-block 135 --truncate-at-block 135",
         3 : "--read-mode speculative --terminate-at-block 150 --truncate-at-block 150",
