@@ -242,9 +242,6 @@ def test_cleos_transfer_vaulta_currency(
     user_accounts,
     endpoint,
     currency_symbol):
-    endpoint = os.environ.get("ENDPOINT")
-    
-    assert endpoint, "ENDPOINT variable must be set."
     
     # All system user keys already imported into wallet 
     to_account = "core.vaulta"
