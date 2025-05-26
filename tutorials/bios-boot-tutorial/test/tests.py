@@ -14,7 +14,7 @@ DEFAULT_ENDPOINT = "127.0.0.1:8000"
 # Create New Key
 def create_key():
     result = subprocess.run(
-        ["cleos", "create", "key", "--to-console"],
+        ["cleos", "create", "key", "--r1", "--to-console"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
@@ -24,8 +24,8 @@ def create_key():
         raise RuntimeError(f"cleos create key failed:\n{result.stderr}")
 
     # Match both keys
-    private_key_match = re.search(r"Private key: ([A-Za-z0-9]+)", result.stdout)
-    public_key_match = re.search(r"Public key: ([A-Za-z0-9]+)", result.stdout)
+    private_key_match = re.search(r"Private key: ([A-Za-z0-9_]+)", result.stdout)
+    public_key_match = re.search(r"Public key: ([A-Za-z0-9_]+)", result.stdout)
 
     if not private_key_match or not public_key_match:
         raise ValueError(f"Failed to parse keys from output:\n{result.stdout}")
