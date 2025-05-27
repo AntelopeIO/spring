@@ -97,7 +97,7 @@ try:
     Print("Sync past transfer reference block")
     # Make sure node2 and node3 have trx reference block before killing bios node otherwise the trx will fail
     # because the reference block is not available.
-    head = nonProdNode01.getHeadBlockNum()
+    headBlockNum = nonProdNode01.getHeadBlockNum()
     assert noBlocks02.waitForBlock(headBlockNum), "node02 did not get block before bios shutdown"
     assert noBlocks03.waitForBlock(headBlockNum), "node03 did not get block before bios shutdown"
 
