@@ -1308,7 +1308,7 @@ struct controller_impl {
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
          if( trace->except)
-            throw *trace->except;
+            trace->except->rethrow();
          getpeerkeys_res_t res;
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
@@ -3376,7 +3376,7 @@ struct controller_impl {
             if( onblock_trace->except ) {
                if (onblock_trace->except->code() == interrupt_exception::code_value) {
                   ilog("Interrupt of onblock ${bn}", ("bn", chain_head.block_num() + 1));
-                  throw *onblock_trace->except;
+                  onblock_trace->except->rethrow();
                }
                wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
                     ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
@@ -3412,8 +3412,10 @@ struct controller_impl {
    } /// start_block
 
    void update_peer_keys() {
-      // if syncing or replaying old blocks don't bother updating peer keys
-      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+      if (!peer_keys_db.is_active())
+         return;
+      // if syncing or replaying old blocks don't bother updating peer keys.
+      if (fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
          return;
 
       try {
@@ -3896,7 +3898,7 @@ struct controller_impl {
                   } else {
                      edump((*trace));
                   }
-                  throw *trace->except;
+                  trace->except->rethrow();
                }
 
                EOS_ASSERT(trx_receipts.size() > 0, block_validate_exception,
@@ -5877,7 +5879,7 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+void controller::set_peer_keys_retrieval_active(name_set_t configured_bp_peers) {
    my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
@@ -5886,7 +5888,7 @@ std::optional<peer_info_t> controller::get_peer_info(name n) const {
 }
 
 bool controller::configured_peer_keys_updated() {
-   return my->peer_keys_db.configured_peer_keys_updated();
+   return my->peer_keys_db.is_active() && my->peer_keys_db.configured_peer_keys_updated();
 }
 
 getpeerkeys_res_t controller::get_top_producer_keys() {

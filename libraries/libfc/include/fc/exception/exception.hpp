@@ -117,6 +117,7 @@ namespace fc
           *  @endcode
           */
           virtual std::shared_ptr<exception> dynamic_copy_exception()const;
+          virtual void rethrow() const { throw *this; }
 
          friend void to_variant( const exception& e, variant& v );
          friend void from_variant( const variant& e, exception& ll );
@@ -156,7 +157,7 @@ namespace fc
 
        std::exception_ptr get_inner_exception()const;
 
-       virtual std::shared_ptr<exception>   dynamic_copy_exception()const;
+       std::shared_ptr<exception>   dynamic_copy_exception()const override;
       private:
        std::exception_ptr _inner;
    };
@@ -180,7 +181,8 @@ namespace fc
 
        static std_exception_wrapper from_current_exception(const std::exception& e);
 
-       virtual std::shared_ptr<exception>   dynamic_copy_exception()const;
+       std::shared_ptr<exception>   dynamic_copy_exception()const override;
+       void rethrow() const override { throw *this; }
       private:
        std::exception_ptr _inner;
    };
@@ -225,8 +227,9 @@ namespace fc
        :BASE(c){} \
        TYPE():BASE(CODE, BOOST_PP_STRINGIZE(TYPE), WHAT){}\
        \
-       virtual std::shared_ptr<fc::exception> dynamic_copy_exception()const\
+       std::shared_ptr<fc::exception> dynamic_copy_exception()const override\
        { return std::make_shared<TYPE>( *this ); } \
+       void rethrow() const override { throw *this; } \
    };
 
   #define FC_DECLARE_EXCEPTION( TYPE, CODE, WHAT ) \

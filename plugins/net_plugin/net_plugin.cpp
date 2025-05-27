@@ -238,7 +238,7 @@ namespace eosio {
    constexpr auto     def_max_clients = 25; // 0 for unlimited clients
    constexpr auto     def_max_nodes_per_host = 1;
    constexpr auto     def_conn_retry_wait = 30;
-   constexpr auto     def_txn_expire_wait = std::chrono::seconds(3);
+   constexpr auto     def_expire_timer_wait = std::chrono::seconds(3);
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
@@ -370,7 +370,7 @@ namespace eosio {
             };
       possible_connections                  allowed_connections{None};
 
-      boost::asio::steady_timer::duration   txn_exp_period{0};
+      boost::asio::steady_timer::duration   expire_timer_period{0};
       boost::asio::steady_timer::duration   resp_expected_period{0};
       std::chrono::milliseconds             keepalive_interval{std::chrono::milliseconds{def_keepalive_interval}};
 
@@ -402,6 +402,9 @@ namespace eosio {
 
       boost::asio::deadline_timer           accept_error_timer{thread_pool.get_executor()};
 
+
+      alignas(hardware_destructive_interference_sz)
+      std::atomic<fc::time_point>           head_block_time;
 
       struct chain_info_t {
          block_id_type fork_db_root_id;
@@ -490,7 +493,7 @@ namespace eosio {
 
       fc::logger& get_logger() const { return logger; }
 
-      void create_session(tcp::socket&& socket, const string listen_address, size_t limit);
+      void create_session(tcp::socket&& socket, string listen_address, size_t limit);
 
       std::string empty{};
    }; //net_plugin_impl
@@ -823,6 +826,7 @@ namespace eosio {
       string                  log_remote_endpoint_port;
       string                  local_endpoint_ip;
       string                  local_endpoint_port;
+      string                  short_agent_name;
       // kept in sync with last_handshake_recv.fork_db_root_num, only accessed from connection strand
       uint32_t                peer_fork_db_root_num = 0;
 
@@ -843,7 +847,9 @@ namespace eosio {
       std::atomic<uint16_t>   protocol_version = 0;
       uint16_t                net_version = net_version_max;
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
-      enum class bp_connection_type { non_bp, bp_config, bp_gossip };
+      // bp_config = p2p-auto-bp-peer, bp_gossip = validated gossip connection,
+      // bp_gossip_validating = only used when connection received before peer keys available
+      enum class bp_connection_type { non_bp, bp_config, bp_gossip, bp_gossip_validating };
       std::atomic<bp_connection_type> bp_connection = bp_connection_type::non_bp;
       block_status_monitor    block_status_monitor_;
       std::atomic<time_point> last_vote_received;
@@ -910,9 +916,8 @@ namespace eosio {
 
       void send_gossip_bp_peers_initial_message();
       void send_gossip_bp_peers_message();
-      void send_gossip_bp_peers_message_to_bp_peers();
    public:
-      static void send_gossip_bp_peers_initial_message_to_peers();
+      static void send_gossip_bp_peers_message_to_bp_peers();
 
       bool populate_handshake( handshake_message& hello ) const;
 
@@ -1034,6 +1039,7 @@ namespace eosio {
             ( "_port", log_remote_endpoint_port )
             ( "_lip", local_endpoint_ip )
             ( "_lport", local_endpoint_port )
+            ( "_agent", short_agent_name )
             ( "_nver", protocol_version.load() );
          return mvo;
       }
@@ -1443,6 +1449,7 @@ namespace eosio {
       last_vote_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
+      bp_connection = bp_connection_type::non_bp;
 
       uint32_t head_num = my_impl->get_chain_head_num();
       if (last_received_block_num >= head_num) {
@@ -2652,7 +2659,7 @@ namespace eosio {
          if (cp->protocol_version >= proto_block_nack && !my_impl->p2p_disable_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
                // only send block_notice if we didn't produce the block, otherwise broadcast the block below
-               if (!my_impl->is_producer(b->producer)) {
+               if (!my_impl->producer_plug->producer_accounts().contains(b->producer)) {
                   const auto& send_buffer = block_notice_buff_factory.get_send_buffer( block_notice_message{b->previous, id} );
                   boost::asio::post(cp->strand, [cp, send_buffer, bnum]() {
                      cp->latest_blk_time = std::chrono::steady_clock::now();
@@ -2764,7 +2771,7 @@ namespace eosio {
       return p2p_addresses.size() > 0 ? *p2p_addresses.begin() : empty;
    }
 
-   void net_plugin_impl::create_session(tcp::socket&& socket, const string listen_address, size_t limit) {
+   void net_plugin_impl::create_session(tcp::socket&& socket, string listen_address, size_t limit) {
       boost::system::error_code rec;
       const auto&               rend = socket.remote_endpoint(rec);
       if (rec) {
@@ -3164,15 +3171,17 @@ namespace eosio {
    void net_plugin_impl::update_chain_info() {
       controller& cc = chain_plug->chain();
       uint32_t fork_db_root_num = 0, head_num = 0, fork_db_head_num = 0;
+      auto head = cc.head();
       {
          fc::lock_guard g( chain_info_mtx );
          chain_info.fork_db_root_id = cc.fork_db_root().id();
          chain_info.fork_db_root_num = fork_db_root_num = block_header::num_from_id(chain_info.fork_db_root_id);
-         chain_info.head_id = cc.head().id();
+         chain_info.head_id = head.id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
          chain_info.fork_db_head_id = cc.fork_db_head().id();
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
       }
+      head_block_time = head.block_time();
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
 
@@ -3180,15 +3189,17 @@ namespace eosio {
    void net_plugin_impl::update_chain_info(const block_id_type& fork_db_root_id) {
       controller& cc = chain_plug->chain();
       uint32_t fork_db_root_num = 0, head_num = 0, fork_db_head_num = 0;
+      auto head = cc.head();
       {
          fc::lock_guard g( chain_info_mtx );
          chain_info.fork_db_root_id = fork_db_root_id;
          chain_info.fork_db_root_num = fork_db_root_num = block_header::num_from_id(fork_db_root_id);
-         chain_info.head_id = cc.head().id();
+         chain_info.head_id = head.id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
          chain_info.fork_db_head_id = cc.fork_db_head().id();
          chain_info.fork_db_head_num = fork_db_head_num = block_header::num_from_id(chain_info.fork_db_head_id);
       }
+      head_block_time = head.block_time();
       fc_dlog( logger, "updating chain info froot ${fr} head ${h} fhead ${f}", ("fr", fork_db_root_num)("h", head_num)("f", fork_db_head_num) );
    }
 
@@ -3282,6 +3293,7 @@ namespace eosio {
             return;
          }
 
+         short_agent_name = msg.agent.substr( msg.agent.size() > 1 && msg.agent[0] == '"' ? 1 : 0, 20);
          log_p2p_address = msg.p2p_address;
          fc::unique_lock g_conn( conn_mtx );
          p2p_address = msg.p2p_address;
@@ -3734,12 +3746,10 @@ namespace eosio {
       }
    }
 
-   digest_type gossip_bp_peers_message::bp_peer::digest() const {
+   digest_type gossip_bp_peers_message::bp_peer::digest(const chain_id_type& chain_id) const {
       digest_type::encoder enc;
-      fc::raw::pack(enc, my_impl->chain_id);
-      fc::raw::pack(enc, producer_name);
-      fc::raw::pack(enc, server_address);
-
+      fc::raw::pack(enc, chain_id);
+      fc::raw::pack(enc, *this);
       return enc.result();
    }
 
@@ -3749,11 +3759,12 @@ namespace eosio {
          return;
 
       if (!my_impl->bp_gossip_initialized()) {
+         bp_connection = bp_connection_type::bp_gossip_validating;
          peer_dlog(this, "received gossip_bp_peers_message before bp gossip initialized");
          return;
       }
 
-      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].server_address.empty();
+      const bool first_msg = msg.peers.size() == 1 && msg.peers[0].bp_peer_info.empty();
       if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
@@ -3786,25 +3797,13 @@ namespace eosio {
    void connection::send_gossip_bp_peers_initial_message() {
       if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
+      peer_dlog(this, "sending initial gossip_bp_peers_message");
       const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
-      if (sb)
+      if (sb) {
          enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
-   }
-
-   // thread safe, called from main thread
-   void connection::send_gossip_bp_peers_initial_message_to_peers() {
-      assert(my_impl->bp_gossip_enabled());
-      const send_buffer_type& sb = my_impl->get_gossip_bp_initial_send_buffer();
-      if (!sb)
-         return;
-      my_impl->connections.for_each_connection([sb](const connection_ptr& c) {
-         gossip_buffer_factory factory;
-         if (c->bp_connection != bp_connection_type::bp_gossip && c->socket_is_open()) {
-            boost::asio::post(c->strand, [sb, c]() {
-               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
-            });
-         }
-      });
+      } else {
+         peer_ilog(this, "no initial gossip_bp_peers_message to send");
+      }
    }
 
    // called from connection strand
@@ -3812,19 +3811,26 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       gossip_buffer_factory factory;
       const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
+      peer_dlog(this, "sending gossip_bp_peers_message");
       enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
    }
 
-   // called from connection strand, thread safe
    void connection::send_gossip_bp_peers_message_to_bp_peers() {
       assert(my_impl->bp_gossip_enabled());
-      my_impl->connections.for_each_connection([this](const connection_ptr& c) {
+      my_impl->connections.for_each_connection([](const connection_ptr& c) {
          gossip_buffer_factory factory;
-         if (this != c.get() && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
-            const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
-            boost::asio::post(c->strand, [sb, c]() {
-               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
-            });
+         if (c->protocol_version >= proto_gossip_bp_peers && c->socket_is_open()) {
+            if (c->bp_connection == bp_connection_type::bp_gossip) {
+               const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
+               boost::asio::post(c->strand, [sb, c]() {
+                  peer_dlog(c, "sending gossip_bp_peers_message");
+                  c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, go_away_reason::no_reason);
+               });
+            } else if (c->bp_connection == bp_connection_type::bp_config || c->bp_connection == bp_connection_type::bp_gossip_validating) {
+               boost::asio::post(c->strand, [c]() {
+                  c->send_gossip_bp_peers_initial_message();
+               });
+            }
          }
       });
    }
@@ -3951,7 +3957,7 @@ namespace eosio {
    // thread safe
    void net_plugin_impl::start_expire_timer() {
       fc::lock_guard g( expire_timer_mtx );
-      expire_timer.expires_after( txn_exp_period);
+      expire_timer.expires_after(expire_timer_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
@@ -3990,7 +3996,11 @@ namespace eosio {
       uint32_t fork_db_root_num = get_fork_db_root_num();
       dispatcher.expire_blocks( fork_db_root_num );
       dispatcher.expire_txns();
-      fc_dlog( logger, "expire_txns ${n}us", ("n", time_point::now() - now) );
+      if (expire_gossip_bp_peers()) {
+         update_bp_producer_peers();
+         connection::send_gossip_bp_peers_message_to_bp_peers();
+      }
+      fc_dlog( logger, "expire run time ${n}us", ("n", time_point::now() - now) );
 
       start_expire_timer();
    }
@@ -4023,6 +4033,20 @@ namespace eosio {
          on_pending_schedule(*pending_producers);
       }
       on_active_schedule(chain_plug->chain().active_producers());
+
+      // update peer public keys from chainbase db
+      chain::controller& cc = chain_plug->chain();
+      if (cc.configured_peer_keys_updated()) {
+         boost::asio::post(thread_pool.get_executor(), [this]() {
+            try {
+               update_bp_producer_peers();
+               my_impl->connect_to_active_bp_peers();
+               connection::send_gossip_bp_peers_message_to_bp_peers();
+            } catch (fc::exception& e) {
+               fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
+            }
+         });
+      }
    }
 
    // called from application thread
@@ -4037,16 +4061,6 @@ namespace eosio {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
-      }
-
-      // update peer public keys from chainbase db
-      if (cc.configured_peer_keys_updated()) {
-         try {
-            update_bp_producer_peers(cc, get_first_p2p_address());
-            connection::send_gossip_bp_peers_initial_message_to_peers();
-         } catch (fc::exception& e) {
-            fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
-         }
       }
    }
 
@@ -4264,10 +4278,11 @@ namespace eosio {
            " Transactions and blocks outside sync mode are not throttled."
            " The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
            " Examples:\n"
-           "   192.168.0.100:9876:1MiB/s\n"
-           "   node.eos.io:9876:trx:1512KB/s\n"
-           "   node.eos.io:9876:0.5GB/s\n"
-           "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:250KB/s")
+           "   192.168.0.100:9875\n"
+           "   192.168.0.101:9876:1MiB/s\n"
+           "   node.eos.io:9877:trx:1512KB/s\n"
+           "   node.eos.io:9879:0.5GB/s\n"
+           "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9879:250KB/s")
          ( "p2p-server-address", bpo::value< vector<string> >(),
            "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
            " May be used as many times as p2p-listen-endpoint."
@@ -4285,15 +4300,25 @@ namespace eosio {
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
             "Disable block notice and block nack. All blocks received will be broadcast to all peers unless already received.")
          ( "p2p-auto-bp-peer", bpo::value< vector<string> >()->composing(),
-           "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule proximity\n."
-           "  Syntax: account,host:port\n"
-           "  Example,\n"
-           "    eosproducer1,p2p.eos.io:9876\n"
-           "    eosproducer2,p2p.trx.eos.io:9876:trx\n"
-           "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
-         ("p2p-producer-peer", boost::program_options::value<vector<string>>()->composing()->multitoken(),
-           "Producer peer name of this node used to retrieve peer key from on-chain peerkeys table. Private key of peer key should be configured via signature-provider.")
-         ( "agent-name", bpo::value<string>()->default_value("EOS Test Agent"), "The name supplied to identify this node amongst the peers.")
+           "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule. Not gossipped.\n"
+           "  Syntax: bp_account,host:port\n"
+           "  Example:\n"
+           "    producer1,p2p.prod.io:9876\n"
+           "    producer2,p2p.trx.myprod.io:9876:trx\n"
+           "    producer3,p2p.blk.example.io:9876:blk\n")
+         ("p2p-bp-gossip-endpoint", boost::program_options::value<vector<string>>()->composing()->multitoken(),
+           "The BP account, inbound connection endpoint, outbound connection IP address. "
+           "The BP account is the producer name. Used to retrieve peer-key from on-chain peerkeys table registered on-chain via regpeerkey action. "
+           "The inbound connection endpoint is typically the listen endpoint of this node. "
+           "The outbound connection IP address is typically the IP address of this node. Peer will use this value to allow access through firewall. "
+           "Private key of peer-key should be configured via signature-provider.\n"
+           " Syntax: bp_account,inbound_endpoint,outbound_ip_address\n"
+           " Example:\n"
+           "   myprod,myhostname.com:9876,198.51.100.1\n"
+           "   myprod,myhostname2.com:9876,[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"
+           )
+         ( "agent-name", bpo::value<string>()->default_value("Spring {version}"),
+           "The name supplied to identify this node amongst the peers. Placeholder {version} can be specified to automatically insert the node's version.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
          ( "peer-private-key", bpo::value<vector<string>>()->composing()->multitoken(),
@@ -4321,6 +4346,7 @@ namespace eosio {
            "   _port  \tremote port number of peer\n\n"
            "   _lip   \tlocal IP address connected to peer\n\n"
            "   _lport \tlocal port number connected to peer\n\n"
+           "   _agent \tfirst 20 characters of agent-name of peer\n\n"
            "   _nver  \tp2p protocol version\n\n")
          ( "p2p-keepalive-interval-ms", bpo::value<int>()->default_value(def_keepalive_interval), "peer heartbeat keepalive message interval in milliseconds")
 
@@ -4341,7 +4367,7 @@ namespace eosio {
 
          peer_log_format = options.at( "peer-log-format" ).as<string>();
 
-         txn_exp_period = def_txn_expire_wait;
+         expire_timer_period = def_expire_timer_wait;
          p2p_dedup_cache_expire_time_us = fc::seconds( options.at( "p2p-dedup-cache-expire-time-sec" ).as<uint32_t>() );
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
@@ -4370,7 +4396,7 @@ namespace eosio {
 
          if( options.count( "p2p-listen-endpoint" )) {
             auto p2ps =  options.at("p2p-listen-endpoint").as<vector<string>>();
-            if (!p2ps.front().empty()) {
+            if (!p2ps.front().empty()) { // "" for p2p-listen-endpoint means to not listen
                p2p_addresses = p2ps;
                auto addr_count = p2p_addresses.size();
                std::sort(p2p_addresses.begin(), p2p_addresses.end());
@@ -4420,22 +4446,22 @@ namespace eosio {
          }
          if( options.count( "agent-name" )) {
             user_agent_name = options.at( "agent-name" ).as<string>();
+            const std::string version_str = "{version}";
+            if (auto i = user_agent_name.find(version_str); i != std::string::npos) {
+               user_agent_name = user_agent_name.replace(i, version_str.size(), app().version_string());
+            }
             EOS_ASSERT( user_agent_name.length() <= net_utils::max_handshake_str_length, chain::plugin_config_exception,
                         "agent-name too long, must be less than ${m}", ("m", net_utils::max_handshake_str_length) );
          }
 
-         if ( options.count( "p2p-auto-bp-peer")) {
-            set_configured_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>());
-            for_each_bp_peer_address([&peers](const auto& addr) {
-               EOS_ASSERT(std::find(peers.begin(), peers.end(), addr) == peers.end(), chain::plugin_config_exception,
-                          "\"${a}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.", ("a",addr));
-            });
+         if (options.count( "p2p-auto-bp-peer")) {
+            set_configured_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>(), peers);
          }
 
-         if ( options.count("p2p-producer-peer") ) {
+         if ( options.count( "p2p-bp-gossip-endpoint" ) ) {
+            set_bp_producer_peers(options.at( "p2p-bp-gossip-endpoint" ).as<vector<string>>());
             EOS_ASSERT(options.count("signature-provider"), chain::plugin_config_exception,
-                       "signature-provider of associated key required for p2p-producer-peer");
-            set_bp_producer_peers(options.at("p2p-producer-peer").as<vector<string>>());
+                       "signature-provider of associated key required for p2p-bp-gossip-endpoint");
          }
 
          if( options.count( "allowed-connection" )) {
@@ -4487,7 +4513,7 @@ namespace eosio {
       fc_ilog( logger, "my node_id is ${id}", ("id", node_id ));
 
       producer_plug = app().find_plugin<producer_plugin>();
-      set_producer_accounts(producer_plug->producer_accounts());
+      assert(producer_plug);
 
       thread_pool.start( thread_pool_size, []( const fc::exception& e ) {
          elog("Exception in net thread, exiting: ${e}", ("e", e.to_detail_string()));
@@ -4506,14 +4532,15 @@ namespace eosio {
 
       std::vector<string> listen_addresses = p2p_addresses;
 
-      EOS_ASSERT( p2p_addresses.size() == p2p_server_addresses.size(), chain::plugin_config_exception, "" );
+      assert( p2p_addresses.size() == p2p_server_addresses.size() );
       std::transform(p2p_addresses.begin(), p2p_addresses.end(), p2p_server_addresses.begin(), 
                      p2p_addresses.begin(), [](const string& p2p_address, const string& p2p_server_address) {
-         auto [host, port] = fc::split_host_port(p2p_address);
-         
          if( !p2p_server_address.empty() ) {
             return p2p_server_address;
-         } else if( host.empty() || host == "0.0.0.0" || host == "[::]") {
+         }
+
+         const auto& [host, port, type] = net_utils::split_host_port_type(p2p_address);
+         if( host.empty() || host == "0.0.0.0" || host == "[::]") {
             boost::system::error_code ec;
             auto hostname = host_name( ec );
             if( ec.value() != boost::system::errc::success ) {
@@ -4522,7 +4549,7 @@ namespace eosio {
                                     "Unable to retrieve host_name. ${msg}", ("msg", ec.message()));
 
             }
-            return hostname + ":" + port;
+            return hostname + ":" + port + (type.empty() ? "" : ":" + type);
          }
          return p2p_address;
       });
@@ -4552,7 +4579,9 @@ namespace eosio {
          cc.voted_block().connect( broadcast_vote );
 
          if (bp_gossip_enabled()) {
-            cc.set_peer_keys_retrieval_active(configured_bp_peer_accounts());
+            cc.set_peer_keys_retrieval_active(my_bp_gossip_accounts());
+            // Can't update bp producer peer messages here because update_peer_keys requires a read-only trx which
+            // requires a speculative block to run in. Wait for the first on block.
          }
       }
 
@@ -4576,7 +4605,7 @@ namespace eosio {
                   [this, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
                      fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}",
                               ("addr", addr)("limit", block_sync_rate_limit));
-                     create_session(std::move(socket), addr, block_sync_rate_limit);
+                     create_session(std::move(socket), std::move(addr), block_sync_rate_limit);
                   });
          } catch (const fc::exception& e) {
             fc_elog(logger, "net_plugin::plugin_startup failed to listen on ${a}, ${w}",
@@ -4634,6 +4663,10 @@ namespace eosio {
    /// RPC API
    vector<connection_status> net_plugin::connections()const {
       return my->connections.connection_statuses();
+   }
+
+   vector<gossip_peer> net_plugin::bp_gossip_peers()const {
+      return my->bp_gossip_peers();
    }
 
    constexpr uint16_t net_plugin_impl::to_protocol_version(uint16_t v) {

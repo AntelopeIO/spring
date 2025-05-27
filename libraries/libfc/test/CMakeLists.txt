@@ -19,6 +19,7 @@ add_executable( test_fc
         test_base64.cpp
         test_escape_str.cpp
         test_bitset.cpp
+        test_exception.cpp
         test_bls.cpp
         test_ordered_diff.cpp
         main.cpp
