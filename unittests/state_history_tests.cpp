@@ -288,15 +288,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_global_property_history, T, table_delt
    BOOST_REQUIRE(result.first);
    auto &it_global_property = result.second;
    BOOST_REQUIRE_EQUAL(it_global_property->rows.obj.size(), 1u);
-<<<<<<< HEAD
-   auto global_properties = chain.template deserialize_data<eosio::ship_protocol::global_property_v1, eosio::ship_protocol::global_property>(it_global_property);
-   auto configuration = std::get<eosio::ship_protocol::chain_config_v2>(global_properties[0].configuration);
-   BOOST_REQUIRE_EQUAL(configuration.max_transaction_delay, 60u);
-=======
    const variants global_properties = chain.deserialize_data(it_global_property, "global_property_v1", "global_property");
-   BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][0ul].get_string(), "chain_config_v1");
+   BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][0ul].get_string(), "chain_config_v2");
    BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][1ul]["max_transaction_delay"].as_uint64(), 60u);
->>>>>>> origin/release/2.0
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_protocol_feature_history, T, table_deltas_testers) {
