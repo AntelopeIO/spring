@@ -4318,7 +4318,7 @@ namespace eosio {
            "   myprod,myhostname2.com:9876,[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"
            )
          ( "agent-name", bpo::value<string>()->default_value("Spring {version}"),
-           "The name supplied to identify this node amongst the peers. {version} will be replaced with the version of this node.")
+           "The name supplied to identify this node amongst the peers. Placeholder {version} can be specified to automatically insert the node's version.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
          ( "peer-private-key", bpo::value<vector<string>>()->composing()->multitoken(),
