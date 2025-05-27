@@ -1,27 +1,28 @@
-#include <eosio/abi.hpp>
-#include <eosio/from_json.hpp>
-#include <eosio/convert.hpp>
-
-#include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/prettywriter.h>
-
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <boost/program_options.hpp>
 
+#include <eosio/chain/abi_def.hpp>
+#include <eosio/chain/abi_serializer.hpp>
+#include <fc/io/json.hpp>
+
 #include <map>
 #include <set>
 #include <iostream>
+#include <regex>
 #include <string>
 
+using mvo = fc::mutable_variant_object;
+
 namespace bpo = boost::program_options;
+
+static const eosio::chain::abi_serializer::yield_function_t null_yield_function{};
 
 int main(int argc, char* argv[]) {
    boost::asio::io_context ctx;
    boost::asio::ip::tcp::resolver resolver(ctx);
    boost::beast::websocket::stream<boost::asio::ip::tcp::socket> stream(ctx);
-   eosio::abi abi;
+   eosio::chain::abi_serializer abi;
 
    bpo::options_description cli("ship_streamer command line options");
    bool help = false;
@@ -55,7 +56,7 @@ int main(int argc, char* argv[]) {
    }
 
    std::string::size_type colon = socket_address.find(':');
-   eosio::check(colon != std::string::npos, "Missing ':' seperator in Websocket address and port");
+   FC_ASSERT(colon != std::string::npos, "Missing ':' seperator in Websocket address and port");
    std::string statehistory_server = socket_address.substr(0, colon);
    std::string statehistory_port = socket_address.substr(colon+1);
 
@@ -66,17 +67,34 @@ int main(int argc, char* argv[]) {
       {
          boost::beast::flat_buffer abi_buffer;
          stream.read(abi_buffer);
-         std::string abi_string((const char*)abi_buffer.data().data(), abi_buffer.data().size());
-         eosio::json_token_stream token_stream(abi_string.data());
-         eosio::abi_def abidef = eosio::from_json<eosio::abi_def>(token_stream);
-         eosio::convert(abidef, abi);
+         std::string abi_string = boost::beast::buffers_to_string(abi_buffer.data());
+         //remove all tables since their names are invalid; tables not needed for this test
+         std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
+         abi_string = std::regex_replace(abi_string, scrub_all_tables, "");
+
+         abi = eosio::chain::abi_serializer(fc::json::from_string(abi_string).as<eosio::chain::abi_def>(), null_yield_function);
+         //state history may have 'bytes' larger than MAX_SIZE_OF_BYTE_ARRAYS, so divert 'bytes' to an impl that does not have that check
+         abi.add_specialized_unpack_pack("bytes", std::make_pair<eosio::chain::abi_serializer::unpack_function, eosio::chain::abi_serializer::pack_function>(
+            [](fc::datastream<const char*>& stream, bool is_array, bool is_optional, const eosio::chain::abi_serializer::yield_function_t& yield) {
+               FC_ASSERT(!is_array, "sorry, this kludge doesn't support bytes[]");
+               if(is_optional) {
+                  bool present = false;
+                  fc::raw::unpack(stream, present);
+                  if(!present)
+                     return fc::variant();
+               }
+               fc::unsigned_int sz;
+               fc::raw::unpack(stream, sz);
+               if(sz == 0u)
+                  return fc::variant("");
+               std::vector<char> data(sz);
+               stream.read(data.data(), sz);
+               return fc::variant(fc::to_hex(data.data(),data.size()));
+         },
+         [](const fc::variant&, fc::datastream<char*>&, bool, bool, const eosio::chain::abi_serializer::yield_function_t&) {
+            FC_ASSERT(false, "sorry, this kludge can't write out bytes");
+         }));
       }
-
-      const eosio::abi_type& request_type = abi.abi_types.at("request");
-      const eosio::abi_type& result_type = abi.abi_types.at("result");
-
-      rapidjson::StringBuffer request_sb;
-      rapidjson::PrettyWriter<rapidjson::StringBuffer> request_writer(request_sb);
 
       //struct get_blocks_request_v0 {
       //   uint32_t                    start_block_num        = 0;
@@ -91,34 +109,19 @@ int main(int argc, char* argv[]) {
       //struct get_blocks_request_v1 : get_blocks_request_v0 {
       //   bool                        fetch_finality_data    = false;
       //};
-      request_writer.StartArray();
-
-         request_writer.String("get_blocks_request_v1"); // always send out latest version of request
-         request_writer.StartObject();
-         request_writer.Key("start_block_num");
-         request_writer.Uint(start_block_num);
-         request_writer.Key("end_block_num");
-         request_writer.String(std::to_string(end_block_num + 1).c_str()); // SHiP is (start-end] exclusive
-         request_writer.Key("max_messages_in_flight");
-         request_writer.String(std::to_string(std::numeric_limits<u_int32_t>::max()).c_str());
-         request_writer.Key("have_positions");
-         request_writer.StartArray();
-         request_writer.EndArray();
-         request_writer.Key("irreversible_only");
-         request_writer.Bool(irreversible_only);
-         request_writer.Key("fetch_block");
-         request_writer.Bool(fetch_block);
-         request_writer.Key("fetch_traces");
-         request_writer.Bool(fetch_traces);
-         request_writer.Key("fetch_deltas");
-         request_writer.Bool(fetch_deltas);
-         request_writer.Key("fetch_finality_data");
-         request_writer.Bool(fetch_finality_data);
-         request_writer.EndObject();
-      request_writer.EndArray();
 
       stream.binary(true);
-      stream.write(boost::asio::buffer(request_type.json_to_bin(request_sb.GetString(), [](){})));
+      const eosio::chain::bytes get_status_bytes = abi.variant_to_binary("request",
+         fc::variants{"get_blocks_request_v1", mvo()("start_block_num", start_block_num)
+                                                    ("end_block_num", std::to_string(end_block_num + 1)) // SHiP is (start-end] exclusive
+                                                    ("max_messages_in_flight",std::to_string(std::numeric_limits<u_int32_t>::max()))
+                                                    ("have_positions", fc::variants{})
+                                                    ("irreversible_only", irreversible_only)
+                                                    ("fetch_block", fetch_block)
+                                                    ("fetch_traces", fetch_traces)
+                                                    ("fetch_deltas", fetch_deltas)
+                                                    ("fetch_finality_data", fetch_finality_data)}, null_yield_function);
+      stream.write(boost::asio::buffer(get_status_bytes));
       stream.read_message_max(0);
 
       // Each block_num can have multiple block_ids since forks are possible
@@ -129,21 +132,19 @@ int main(int argc, char* argv[]) {
          boost::beast::flat_buffer buffer;
          stream.read(buffer);
 
-         eosio::input_stream is((const char*)buffer.data().data(), buffer.data().size());
-         rapidjson::Document result_document;
-         result_document.Parse(result_type.bin_to_json(is).c_str());
+         fc::datastream<const char*> ds((const char*)buffer.data().data(), buffer.data().size());
+         const fc::variant result = abi.binary_to_variant("result", ds, null_yield_function);
 
-         eosio::check(!result_document.HasParseError(),                                      "Failed to parse result JSON from abieos");
-         eosio::check(result_document.IsArray(),                                             "result should have been an array (variant) but it's not");
-         eosio::check(result_document.Size() == 2,                                           "result was an array but did not contain 2 items like a variant should");
-         eosio::check(std::string(result_document[0].GetString()) == "get_blocks_result_v1", "result type doesn't look like get_blocks_result_v1");
-         eosio::check(result_document[1].IsObject(),                                         "second item in result array is not an object");
-         eosio::check(result_document[1].HasMember("head"),                                  "cannot find 'head' in result");
-         eosio::check(result_document[1]["head"].IsObject(),                                 "'head' is not an object");
-         eosio::check(result_document[1]["head"].HasMember("block_num"),                     "'head' does not contain 'block_num'");
-         eosio::check(result_document[1]["head"]["block_num"].IsUint(),                      "'head.block_num' isn't a number");
-         eosio::check(result_document[1]["head"].HasMember("block_id"),                      "'head' does not contain 'block_id'");
-         eosio::check(result_document[1]["head"]["block_id"].IsString(),                     "'head.block_id' isn't a string");
+         FC_ASSERT(result.is_array(),                                                        "result should have been an array (variant) but it's not");
+         FC_ASSERT(result.size() == 2,                                                       "result was an array but did not contain 2 items like a variant should");
+         FC_ASSERT(result[0ul] == "get_blocks_result_v1",                                    "result type doesn't look like get_blocks_result_v1");
+         const fc::variant_object& resultobj = result[1ul].get_object();
+         FC_ASSERT(resultobj.contains("head"),                                               "cannot find 'head' in result");
+         FC_ASSERT(resultobj["head"].is_object(),                                            "'head' is not an object");
+         FC_ASSERT(resultobj["head"].get_object().contains("block_num"),                     "'head' does not contain 'block_num'");
+         FC_ASSERT(resultobj["head"].get_object()["block_num"].is_integer(),                 "'head.block_num' isn't a number");
+         FC_ASSERT(resultobj["head"].get_object().contains("block_id"),                      "'head' does not contain 'block_id'");
+         FC_ASSERT(resultobj["head"].get_object()["block_id"].is_string(),                   "'head.block_id' isn't a string");
 
          // stream what was received
          if(is_first) {
@@ -152,29 +153,24 @@ int main(int argc, char* argv[]) {
          } else {
            std::cout << "," << std::endl;
          }
-         std::cout << "{ \"get_blocks_result_v1\":" << std::endl;
-
-         rapidjson::StringBuffer result_sb;
-         rapidjson::PrettyWriter<rapidjson::StringBuffer> result_writer(result_sb);
-         result_document[1].Accept(result_writer);
-         std::cout << result_sb.GetString() << std::endl << "}" << std::endl;
+         std::cout << "{ \"get_blocks_result_v1\":" << fc::json::to_pretty_string(resultobj) << std::endl << "}" << std::endl;
 
          // validate after streaming, so that invalid entry is included in the output
          uint32_t this_block_num = 0;
-         if( result_document[1].HasMember("this_block") && result_document[1]["this_block"].IsObject() ) {
-            const auto& this_block = result_document[1]["this_block"];
-            if( this_block.HasMember("block_num") && this_block["block_num"].IsUint() ) {
-               this_block_num = this_block["block_num"].GetUint();
+         if( resultobj.contains("this_block") && resultobj["this_block"].is_object() ) {
+            const fc::variant_object& this_block = resultobj["this_block"].get_object();
+            if( this_block.contains("block_num") && this_block["block_num"].is_integer() ) {
+               this_block_num = this_block["block_num"].as_uint64();
             }
             std::string this_block_id;
-            if( this_block.HasMember("block_id") && this_block["block_id"].IsString() ) {
-               this_block_id = this_block["block_id"].GetString();
+            if( this_block.contains("block_id") && this_block["block_id"].is_string() ) {
+               this_block_id = this_block["block_id"].get_string();
             }
             std::string prev_block_id;
-            if( result_document[1].HasMember("prev_block") && result_document[1]["prev_block"].IsObject() ) {
-               const auto& prev_block = result_document[1]["prev_block"];
-               if ( prev_block.HasMember("block_id") && prev_block["block_id"].IsString() ) {
-                  prev_block_id = prev_block["block_id"].GetString();
+            if( resultobj.contains("prev_block") && resultobj["prev_block"].is_object() ) {
+               const fc::variant_object& prev_block = resultobj["prev_block"].get_object();
+               if ( prev_block.contains("block_id") && prev_block["block_id"].is_string() ) {
+                  prev_block_id = prev_block["block_id"].get_string();
                }
             }
             if( !irreversible_only && !this_block_id.empty() && !prev_block_id.empty() ) {
@@ -189,8 +185,8 @@ int main(int argc, char* argv[]) {
                }
                block_ids[this_block_num].insert(this_block_id);
 
-               if( result_document[1]["last_irreversible"].HasMember("block_num") && result_document[1]["last_irreversible"]["block_num"].IsUint() ) {
-                  uint32_t lib_num = result_document[1]["last_irreversible"]["block_num"].GetUint();
+               if( resultobj["last_irreversible"].get_object().contains("block_num") && resultobj["last_irreversible"]["block_num"].is_integer() ) {
+                  uint32_t lib_num = resultobj["last_irreversible"]["block_num"].as_uint64();
                   auto i = block_ids.lower_bound(lib_num);
                   if (i != block_ids.end()) {
                      block_ids.erase(block_ids.begin(), i);

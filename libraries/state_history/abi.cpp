@@ -1,3 +1,6 @@
+#include <eosio/state_history/abi.hpp>
+#include <regex>
+
 extern const char* const state_history_plugin_abi = R"({
     "version": "eosio::abi/1.1",
     "structs": [
@@ -797,3 +800,10 @@ extern const char* const state_history_plugin_abi = R"({
         { "name": "resource_limits_config", "type": "resource_limits_config", "key_names": [] }
     ]
 })";
+
+namespace eosio::state_history {
+std::string ship_abi_without_tables() {
+    std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
+    return std::regex_replace(state_history_plugin_abi, scrub_all_tables, "");
+}
+}
