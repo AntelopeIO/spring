@@ -109,14 +109,6 @@ namespace fc { namespace ecc {
         return public_key(data);
     }
 
-    private_key private_key::child( const fc::sha256& offset )const
-    {
-       fc::sha256::encoder enc;
-       fc::raw::pack( enc, get_public_key() );
-       fc::raw::pack( enc, offset );
-       return generate_from_seed( get_secret(), enc.result() );
-    }
-
     unsigned int public_key::fingerprint() const
     {
         public_key_data key = serialize();

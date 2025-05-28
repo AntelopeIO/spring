@@ -49,8 +49,6 @@ namespace fc {
            public_key( const public_key_point_data& v );
            public_key( const compact_signature& c, const fc::sha256& digest, bool check_canonical = true );
 
-           public_key child( const fc::sha256& offset )const;
-
            bool valid()const;
 
            public_key( public_key&& pk );
