@@ -1,6 +1,5 @@
 #include <fc/crypto/elliptic_r1.hpp>
 
-#include <fc/crypto/base58.hpp>
 #include <fc/crypto/openssl.hpp>
 
 #include <fc/fwd_impl.hpp>
@@ -302,30 +301,6 @@ namespace fc { namespace crypto { namespace r1 {
         EC_KEY_set_public_key(rtn.my->_key,result);
         return rtn;
       } FC_RETHROW_EXCEPTIONS( debug, "digest: ${digest}", ("digest",digest) );
-    }
-
-    std::string public_key::to_base58() const
-    {
-      public_key_data key = serialize();
-      uint32_t check = (uint32_t)sha256::hash(key.data, sizeof(key))._hash[0];
-      static_assert(sizeof(key) + sizeof(check) == 37, ""); // hack around gcc bug: key.size() should be constexpr, but isn't
-      array<char, 37> data;
-      memcpy(data.data, key.begin(), key.size());
-      memcpy(data.begin() + key.size(), (const char*)&check, sizeof(check));
-      return fc::to_base58(data.begin(), data.size(), fc::yield_function_t());
-    }
-
-    public_key public_key::from_base58( const std::string& b58 )
-    {
-        array<char, 37> data;
-        size_t s = fc::from_base58(b58, (char*)&data, sizeof(data) );
-        FC_ASSERT( s == sizeof(data) );
-
-        public_key_data key;
-        uint32_t check = (uint32_t)sha256::hash(data.data, sizeof(key))._hash[0];
-        FC_ASSERT( memcmp( (char*)&check, data.data + sizeof(key), sizeof(check) ) == 0 );
-        memcpy( (char*)key.data, data.data, sizeof(key) );
-        return public_key(key);
     }
 
     private_key::private_key()

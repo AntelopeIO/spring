@@ -62,10 +62,6 @@ namespace fc {
             return a.serialize() != b.serialize();
            }
 
-           /// Allows to convert current public key object into base58 number.
-           std::string to_base58() const;
-           static public_key from_base58( const std::string& b58 );
-
         private:
           friend class private_key;
           friend compact_signature signature_from_ecdsa(const EC_KEY* key, const public_key_data& pub_data, fc::ecdsa_sig& sig, const fc::sha256& d);
