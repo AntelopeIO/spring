@@ -1724,7 +1724,7 @@ struct controller_impl {
       return should_replay;
    }
 
-   std::exception_ptr replay_block_log() {
+   void replay_block_log() {
       auto blog_head = blog.head();
       assert(blog_head);
 
@@ -1786,7 +1786,8 @@ struct controller_impl {
                ilog( "${n} of ${head}", ("n", next->block_num())("head", blog_head->block_num()) );
             }
          }
-      } catch(  const database_guard_exception& e ) {
+      } catch( const std::exception& e ) {
+         wlog("Exception caught while replaying block log: ${e}", ("e", e.what()));
          except_ptr = std::current_exception();
       }
       transition_legacy_branch.clear(); // not needed after replay
@@ -1799,10 +1800,13 @@ struct controller_impl {
 
       // if the irreverible log is played without undo sessions enabled, we need to sync the
       // revision ordinal to the appropriate expected value here.
-      if( skip_db_sessions( controller::block_status::irreversible ) )
+      if( skip_db_sessions( controller::block_status::irreversible ) ) {
+         ilog( "Setting chainbase revision to ${n}", ("n", chain_head.block_num()) );
          db.set_revision( chain_head.block_num() );
+      }
 
-      return except_ptr;
+      if (except_ptr)
+         std::rethrow_exception(except_ptr);
    }
 
    void replay(startup_t startup) {
@@ -1813,7 +1817,7 @@ struct controller_impl {
       std::exception_ptr except_ptr;
 
       if (replay_block_log_needed)
-         except_ptr = replay_block_log();
+         replay_block_log();
 
       if( check_shutdown() ) {
          ilog( "quitting from replay because of shutdown" );
@@ -1930,7 +1934,7 @@ struct controller_impl {
          if (snapshot_head_block != 0 && !blog.head()) {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
-         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() ) {
+         } else if( !check_shutdown() && !irreversible_mode() ) {
             if (auto fork_db_head = fork_db.head()) {
                ilog("fork database contains ${n} blocks after head from ${ch} to ${fh}",
                     ("n", fork_db_head->block_num() - chain_head.block_num())("ch", chain_head.block_num())("fh", fork_db_head->block_num()));
@@ -1942,10 +1946,6 @@ struct controller_impl {
          }
       };
       fork_db_.apply<void>(replay_fork_db);
-
-      if( except_ptr ) {
-         std::rethrow_exception( except_ptr );
-      }
    }
 
    void startup(std::function<void()> shutdown, std::function<bool()> check_shutdown, const snapshot_reader_ptr& snapshot) {
@@ -3905,10 +3905,9 @@ struct controller_impl {
                   actual_finality_mroot = bsp->get_validation_mroot(bsp->core.latest_qc_claim().block_num);
                }
 
-               EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot,
-                  block_validate_exception,
-                  "finality_mroot does not match, received finality_mroot: ${r} != actual_finality_mroot: ${a}",
-                  ("r", bsp->finality_mroot())("a", actual_finality_mroot));
+               EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot, block_validate_exception,
+                  "finality_mroot does not match, received finality_mroot: ${r} != actual_finality_mroot: ${a} for block ${bn} ${id}",
+                  ("r", bsp->finality_mroot())("a", actual_finality_mroot)("bn", bsp->block_num())("id", bsp->id()));
             } else {
                assemble_block(true, {}, nullptr);
                auto& ab = std::get<assembled_block>(pending->_block_stage);
