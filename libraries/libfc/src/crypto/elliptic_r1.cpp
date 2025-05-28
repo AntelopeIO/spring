@@ -532,7 +532,7 @@ namespace fc { namespace crypto { namespace r1 {
           FC_THROW_EXCEPTION( exception, "Unable to sign" );
 
         return signature_from_ecdsa(my->_key, my_pub_key, sig, digest);
-      } FC_RETHROW_EXCEPTIONS( warn, "sign ${digest}", ("digest", digest)("private_key",*this) );
+      } FC_RETHROW_EXCEPTIONS( warn, "failed to sign ${digest}", ("digest", digest) );
     }
 
    private_key& private_key::operator=( private_key&& pk )
@@ -593,27 +593,5 @@ namespace fc { namespace crypto { namespace r1 {
 
 }
 }
-  void to_variant( const crypto::r1::private_key& var,  variant& vo )
-  {
-    vo = var.get_secret();
-  }
-  void from_variant( const variant& var,  crypto::r1::private_key& vo )
-  {
-    fc::sha256 sec;
-    from_variant( var, sec );
-    vo = crypto::r1::private_key::regenerate(sec);
-  }
-
-  void to_variant( const crypto::r1::public_key& var,  variant& vo )
-  {
-    vo = var.serialize();
-  }
-  void from_variant( const variant& var,  crypto::r1::public_key& vo )
-  {
-    crypto::r1::public_key_data dat;
-    from_variant( var, dat );
-    vo = crypto::r1::public_key(dat);
-  }
-
 
 }
