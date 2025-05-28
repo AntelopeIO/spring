@@ -158,4 +158,57 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_multiple, blog_replay_fixture) try {
    stop_and_resume_replay(last_head_block_num - 3);
 } FC_LOG_AND_RETHROW()
 
+void currupt_blocks_log(path block_dir) {
+   fc::datastream<fc::cfile> blockslog;
+   std::string bad_str = "bad corruption";
+   blockslog.set_file_path(block_dir / "blocks.log");
+   blockslog.open(fc::cfile::update_rw_mode);
+   blockslog.seek_end(0);
+   size_t size = blockslog.tellp();
+   blockslog.seek(size/2);
+   blockslog.write((char*)&bad_str, bad_str.size());
+   blockslog.flush();
+   blockslog.close();
+}
+
+// Test exception during replay
+BOOST_FIXTURE_TEST_CASE(replay_exception, blog_replay_fixture) try {
+   fc::temp_directory tmp_dir;
+
+   eosio::chain::controller::config copied_config = chain.get_config();
+
+   auto genesis = eosio::chain::block_log::extract_genesis_state(copied_config.blocks_dir);
+   BOOST_REQUIRE(genesis);
+
+   // remove the state files to make sure we are starting from block log
+   remove_existing_states(copied_config.state_dir);
+   // backup
+   std::filesystem::copy(copied_config.blocks_dir / "blocks.log", tmp_dir.path() / "blocks.log");
+   std::filesystem::copy(copied_config.blocks_dir / "blocks.index", tmp_dir.path() / "blocks.index");
+
+   currupt_blocks_log(copied_config.blocks_dir);
+
+   bool exception_thrown = false;
+   try {
+      eosio::testing::tester replay_chain(copied_config, *genesis);
+   } catch (std::exception& e) {
+      exception_thrown = true;
+   }
+
+   BOOST_TEST(exception_thrown);
+
+   // restore
+   std::filesystem::copy(tmp_dir.path() / "blocks.log", copied_config.blocks_dir / "blocks.log", std::filesystem::copy_options::overwrite_existing);
+   std::filesystem::copy(tmp_dir.path() / "blocks.index", copied_config.blocks_dir / "blocks.index", std::filesystem::copy_options::overwrite_existing);
+
+   // verify can restart and it will work
+   eosio::testing::tester replay_chain(copied_config);
+
+   // Make sure replayed irreversible_block_num and head_block_num match
+   // with last_irreversible_block_num and last_head_block_num
+   BOOST_CHECK(replay_chain.last_irreversible_block_num() == last_irreversible_block_num);
+   BOOST_CHECK(replay_chain.head().block_num() == last_head_block_num);
+
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -3,6 +3,7 @@
 import os
 import json
 import signal
+import threading
 
 from TestHarness import Account, Cluster, TestHelper, Utils, WalletMgr, CORE_SYMBOL
 from TestHarness.Node import BlockType
@@ -58,6 +59,10 @@ def getSnapshotsCount(nodeId):
     # disregard snapshot schedule config in same folder
     if snapshotScheduleDB in snapshotDirContents: snapshotDirContents.remove(snapshotScheduleDB)
     return len(snapshotDirContents)
+
+def createNodeSnapshot(nodeId, node):
+    Print("Creating snapshot for node %d" % nodeId)
+    node.createSnapshot()
 
 try:
     TestHelper.printSystemInfo("BEGIN")
@@ -129,6 +134,9 @@ try:
 
     # ***   Schedule snapshot, it should become pending
     prodAB.scheduleSnapshot()
+    prodAB.waitForNextBlock()
+    prodAB.waitForNextBlock()
+    prodAB.createSnapshot()
       
     # ***   Killing the "bridge" node   ***
     Print("Sending command to kill \"bridge\" node to separate the 2 producer groups.")
@@ -151,6 +159,12 @@ try:
    
     # schedule a snapshot that should get finalized
     prodC.scheduleSnapshot()
+    prodC.waitForNextBlock()
+    prodC.waitForNextBlock()
+
+    # create snapshot in a separate thread since it blocks until finalized
+    rpcThread = threading.Thread(target = createNodeSnapshot, args = (1, prodC))
+    rpcThread.start()
 
     assert not nonProdNode.verifyAlive(), "Bridge node should have been killed if test was functioning correctly."
 
@@ -169,7 +183,10 @@ try:
     Print("Wait for LIB to move, which indicates prodC has forked out the branch")
     assert prodC.waitForLibToAdvance(60), \
         "ERROR: Network did not reach consensus after bridge node was restarted."
- 
+
+    Print("Wait for rpc thread to complete")
+    rpcThread.join()
+
     for prodNode in prodNodes:
         info=prodNode.getInfo()
         Print(f"node info: {json.dumps(info, indent=1)}")
