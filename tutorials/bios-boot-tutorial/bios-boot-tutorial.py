@@ -27,6 +27,12 @@ systemAccounts = [
     'eosio.token',
     'eosio.vpay',
     'eosio.rex',
+    'eosio.fees',
+    'eosio.reward',
+    'eosio.wram',
+    'eosio.reserv',
+    'eosio.powup',
+    'core.vaulta',
 ]
 
 def jsonArg(a):
@@ -99,6 +105,7 @@ def startNode(nodeIndex, account):
     if not nodeIndex: otherOpts += (
         '    --plugin eosio::trace_api_plugin --trace-no-abis'
     )
+    # if SVN blsFinKeys 
     cmd = (
         args.nodeos +
         '    --max-irreversible-block-age -1'
@@ -125,6 +132,7 @@ def startNode(nodeIndex, account):
         '    --plugin eosio::producer_api_plugin'
         '    --plugin eosio::producer_plugin' +
         otherOpts)
+        # + blsFinKeys
     with open(dir + 'stderr', mode='w') as f:
         f.write(cmd + '\n\n')
     background(cmd + '    2>>' + dir + 'stderr')
@@ -183,6 +191,8 @@ def regProducers(b, e):
     for i in range(b, e):
         a = accounts[i]
         retry(args.cleos + 'system regproducer ' + a['name'] + ' ' + a['pub'] + ' https://' + a['name'] + '.com' + '/' + a['pub'])
+
+#dfe regFinKeys(b, e): for i in range(b,e): a = account[i] reg fin key all point 8000
 
 def listProducers():
     run(args.cleos + 'system listproducers')
@@ -287,8 +297,8 @@ def stepStartBoot():
     startNode(0, {'name': 'eosio', 'pvt': args.private_key, 'pub': args.public_key})
     sleep(10.0)
 def stepInstallSystemContracts():
-    run(args.cleos + 'set contract eosio.token ' + args.contracts_dir + '/eosio.token/')
-    run(args.cleos + 'set contract eosio.msig ' + args.contracts_dir + '/eosio.msig/')
+    run(args.cleos + 'set contract eosio.token ' + args.core_contracts_dir + '/eosio.token/')
+    run(args.cleos + 'set contract eosio.msig ' + args.core_contracts_dir + '/eosio.msig/')
 def stepCreateTokens():
     run(args.cleos + 'push action eosio.token create \'["eosio", "10000000000.0000 %s"]\' -p eosio.token' % (args.symbol))
     totalAllocation = allocateFunds(0, len(accounts))
@@ -309,7 +319,7 @@ def stepSetSystemContract():
     # action that allows activating desired protocol features prior to 
     # deploying a system contract with more features such as eosio.bios 
     # or eosio.system
-    retry(args.cleos + 'set contract eosio ' + args.contracts_dir + '/eosio.boot/')
+    retry(args.cleos + 'set contract eosio ' + args.core_contracts_dir + '/eosio.boot/')
     sleep(3)
 
     # activate remaining features
@@ -362,14 +372,28 @@ def stepSetSystemContract():
     sleep(1)
 
     # install eosio.system latest version
-    retry(args.cleos + 'set contract eosio ' + args.contracts_dir + '/eosio.system/')
-    # setpriv is only available after eosio.system is installed
-    run(args.cleos + 'push action eosio setpriv' + jsonArg(['eosio.msig', 1]) + '-p eosio@active')
-    sleep(3)
+    retry(args.cleos + 'set contract eosio ' + args.core_contracts_dir + '/eosio.system/')
+
+    # install vaulta system contracts if defined otherwise skip
+    if args.vaulta_contracts_dir:
+        # setpriv is only available after eosio.system is installed
+        run(args.cleos + 'push action eosio setpriv' + jsonArg(['eosio.msig', 1]) + ' -p eosio@active')
+        run(args.cleos + 'push action eosio setpriv' + jsonArg(['core.vaulta', 1]) + ' -p eosio@active')
+        run(args.cleos + 'set account permission core.vaulta active' + ' --add-code ' + '-p core.vaulta@active')
+        sleep(1)
+        retry(args.cleos + 'set contract core.vaulta ' + args.vaulta_contracts_dir + ' system.wasm' + ' system.abi' + ' -p core.vaulta@active')
+        sleep(3)
 
 def stepInitSystemContract():
-    run(args.cleos + 'push action eosio init' + jsonArg(['0', '4,' + args.symbol]) + '-p eosio@active')
+    run(args.cleos + 'push action eosio init' + jsonArg(['0', '4,' + args.symbol]) + ' -p eosio@active')
     sleep(1)
+    
+def stepIssueAToken():
+    # issue tokens
+    if args.vaulta_contracts_dir:
+        run(args.cleos + 'push action core.vaulta init' + jsonArg(['10000000000.0000 A']) + ' -p core.vaulta')
+        sleep(1)
+    
 def stepCreateStakedAccounts():
     createStakedAccounts(0, len(accounts))
 def stepRegProducers():
@@ -400,6 +424,8 @@ def stepLog():
 
 parser = argparse.ArgumentParser()
 
+# r reg fin keys 
+# f SVN cleos --url $ENDPOINT push action eosio switchtosvnn '{}' -p eosio
 commands = [
     ('w', 'wallet',             stepStartWallet,            True,    "Start keosd, create wallet, fill with keys"),
     ('b', 'boot',               stepStartBoot,              True,    "Start boot node"),
@@ -408,6 +434,7 @@ commands = [
     ('t', 'tokens',             stepCreateTokens,           True,    "Create tokens"),
     ('S', 'sys-contract',       stepSetSystemContract,      True,    "Set system contract"),
     ('I', 'init-sys-contract',  stepInitSystemContract,     True,    "Initialiaze system contract"),
+    ('A', 'A-tokens',           stepIssueAToken,            True,    "Create A tokens"),
     ('T', 'stake',              stepCreateStakedAccounts,   True,    "Create staked accounts"),
     ('p', 'reg-prod',           stepRegProducers,           True,    "Register producers"),
     ('P', 'start-prod',         stepStartProducers,         True,    "Start producers"),
@@ -420,13 +447,13 @@ commands = [
     ('l', 'log',                stepLog,                    True,    "Show tail of node's log"),
 ]
 
-parser.add_argument('--public-key', metavar='', help="EOSIO Public Key", default='EOS8Znrtgwt8TfpmbVpTKvA2oB8Nqey625CLN8bCN3TEbgx86Dsvr', dest="public_key")
-parser.add_argument('--private-Key', metavar='', help="EOSIO Private Key", default='5K463ynhZoCDDa4RDcr63cUwWLTnKqmdcoTKTHBjqoKfv4u5V7p', dest="private_key")
+parser.add_argument('--public-key', metavar='', help="Vaulta Public Key", default='EOS8Znrtgwt8TfpmbVpTKvA2oB8Nqey625CLN8bCN3TEbgx86Dsvr', dest="public_key")
+parser.add_argument('--private-Key', metavar='', help="Vaulta Private Key", default='5K463ynhZoCDDa4RDcr63cUwWLTnKqmdcoTKTHBjqoKfv4u5V7p', dest="private_key")
 parser.add_argument('--cleos', metavar='', help="Cleos command", default='../../build/programs/cleos/cleos --wallet-url http://127.0.0.1:6666 ')
 parser.add_argument('--nodeos', metavar='', help="Path to nodeos binary", default='../../build/programs/nodeos/nodeos')
 parser.add_argument('--keosd', metavar='', help="Path to keosd binary", default='../../build/programs/keosd/keosd')
-parser.add_argument('--contracts-dir', metavar='', help="Path to latest contracts directory", default='../../build/contracts/')
-parser.add_argument('--old-contracts-dir', metavar='', help="Path to 1.8.x contracts directory", default='../../build/contracts/')
+parser.add_argument('--core-contracts-dir', metavar='', help="Path to latest core & system contracts directory", default='../../build/contracts/')
+parser.add_argument('--vaulta-contracts-dir', metavar='', help="Path to latest vaulta contracts directory")
 parser.add_argument('--nodes-dir', metavar='', help="Path to nodes directory", default='./nodes/')
 parser.add_argument('--genesis', metavar='', help="Path to genesis.json", default="./genesis.json")
 parser.add_argument('--wallet-dir', metavar='', help="Path to wallet directory", default='./wallet/')
