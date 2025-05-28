@@ -173,38 +173,6 @@ namespace fc {
   } // namespace r1
   } // namespace crypto
 
-  namespace raw
-  {
-      template<typename Stream>
-      void unpack( Stream& s, fc::crypto::r1::public_key& pk)
-      {
-          crypto::r1::public_key_data ser;
-          fc::raw::unpack(s,ser);
-          pk = fc::crypto::r1::public_key( ser );
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::crypto::r1::public_key& pk)
-      {
-          fc::raw::pack( s, pk.serialize() );
-      }
-
-      template<typename Stream>
-      void unpack( Stream& s, fc::crypto::r1::private_key& pk)
-      {
-          fc::sha256 sec;
-          unpack( s, sec );
-          pk = crypto::r1::private_key::regenerate(sec);
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::crypto::r1::private_key& pk)
-      {
-          fc::raw::pack( s, pk.get_secret() );
-      }
-
-  } // namespace raw
-
 } // namespace fc
 #include <fc/reflect/reflect.hpp>
 

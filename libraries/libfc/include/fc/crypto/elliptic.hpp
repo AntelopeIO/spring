@@ -181,38 +181,6 @@ namespace fc {
 
   } // namespace ecc
 
-  namespace raw
-  {
-      template<typename Stream>
-      void unpack( Stream& s, fc::ecc::public_key& pk)
-      {
-          ecc::public_key_data ser;
-          fc::raw::unpack(s,ser);
-          pk = fc::ecc::public_key( ser );
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::ecc::public_key& pk)
-      {
-          fc::raw::pack( s, pk.serialize() );
-      }
-
-      template<typename Stream>
-      void unpack( Stream& s, fc::ecc::private_key& pk)
-      {
-          fc::sha256 sec;
-          unpack( s, sec );
-          pk = ecc::private_key::regenerate(sec);
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::ecc::private_key& pk)
-      {
-          fc::raw::pack( s, pk.get_secret() );
-      }
-
-  } // namespace raw
-
 } // namespace fc
 #include <fc/reflect/reflect.hpp>
 
