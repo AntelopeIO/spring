@@ -1,6 +1,5 @@
 #include <fc/crypto/elliptic_webauthn.hpp>
 #include <fc/crypto/elliptic_r1.hpp>
-#include <fc/crypto/base58.hpp>
 #include <fc/crypto/openssl.hpp>
 
 #include <fc/fwd_impl.hpp>
