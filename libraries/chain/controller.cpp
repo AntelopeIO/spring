@@ -1432,7 +1432,7 @@ struct controller_impl {
             block_state_ptr prev = fork_db.get_block(legacy->previous(), include_root_t::yes);
             assert(prev);
             controller::apply_blocks_result r = apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{});
-            if( r == controller::apply_blocks_result::complete) {
+            if (r == controller::apply_blocks_result::complete || r == controller::apply_blocks_result::none) {
                fc::scoped_exit<std::function<void()>> e([&]{fork_db_.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
@@ -1590,7 +1590,7 @@ struct controller_impl {
 
       const block_id_type new_lib_id = pending_lib_id();
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
-      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
+      controller::apply_blocks_result result = controller::apply_blocks_result::none;
 
       if( new_lib_num <= lib_num )
          return result;
@@ -1622,7 +1622,7 @@ struct controller_impl {
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
                if (irreversible_mode()) {
                   result = apply_irreversible_block(fork_db, *bitr);
-                  if (result != controller::apply_blocks_result::complete)
+                  if (result != controller::apply_blocks_result::complete && result != controller::apply_blocks_result::none)
                      break;
                }
 
@@ -4486,7 +4486,7 @@ struct controller_impl {
 
    controller::apply_blocks_result maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
-      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
+      controller::apply_blocks_result result = controller::apply_blocks_result::none;
       auto do_apply_blocks = [&](auto& fork_db) {
          auto new_head = fork_db.head(); // use best head
          if (!new_head)
@@ -4619,7 +4619,7 @@ struct controller_impl {
          // irreversible can change even if block not applied to head, integrated qc can move LIB
          auto log_result = log_irreversible();
          transition_to_savanna_if_needed();
-         if (log_result != controller::apply_blocks_result::complete)
+         if (log_result != controller::apply_blocks_result::complete && log_result != controller::apply_blocks_result::none)
             result = log_result;
       };
 

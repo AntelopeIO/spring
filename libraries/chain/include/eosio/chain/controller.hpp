@@ -247,6 +247,7 @@ namespace eosio::chain {
 
          /// Apply any blocks that are ready from the fork_db
          enum class apply_blocks_result {
+            none,       // no blocks are currently available to process in forkdb
             complete,   // all ready blocks in forkdb have been applied
             incomplete, // time limit reached, additional blocks may be available in forkdb to process
             paused      // apply blocks currently paused
