@@ -1,4 +1,4 @@
-i{
+{
   "name": "testnet_", 
   "nodes": {
     "bios": {
@@ -20,15 +20,12 @@ i{
         "eosio"
       ], 
       "dont_start": false, 
-      "config_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_bios", 
-      "data_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_bios", 
-      "p2p_port": 9776, 
+      "p2p_port": 9776,
       "http_port": 8788, 
       "host_name": "localhost", 
       "public_name": "localhost", 
-      "listen_addr": "0.0.0.0", 
-      "_dot_label": "localhost:9776\nbios\nprod=eosio"
-    }, 
+      "listen_addr": "0.0.0.0"
+    },
     "testnet_00": {
       "index": 0, 
       "name": "testnet_00", 
@@ -58,15 +55,12 @@ i{
         "defproducerk"
       ], 
       "dont_start": false, 
-      "config_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_00", 
-      "data_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_00", 
-      "p2p_port": 9876, 
+      "p2p_port": 9876,
       "http_port": 8888, 
       "host_name": "localhost", 
       "public_name": "localhost", 
-      "listen_addr": "0.0.0.0", 
-      "_dot_label": "localhost:9876\ntestnet_00\nprod=defproducera\ndefproducerc\ndefproducere\ndefproducerg\ndefproduceri\ndefproducerk\ndefproducerm\ndefproducero\ndefproducerq\ndefproducers\ndefproduceru"
-    }, 
+      "listen_addr": "0.0.0.0"
+    },
     "testnet_01": {
       "index": 1, 
       "name": "testnet_01", 
@@ -95,15 +89,12 @@ i{
         "defproduceru"
       ], 
       "dont_start": false, 
-      "config_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_01", 
-      "data_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_01", 
-      "p2p_port": 9877, 
+      "p2p_port": 9877,
       "http_port": 8889, 
       "host_name": "localhost", 
       "public_name": "localhost", 
-      "listen_addr": "0.0.0.0", 
-      "_dot_label": "localhost:9877\ntestnet_01\nprod=defproducerb\ndefproducerd\ndefproducerf\ndefproducerh\ndefproducerj\ndefproducerl\ndefproducern\ndefproducerp\ndefproducerr\ndefproducert"
-    }, 
+      "listen_addr": "0.0.0.0"
+    },
     "testnet_02": {
       "index": 2, 
       "name": "testnet_02", 
@@ -119,14 +110,11 @@ i{
       "peers": [], 
       "producers": [], 
       "dont_start": false, 
-      "config_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_02", 
-      "data_dir_name": "/home/heifner/ext/leap/cmake-build-debug/TestLogs/nodeos_forked_chain_test182472/node_02", 
-      "p2p_port": 9878, 
+      "p2p_port": 9878,
       "http_port": 8890, 
       "host_name": "localhost", 
       "public_name": "localhost", 
-      "listen_addr": "0.0.0.0", 
-      "_dot_label": "localhost:9878\ntestnet_02\nprod=<none>"
+      "listen_addr": "0.0.0.0"
     }
   }
 }
