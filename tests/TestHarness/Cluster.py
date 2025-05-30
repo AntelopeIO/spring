@@ -375,17 +375,9 @@ class Cluster(object):
             biosNodeObject=None
             bridgeNodes={}
             producerNodes={}
-            producers=[]
-            for append in range(ord('a'),ord('a')+numProducers):
-                name="defproducer" + chr(append)
-                producers.append(name)
-
-            # first group starts at 0
-            secondGroupStart=int((numProducers+1)/2)
             producerGroup1=[]
             producerGroup2=[]
 
-            Utils.Print("producers=%s" % (producers))
             shapeFileNodeMap = {}
             def getNodeNum(nodeName):
                 p=re.compile(r'^testnet_(\d+)$')
@@ -412,31 +404,17 @@ class Cluster(object):
                 if (numNodeProducers==0):
                     bridgeNodes[nodeName]=shapeFileNode
                 else:
+                    # producer node, add it to our producerNodes map
                     producerNodes[nodeName]=shapeFileNode
-                    group=None
-                    # go through all the producers for this node and determine which group on the bridged network they are in
-                    for shapeFileNodeProd in shapeFileNodeProds:
-                        producerIndex=0
-                        for prod in producers:
-                            if prod==shapeFileNodeProd:
-                                break
-                            producerIndex+=1
 
-                        prodGroup=None
-                        if producerIndex<secondGroupStart:
-                            prodGroup=1
-                            if group is None:
-                                group=prodGroup
-                                producerGroup1.append(nodeName)
-                                Utils.Print("Group1 grouping producerIndex=%s, secondGroupStart=%s" % (producerIndex,secondGroupStart))
-                        else:
-                            prodGroup=2
-                            if group is None:
-                                group=prodGroup
-                                producerGroup2.append(nodeName)
-                                Utils.Print("Group2 grouping producerIndex=%s, secondGroupStart=%s" % (producerIndex,secondGroupStart))
-                        if group!=prodGroup:
-                            Utils.errorExit("Node configuration not consistent with \"bridge\" topology. Node %s has producers that fall into both halves of the bridged network" % (nodeName))
+                    # assign producer to either group1 or group2
+                    if len(producerGroup1) <= len(producerGroup2):
+                        producerGroup1.append(nodeName)
+                    else:
+                        producerGroup2.append(nodeName)
+
+            Utils.Print(f"Producer Group 1: {producerGroup1}")
+            Utils.Print(f"Producer Group 2: {producerGroup2}")
 
             for _,bridgeNode in bridgeNodes.items():
                 bridgeNode["peers"]=[]
