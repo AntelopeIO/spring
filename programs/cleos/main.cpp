@@ -2876,7 +2876,7 @@ int main( int argc, char** argv ) {
    auto createAccount = create_account_subcommand( create, true /*simple*/ );
 
    // convert subcommand
-   auto convert = app.add_subcommand("convert", localized("Pack and unpack transactions")); // TODO also add converting action args based on abi from here ?
+   auto convert = app.add_subcommand("convert", localized("Pack and unpack transactions or convert public key format")); // TODO also add converting action args based on abi from here ?
    convert->require_subcommand();
 
    // pack transaction
@@ -2956,6 +2956,24 @@ int main( int argc, char** argv ) {
       fc::from_hex(packed_action_data_string, packed_action_data_blob.data(), packed_action_data_blob.size());
       fc::variant unpacked_action_data_json = bin_to_variant(name(packed_action_data_account_string), name(packed_action_data_name_string), packed_action_data_blob);
       std::cout << fc::json::to_pretty_string(unpacked_action_data_json) << std::endl;
+   });
+
+   string public_key_to_convert;
+   // output public key in legacy format
+   auto public_key_to_legacy = convert->add_subcommand("print_public_key_as_legacy", localized("Output a public key in legacy format (EOS, PUB_R1, PUB_WA)"));
+   public_key_to_legacy->add_option("public_key", public_key_to_convert, localized("Public key to output in legacy format"))->required();
+   public_key_to_legacy->callback([&] {
+      try {
+         std::cout << fc::crypto::public_key(public_key_to_convert).to_legacy_string({}) << std::endl;
+      } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
+   });
+   // output public key in new format
+   auto public_key_to_new = convert->add_subcommand("print_public_key_as_new", localized("Output a public key in new format (PUB_K1, PUB_R1, PUB_WA)"));
+   public_key_to_new->add_option("public_key", public_key_to_convert, localized("Public key to output in new format"))->required();
+   public_key_to_new->callback([&] {
+      try {
+         std::cout << fc::crypto::public_key(public_key_to_convert).to_string({}) << std::endl;
+      } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
    });
 
    // validate subcommand
