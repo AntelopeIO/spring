@@ -413,6 +413,24 @@ def abi_file_with_nodeos_test():
 
         walletMgr.testFailed = not testSuccessful
 
+def public_key_convert_test():
+    global testSuccessful
+    try:
+        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'print_public_key_as_legacy', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])[0]     == b'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\n')
+        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'print_public_key_as_legacy', 'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63'])[0] == b'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\n')
+        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'print_public_key_as_new',    'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])[0]     == b'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63\n')
+        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'print_public_key_as_new',    'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63'])[0] == b'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63\n')
+
+        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'print_public_key_as_legacy', 'PUB_R1_6p9aKPd9zweERtaPwp2vEyVgQcdmyYBstH3vYocLiwuETfJm7r'])[0] == b'PUB_R1_6p9aKPd9zweERtaPwp2vEyVgQcdmyYBstH3vYocLiwuETfJm7r\n')
+
+        _, errs = processCleosCommand(['./programs/cleos/cleos', 'convert', 'print_public_key_as_legacy', 'BANANA6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])
+        assert(b'Invalid public key' in errs)
+
+        testSuccessful=True
+    except Exception as e:
+        testSuccessful=False
+        Utils.Print(e.args)
+
 nodeos_help_test()
 
 cleos_help_test(['--help'])
@@ -427,6 +445,7 @@ cleos_sign_test()
 
 cleos_abi_file_test()
 abi_file_with_nodeos_test()
+public_key_convert_test()
 
 errorCode = 0 if testSuccessful else 1
 exit(errorCode)

@@ -40,6 +40,7 @@ namespace fc { namespace crypto {
 
          // serialize to/from string
          explicit public_key(const std::string& base58str);
+         std::string to_legacy_string(const fc::yield_function_t& yield) const;
          std::string to_string(const fc::yield_function_t& yield) const;
 
          storage_type _storage;
