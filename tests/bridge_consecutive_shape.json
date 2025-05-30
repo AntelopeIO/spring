@@ -14,7 +14,9 @@
         }
       ], 
       "peers": [
-        "testnet_00"
+        "testnet_00",
+        "testnet_01",
+        "testnet_02"
       ], 
       "producers": [
         "eosio"
@@ -39,7 +41,7 @@
         }
       ], 
       "peers": [
-        "testnet_01"
+        "testnet_02"
       ], 
       "producers": [
         "defproducera", 
@@ -107,7 +109,10 @@
           "blspop": "SIG_BLS_s0wR5U-ZXPNOqJDm_TjJ-6bEAwx2cAGTuTlQDPx6Rx1_dxc7Km0RqzV0_fHx1hgSzZ64Q15AlNkjZnexGWjQDyr9COxA5gfxpYvloqgg3Y3b35plIK-DMj8FgbXyoHgJulkc4sKjz-GGvcAziXQsPk9gKUnOMb1SXekCw2V_J28Iec1CapRAmWh0WhAyepQSoBEglFR4UuaaGU2YeD2gTFa2bDZLgw88sOtLd5ElCW0pAvRB8rIYPFiRKNcPBCAXxD4unw"
         }
       ], 
-      "peers": [], 
+      "peers": [
+        "testnet_00",
+        "testnet_01"
+      ],
       "producers": [], 
       "dont_start": false, 
       "p2p_port": 9878,
