@@ -260,7 +260,7 @@ class Node(Transactions):
         return found
 
     def waitForProducer(self, producer, timeout=None, exitOnError=False):
-        self.waitForAnyProducer(producer, timeout, exitOnError)
+        return self.waitForAnyProducer(producer, timeout, exitOnError)
 
     # returns True if the node has missed next scheduled production round.
     def missedNextProductionRound(self):
