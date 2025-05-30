@@ -72,6 +72,20 @@ namespace fc { namespace crypto {
       return std::visit(is_valid_visitor(), _storage);
    }
 
+   // output in pre Spring-2.0 format: EOS, PUB_R1, PUB_WA
+   std::string public_key::to_legacy_string(const fc::yield_function_t& yield) const
+   {
+      auto data_str = std::visit(base58str_visitor<storage_type, config::public_key_prefix, 0>(yield), _storage);
+
+      auto which = _storage.index();
+      if (which == 0) {
+         return std::string(config::public_key_legacy_prefix) + data_str;
+      } else {
+         return std::string(config::public_key_base_prefix) + "_" + data_str;
+      }
+   }
+
+   //output for Spring 2.0+: PUB_K1, PUB_R1, PUB_WA
    std::string public_key::to_string(const fc::yield_function_t& yield) const
    {
       auto data_str = std::visit(base58str_visitor<storage_type, config::public_key_prefix>(yield), _storage);
