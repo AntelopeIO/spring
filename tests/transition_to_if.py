@@ -16,11 +16,10 @@ Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs = AppArgs()
-args=TestHelper.parse_args({"-p","-d","-s","--keep-logs","--dump-error-details","-v","--leave-running","--unshared"},
+args=TestHelper.parse_args({"-p","-d","--keep-logs","--dump-error-details","-v","--leave-running","--unshared"},
                             applicationSpecificArgs=appArgs)
 pnodes=args.p if args.p > 4 else 4
 delay=args.d
-topo=args.s
 debug=args.v
 prod_count = 1 # per node prod count
 total_nodes=pnodes+1
@@ -38,13 +37,13 @@ try:
 
     cluster.setWalletMgr(walletMgr)
 
-    Print(f'producing nodes: {pnodes}, topology: {topo}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
+    Print(f'producing nodes: {pnodes}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
 
     numTrxGenerators=2
     Print("Stand up cluster")
     # For now do not load system contract as it does not support setfinalizer
     specificExtraNodeosArgs = { irreversibleNodeId: "--read-mode irreversible"}
-    if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, prodCount=prod_count, maximumP2pPerHost=total_nodes+numTrxGenerators, topo=topo, delay=delay, loadSystemContract=False,
+    if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, prodCount=prod_count, maximumP2pPerHost=total_nodes+numTrxGenerators, delay=delay, loadSystemContract=False,
                       activateIF=False, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         errorExit("Failed to stand up eos cluster.")
 
