@@ -5,7 +5,6 @@
 #include <eosio/chain/exceptions.hpp>
 #include <utility>
 #include <fc/variant_object.hpp>
-#include <fc/variant_dynamic_bitset.hpp>
 #include <fc/scoped_exit.hpp>
 #include <fc/time.hpp>
 
@@ -351,7 +350,7 @@ namespace impl {
 
    struct abi_to_variant {
       /**
-       * template which overloads add for types which are not relvant to ABI information
+       * template which overloads add for types which are not relevant to ABI information
        * and can be degraded to the normal ::to_variant(...) processing
        */
       template<typename M, typename Resolver, not_require_abi_t<M> = 1>

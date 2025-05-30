@@ -18,10 +18,10 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
-std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+std::string bitset_to_input_string(const fc::bitset& bitset) {
    static const char* hexchar = "0123456789abcdef";
 
-   boost::dynamic_bitset<unsigned char> bs(bitset);
+   fc::bitset bs(bitset);
    bs.resize((bs.size() + 7) & ~0x7);
    assert(bs.size() % 8 == 0);
 
@@ -38,7 +38,7 @@ std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& b
 }
 
 std::string binary_to_hex(const std::string& bin) {
-   boost::dynamic_bitset<unsigned char> bitset(bin.size());
+   fc::bitset bitset(bin.size());
    for (size_t i = 0; i < bin.size(); ++i) {
        if (bin[i] == '1') {
            bitset.set(bin.size() - 1 - i);

@@ -1,5 +1,5 @@
 #include <fc/exception/exception.hpp>
-#include <fc/bitutil.hpp>
+#include <fc/bitset.hpp>
 #include <fc/io/raw.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -18,17 +18,17 @@ FC_REFLECT(A, (x)(y)(z))
 BOOST_AUTO_TEST_SUITE(raw_test_suite)
 
 
-BOOST_AUTO_TEST_CASE(dynamic_bitset_test)
+BOOST_AUTO_TEST_CASE(bitset_test)
 {
-   constexpr uint8_t bits = 0b00011110;
-   fc::dynamic_bitset bs1(8, bits); // bit set size 8
+   fc::bitset bs1 { fc::bitset("00011110") }; // bit set size 8
    
    char buff[32];
    datastream<char*> ds(buff, sizeof(buff));
 
    fc::raw::pack( ds, bs1 );
 
-   fc::dynamic_bitset bs2(8);
+   fc::bitset bs2;
+   bs2.resize(8);
    ds.seekp(0);
    fc::raw::unpack( ds, bs2 );
 
@@ -44,9 +44,9 @@ BOOST_AUTO_TEST_CASE(dynamic_bitset_test)
    BOOST_CHECK(!bs2.test(7));
 }
 
-BOOST_AUTO_TEST_CASE(dynamic_bitset_large_test)
+BOOST_AUTO_TEST_CASE(bitset_large_test)
 {
-   fc::dynamic_bitset bs1;
+   fc::bitset bs1;
    bs1.resize(12345);
 
    bs1.set(42);
@@ -54,30 +54,74 @@ BOOST_AUTO_TEST_CASE(dynamic_bitset_large_test)
    bs1.set(12000);
 
    auto packed = fc::raw::pack(bs1);
-   auto unpacked = fc::raw::unpack<fc::dynamic_bitset>(packed);
+   auto unpacked = fc::raw::unpack<fc::bitset>(packed);
 
-   BOOST_TEST(unpacked.at(42));
-   BOOST_TEST(unpacked.at(23));
-   BOOST_TEST(unpacked.at(12000));
+   BOOST_TEST(unpacked[42]);
+   BOOST_TEST(unpacked[23]);
+   BOOST_TEST(unpacked[12000]);
    unpacked.flip(42);
    unpacked.flip(23);
    unpacked.flip(12000);
    BOOST_TEST(unpacked.none());
 }
 
-BOOST_AUTO_TEST_CASE(dynamic_bitset_small_test)
+BOOST_AUTO_TEST_CASE(bitset_pack_unpack)
 {
-   fc::dynamic_bitset bs1;
+   std::vector<char> serialized; // to accumulate serialization bits from all calls to `check_pack_unpack`
+
+   auto check_pack_unpack = [&](const fc::bitset& bs) {
+      auto bytes = fc::raw::pack(bs);
+      serialized.insert(serialized.end(), bytes.begin(), bytes.end());
+      auto bs2 = fc::raw::unpack<fc::bitset>(bytes);
+      BOOST_TEST(bs2 == bs);
+   };
+
+   check_pack_unpack(fc::bitset(""));
+   check_pack_unpack(fc::bitset("0"));
+   check_pack_unpack(fc::bitset("1"));
+   check_pack_unpack(fc::bitset("01"));
+   check_pack_unpack(fc::bitset("0101"));
+   check_pack_unpack(fc::bitset("010100"));
+   check_pack_unpack(fc::bitset("001010100"));
+   check_pack_unpack(fc::bitset("0101010100"));
+   check_pack_unpack(fc::bitset("0110011010100"));
+   check_pack_unpack(fc::bitset("00110011010100"));
+   check_pack_unpack(fc::bitset("0000000001010100"));
+   check_pack_unpack(fc::bitset("01110011010100101"));
+   check_pack_unpack(fc::bitset("0111001101010010111"));
+   check_pack_unpack(fc::bitset("011100110101001011101"));
+   check_pack_unpack(fc::bitset("0111001101010010111011001"));
+   check_pack_unpack(fc::bitset("01110011010100101110110010"));
+   check_pack_unpack(fc::bitset("01110011010100101110110010010"));
+   check_pack_unpack(fc::bitset("0111001101010010111011001001011"));
+   check_pack_unpack(fc::bitset("011100110101001011101100100100110"));
+   check_pack_unpack(fc::bitset("01110011010100101110110010010011000"));
+   check_pack_unpack(fc::bitset("01110011010100101001001001100000010000110"));
+   check_pack_unpack(fc::bitset("0111001101010010111011001001001100000000000000110"));
+   check_pack_unpack(fc::bitset("01110011010100101111001101100100100111111111111111111001"));
+
+   // verify that expected serialization doesn't change. bits generated with spring 1.2.
+   std::string ser_bits{"00010001010201040506140954000a54010dd40c0ed40c10540011a5e60013979a03155d6a0e19d9a5e6001ab24bcd"
+                        "011d925d6a0e1f4b76a9392126d9a5e600239864979a032986c024a5e60031060026d9a5e60038f9ff9f64f35273"};
+   std::vector<char> expected_serialization(ser_bits.size() / 2);
+   fc::from_hex(ser_bits, expected_serialization.data(), expected_serialization.size());
+
+   BOOST_TEST(serialized == expected_serialization);
+}
+
+BOOST_AUTO_TEST_CASE(bitset_small_test)
+{
+   fc::bitset bs1;
    bs1.resize(21);
 
    bs1.set(2);
    bs1.set(7);
 
    auto packed = fc::raw::pack(bs1);
-   auto unpacked = fc::raw::unpack<fc::dynamic_bitset>(packed);
+   auto unpacked = fc::raw::unpack<fc::bitset>(packed);
 
-   BOOST_TEST(unpacked.at(2));
-   BOOST_TEST(unpacked.at(7));
+   BOOST_TEST(unpacked[2]);
+   BOOST_TEST(unpacked[7]);
    unpacked.flip(2);
    unpacked.flip(7);
    BOOST_TEST(unpacked.none());

@@ -128,6 +128,7 @@ namespace eosio { namespace chain {
       built_in_types.emplace("symbol_code",               pack_unpack<symbol_code>());
       built_in_types.emplace("asset",                     pack_unpack<asset>());
       built_in_types.emplace("extended_asset",            pack_unpack<extended_asset>());
+      built_in_types.emplace("bitset",                    pack_unpack<fc::bitset>());
    }
 
    void abi_serializer::set_abi(abi_def abi, const yield_function_t& yield) {
