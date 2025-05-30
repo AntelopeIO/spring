@@ -83,17 +83,17 @@ try:
     info = cluster.biosNode.getInfo(exitOnError=True)
     assert (info["head_block_num"] - info["last_irreversible_block_num"]) < 9, "Instant finality enabled LIB diff should be small"
 
-    # launch setup node_00 (defproducera - defproducerf), node_01 (defproducerg - defproducerk),
-    #              node_02 (defproducerl - defproducerp), node_03 (defproducerq - defproduceru)
-    # with setprods of (defproducera, defproducerg, defproducerl, defproducerq)
-    assert cluster.biosNode.waitForProducer("defproducerq"), "defproducerq did not produce"
+    # launcher setup node_00 (defproducera,e,i,m,q,u), node_01 (defproducerb,f,j,n,r),
+    #                node_02 (defproducerc,g,k,o,s),   node_03 (defproducerd,h,l,p,t)
+    # launcher setprods with first producer of each node (defproducera,b,c,d)
+    assert cluster.biosNode.waitForProducer("defproducerd"), "defproducerd did not produce"
 
     Print("Set prods")
-    # should take effect in first block of defproducerg slot (so defproducerh)
-    assert cluster.setProds(["defproducerb", "defproducerh", "defproducerm", "defproducerr"]), "setprods failed"
+    # should take effect in first block of defproducerb slot (so defproducerc)
+    assert cluster.setProds(["defproducere", "defproducerf", "defproducerg", "defproducerh"]), "setprods failed"
     setProdsBlockNum = cluster.biosNode.getBlockNum()
     assert cluster.biosNode.waitForBlock(setProdsBlockNum+12+12+1), "Block of new producers not reached"
-    assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] == "defproducerh", "setprods should have taken effect"
+    assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] == "defproducerf", "setprods should have taken effect"
     assert cluster.getNode(4).waitForBlock(setProdsBlockNum + 12 + 12 + 1), "Block of new producers not reached on irreversible node"
 
     Print("Set finalizers")
