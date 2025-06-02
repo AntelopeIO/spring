@@ -414,22 +414,15 @@ def abi_file_with_nodeos_test():
         walletMgr.testFailed = not testSuccessful
 
 def public_key_convert_test():
-    global testSuccessful
-    try:
-        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])[0]     == b'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\n')
-        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63'])[0] == b'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\n')
-        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'public_key',        'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])[0]     == b'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63\n')
-        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'public_key',        'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63'])[0] == b'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63\n')
+    assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])[0]     == b'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\n')
+    assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63'])[0] == b'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV\n')
+    assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'public_key',        'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])[0]     == b'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63\n')
+    assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'public_key',        'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63'])[0] == b'PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63\n')
 
-        assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'PUB_R1_6p9aKPd9zweERtaPwp2vEyVgQcdmyYBstH3vYocLiwuETfJm7r'])[0] == b'PUB_R1_6p9aKPd9zweERtaPwp2vEyVgQcdmyYBstH3vYocLiwuETfJm7r\n')
+    assert(processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'PUB_R1_6p9aKPd9zweERtaPwp2vEyVgQcdmyYBstH3vYocLiwuETfJm7r'])[0] == b'PUB_R1_6p9aKPd9zweERtaPwp2vEyVgQcdmyYBstH3vYocLiwuETfJm7r\n')
 
-        _, errs = processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'BANANA6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])
-        assert(b'Invalid public key' in errs)
-
-        testSuccessful=True
-    except Exception as e:
-        testSuccessful=False
-        Utils.Print(e.args)
+    _, errs = processCleosCommand(['./programs/cleos/cleos', 'convert', 'legacy_public_key', 'BANANA6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'])
+    assert(b'Invalid public key' in errs)
 
 nodeos_help_test()
 
