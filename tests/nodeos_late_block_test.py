@@ -75,7 +75,7 @@ try:
     node4.relaunch()
 
     Print("Verify Node_03 fork switches even though it is producing")
-    node3.waitForLibToAdvance()
+    node3.waitForHeadToAdvance()
     Print("Verify fork switch")
     assert node3.findInLog("switching forks .* defproducerk"), "Expected to find 'switching forks' in node_03 log"
 
