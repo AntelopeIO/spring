@@ -72,24 +72,25 @@ try:
 
     Print("Verify Node_03 fork switches even though it is producing")
     node3.waitForNextBlock()
-    # Use blockNum+4 to give time for node4 to relaunch and production to be interrupted
+    # Use blockNum+7 to give time for node4 to relaunch and production to be interrupted
     # getBlockProducerByNum returns block according to best head out of the of forkdb
     # call in a loop since getBlockProducerByNum uses get_info for waiting, but get_block which uses best head
     defprod=None
     while defprod is None:
-        defprod=node3.getBlockProducerByNum(blockNum+4, exitOnError=False)
+        defprod=node3.getBlockProducerByNum(blockNum+7, exitOnError=False)
         time.sleep(0.25)
     assert defprod == "defproducerg" or defprod == "defproducerh" or defprod == "defproduceri", \
         f"Should have fork switched over to previous producers, instead {defprod}"
-    info_defprod = node3.getInfo(exitOnError=True)["head_block_producer"]
-    assert info_defprod == "defproducerg" or info_defprod == "defproducerh" or info_defprod == "defproduceri", \
-        f"Should have fork switched over to previous producers, instead: {info_defprod}"
+
+    Print("Verify fork switch")
+    assert node3.findInLog("switching forks .* defproducerk"), "Expected to find 'switching forks' in node_03 log"
 
     Print("Wait until Node_00 to produce")
     node3.waitForProducer("defproducera")
+    node3.waitForLibToAdvance()
 
     # verify still expected producer
-    defprod=node3.getBlockProducerByNum(blockNum+4)
+    defprod=node3.getBlockProducerByNum(blockNum+7)
     assert defprod == "defproducerg" or defprod == "defproducerh" or defprod == "defproduceri", \
         f"Should have fork switched over to previous producers, instead: {defprod}"
 
