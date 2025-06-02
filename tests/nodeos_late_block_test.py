@@ -58,7 +58,11 @@ try:
     node3 = cluster.getNode(3)
     node4 = cluster.getNode(4) # bridge between 2 & 3
 
-    node3.waitForAnyProducer(["defproducerg", "defproducerh"], exitOnError=True)
+    Print("Wait for producer before j")
+    node3.waitForAnyProducer("defproducerh", exitOnError=True)
+    node3.waitForAnyProducer("defproduceri", exitOnError=True)
+    iProdBlockNum = node3.getHeadBlockNum()
+
     node4.kill(signal.SIGTERM)
     assert not node4.verifyAlive(), "Node4 did not shutdown"
 
@@ -71,28 +75,17 @@ try:
     node4.relaunch()
 
     Print("Verify Node_03 fork switches even though it is producing")
-    node3.waitForNextBlock()
-    # Use blockNum+7 to give time for node4 to relaunch and production to be interrupted
-    # getBlockProducerByNum returns block according to best head out of the of forkdb
-    # call in a loop since getBlockProducerByNum uses get_info for waiting, but get_block which uses best head
-    defprod=None
-    while defprod is None:
-        defprod=node3.getBlockProducerByNum(blockNum+7, exitOnError=False)
-        time.sleep(0.25)
-    assert defprod == "defproducerg" or defprod == "defproducerh" or defprod == "defproduceri", \
-        f"Should have fork switched over to previous producers, instead {defprod}"
-
+    node3.waitForLibToAdvance()
     Print("Verify fork switch")
     assert node3.findInLog("switching forks .* defproducerk"), "Expected to find 'switching forks' in node_03 log"
 
     Print("Wait until Node_00 to produce")
     node3.waitForProducer("defproducera")
-    node3.waitForLibToAdvance()
 
-    # verify still expected producer
-    defprod=node3.getBlockProducerByNum(blockNum+7)
-    assert defprod == "defproducerg" or defprod == "defproducerh" or defprod == "defproduceri", \
-        f"Should have fork switched over to previous producers, instead: {defprod}"
+    # verify the LIB blocks of defproduceri made it into the canonical chain
+    for i in range(0, 9):
+        defprod=node3.getBlockProducerByNum(iProdBlockNum + i)
+        assert defprod == "defproduceri", f"expected defproduceri for block {iProdBlockNum + i}, instead: {defprod}"
 
     testSuccessful=True
 finally:
