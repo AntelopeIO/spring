@@ -678,21 +678,23 @@ class Node(Transactions):
     def findInLog(self, searchStr):
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
+        pattern = re.compile(searchStr)
         for file in files:
             with open(file, 'r') as f:
                 for line in f:
-                    if searchStr in line:
+                    if pattern.search(line):
                         return True
         return False
 
     def linesInLog(self, searchStr):
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
+        pattern = re.compile(searchStr)
         lines=[]
         for file in files:
             with open(file, 'r') as f:
                 for line in f:
-                    if searchStr in line:
+                    if pattern.search(line):
                         lines.append(line)
         return lines
 
