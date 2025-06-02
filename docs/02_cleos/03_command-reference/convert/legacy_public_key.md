@@ -3,7 +3,7 @@ Converts a public key to the legacy key format (EOS prefix for k1 keys, PUB_R1 p
 
 If the key is already in the legacy format it will be output unchanged.
 
-Only the k1 key format differs between legacy and new formats.
+Only the k1 key format differs between legacy format and canonical format.
 
 ## Positionals
 
@@ -17,7 +17,7 @@ Only the k1 key format differs between legacy and new formats.
 
 
 ```sh
- cleos convert print_public_key_as_legacy PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63
+ cleos convert legacy_public_key PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63
 ```
 
 ## Output

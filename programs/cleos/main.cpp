@@ -2960,19 +2960,19 @@ int main( int argc, char** argv ) {
 
    string public_key_to_convert;
    // output public key in legacy format
-   auto public_key_to_legacy = convert->add_subcommand("print_public_key_as_legacy", localized("Output a public key in legacy format (EOS, PUB_R1, PUB_WA)"));
-   public_key_to_legacy->add_option("public_key", public_key_to_convert, localized("Public key to output in legacy format"))->required();
-   public_key_to_legacy->callback([&] {
+   auto legacy_public_key = convert->add_subcommand("legacy_public_key", localized("From public key to legacy format (EOS, PUB_R1, PUB_WA)"));
+   legacy_public_key->add_option("public_key", public_key_to_convert, localized("Public key to output in legacy format"))->required();
+   legacy_public_key->callback([&] {
       try {
-         std::cout << fc::crypto::public_key(public_key_to_convert).to_legacy_string({}) << std::endl;
+         std::cout << crypto::public_key(public_key_to_convert).to_legacy_string({}) << std::endl;
       } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
    });
-   // output public key in new format
-   auto public_key_to_new = convert->add_subcommand("print_public_key_as_new", localized("Output a public key in new format (PUB_K1, PUB_R1, PUB_WA)"));
-   public_key_to_new->add_option("public_key", public_key_to_convert, localized("Public key to output in new format"))->required();
-   public_key_to_new->callback([&] {
+   // output public key in canonical format
+   auto public_key = convert->add_subcommand("public_key", localized("From public key to canonical format (PUB_K1, PUB_R1, PUB_WA)"));
+   public_key->add_option("public_key", public_key_to_convert, localized("Public key to output in canonical format"))->required();
+   public_key->callback([&] {
       try {
-         std::cout << fc::crypto::public_key(public_key_to_convert).to_string({}) << std::endl;
+         std::cout << crypto::public_key(public_key_to_convert).to_string({}) << std::endl;
       } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
    });
 
