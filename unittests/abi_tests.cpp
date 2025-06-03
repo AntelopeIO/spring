@@ -3339,4 +3339,141 @@ BOOST_AUTO_TEST_CASE(abi_to_variant__add_action__no_return_value)
    }
 }
 
+inline std::pair<call_trace, std::string> generate_call_trace(bool include_return_value)  {
+   // Construct raw call_trace
+   uint32_t sender_ordinal = 0;
+   account_name receiver{"test"};
+   bool read_only = false;
+   call_data_header data_header{ .version = 0, .func_name = eosio::chain::name{"calltest"}.to_uint64_t() };
+   bytes data{ fc::raw::pack(std::make_tuple(data_header, "first_param_string")) };
+
+   call_trace ct(sender_ordinal, receiver, read_only, data);
+
+   ct.call_ordinal = 1;
+   ct.elapsed = fc::microseconds{3};
+   ct.console = "console line";
+   ct.console_markers = std::vector<fc::unsigned_int> { 0 };
+   if (include_return_value) {
+      ct.return_value = fc::raw::pack(100);
+   }
+
+   std::string expected_pretty = R"=====(
+{
+  "call_trace": {
+    "call_ordinal": 1,
+    "sender_ordinal": 0,
+    "receiver": "test",
+    "read_only": false,
+    "raw_data": "0000000000000019ab1ca3411266697273745f706172616d5f737472696e67",
+    "unpacked_data": {
+      "header": {
+        "version": 0,
+        "func_name": "4729655554853568512"
+      },
+      "param": "first_param_string"
+    },
+    "elapsed": 3,
+    "console": "console line",
+    "console_markers": [
+      0
+    ],
+    "except": null,
+    "error_code": null,
+    "error_id": null,
+)=====";
+
+   if (include_return_value) {
+      expected_pretty += R"=====(
+    "raw_return_value": "64000000",
+    "return_value": 100
+}}
+)=====";
+   } else {
+      expected_pretty += R"=====(
+   "raw_return_value":""
+}}
+)=====";
+   }
+
+   auto expected_json = fc::json::from_string(expected_pretty);  // converted to JSON
+   auto expected_str = fc::json::to_string(expected_json, get_deadline()); // converted to packed string for test result comparsion
+
+   return std::make_pair(ct, expected_str);
+}
+
+BOOST_AUTO_TEST_CASE(call_trace_with_return_value)
+{
+   bool include_return_value = true;
+   auto [ctrace, expected_json] = generate_call_trace(include_return_value);
+
+   // Define ABI. We are only interested in deserialize binary fields call_data and call_results
+   auto abi = R"=====({
+      "version": "eosio::abi/1.3",
+      "structs": [
+         {"name": "call_data_header", "base": "", "fields": [
+            { "name": "version", "type": "uint32" },
+            { "name": "func_name", "type": "uint64" }
+         ]},
+         {"name": "calltest", "base": "", "fields": [
+            {"name": "header", "type": "call_data_header"},
+            {"name": "param", "type": "string"}
+         ]}
+      ],
+      "calls": [
+         { "name": "calltest", "type": "calltest" }
+      ],
+      "call_results": [
+         { "name": "calltest", "result_type": "uint16" }
+      ]
+   })=====";
+
+   // Create abi_serializer
+   auto abidef = fc::json::from_string(abi).as<abi_def>();
+   abi_serializer abis(abi_def(abidef), abi_serializer::create_yield_function(max_serialization_time));
+
+   // Deserialize the raw call_trace
+   mutable_variant_object mvo;
+   eosio::chain::impl::abi_traverse_context ctx(abi_serializer::create_yield_function(max_serialization_time), fc::microseconds{});
+   eosio::chain::impl::abi_to_variant::add(mvo, "call_trace", ctrace, get_resolver(abidef), ctx);
+   std::string res = fc::json::to_string(mvo, get_deadline());
+
+   BOOST_CHECK_EQUAL(res, expected_json);
+}
+
+BOOST_AUTO_TEST_CASE(call_trace_without_return_value)
+{
+   bool include_return_value = false;
+   auto [ctrace, expected_json] = generate_call_trace(include_return_value);
+
+   // Define ABI. We are only interested in deserialize binary fields call_data and call_results
+   auto abi = R"=====({
+      "version": "eosio::abi/1.3",
+      "structs": [
+         {"name": "call_data_header", "base": "", "fields": [
+            { "name": "version", "type": "uint32" },
+            { "name": "func_name", "type": "uint64" }
+         ]},
+         {"name": "calltest", "base": "", "fields": [
+            {"name": "header", "type": "call_data_header"},
+            {"name": "param", "type": "string"}
+         ]}
+      ],
+      "calls": [
+         { "name": "calltest", "type": "calltest" }
+      ]
+   })=====";
+
+   // Create abi_serializer
+   auto abidef = fc::json::from_string(abi).as<abi_def>();
+   abi_serializer abis(abi_def(abidef), abi_serializer::create_yield_function(max_serialization_time));
+
+   // Deserialize the raw call_trace
+   mutable_variant_object mvo;
+   eosio::chain::impl::abi_traverse_context ctx(abi_serializer::create_yield_function(max_serialization_time), fc::microseconds{});
+   eosio::chain::impl::abi_to_variant::add(mvo, "call_trace", ctrace, get_resolver(abidef), ctx);
+   std::string res = fc::json::to_string(mvo, get_deadline());
+
+   BOOST_CHECK_EQUAL(res, expected_json);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
