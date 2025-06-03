@@ -35,8 +35,7 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_fork_db, savanna_cluster::cluster_
    auto snapshot = B.snapshot();
    A.produce_blocks(3);
 
-   while (true)
-      B.close();
+   B.close();
    B.remove_blocks_log(); // remove blocks log, but *not* fork database
    B.remove_state();
    BOOST_CHECK_EXCEPTION(B.open_from_snapshot(snapshot), fork_database_exception,
