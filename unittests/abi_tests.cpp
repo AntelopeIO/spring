@@ -3364,8 +3364,8 @@ inline std::pair<call_trace, std::string> generate_call_trace(bool include_retur
     "sender_ordinal": 0,
     "receiver": "test",
     "read_only": false,
-    "raw_data": "0000000000000019ab1ca3411266697273745f706172616d5f737472696e67",
-    "unpacked_data": {
+    "hex_data": "0000000000000019ab1ca3411266697273745f706172616d5f737472696e67",
+    "data": {
       "header": {
         "version": 0,
         "func_name": "4729655554853568512"
@@ -3384,13 +3384,13 @@ inline std::pair<call_trace, std::string> generate_call_trace(bool include_retur
 
    if (include_return_value) {
       expected_pretty += R"=====(
-    "raw_return_value": "64000000",
-    "return_value": 100
+    "return_value_hex_data": "64000000",
+    "return_value_data": 100
 }}
 )=====";
    } else {
       expected_pretty += R"=====(
-   "raw_return_value":""
+   "return_value_hex_data":""
 }}
 )=====";
    }

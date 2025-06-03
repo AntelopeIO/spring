@@ -615,7 +615,7 @@ namespace impl {
          fc::raw::unpack( ds, data_header );
          std::string fname = eosio::chain::name(data_header.func_name).to_string();
 
-         mvo("raw_data", cal_trace.data);
+         mvo("hex_data", cal_trace.data);
          try {
             auto abi_optional = resolver(cal_trace.receiver);
             if (abi_optional) {
@@ -623,7 +623,7 @@ namespace impl {
                auto type = abi.get_call_type(fname);
                if (!type.empty()) {
                   call_data_to_variant_context _ctx(abi, ctx, type);
-                  mvo( "unpacked_data", abi._binary_to_variant( type, cal_trace.data, _ctx ));
+                  mvo( "data", abi._binary_to_variant( type, cal_trace.data, _ctx ));
                }
             }
          } catch(...) {}
@@ -635,7 +635,7 @@ namespace impl {
          mvo("error_code", cal_trace.error_code);
          mvo("error_id", cal_trace.error_id);
 
-         mvo("raw_return_value", cal_trace.return_value);
+         mvo("return_value_hex_data", cal_trace.return_value);
          try {
             auto abi_optional = resolver(cal_trace.receiver);
             if (abi_optional) {
@@ -643,7 +643,7 @@ namespace impl {
                auto type = abi.get_call_result_type(fname);
                if (!type.empty()) {
                   call_data_to_variant_context _ctx(abi, ctx, type);
-                  mvo( "return_value", abi._binary_to_variant( type, cal_trace.return_value, _ctx ));
+                  mvo( "return_value_data", abi._binary_to_variant( type, cal_trace.return_value, _ctx ));
                }
             }
          } catch(...) {}
