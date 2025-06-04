@@ -107,8 +107,12 @@ struct action_result_def {
 };
 
 struct call_data_header {  // match with CDT definition
+   static constexpr uint32_t current_version = 0;  // sync call
+
    uint32_t version   = 0;
    uint64_t func_name = 0;
+
+   bool is_version_valid() { return version <= current_version; }
 };
 
 struct call_def {

@@ -611,20 +611,25 @@ namespace impl {
          mvo("receiver", cal_trace.receiver);
          mvo("read_only", cal_trace.read_only);
 
-         call_data_header data_header;
-         fc::datastream<const char*> ds( cal_trace.data.data(), cal_trace.data.size() );
-         fc::raw::unpack( ds, data_header );
-         std::string fname = eosio::chain::name(data_header.func_name).to_string();
+         std::string fname{};
 
          mvo("hex_data", cal_trace.data);
          try {
-            auto abi_optional = resolver(cal_trace.receiver);
-            if (abi_optional) {
-               const abi_serializer& abi = *abi_optional;
-               auto type = abi.get_call_type(fname);
-               if (!type.empty()) {
-                  call_data_to_variant_context _ctx(abi, ctx, type);
-                  mvo( "data", abi._binary_to_variant( type, cal_trace.data, _ctx ));
+            call_data_header data_header;
+            fc::datastream<const char*> ds(cal_trace.data.data(), cal_trace.data.size());
+            fc::raw::unpack(ds, data_header);
+
+            if (data_header.is_version_valid()) {
+               fname = eosio::chain::name(data_header.func_name).to_string();
+
+               auto abi_optional = resolver(cal_trace.receiver);
+               if (abi_optional) {
+                  const abi_serializer& abi = *abi_optional;
+                  auto type = abi.get_call_type(fname);
+                  if (!type.empty()) {
+                     call_data_to_variant_context _ctx(abi, ctx, type);
+                     mvo( "data", abi._binary_to_variant( type, cal_trace.data, _ctx ));
+                  }
                }
             }
          } catch(...) {}
