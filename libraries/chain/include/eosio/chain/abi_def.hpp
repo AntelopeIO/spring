@@ -6,6 +6,7 @@ namespace eosio { namespace chain {
 
 using type_name      = string;
 using field_name     = string;
+using call_name      = string;
 
 struct type_def {
    type_def() = default;
@@ -105,6 +106,35 @@ struct action_result_def {
    type_name   result_type;
 };
 
+struct call_data_header {  // match with CDT definition
+   static constexpr uint32_t current_version = 0;  // sync call
+
+   uint32_t version   = 0;
+   uint64_t func_name = 0;
+
+   bool is_version_valid() { return version <= current_version; }
+};
+
+struct call_def {
+   call_def() = default;
+   call_def(const call_name& name, const type_name& type)
+   :name(name), type(type)
+   {}
+
+   call_name name;
+   type_name type;
+};
+
+struct call_result_def {
+   call_result_def() = default;
+   call_result_def(const call_name& name, const type_name& result_type)
+   :name(name), result_type(result_type)
+   {}
+
+   call_name name;
+   type_name result_type;
+};
+
 template<typename T>
 struct may_not_exist {
    T value{};
@@ -131,6 +161,8 @@ struct abi_def {
    extensions_type                           abi_extensions;
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
+   may_not_exist<vector<call_def>>           calls;
+   may_not_exist<vector<call_result_def>>    call_results;
 };
 
 abi_def eosio_contract_abi(const abi_def& eosio_system_abi);
@@ -176,5 +208,9 @@ FC_REFLECT( eosio::chain::clause_pair                      , (id)(body) )
 FC_REFLECT( eosio::chain::error_message                    , (error_code)(error_msg) )
 FC_REFLECT( eosio::chain::variant_def                      , (name)(types) )
 FC_REFLECT( eosio::chain::action_result_def                , (name)(result_type) )
+FC_REFLECT( eosio::chain::call_data_header                 , (version)(func_name) )
+FC_REFLECT( eosio::chain::call_def                         , (name)(type) )
+FC_REFLECT( eosio::chain::call_result_def                  , (name)(result_type) )
 FC_REFLECT( eosio::chain::abi_def                          , (version)(types)(structs)(actions)(tables)
-                                                             (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results) )
+                                                             (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results)
+                                                             (calls)(call_results) )

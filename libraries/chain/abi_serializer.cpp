@@ -142,6 +142,8 @@ namespace eosio { namespace chain {
       size_t error_messages_size = abi.error_messages.size();
       size_t variants_size = abi.variants.value.size();
       size_t action_results_size = abi.action_results.value.size();
+      size_t calls_size = abi.calls.value.size();
+      size_t call_results_size = abi.call_results.value.size();
 
       typedefs.clear();
       structs.clear();
@@ -150,6 +152,8 @@ namespace eosio { namespace chain {
       error_messages.clear();
       variants.clear();
       action_results.clear();
+      calls.clear();
+      call_results.clear();
 
       for( auto& st : abi.structs )
          structs[st.name] = std::move(st);
@@ -175,6 +179,12 @@ namespace eosio { namespace chain {
       for( auto& r : abi.action_results.value )
          action_results[std::move(r.name)] = std::move(r.result_type);
 
+      for( auto& c : abi.calls.value )
+         calls[std::move(c.name)] = std::move(c.type);
+
+      for( auto& r : abi.call_results.value )
+         call_results[std::move(r.name)] = std::move(r.result_type);
+
       /**
        *  The ABI vector may contain duplicates which would make it
        *  an invalid ABI
@@ -186,6 +196,8 @@ namespace eosio { namespace chain {
       EOS_ASSERT( error_messages.size() == error_messages_size, duplicate_abi_err_msg_def_exception, "duplicate error message definition detected" );
       EOS_ASSERT( variants.size() == variants_size, duplicate_abi_variant_def_exception, "duplicate variant definition detected" );
       EOS_ASSERT( action_results.size() == action_results_size, duplicate_abi_action_results_def_exception, "duplicate action results definition detected" );
+      EOS_ASSERT( calls.size() == calls_size, duplicate_abi_call_def_exception, "duplicate call definition detected" );
+      EOS_ASSERT( call_results.size() == call_results_size, duplicate_abi_call_results_def_exception, "duplicate call results definition detected" );
 
       validate(ctx);
    }
@@ -331,6 +343,16 @@ namespace eosio { namespace chain {
       } FC_CAPTURE_AND_RETHROW( (t)  ) }
 
       for( const auto& r : action_results ) { try {
+        ctx.check_deadline();
+        EOS_ASSERT(_is_type(r.second, ctx), invalid_type_inside_abi, "${type}", ("type",impl::limit_size(r.second)) );
+      } FC_CAPTURE_AND_RETHROW( (r)  ) }
+
+      for( const auto& c : calls ) { try {
+        ctx.check_deadline();
+        EOS_ASSERT(_is_type(c.second, ctx), invalid_type_inside_abi, "${type}", ("type",impl::limit_size(c.second)) );
+      } FC_CAPTURE_AND_RETHROW( (c)  ) }
+
+      for( const auto& r : call_results ) { try {
         ctx.check_deadline();
         EOS_ASSERT(_is_type(r.second, ctx), invalid_type_inside_abi, "${type}", ("type",impl::limit_size(r.second)) );
       } FC_CAPTURE_AND_RETHROW( (r)  ) }
@@ -655,6 +677,18 @@ namespace eosio { namespace chain {
    type_name abi_serializer::get_action_result_type(name action_result)const {
       auto itr = action_results.find(action_result);
       if( itr != action_results.end() ) return itr->second;
+      return type_name();
+   }
+
+   type_name abi_serializer::get_call_type(call_name name)const {
+      auto itr = calls.find(name);
+      if( itr != calls.end() ) return itr->second;
+      return type_name();
+   }
+
+   type_name abi_serializer::get_call_result_type(call_name name)const {
+      auto itr = call_results.find(name);
+      if( itr != call_results.end() ) return itr->second;
       return type_name();
    }
 
