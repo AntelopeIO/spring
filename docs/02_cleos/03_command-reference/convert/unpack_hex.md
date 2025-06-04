@@ -9,6 +9,7 @@ From packed HEX to json form
 ## Options
 
 - `-h,--help` - Print this help message and exit
+- `--type` - Type of the HEX data, if not specified then every type is attempted.
 
 ## Usage
 
