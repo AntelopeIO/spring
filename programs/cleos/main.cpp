@@ -2957,6 +2957,71 @@ int main( int argc, char** argv ) {
       std::cout << fc::json::to_pretty_string(unpacked_action_data_json) << std::endl;
    });
 
+   // unpack hex
+   string packed_hex;
+   auto unpack_hex = convert->add_subcommand("unpack_hex", localized("From packed HEX to JSON form"));
+   unpack_hex->add_option("hex", packed_hex, localized("The packed HEX of built-in types including: signed_block, transaction/action_trace, transaction, action, abi_def"))->required();
+   unpack_hex->callback([&] {
+      EOS_ASSERT( packed_hex.size() >= 2, transaction_type_exception, "No packed HEX data found" );
+      vector<char> packed_blob(packed_hex.size()/2);
+      fc::from_hex(packed_hex, packed_blob.data(), packed_blob.size());
+      bool success = false;
+      try {
+         auto v = fc::raw::unpack<block_state_legacy>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<signed_block>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<transaction_trace>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<action_trace>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<transaction_receipt>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<packed_transaction>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<signed_transaction>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<transaction>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<abi_def>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      try {
+         auto v = fc::raw::unpack<action>( packed_blob );
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+
+      if (!success) {
+         std::cerr << "ERROR: Unable to convert the packed hex" << std::endl;
+      }
+   });
+
    // validate subcommand
    auto validate = app.add_subcommand("validate", localized("Validate transactions"));
    validate->require_subcommand();
