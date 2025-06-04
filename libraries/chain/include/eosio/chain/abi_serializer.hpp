@@ -316,7 +316,8 @@ namespace impl {
              std::is_same<T, action_trace>::value ||
              std::is_same<T, signed_transaction>::value ||
              std::is_same<T, signed_block>::value ||
-             std::is_same<T, action>::value;
+             std::is_same<T, action>::value ||
+             std::is_same<T, call_trace>::value;
    }
 
    /**

@@ -3351,7 +3351,7 @@ inline std::pair<call_trace, std::string> generate_call_trace(bool include_retur
 
    ct.call_ordinal = 1;
    ct.elapsed = fc::microseconds{3};
-   ct.console = "console line";
+   ct.console = "console line in call";
    ct.console_markers = std::vector<fc::unsigned_int> { 0 };
    if (include_return_value) {
       ct.return_value = fc::raw::pack(100);
@@ -3373,7 +3373,7 @@ inline std::pair<call_trace, std::string> generate_call_trace(bool include_retur
       "param": "first_param_string"
     },
     "elapsed": 3,
-    "console": "console line",
+    "console": "console line in call",
     "console_markers": [
       0
     ],
@@ -3471,6 +3471,127 @@ BOOST_AUTO_TEST_CASE(call_trace_without_return_value)
    mutable_variant_object mvo;
    eosio::chain::impl::abi_traverse_context ctx(abi_serializer::create_yield_function(max_serialization_time), fc::microseconds{});
    eosio::chain::impl::abi_to_variant::add(mvo, "call_trace", ctrace, get_resolver(abidef), ctx);
+   std::string res = fc::json::to_string(mvo, get_deadline());
+
+   BOOST_CHECK_EQUAL(res, expected_json);
+}
+
+// Generate an action trace which embeds a call trace
+inline std::pair<action_trace, std::string> generate_action_trace_embedding_call_trace() {
+   // Action trace portion
+   action_trace at;
+   at.action_ordinal = 0;
+   at.creator_action_ordinal = 1;
+   at.closest_unnotified_ancestor_action_ordinal = 2;
+   at.receipt = std::optional<action_receipt>{};
+   at.receiver = action_name{"test"};
+   at.act = eosio::chain::action(
+      std::vector<eosio::chain::permission_level>{
+         eosio::chain::permission_level{
+            account_name{"acctest"},
+            permission_name{"active"}}},
+      account_name{"acctest"},
+      action_name{"acttest"},
+      bytes{fc::raw::pack(std::string{"test_data"})});
+   at.elapsed = fc::microseconds{3};
+   at.console = "console line in action";
+   at.trx_id = transaction_id_type{"5d039021cf3262c5036a6ad40a809ae1440ae6c6792a48e6e95abf083b108d5f"};
+   at.block_num = 4;
+   at.block_time = block_timestamp_type{5};
+   at.producer_block_id = std::optional<block_id_type>{};
+   at.return_value = fc::raw::pack(50);
+
+   // call trace portion
+   bool include_return_value = true;
+   auto [ctrace, expected_call_trace_json] = generate_call_trace(include_return_value);
+   at.call_traces.emplace_back(
+      eosio::chain::call_trace(ctrace.sender_ordinal, ctrace.receiver, ctrace.read_only, ctrace.data));
+   at.call_traces[0].call_ordinal = 1;
+   at.call_traces[0].elapsed = fc::microseconds{3};
+   at.call_traces[0].console = "console line in call";
+   at.call_traces[0].console_markers = std::vector<fc::unsigned_int> { 0 };
+   at.call_traces[0].return_value = fc::raw::pack(100);
+   expected_call_trace_json.replace(0, 14, "\"call_traces\":["); // Replace `{"call_trace":` with `"call_traces":[` at the beginning
+   expected_call_trace_json.back() = ']'; // eplace last '}' with ']'
+   expected_call_trace_json += ",\"console_markers\":[]";
+
+   std::stringstream expected_json;
+   expected_json
+      << "{"
+      <<     "\"action_traces\":{"
+      <<         "\"action_ordinal\":0,"
+      <<         "\"creator_action_ordinal\":1,"
+      <<         "\"closest_unnotified_ancestor_action_ordinal\":2,"
+      <<         "\"receipt\":null,"
+      <<         "\"receiver\":\"test\","
+      <<         "\"act\":{"
+      <<             "\"account\":\"acctest\","
+      <<             "\"name\":\"acttest\","
+      <<             "\"authorization\":[{"
+      <<                 "\"actor\":\"acctest\","
+      <<                 "\"permission\":\"active\""
+      <<             "}],"
+      <<             "\"data\":\"09746573745f64617461\","
+      <<             "\"hex_data\":\"09746573745f64617461\""
+      <<         "},"
+      <<         "\"context_free\":false,"
+      <<         "\"elapsed\":3,"
+      <<         "\"console\":\"console line in action\","
+      <<         "\"trx_id\":\"5d039021cf3262c5036a6ad40a809ae1440ae6c6792a48e6e95abf083b108d5f\","
+      <<         "\"block_num\":4,"
+      <<         "\"block_time\":\"2000-01-01T00:00:02.500\","
+      <<         "\"producer_block_id\":null,"
+      <<         "\"account_ram_deltas\":[],"
+      <<         "\"except\":null,"
+      <<         "\"error_code\":null,"
+      <<         "\"return_value_hex_data\":\"32000000\","  // 50 in little endian
+      <<         "\"return_value_data\":50,"
+      <<         expected_call_trace_json
+      << "}}";
+
+   return std::make_pair(at, expected_json.str());
+}
+
+// Verify call traces embedded in an action trace is expanded
+BOOST_AUTO_TEST_CASE(action_trace_embedding_call_trace_test) {
+   action_trace at;
+   std::string expected_json;
+   std::tie(at, expected_json) = generate_action_trace_embedding_call_trace();
+
+   auto abi = R"({
+      "version": "eosio::abi/1.3",
+      "structs": [
+         {"name": "acttest", "base": "", "fields": [
+            {"name": "str", "type": "string"}
+         ]},
+         {"name": "call_data_header", "base": "", "fields": [
+            { "name": "version", "type": "uint32" },
+            { "name": "func_name", "type": "uint64" }
+         ]},
+         {"name": "calltest", "base": "", "fields": [
+            {"name": "header", "type": "call_data_header"},
+            {"name": "param", "type": "string"}
+         ]}
+      ],
+      "action_results": [
+         {
+            "name": "acttest",
+            "result_type": "uint16"
+         }
+      ],
+      "calls": [
+         { "name": "calltest", "type": "calltest" }
+      ],
+      "call_results": [
+         { "name": "calltest", "result_type": "uint16" }
+      ]
+   })";
+   auto abidef = fc::json::from_string(abi).as<abi_def>();
+   abi_serializer abis(abi_def(abidef), abi_serializer::create_yield_function(max_serialization_time));
+
+   mutable_variant_object mvo;
+   eosio::chain::impl::abi_traverse_context ctx(abi_serializer::create_yield_function(max_serialization_time), fc::microseconds{});
+   eosio::chain::impl::abi_to_variant::add(mvo, "action_traces", at, get_resolver(abidef), ctx);
    std::string res = fc::json::to_string(mvo, get_deadline());
 
    BOOST_CHECK_EQUAL(res, expected_json);
