@@ -23,7 +23,7 @@ namespace chainbase {
       };
 
    public:
-      using allocator_type = bip::allocator<char, segment_manager>;
+      using allocator_type = allocator<char>;
       using iterator       = const T*;      // const because of copy-on-write
       using const_iterator = const T*;
       using value_type     = T;

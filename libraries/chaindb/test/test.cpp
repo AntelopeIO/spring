@@ -175,9 +175,8 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
 
       // check that objects are allocated where we expect (i.e. using the same allocator as `vec_of_vec`)
       // ------------------------------------------------------------------------------------------------
-      BOOST_REQUIRE(v.get_allocator() == expected_alloc);
-      if constexpr(!std::is_same_v<typename SV::value_type, int>)
-         BOOST_REQUIRE(v[0].get_allocator() == expected_alloc);
+      auto alloc = v.get_allocator();
+      BOOST_REQUIRE(!alloc || *alloc == expected_alloc);
    }
       
    {
@@ -195,6 +194,7 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
       // check copy constructor. Verify copy-on-write after assign
       // ---------------------------------------------------------
       vec_of_vec.clear();
+      vec_of_vec.reserve(2); // so the second emplace_back doesn't reallocate
       vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
       vec_of_vec.emplace_back(vec_of_vec[0]);
       auto& v0 = vec_of_vec[0];
@@ -212,6 +212,7 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
       // check move constructor.
       // -----------------------
       vec_of_vec.clear();
+      vec_of_vec.reserve(2); // so the second emplace_back doesn't reallocate
       vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
       auto& v0 = vec_of_vec[0];
       vec_of_vec.emplace_back(std::move(v0));
@@ -453,32 +454,34 @@ BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
    const auto& temp = temp_dir.path();
 
    pinnable_mapped_file pmf(temp, true, 1024 * 1024, false, pinnable_mapped_file::map_mode::mapped);
-   std::optional<chainbase::allocator<char>> expected_alloc = chainbase::allocator<char>(pmf.get_segment_manager());
+   auto seg_mgr = pmf.get_segment_manager();
 
-   size_t free_memory = pmf.get_segment_manager()->get_free_memory();
+   size_t free_memory = seg_mgr->get_free_memory();
    
    {
       // do the test with `shared_vector<int>` (trivial destructor)
       // ----------------------------------------------------------
-      using sv = shared_vector<int>;
-      chainbase::allocator<sv> sv_alloc(pmf.get_segment_manager());
-      sv v;
+      using sv_t = shared_vector<int>;
+      auto sv_alloc = chainbase::make_allocator<sv_t>(seg_mgr); 
 
-      bip::vector<sv, chainbase::allocator<sv>> vec_of_vec(sv_alloc);
+      using vec_of_vec_t = bip::vector<sv_t, decltype(sv_alloc)>;
+      vec_of_vec_t vec_of_vec(sv_alloc);
       
-      check_shared_vector_apis<sv, decltype(vec_of_vec)>(vec_of_vec, expected_alloc);
+      check_shared_vector_apis<sv_t, vec_of_vec_t>(vec_of_vec, chainbase::make_allocator<sv_t::allocator_type::value_type>(seg_mgr));
    }
 
    {
       // do the test with `shared_vector<my_string>` (non-trivial destructor)
       // --------------------------------------------------------------------
-      using sv = shared_vector<my_string>;
-      chainbase::allocator<sv> sv_alloc(pmf.get_segment_manager());
-      sv v;
+      using sv_t = shared_vector<my_string>;
+      auto sv_alloc = chainbase::make_allocator<sv_t>(seg_mgr); 
+
+      using vec_of_vec_t = bip::vector<sv_t, decltype(sv_alloc)>;
+      vec_of_vec_t vec_of_vec(sv_alloc);
       
-      bip::vector<sv, chainbase::allocator<sv>> vec_of_vec(sv_alloc);
+      sv_t v;
       
-      check_shared_vector_apis<sv, decltype(vec_of_vec)>(vec_of_vec, expected_alloc);
+      check_shared_vector_apis<sv_t, vec_of_vec_t>(vec_of_vec, chainbase::make_allocator<char>(seg_mgr));
 
       // clear both vectors. If our implementation of `shared_cow_vector` is correct, we should have an exact
       // match of the number of constructed and destroyed `my_string` objects, and therefore after clearing the vectors
@@ -491,7 +494,12 @@ BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
 
    // make sure we didn't leak memory
    // -------------------------------
-   BOOST_REQUIRE_EQUAL(free_memory, pmf.get_segment_manager()->get_free_memory());
+   auto ss_alloc = pinnable_mapped_file::get_small_size_allocator((std::byte*)pmf.get_segment_manager());
+   auto num_blocks_allocated = ss_alloc->num_blocks_allocated();
+   auto lost = free_memory - (seg_mgr->get_free_memory() + ss_alloc->freelist_memory_usage());
+
+   // for every block allocated from the shared memory segment, we have an overhead of 8 or 16 bytes
+   BOOST_REQUIRE(lost == num_blocks_allocated * 8 || lost == num_blocks_allocated * 16);
 }
 
 // -----------------------------------------------------------------------------
