@@ -44,6 +44,8 @@ struct call_tester: validating_tester {
             set_abi(accounts[i].name, doit_abi);
          }
       }
+
+      produce_block();  // make sure accounts and codes are in state
    }
 };
 
