@@ -4,7 +4,6 @@
       "name": "stderr",
       "type": "console",
       "args": {
-        "format": "${timestamp} ${thread_name} ${context} ${file}:${line} ${method} ${level}]  ${message}",
         "stream": "std_error",
         "level_colors": [{
             "level": "debug",
@@ -15,11 +14,13 @@
           },{
             "level": "error",
             "color": "red"
+          },{
+            "level": "info",
+            "color": "console_default"
           }
         ],
         "flush": true
-      },
-      "enabled": true
+      }
     },{
       "name": "stdout",
       "type": "console",
@@ -27,18 +28,20 @@
         "stream": "std_out",
         "level_colors": [{
             "level": "debug",
-            "color": "green"
+            "color": "blue"
           },{
             "level": "warn",
-            "color": "brown"
+            "color": "magenta"
           },{
             "level": "error",
-            "color": "red"
+            "color": "cyan"
+          },{
+            "level": "info",
+            "color": "white"
           }
         ],
-        "flush": true
-      },
-      "enabled": true
+        "flush": false
+      }
     },{
       "name": "net",
       "type": "gelf",
@@ -46,8 +49,7 @@
         "endpoint": "my_server.example.invalid:12201",
         "host": "host_name",
         "_network": "jungle"
-      },
-      "enabled": true
+      }
     }
   ],
   "loggers": [{
@@ -56,8 +58,7 @@
       "enabled": true,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "net_plugin_impl",
@@ -65,8 +66,7 @@
       "enabled": true,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "http_plugin",
@@ -74,8 +74,7 @@
       "enabled": true,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "producer_plugin",
@@ -83,22 +82,20 @@
       "enabled": true,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_success_tracing",
       "level": "debug",
-      "enabled": true,
+      "enabled": false,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_failure_tracing",
       "level": "debug",
-      "enabled": true,
+      "enabled": false,
       "additivity": false,
       "appenders": [
         "stderr",
@@ -110,44 +107,39 @@
       "enabled": true,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_trace_success",
-      "level": "info",
-      "enabled": true,
+      "level": "debug",
+      "enabled": false,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_trace_failure",
-      "level": "info",
-      "enabled": true,
+      "level": "debug",
+      "enabled": false,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transient_trx_success_tracing",
       "level": "debug",
-      "enabled": true,
+      "enabled": false,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transient_trx_failure_tracing",
       "level": "debug",
-      "enabled": true,
+      "enabled": false,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
     "name": "state_history",
@@ -155,17 +147,15 @@
     "enabled": true,
     "additivity": false,
     "appenders": [
-      "stderr",
-      "net"
+      "stderr"
       ]
     },{
     "name": "vote",
-    "level": "debug",
+    "level": "info",
     "enabled": true,
     "additivity": false,
     "appenders": [
-      "stderr",
-      "net"
+      "stderr"
       ]
     },{
       "name": "transaction",
@@ -173,8 +163,7 @@
       "enabled": true,
       "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     }
   ]
