@@ -256,7 +256,7 @@ class Node(Transactions):
             return self.getInfo()["head_block_producer"] in producers
         found = Utils.waitForBool(isProducerInList, timeout)
         assert not exitOnError or found, \
-            f"Waited for {time.perf_counter()-start} sec but never found producer: {producers}. Started with {initialProducer} and ended with {self.getInfo()['head_block_producer']}"
+            f"Waited for {time.perf_counter()-start} sec but never found a producer in: {producers}. Started with {initialProducer} and ended with {self.getInfo()['head_block_producer']}"
         return found
 
     def waitForProducer(self, producer, timeout=None, exitOnError=False):
