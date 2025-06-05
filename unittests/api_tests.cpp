@@ -16,7 +16,7 @@
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/finalizer_authority.hpp>
-#include <eosio/chain/webassembly/eos-vm-oc.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc/intrinsic.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>
@@ -1005,7 +1005,7 @@ void transaction_tests(T& chain) {
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
       auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
-      if( r->except) throw *r->except;
+      if( r->except) r->except->rethrow();
       tx_trace = r;
       chain.produce_block();
       BOOST_CHECK(tx_trace->action_traces.front().console == sha_expect);

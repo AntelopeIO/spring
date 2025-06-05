@@ -60,7 +60,7 @@ def executeTest(cluster, testNodeId, testNodeArgs, resultMsgs):
         testNode = cluster.getNode(testNodeId)
         assert not testNode.verifyAlive() # resets pid so reluanch works
         peers = testNode.rmFromCmd('--p2p-peer-address')
-        testNode.relaunch(addSwapFlags={"--terminate-at-block": "9999999"})
+        testNode.relaunch(addSwapFlags={"--terminate-at-block": "0", "--truncate-at-block": "0"})
 
         # Wait for node to start up.
         time.sleep(3)
@@ -134,7 +134,7 @@ def checkReplay(testNode, testNodeArgs):
     ]))
 
     assert not testNode.verifyAlive()
-    testNode.relaunch(chainArg="--replay-blockchain", addSwapFlags={"--terminate-at-block": "9999999"})
+    testNode.relaunch(chainArg="--replay-blockchain", addSwapFlags={"--terminate-at-block": "0", "--truncate-at-block": "0"})
 
     # Wait for node to finish up.
     time.sleep(3)
@@ -213,7 +213,7 @@ def executeSnapshotBlocklogTest(cluster, testNodeId, resultMsgs, nodeArgs, termA
         assert testNode.kill(signal.SIGTERM)
 
     # Start from snapshot, replay through block log and terminate at specified block
-    chainArg=f'--snapshot {testNode.getLatestSnapshot()} --replay-blockchain --terminate-at-block {termAtBlock}'
+    chainArg=f'--snapshot {testNode.getLatestSnapshot()} --replay-blockchain --terminate-at-block {termAtBlock} --truncate-at-block {termAtBlock}'
     testNode.relaunch(chainArg=chainArg, waitForTerm=True)
 
     # Check the node stops at the correct block by checking the log.
@@ -268,10 +268,11 @@ try:
         0 : "--enable-stale-production"
     }
     regularNodeosArgs = {
-        1 : "--read-mode irreversible --terminate-at-block 100",
-        2 : "--read-mode head --terminate-at-block 125",
-        3 : "--read-mode speculative --terminate-at-block 150",
-        4 : "--read-mode irreversible --terminate-at-block 180"
+        # choose a block number past Savanna transition as we do not support terminate-at-block during transition.
+        1 : "--read-mode irreversible --terminate-at-block 125 --truncate-at-block 125",
+        2 : "--read-mode head --terminate-at-block 135 --truncate-at-block 135",
+        3 : "--read-mode speculative --terminate-at-block 150 --truncate-at-block 150",
+        4 : "--read-mode irreversible --terminate-at-block 173 --truncate-at-block 173"
     }
     replayNodeosArgs = {
         5 : "--read-mode irreversible",

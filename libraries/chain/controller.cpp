@@ -1308,7 +1308,7 @@ struct controller_impl {
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
          if( trace->except)
-            throw *trace->except;
+            trace->except->rethrow();
          getpeerkeys_res_t res;
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
@@ -1724,7 +1724,7 @@ struct controller_impl {
       return should_replay;
    }
 
-   std::exception_ptr replay_block_log() {
+   void replay_block_log() {
       auto blog_head = blog.head();
       assert(blog_head);
 
@@ -1786,7 +1786,8 @@ struct controller_impl {
                ilog( "${n} of ${head}", ("n", next->block_num())("head", blog_head->block_num()) );
             }
          }
-      } catch(  const database_guard_exception& e ) {
+      } catch( const std::exception& e ) {
+         wlog("Exception caught while replaying block log: ${e}", ("e", e.what()));
          except_ptr = std::current_exception();
       }
       transition_legacy_branch.clear(); // not needed after replay
@@ -1799,10 +1800,13 @@ struct controller_impl {
 
       // if the irreverible log is played without undo sessions enabled, we need to sync the
       // revision ordinal to the appropriate expected value here.
-      if( skip_db_sessions( controller::block_status::irreversible ) )
+      if( skip_db_sessions( controller::block_status::irreversible ) ) {
+         ilog( "Setting chainbase revision to ${n}", ("n", chain_head.block_num()) );
          db.set_revision( chain_head.block_num() );
+      }
 
-      return except_ptr;
+      if (except_ptr)
+         std::rethrow_exception(except_ptr);
    }
 
    void replay(startup_t startup) {
@@ -1813,7 +1817,7 @@ struct controller_impl {
       std::exception_ptr except_ptr;
 
       if (replay_block_log_needed)
-         except_ptr = replay_block_log();
+         replay_block_log();
 
       if( check_shutdown() ) {
          ilog( "quitting from replay because of shutdown" );
@@ -1930,7 +1934,7 @@ struct controller_impl {
          if (snapshot_head_block != 0 && !blog.head()) {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
-         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() ) {
+         } else if( !check_shutdown() && !irreversible_mode() ) {
             if (auto fork_db_head = fork_db.head()) {
                ilog("fork database contains ${n} blocks after head from ${ch} to ${fh}",
                     ("n", fork_db_head->block_num() - chain_head.block_num())("ch", chain_head.block_num())("fh", fork_db_head->block_num()));
@@ -1942,10 +1946,6 @@ struct controller_impl {
          }
       };
       fork_db_.apply<void>(replay_fork_db);
-
-      if( except_ptr ) {
-         std::rethrow_exception( except_ptr );
-      }
    }
 
    void startup(std::function<void()> shutdown, std::function<bool()> check_shutdown, const snapshot_reader_ptr& snapshot) {
@@ -2084,6 +2084,10 @@ struct controller_impl {
          db.undo();
       }
 
+      EOS_ASSERT(conf.terminate_at_block == 0 || conf.terminate_at_block > chain_head.block_num(),
+                 plugin_config_exception, "--terminate-at-block ${t} not greater than chain head ${h}",
+                 ("t", conf.terminate_at_block)("h", chain_head.block_num()));
+
       protocol_features.init( db );
 
       // At startup, no transaction specific logging is possible
@@ -2143,6 +2147,24 @@ struct controller_impl {
 
    ~controller_impl() {
       pending.reset();
+
+      if (conf.truncate_at_block > 0 && chain_head.is_valid()) {
+         if (chain_head.block_num() == conf.truncate_at_block && fork_db_has_root()) {
+            if (fork_db_.version_in_use() == fork_database::in_use_t::both) {
+               // in savanna transition
+               wlog("In the middle of Savanna transition, truncate-at-block not allowed, ignoring truncate-at-block ${b}", ("b", conf.truncate_at_block));
+            } else {
+               fork_db_.apply<void>([&](auto& fork_db) {
+                  if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
+                     ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
+                           ("t", conf.truncate_at_block)("h", head->block_num()));
+                     fork_db.remove(conf.truncate_at_block + 1);
+                  }
+               });
+            }
+         }
+      }
+
       //only log this not just if configured to, but also if initialization made it to the point we'd log the startup too
       if(okay_to_print_integrity_hash_on_stop && conf.integrity_hash_on_stop)
          ilog( "chain database stopped with hash: ${hash}", ("hash", calculate_integrity_hash()) );
@@ -3358,7 +3380,7 @@ struct controller_impl {
             if( onblock_trace->except ) {
                if (onblock_trace->except->code() == interrupt_exception::code_value) {
                   ilog("Interrupt of onblock ${bn}", ("bn", chain_head.block_num() + 1));
-                  throw *onblock_trace->except;
+                  onblock_trace->except->rethrow();
                }
                wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
                     ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
@@ -3394,8 +3416,10 @@ struct controller_impl {
    } /// start_block
 
    void update_peer_keys() {
-      // if syncing or replaying old blocks don't bother updating peer keys
-      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+      if (!peer_keys_db.is_active())
+         return;
+      // if syncing or replaying old blocks don't bother updating peer keys.
+      if (fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
          return;
 
       try {
@@ -3878,7 +3902,7 @@ struct controller_impl {
                   } else {
                      edump((*trace));
                   }
-                  throw *trace->except;
+                  trace->except->rethrow();
                }
 
                EOS_ASSERT(trx_receipts.size() > 0, block_validate_exception,
@@ -3907,10 +3931,9 @@ struct controller_impl {
                   actual_finality_mroot = bsp->get_validation_mroot(bsp->core.latest_qc_claim().block_num);
                }
 
-               EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot,
-                  block_validate_exception,
-                  "finality_mroot does not match, received finality_mroot: ${r} != actual_finality_mroot: ${a}",
-                  ("r", bsp->finality_mroot())("a", actual_finality_mroot));
+               EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot, block_validate_exception,
+                  "finality_mroot does not match, received finality_mroot: ${r} != actual_finality_mroot: ${a} for block ${bn} ${id}",
+                  ("r", bsp->finality_mroot())("a", actual_finality_mroot)("bn", bsp->block_num())("id", bsp->id()));
             } else {
                assemble_block(true, {}, nullptr);
                auto& ab = std::get<assembled_block>(pending->_block_stage);
@@ -4997,8 +5020,10 @@ struct controller_impl {
       return wasmif;
    }
 
-   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+   void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                 block_num_type first_used_block_num, block_num_type block_num_last_used)
+   {
+      wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
    }
 
    void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
@@ -5857,7 +5882,7 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+void controller::set_peer_keys_retrieval_active(name_set_t configured_bp_peers) {
    my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
@@ -5866,7 +5891,7 @@ std::optional<peer_info_t> controller::get_peer_info(name n) const {
 }
 
 bool controller::configured_peer_keys_updated() {
-   return my->peer_keys_db.configured_peer_keys_updated();
+   return my->peer_keys_db.is_active() && my->peer_keys_db.configured_peer_keys_updated();
 }
 
 getpeerkeys_res_t controller::get_top_producer_keys() {
@@ -6220,8 +6245,9 @@ bool controller::is_write_window() const {
    return my->is_write_window();
 }
 
-void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num) {
-   return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
+void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                          block_num_type first_used_block_num, block_num_type block_num_last_used) {
+   return my->code_block_num_last_used(code_hash, vm_type, vm_version, first_used_block_num, block_num_last_used);
 }
 
 platform_timer& controller::get_thread_local_timer() {
