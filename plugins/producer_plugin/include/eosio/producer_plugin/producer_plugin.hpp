@@ -81,7 +81,7 @@ public:
    virtual void plugin_shutdown();
    void handle_sighup() override;
 
-   controller::apply_blocks_result on_incoming_block();
+   controller::apply_blocks_result_t on_incoming_block();
 
    struct pause_at_block_params {
       chain::block_num_type block_num{0}; // block height to pause block evaluation/production
