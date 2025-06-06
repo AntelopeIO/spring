@@ -26,10 +26,10 @@ namespace fc
              if( user_pass.find( ':' ) != size_t(std::string::npos) ) {
                 std::getline( upss, luser, ':' );
                 std::getline( upss, lpass, ':' );
-                _user = fc::move(luser);
-                _pass = fc::move(lpass);
+                _user = std::move(luser);
+                _pass = std::move(lpass);
              } else {
-                _user = fc::move(user_pass);
+                _user = std::move(user_pass);
              }
            }
            std::string host_port;
@@ -43,7 +43,7 @@ namespace fc
               }
               _host = host_port.substr(0,pos);
            } else {
-              _host = fc::move(host_port);
+              _host = std::move(host_port);
            }
            std::getline( ss, _lpath, '?' );
 #ifdef WIN32
@@ -61,8 +61,8 @@ namespace fc
            std::getline( ss, _largs );
            if( _args && _args->size() )
            {
-             // TODO: args = fc::move(_args);
-              _query = fc::move(_largs);
+             // TODO: args = std::move(_args);
+              _query = std::move(_largs);
            }
          }
 
@@ -125,7 +125,7 @@ namespace fc
   :my(u.my){}
 
   url::url( url&& u )
-  :my( fc::move(u.my) )
+  :my( std::move(u.my) )
   {
     u.my = get_null_url();
   }
@@ -156,7 +156,7 @@ namespace fc
   {
      if( this != &u )
      {
-        my = fc::move(u.my);
+        my = std::move(u.my);
         u.my= get_null_url();
      }
      return *this;

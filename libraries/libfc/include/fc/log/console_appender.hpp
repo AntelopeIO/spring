@@ -37,18 +37,16 @@ namespace fc
             struct config
             {
                config()
-               :format( "${timestamp} ${thread_name} ${context} ${file}:${line} ${method} ${level}]  ${message}" ),
-                stream(console_appender::stream::std_error),flush(true){}
+               :stream(console_appender::stream::std_error),flush(true){}
 
-               std::string                        format;
                console_appender::stream::type     stream;
                std::vector<level_color>           level_colors;
                bool                               flush;
             };
 
 
-            console_appender( const variant& args );
-            console_appender( const config& cfg );
+            explicit console_appender( const variant& args );
+            explicit console_appender( const config& cfg );
             console_appender();
 
             ~console_appender();
@@ -70,4 +68,4 @@ namespace fc
 FC_REFLECT_ENUM( fc::console_appender::stream::type, (std_out)(std_error) )
 FC_REFLECT_ENUM( fc::console_appender::color::type, (red)(green)(brown)(blue)(magenta)(cyan)(white)(console_default) )
 FC_REFLECT( fc::console_appender::level_color, (level)(color) )
-FC_REFLECT( fc::console_appender::config, (format)(stream)(level_colors)(flush) )
+FC_REFLECT( fc::console_appender::config, (stream)(level_colors)(flush) )

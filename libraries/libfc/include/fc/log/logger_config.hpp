@@ -5,34 +5,31 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
+#include <optional>
 #include <filesystem>
 
 namespace fc {
    struct appender_config {
-      appender_config(const std::string& name = "",
-                      const std::string& type = "",
-                      variant args = variant()) :
-        name(name),
-        type(type),
-        args(fc::move(args)),
-        enabled(true)
+      explicit appender_config(std::string name = {},
+                               std::string type = {},
+                               variant args = {}) :
+        name(std::move(name)),
+        type(std::move(type)),
+        args(std::move(args))
       {}
       std::string  name;
       std::string  type;
       fc::variant  args;
-      bool         enabled;
    };
 
    struct logger_config {
-      logger_config(const std::string& name = ""):name(name),enabled(true),additivity(false){}
+      explicit logger_config(std::string name = {}):name(std::move(name)){}
       std::string                      name;
-      std::optional<std::string>       parent;
       /// if not set, then parents level is used.
       std::optional<log_level>         level;
-      bool                             enabled;
-      /// if any appenders are sepecified, then parent's appenders are not set.
-      bool                             additivity;
+      /// if not set, then parents enabled is used.
+      std::optional<bool>              enabled;
+      // if empty, then parents appenders are used.
       std::vector<std::string>         appenders;
    };
 
@@ -54,7 +51,7 @@ namespace fc {
 
       static logger get_logger( const std::string& name );
       static void update_logger( const std::string& name, logger& log );
-
+      static void update_logger_with_default( const std::string& name, logger& log, const std::string& default_name );
       static void initialize_appenders();
 
       static bool configure_logging( const logging_config& l );
@@ -78,6 +75,6 @@ namespace fc {
 }
 
 #include <fc/reflect/reflect.hpp>
-FC_REFLECT( fc::appender_config, (name)(type)(args)(enabled) )
-FC_REFLECT( fc::logger_config, (name)(parent)(level)(enabled)(additivity)(appenders) )
+FC_REFLECT( fc::appender_config, (name)(type)(args) )
+FC_REFLECT( fc::logger_config, (name)(level)(enabled)(appenders) )
 FC_REFLECT( fc::logging_config, (includes)(appenders)(loggers) )

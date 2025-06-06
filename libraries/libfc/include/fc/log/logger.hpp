@@ -45,7 +45,9 @@ namespace fc
          void  set_name( const std::string& n );
          std::string get_name()const;
 
+         void set_enabled( bool e );
          bool is_enabled( log_level e )const;
+         bool is_enabled()const;
          void log( log_message m );
 
       private:

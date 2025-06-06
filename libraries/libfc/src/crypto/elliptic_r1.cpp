@@ -550,7 +550,7 @@ namespace fc { namespace crypto { namespace r1 {
    {
    }
    public_key::public_key( public_key&& pk )
-   :my( fc::move( pk.my) )
+   :my( std::move( pk.my) )
    {
    }
    private_key::private_key( const private_key& pk )
@@ -558,7 +558,7 @@ namespace fc { namespace crypto { namespace r1 {
    {
    }
    private_key::private_key( private_key&& pk )
-   :my( fc::move( pk.my) )
+   :my( std::move( pk.my) )
    {
    }
 

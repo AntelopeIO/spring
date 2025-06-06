@@ -16,8 +16,7 @@
             "color": "red"
           }
         ]
-      },
-      "enabled": true
+      }
     },{
       "name": "stdout",
       "type": "console",
@@ -34,8 +33,7 @@
             "color": "red"
           }
         ]
-      },
-      "enabled": true
+      }
     },{
       "name" : "deep-mind",
       "type": "dmlog",
@@ -49,7 +47,6 @@
       "name": "default",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -57,7 +54,6 @@
       "name": "net_plugin_impl",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -65,7 +61,6 @@
       "name": "http_plugin",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -73,7 +68,6 @@
       "name": "producer_plugin",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -81,7 +75,6 @@
       "name": "transaction_success_tracing",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -89,7 +82,6 @@
       "name": "transaction_failure_tracing",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -97,7 +89,6 @@
       "name": "trace_api",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -105,7 +96,6 @@
       "name": "transaction_trace_success",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -113,7 +103,6 @@
       "name": "transaction_trace_failure",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -121,7 +110,6 @@
       "name": "transient_trx_success_tracing",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -129,7 +117,6 @@
       "name": "transient_trx_failure_tracing",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -137,7 +124,6 @@
     "name": "state_history",
     "level": "warn",
     "enabled": true,
-    "additivity": false,
     "appenders": [
       "stderr"
       ]
@@ -145,7 +131,6 @@
     "name": "vote",
     "level": "warn",
     "enabled": true,
-    "additivity": false,
     "appenders": [
       "stderr"
       ]
@@ -153,7 +138,6 @@
       "name": "transaction",
       "level": "warn",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "stderr"
       ]
@@ -161,7 +145,6 @@
       "name": "deep-mind",
       "level": "debug",
       "enabled": true,
-      "additivity": false,
       "appenders": [
         "deep-mind"
       ]
