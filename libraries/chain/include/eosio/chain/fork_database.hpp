@@ -111,6 +111,20 @@ namespace eosio::chain {
       bool set_pending_savanna_lib_id( const block_id_type& id );
 
       /**
+       * @return true if id is built on top of pending savanna lib or id == pending_savanna_lib
+       */
+      bool child_of_pending_savanna_lib( const block_id_type& id ) const;
+
+      /**
+       * @param ancestor the id of a possible ancestor block
+       * @param descendant the id of a possible descendant block
+       * @return false if either ancestor or descendant not found.
+       *         true if any descendant->previous.. == ancestor.
+       *         false if unable to find ancestor in any descendant->previous..
+       */
+      bool is_child_of(const block_id_type& ancestor, const block_id_type& descendant) const;
+
+      /**
        *  Returns the sequence of block states resulting from trimming the branch from the
        *  root block (exclusive) to the block with an id of `h` (inclusive) by removing any
        *  block states corresponding to block numbers greater than `trim_after_block_num`.
