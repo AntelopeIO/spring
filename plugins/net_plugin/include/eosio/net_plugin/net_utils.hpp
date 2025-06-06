@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ostream>
 #include <eosio/chain/exceptions.hpp>
 #include <boost/numeric/conversion/cast.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <string>
 #include <sstream>
@@ -51,18 +51,19 @@ namespace detail {
    }
 
    /// @return host, port, remainder
-   inline std::tuple<std::string, std::string, std::string> split_host_port_remainder(const std::string& peer_add, bool should_throw) {
+   inline std::tuple<std::string, std::string, std::string> split_host_port_remainder(const std::string& peer_add_input, bool should_throw) {
       using std::string;
       // host:port[:trx|:blk][:<rate>]
+      if (peer_add_input.size() > max_p2p_address_length) {
+         EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification exceeds max p2p address length" );
+         return {};
+      }
+      string peer_add = peer_add_input;
+      boost::trim(peer_add);
       if (peer_add.empty()) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification is empty" );
          return {};
       }
-      if (peer_add.size() > max_p2p_address_length) {
-         EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification exceeds max p2p address length" );
-         return {};
-      }
-
       auto colon_count = std::count(peer_add.begin(), peer_add.end(), ':');
       string::size_type end_bracket = 0;
       if (peer_add[0] == '[') {
@@ -125,11 +126,7 @@ namespace detail {
 
    /// @return host, port, type. returns empty on invalid peer_add, does not throw
    inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
-
-      using std::string;
       // host:port[:trx|:blk][:<rate>]   // rate is discarded
-      if (peer_add.empty()) return {};
-
       constexpr bool should_throw = false;
       auto [host, port, remainder] = detail::split_host_port_remainder(peer_add, should_throw);
       if (host.empty() || port.empty()) return {};
