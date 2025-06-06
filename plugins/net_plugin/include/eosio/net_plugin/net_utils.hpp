@@ -80,7 +80,7 @@ namespace detail {
          return {};
       }
       string::size_type colon2 = peer_add.find(':', colon + 1);
-      string host = peer_add.substr( 0, colon );
+      string host = end_bracket != 0 ? peer_add.substr( 1, end_bracket - 1 ) : peer_add.substr( 0, colon );
       string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
       string remainder = colon2 == string::npos ? "" : peer_add.substr( colon2 + 1 );
       return {std::move(host), std::move(port), std::move(remainder)};
