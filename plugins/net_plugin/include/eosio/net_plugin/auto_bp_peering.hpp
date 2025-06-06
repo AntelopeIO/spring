@@ -192,9 +192,9 @@ public:
 
             fc_dlog(self()->get_logger(), "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
             EOS_ASSERT(std::ranges::find_if(config.my_bp_gossip_accounts[account],
-                                            [&](const auto& e) { return e.server_endpoint == inbound_server_endpoint; }) == config.my_bp_gossip_accounts[account].end(),
-                       chain::plugin_config_exception, "Duplicate p2p-bp-gossip-endpoint for: ${a}, inbound server endpoint: ${i}",
-                       ("a", account)("i", inbound_server_endpoint));
+                                            [&](const auto& e) { return e.outbound_ip_address == outbound_ip_address; }) == config.my_bp_gossip_accounts[account].end(),
+                       chain::plugin_config_exception, "Duplicate p2p-bp-gossip-endpoint for: ${a}, outbound ip address: ${i}",
+                       ("a", account)("i", outbound_ip_address));
             config.my_bp_gossip_accounts[account].emplace_back(inbound_server_endpoint, outbound_ip_address);
             EOS_ASSERT(config.my_bp_gossip_accounts[account].size() <= max_bp_gossip_peers_per_producer, chain::plugin_config_exception,
                        "Too many p2p-bp-gossip-endpoint for ${a}, max ${m}", ("a", account)("m", max_bp_gossip_peers_per_producer));
@@ -239,7 +239,7 @@ public:
                peer.sig = self()->sign_compact(*peer_info->key, peer.digest(self()->chain_id));
                EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception, "Unable to sign bp peer ${p}, private key not found for ${k}",
                           ("p", peer.producer_name)("k", peer_info->key->to_string({})));
-               if (auto i = prod_idx.find(std::make_tuple(bp_account, std::cref(le.server_endpoint))); i != prod_idx.end()) {
+               if (auto i = prod_idx.find(std::forward_as_tuple(bp_account, le.server_endpoint, le.outbound_ip_address)); i != prod_idx.end()) {
                   gossip_bps.index.modify(i, [&peer](auto& v) {
                      v.bp_peer_info        = peer.bp_peer_info;
                      v.cached_bp_peer_info = peer.cached_bp_peer_info;
@@ -412,7 +412,7 @@ public:
       auto& idx = gossip_bps.index.get<by_producer>();
       bool diff = false;
       for (const auto& peer : msg.peers) {
-         if (auto i = idx.find(std::make_tuple(peer.producer_name, std::cref(peer.server_endpoint()))); i != idx.end()) {
+         if (auto i = idx.find(std::forward_as_tuple(peer.producer_name, peer.server_endpoint(), peer.outbound_ip_address())); i != idx.end()) {
             if (i->sig != peer.sig && peer.expiration() >= i->expiration()) { // signature has changed, producer_name and server_endpoint has not changed
                assert(peer.cached_bp_peer_info); // unpacked in validate_gossip_bp_peers_message()
                gossip_bps.index.modify(i, [&peer](auto& m) {
