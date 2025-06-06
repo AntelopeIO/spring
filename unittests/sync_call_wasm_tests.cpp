@@ -34,7 +34,7 @@ struct acct_code {
 };
 
 // The first account in accounts vector must be the caller initiating a sync call
-struct call_tester: validating_tester {
+struct call_tester: tester {
    call_tester(const std::vector<acct_code>& accounts) {
       for (auto i = 0u; i < accounts.size(); ++i) {
          create_account(accounts[i].name);
@@ -45,7 +45,7 @@ struct call_tester: validating_tester {
          }
       }
 
-      produce_block();  // make sure accounts and codes are in state
+      produce_block();
    }
 };
 
