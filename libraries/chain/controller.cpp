@@ -1596,8 +1596,8 @@ struct controller_impl {
 
       const fc::time_point start = fc::time_point::now();
 
-      auto mark_branch_irreversible = [&, this](auto& fork_db) -> controller::apply_blocks_result_t {
-         controller::apply_blocks_result_t result;
+      controller::apply_blocks_result_t result;
+      auto mark_branch_irreversible = [&, this](auto& fork_db) {
          assert(!irreversible_mode() || fork_db.head());
          const auto& head_id = irreversible_mode() ? fork_db.head()->id() : chain_head.id();
          const auto head_num = block_header::num_from_id(head_id);
@@ -1675,11 +1675,11 @@ struct controller_impl {
 
          // delete branch in thread pool
          boost::asio::post( thread_pool.get_executor(), [branch{std::move(branch)}]() {} );
-
-         return result;
       };
 
-      return fork_db_.apply<controller::apply_blocks_result_t>(mark_branch_irreversible);
+      fork_db_.apply<void>(mark_branch_irreversible);
+
+      return result;
    }
 
    void initialize_blockchain_state(const genesis_state& genesis) {
