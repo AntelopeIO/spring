@@ -17,9 +17,9 @@ struct gossip_bp_index_t {
             tag<struct by_producer>,
             composite_key< gossip_bp_peers_message::signed_bp_peer,
                member<gossip_bp_peers_message::bp_peer, name, &gossip_bp_peers_message::bp_peer::producer_name>,
-               const_mem_fun<gossip_bp_peers_message::signed_bp_peer, const std::string&, &gossip_bp_peers_message::signed_bp_peer::server_endpoint>
-            >,
-            composite_key_compare< std::less<>, std::less<> >
+               const_mem_fun<gossip_bp_peers_message::signed_bp_peer, const std::string&, &gossip_bp_peers_message::signed_bp_peer::server_endpoint>,
+               const_mem_fun<gossip_bp_peers_message::signed_bp_peer, const std::string&, &gossip_bp_peers_message::signed_bp_peer::outbound_ip_address>
+            >
          >,
          ordered_non_unique<
             tag< struct by_expiry >,
