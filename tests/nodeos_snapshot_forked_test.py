@@ -79,7 +79,7 @@ try:
 
     # ***   setup topogrophy   ***
 
-    # "bridge" shape connects defprocera through defproducerb (in node0) to each other and defproducerc is alone (in node01)
+    # "bridge" shape connects defproducera and defproducerc (in node0) to each other and defproducerb is alone (in node01)
     # and the only connection between those 2 groups is through the bridge node
     if cluster.launch(prodCount=2, topo="bridge", pnodes=totalProducerNodes,
                       totalNodes=totalNodes, totalProducers=totalProducers,
@@ -109,8 +109,8 @@ try:
             prodNodes.append(node)
             producers.extend(node.producers)
 
-    prodAB=prodNodes[0]  # defproducera, defproducerb
-    prodC=prodNodes[1]   # defproducerc
+    prodAC=prodNodes[0]  # defproducera, defproducerc
+    prodB=prodNodes[1]   # defproducerb
 
     # ***   Identify a block where production is stable   ***
 
@@ -128,12 +128,12 @@ try:
     cluster.validateAccounts([account1])
 
     # ***   Schedule snapshot, it should become pending
-    prodAB.scheduleSnapshot()
+    prodAC.scheduleSnapshot()
       
     # ***   Killing the "bridge" node   ***
     Print("Sending command to kill \"bridge\" node to separate the 2 producer groups.")
     # kill at the beginning of the production window for defproducera, so there is time for the fork for
-    # defproducerc to grow before it would overtake the fork for defproducera and defproducerb
+    # defproducerb to grow before it would overtake the fork for defproducera and defproducerc
     killAtProducer="defproducera"
     nonProdNode.killNodeOnProducer(producer=killAtProducer, whereInSequence=1)
 
@@ -144,13 +144,13 @@ try:
     blocksPerRound = totalProducers * blocksPerProducer
     count = blocksPerRound * numPasses
     while nonProdNode.verifyAlive() and count > 0:
-        # wait on prodNode 0 since it will continue to advance, since defproducera and defproducerb are its producers
+        # wait on prodNode 0 since it will continue to advance, since defproducera and defproducerc are its producers
         Print("Wait for next block")
-        assert prodAB.waitForNextBlock(timeout=10), "Production node AB should continue to advance, even after bridge node is killed"
+        assert prodAC.waitForNextBlock(timeout=10), "Production node AC should continue to advance, even after bridge node is killed"
         count -= 1
    
     # schedule a snapshot that should get finalized
-    prodC.scheduleSnapshot()
+    prodB.scheduleSnapshot()
 
     assert not nonProdNode.verifyAlive(), "Bridge node should have been killed if test was functioning correctly."
 
@@ -160,28 +160,28 @@ try:
             f"ERROR: getTransactionStatus returned a status object that didn't have a \"state\" field. state: {json.dumps(status, indent=1)}"
         return status["state"]
    
-    assert prodC.waitForNextBlock(), "Production node C should continue to advance, even after bridge node is killed"
+    assert prodB.waitForNextBlock(), "Production node B should continue to advance, even after bridge node is killed"
 
     Print("Relaunching the non-producing bridge node to connect the nodes")
     if not nonProdNode.relaunch():
         errorExit(f"Failure - (non-production) node {nonProdNode.nodeNum} should have restarted")
 
-    Print("Wait for LIB to move, which indicates prodC has forked out the branch")
-    assert prodC.waitForLibToAdvance(60), \
+    Print("Wait for LIB to move, which indicates prodB has forked out the branch")
+    assert prodB.waitForLibToAdvance(60), \
         "ERROR: Network did not reach consensus after bridge node was restarted."
  
     for prodNode in prodNodes:
         info=prodNode.getInfo()
         Print(f"node info: {json.dumps(info, indent=1)}")
 
-    assert prodC.waitForProducer("defproducerc"), \
-        f"Waiting for prodC to produce, but it never happened" + \
-        f"\n\nprod AB info: {json.dumps(prodAB.getInfo(), indent=1)}\n\nprod C info: {json.dumps(prodC.getInfo(), indent=1)}"
+    assert prodB.waitForProducer("defproducerb"), \
+        f"Waiting for prodB to produce, but it never happened" + \
+        f"\n\nprod AC info: {json.dumps(prodAC.getInfo(), indent=1)}\n\nprod B info: {json.dumps(prodB.getInfo(), indent=1)}"
     
-    blockNum=prodC.getBlockNum(BlockType.head) + 1
-    waitForBlock(prodC, blockNum + 1, blockType=BlockType.lib)
+    blockNum= prodB.getBlockNum(BlockType.head) + 1
+    waitForBlock(prodB, blockNum + 1, blockType=BlockType.lib)
 
-    # AB & C compare counts, should be same
+    # AC & B compare counts, should be same
     assert getSnapshotsCount(0) == getSnapshotsCount(1), \
         "ERROR: Pre-fork and post-fork snapshots failed to finalize."
 

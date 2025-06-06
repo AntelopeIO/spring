@@ -1,0 +1,125 @@
+{
+  "name": "testnet_", 
+  "nodes": {
+    "bios": {
+      "index": -100, 
+      "name": "bios", 
+      "keys": [
+        {
+          "pubkey": "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV", 
+          "privkey": "5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3", 
+          "blspubkey": "PUB_BLS_qVbh4IjYZpRGo8U_0spBUM-u-r_G0fMo4MzLZRsKWmm5uyeQTp74YFaMN9IDWPoVVT5rj_Tw1gvps6K9_OZ6sabkJJzug3uGfjA6qiaLbLh5Fnafwv-nVgzzzBlU2kwRrcHc8Q", 
+          "blsprivkey": "PVT_BLS_edLoUiiP2FfMem4la3Ek8zxIDjDjOFylRw9ymdeOVCC0CuXN", 
+          "blspop": "SIG_BLS_L5MXQpJTX_v7cXDy4ML4fWVw_69MKuG5qTq7dD_Zb3Yuw1RbMXBOYXDoAbFF37gFmHudY3kkqXtETLs9nMTjTaTwgdDZWpFy1_csEIZT-xIOQttc76bpZhI67902g2sIDf6JSf9JtbhdTUc_HNbL7H2ZR2bqGS3YPbV5z7x24AR2vwTcJogMqLyy6H5nKQAEwIvXcL15gbs2EkH_ch-IZDdn4F0zUYifpOo-ovXY_CX_yL2rKIx_2a9IHg0pPrMOdfHs9A"
+        }
+      ], 
+      "peers": [
+        "testnet_00",
+        "testnet_01",
+        "testnet_02"
+      ], 
+      "producers": [
+        "eosio"
+      ], 
+      "dont_start": false, 
+      "p2p_port": 9776,
+      "http_port": 8788, 
+      "host_name": "localhost", 
+      "public_name": "localhost", 
+      "listen_addr": "0.0.0.0"
+    },
+    "testnet_00": {
+      "index": 0, 
+      "name": "testnet_00", 
+      "keys": [
+        {
+          "pubkey": "EOS58bRG15HnYQMH9yFfVCPiXyhgQCpdMpoi5aT3CSxX6Nuu6HUBe", 
+          "privkey": "5JyLErL1RVcNR7q5yMqsUUqHqgHmLAwfkpFuWPkWbvAJKuFQQSx", 
+          "blspubkey": "PUB_BLS_Hkv1BIScaHPyKH52dy7e1bjDwYW8kBQW6N6e59vAWmDZHnY8hlZLkoHyIwdcOesNCPwiP-TSvdk8qgNsR0RGFAoc13FGdQnIBaoLsFIz5qsiNDTfQNbfbbH5KHkSbOcOUGnh0A", 
+          "blsprivkey": "PVT_BLS_j9AZd7cjYlZF_GL96Daz46di2SUnDv7J_6d2bM8IqiHZw6vF", 
+          "blspop": "SIG_BLS_XsP4fszr59XIvAb71apSyid-jQUaeP-UlLTC2x79UEeTxce9HIXfoV5h-ocrsi8QsigtkPhzI83finWr0koi7R6MJUFZpuiPN2gpJy9bG2c4GSRQCrGEqaKgGjRnkTQXkqwoVMuOkw2rYwVc3sMGylK1mn_8Wy2A7MXxaJDBWKwZ1O_0G5QqcsOyIgTFG4AH8NmMAHW4nW32h_cgN2x8znsyKHIKUwmRAbVt85KTK_JQmN_bTWlfMsCVq4MoMGgPzk7mgA"
+        }
+      ], 
+      "peers": [
+        "testnet_02"
+      ], 
+      "producers": [
+        "defproducera", 
+        "defproducerb", 
+        "defproducerc", 
+        "defproducerd", 
+        "defproducere", 
+        "defproducerf", 
+        "defproducerg", 
+        "defproducerh", 
+        "defproduceri", 
+        "defproducerj", 
+        "defproducerk"
+      ], 
+      "dont_start": false, 
+      "p2p_port": 9876,
+      "http_port": 8888, 
+      "host_name": "localhost", 
+      "public_name": "localhost", 
+      "listen_addr": "0.0.0.0"
+    },
+    "testnet_01": {
+      "index": 1, 
+      "name": "testnet_01", 
+      "keys": [
+        {
+          "pubkey": "EOS8SP4SNN1K99xSzSFdALE2EvQKZRVPs79uDWFHbHzZ1D1pb91gm", 
+          "privkey": "5KHGSCcqFbqcMocuCYtVXSTneaTxYjSXKEtt1jPkRF5jmNfFzbN", 
+          "blspubkey": "PUB_BLS_IYqOgcnPXr9-Mv3-gf6Sze3JLFs1eCe1OTY1ft0kZ1HR2divFoQo4aVZz1Fs_zAFsi0Nyi0_Q2XeQxOC56dxe9SJXl2EyKNayuL4Y529R64sN8n631dTsz108wvKqjMMikUB_Q", 
+          "blsprivkey": "PVT_BLS_QVqINeGe9I-iza3nds96NjBmCV3mFzT2oQrWt68ftnKSfu9p", 
+          "blspop": "SIG_BLS_KXMdN7HLS6bh--xIGdGxvvY_i882ehusrAcFJaXxh0XibKoGOetOYNZ-rnpNNTAPcDbr72oOoid-MEOzsphPEsr23_LXG-D8V8-_PDNWktoH2EWzZ0VxmkGc0k4A-HUUAJxhsO35koFKA7JeuHF7EPwlO1quzXuxBHYVoclQQ2g3pXxcIhVx1KF29d4HVmwStfyftNRdai7zyHv8tmlb1O_A-zUNac-q63H8uDpg58MDN8eOzVX2DzDlCzBr5wgZ2mh-iw"
+        }
+      ], 
+      "peers": [
+        "testnet_02"
+      ], 
+      "producers": [
+        "defproducerl", 
+        "defproducerm", 
+        "defproducern", 
+        "defproducero", 
+        "defproducerp", 
+        "defproducerq", 
+        "defproducerr", 
+        "defproducers", 
+        "defproducert", 
+        "defproduceru"
+      ], 
+      "dont_start": false, 
+      "p2p_port": 9877,
+      "http_port": 8889, 
+      "host_name": "localhost", 
+      "public_name": "localhost", 
+      "listen_addr": "0.0.0.0"
+    },
+    "testnet_02": {
+      "index": 2, 
+      "name": "testnet_02", 
+      "keys": [
+        {
+          "pubkey": "EOS5Su6SRtZX7apichujG5m8Djnw1M9a5bwG7DQR1P7t5gpFEF1Kc", 
+          "privkey": "5KASFkMz5KTaPJQ663QvoaZRieyhKfnbCUxyGc6tLDHzY4WAVUr", 
+          "blspubkey": "PUB_BLS_DLasUMfL844jMyF3bYQ7X2w8annFsWlxtNcVcxdB6Xm2gBQFxZf0QWz6mQo5YCMDbZFIAAblGSe9o0gRWwfOYr2rwqP9SxPDmBc1c7gzvMNqmZD1a7TMjqPvvSS7PL8KMVr7cg", 
+          "blsprivkey": "PVT_BLS_lgUyhhqs0-8v5_6QKRzlGSkwb3_81KwoLyfcHLj1PDUD03xG", 
+          "blspop": "SIG_BLS_s0wR5U-ZXPNOqJDm_TjJ-6bEAwx2cAGTuTlQDPx6Rx1_dxc7Km0RqzV0_fHx1hgSzZ64Q15AlNkjZnexGWjQDyr9COxA5gfxpYvloqgg3Y3b35plIK-DMj8FgbXyoHgJulkc4sKjz-GGvcAziXQsPk9gKUnOMb1SXekCw2V_J28Iec1CapRAmWh0WhAyepQSoBEglFR4UuaaGU2YeD2gTFa2bDZLgw88sOtLd5ElCW0pAvRB8rIYPFiRKNcPBCAXxD4unw"
+        }
+      ], 
+      "peers": [
+        "testnet_00",
+        "testnet_01"
+      ],
+      "producers": [], 
+      "dont_start": false, 
+      "p2p_port": 9878,
+      "http_port": 8890, 
+      "host_name": "localhost", 
+      "public_name": "localhost", 
+      "listen_addr": "0.0.0.0"
+    }
+  }
+}
