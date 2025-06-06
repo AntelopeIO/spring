@@ -1,0 +1,6 @@
+if( EOSIO_COMPILE_TEST_CONTRACTS )
+   add_contract( sync_callee sync_callee sync_callee.cpp )
+else()
+   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/sync_callee.wasm ${CMAKE_CURRENT_BINARY_DIR}/sync_callee.wasm COPYONLY )
+   configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/sync_callee.abi  ${CMAKE_CURRENT_BINARY_DIR}/sync_callee.abi COPYONLY )
+endif()

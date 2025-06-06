@@ -34,7 +34,7 @@ struct acct_code {
 };
 
 // The first account in accounts vector must be the caller initiating a sync call
-struct call_tester: validating_tester {
+struct call_tester: tester {
    call_tester(const std::vector<acct_code>& accounts) {
       for (auto i = 0u; i < accounts.size(); ++i) {
          create_account(accounts[i].name);
@@ -44,10 +44,12 @@ struct call_tester: validating_tester {
             set_abi(accounts[i].name, doit_abi);
          }
       }
+
+      produce_block();
    }
 };
 
-BOOST_AUTO_TEST_SUITE(sync_call_tests)
+BOOST_AUTO_TEST_SUITE(sync_call_wasm_tests)
 
 // A common helper function
 void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat, validating_tester& t) {
