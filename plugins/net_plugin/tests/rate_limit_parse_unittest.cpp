@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(test_split_host_port_type) {
       , "0.0.0.0:9776:blk:0"
       , "0.0.0.0:9877:trx:640KB/s"
       , "192.168.0.1:9878:blk:20MiB/s"
-      , "localhost:9879:trx:0.5KB/s"
+      , " localhost:9879:trx:0.5KB/s"
       , "[2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:trx:250KB/s"
       , "[::1]:9876:trx:250KB/s"
       , "2001:db8:85a3:8d3:1319:8a2e:370:7348:9876:trx:250KB/s"

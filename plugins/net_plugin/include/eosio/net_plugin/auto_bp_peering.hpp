@@ -172,10 +172,12 @@ public:
             EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
                        "p2p-bp-gossip-endpoint ${e} must consist of bp-account-name,inbound-server-endpoint,outbound-ip-address separated by commas, second comma is missing", ("e", entry));
             auto inbound_server_endpoint = rest.substr(0, comma_pos);
+            boost::trim(inbound_server_endpoint);
             const auto& [host, port, type] = net_utils::split_host_port_type(inbound_server_endpoint);
             EOS_ASSERT( !host.empty() && !port.empty() && type.empty(), chain::plugin_config_exception,
                         "Invalid p2p-bp-gossip-endpoint inbound server endpoint ${p}, syntax host:port", ("p", inbound_server_endpoint));
             auto outbound_ip_address = rest.substr(comma_pos + 1);
+            boost::trim(outbound_ip_address);
             EOS_ASSERT( outbound_ip_address.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
                         "p2p-bp-gossip-endpoint outbound-ip-address ${a} too long, must be less than ${m}",
                         ("a", outbound_ip_address)("m", net_utils::max_p2p_address_length) );

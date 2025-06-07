@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ostream>
 #include <eosio/chain/exceptions.hpp>
 #include <boost/numeric/conversion/cast.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <string>
 #include <sstream>
@@ -51,51 +51,52 @@ namespace detail {
    }
 
    /// @return host, port, remainder
-   inline std::tuple<std::string, std::string, std::string> split_host_port_remainder(const std::string& peer_add, bool should_throw) {
+   inline std::tuple<std::string, std::string, std::string> split_host_port_remainder(const std::string& endpoint_input, bool should_throw) {
       using std::string;
       // host:port[:trx|:blk][:<rate>]
-      if (peer_add.empty()) {
-         EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification is empty" );
-         return {};
-      }
-      if (peer_add.size() > max_p2p_address_length) {
+      if (endpoint_input.size() > max_p2p_address_length) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification exceeds max p2p address length" );
          return {};
       }
-
-      auto colon_count = std::count(peer_add.begin(), peer_add.end(), ':');
+      string endpoint = endpoint_input;
+      boost::trim(endpoint);
+      if (endpoint.empty()) {
+         EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification is empty" );
+         return {};
+      }
+      auto colon_count = std::count(endpoint.begin(), endpoint.end(), ':');
       string::size_type end_bracket = 0;
-      if (peer_add[0] == '[') {
-         end_bracket = peer_add.find(']');
+      if (endpoint[0] == '[') {
+         end_bracket = endpoint.find(']');
          if (end_bracket == string::npos) {
             EOS_ASSERT(!should_throw, chain::plugin_config_exception,
-                       "Invalid address specification ${a}, IPv6 no closing square bracket", ("a", peer_add) );
+                       "Invalid address specification ${a}, IPv6 no closing square bracket", ("a", endpoint) );
             return {};
          }
       } else if (colon_count >= 7) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception,
-                    "Invalid address specification ${a}; IPv6 addresses must be enclosed in square brackets.", ("a", peer_add));
+                    "Invalid address specification ${a}; IPv6 addresses must be enclosed in square brackets.", ("a", endpoint));
          return {};
 
       } else if (colon_count < 1 || colon_count > 3) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception,
-                    "Invalid address specification ${a}; unexpected number of colons.", ("a", peer_add));
+                    "Invalid address specification ${a}; unexpected number of colons.", ("a", endpoint));
          return {};
       }
-      string::size_type colon = peer_add.find(':', end_bracket+1);
+      string::size_type colon = endpoint.find(':', end_bracket+1);
       if (colon == string::npos) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception,
-                    "Invalid address specification ${a}; missing port specification.", ("a", peer_add));
+                    "Invalid address specification ${a}; missing port specification.", ("a", endpoint));
          return {};
       }
       if (end_bracket != 0 && end_bracket+1 != colon) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception,
-                    "Invalid address specification ${a}; unexpected character after ']'.", ("a", peer_add));
+                    "Invalid address specification ${a}; unexpected character after ']'.", ("a", endpoint));
          return {};
       }
-      string::size_type colon2 = peer_add.find(':', colon + 1);
-      string host = end_bracket != 0 ? peer_add.substr( 1, end_bracket - 1 ) : peer_add.substr( 0, colon );
-      string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
+      string::size_type colon2 = endpoint.find(':', colon + 1);
+      string host = end_bracket != 0 ? endpoint.substr( 1, end_bracket - 1 ) : endpoint.substr( 0, colon );
+      string port = endpoint.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
       string remainder;
       if (colon2 == string::npos) {
          auto port_end = port.find_first_not_of("0123456789");
@@ -104,7 +105,7 @@ namespace detail {
             remainder = port.substr( port_end );
          }
       } else {
-         remainder = peer_add.substr( colon2 + 1 );
+         remainder = endpoint.substr( colon2 + 1 );
       }
       return {std::move(host), std::move(port), std::move(remainder)};
    }
@@ -123,15 +124,11 @@ namespace detail {
       auto operator<=>(const endpoint& lhs) const = default;
    };
 
-   /// @return host, port, type. returns empty on invalid peer_add, does not throw
-   inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
-
-      using std::string;
+   /// @return host, port, type. returns empty on invalid endpoint, does not throw
+   inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& endpoint) {
       // host:port[:trx|:blk][:<rate>]   // rate is discarded
-      if (peer_add.empty()) return {};
-
       constexpr bool should_throw = false;
-      auto [host, port, remainder] = detail::split_host_port_remainder(peer_add, should_throw);
+      auto [host, port, remainder] = detail::split_host_port_remainder(endpoint, should_throw);
       if (host.empty() || port.empty()) return {};
 
       std::string type;
