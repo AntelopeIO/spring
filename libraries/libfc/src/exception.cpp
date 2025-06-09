@@ -12,16 +12,27 @@ namespace fc
       class exception_impl
       {
          public:
+            exception_impl(std::string_view name_value,
+                        std::string_view what_value,
+                        int64_t code,
+                        log_messages msgs)
+            : _name(name_value)
+            , _what(what_value)
+            , _code(code)
+            , _elog(std::move(msgs))
+            {}
+
             std::string     _name;
             std::string     _what;
             int64_t         _code;
             log_messages    _elog;
       };
    }
-   exception::exception( log_messages&& msgs, int64_t code,
+   exception::exception( log_messages&& msgs,
+                         int64_t code,
                          std::string_view name_value,
                          std::string_view what_value )
-   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, std::move(msgs)} )
+   :my( new detail::exception_impl{name_value, what_value, code, std::move(msgs)} )
    {
    }
 
@@ -30,7 +41,7 @@ namespace fc
       int64_t code,
       std::string_view name_value,
       std::string_view what_value )
-   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, msgs} )
+   :my( new detail::exception_impl{name_value, what_value, code, msgs} )
    {
    }
 
@@ -59,7 +70,7 @@ namespace fc
    exception::exception( int64_t code,
                          std::string_view name_value,
                          std::string_view what_value )
-   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, {}} )
+   :my( new detail::exception_impl{name_value, what_value, code, {}} )
    {
    }
 
@@ -67,7 +78,7 @@ namespace fc
                          int64_t code,
                          std::string_view name_value,
                          std::string_view what_value )
-   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, {std::move(msg)}} )
+   :my( new detail::exception_impl{name_value, what_value, code, {std::move(msg)}} )
    {
    }
    exception::exception( const exception& c )
