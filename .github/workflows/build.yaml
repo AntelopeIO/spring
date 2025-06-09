@@ -158,7 +158,7 @@ jobs:
           chown -R $(id -u):$(id -g) $PWD
           zstdcat build.tar.zst | tar x
           cd build
-          ctest --output-on-failure -j $(nproc) -LE "(nonparallelizable_tests|long_running_tests)" ${IS_SAN:+-E 'eos-vm$'} --timeout 480
+          ctest --output-on-failure --extra-verbose -j $(nproc) -LE "(nonparallelizable_tests|long_running_tests)" ${IS_SAN:+-E 'eos-vm$'} --timeout 480
       - name: Upload core files from failed tests
         uses: actions/upload-artifact@v4
         if: failure()
