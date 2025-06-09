@@ -19,27 +19,19 @@ namespace fc
       };
    }
    exception::exception( log_messages&& msgs, int64_t code,
-                         std::string name_value,
-                         std::string what_value )
-   :my( new detail::exception_impl() )
+                         std::string_view name_value,
+                         std::string_view what_value )
+   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, std::move(msgs)} )
    {
-      my->_code = code;
-      my->_what = std::move(what_value);
-      my->_name = std::move(name_value);
-      my->_elog = std::move(msgs);
    }
 
    exception::exception(
       const log_messages& msgs,
       int64_t code,
-      std::string name_value,
-      std::string what_value )
-   :my( new detail::exception_impl() )
+      std::string_view name_value,
+      std::string_view what_value )
+   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, msgs} )
    {
-      my->_code = code;
-      my->_what = std::move(what_value);
-      my->_name = std::move(name_value);
-      my->_elog = msgs;
    }
 
    unhandled_exception::unhandled_exception( log_message&& m, std::exception_ptr e )
@@ -65,31 +57,23 @@ namespace fc
    }
 
    exception::exception( int64_t code,
-                         std::string name_value,
-                         std::string what_value )
-   :my( new detail::exception_impl() )
+                         std::string_view name_value,
+                         std::string_view what_value )
+   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, {}} )
    {
-      my->_code = code;
-      my->_what = std::move(what_value);
-      my->_name = std::move(name_value);
    }
 
    exception::exception( log_message&& msg,
                          int64_t code,
-                         std::string name_value,
-                         std::string what_value )
-   :my( new detail::exception_impl() )
+                         std::string_view name_value,
+                         std::string_view what_value )
+   :my( new detail::exception_impl{std::string{name_value}, std::string{what_value}, code, {std::move(msg)}} )
    {
-      my->_code = code;
-      my->_what = std::move(what_value);
-      my->_name = std::move(name_value);
-      my->_elog.push_back( std::move( msg ) );
    }
    exception::exception( const exception& c )
    :my( new detail::exception_impl(*c.my) )
    { }
-   exception::exception( exception&& c ) noexcept
-   :my( std::move(c.my) ){}
+   exception::exception( exception&& c ) noexcept = default;
 
    const char*  exception::name()const throw() { return my->_name.c_str(); }
    const char*  exception::what()const noexcept { return my->_what.c_str(); }

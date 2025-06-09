@@ -65,18 +65,18 @@ namespace fc
          };
 
          explicit exception( int64_t code = unspecified_exception_code,
-                             std::string name_value = "exception",
-                             std::string what_value = "unspecified");
+                             std::string_view name_value = "exception",
+                             std::string_view what_value = "unspecified");
          exception( log_message&&, int64_t code = unspecified_exception_code,
-                    std::string name_value = "exception",
-                    std::string what_value = "unspecified");
+                    std::string_view name_value = "exception",
+                    std::string_view what_value = "unspecified");
          exception( log_messages&&, int64_t code = unspecified_exception_code,
-                    std::string name_value = "exception",
-                    std::string what_value = "unspecified");
+                    std::string_view name_value = "exception",
+                    std::string_view what_value = "unspecified");
          exception( const log_messages&,
                     int64_t code = unspecified_exception_code,
-                    std::string name_value = "exception",
-                    std::string what_value = "unspecified");
+                    std::string_view name_value = "exception",
+                    std::string_view what_value = "unspecified");
          exception( const exception& e );
          exception( exception&& e ) noexcept;
          virtual ~exception();
