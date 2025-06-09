@@ -34,23 +34,28 @@ struct acct_code {
 };
 
 // The first account in accounts vector must be the caller initiating a sync call
-struct call_tester: validating_tester {
+struct call_tester {
    call_tester(const std::vector<acct_code>& accounts) {
       for (auto i = 0u; i < accounts.size(); ++i) {
-         create_account(accounts[i].name);
-         set_code(accounts[i].name, accounts[i].wast);
+         chain.create_account(accounts[i].name);
+         chain.set_code(accounts[i].name, accounts[i].wast);
 
          if (i == 0) {
-            set_abi(accounts[i].name, doit_abi);
+            chain.set_abi(accounts[i].name, doit_abi);
          }
       }
 
-      validating_tester::produce_block();  // explicitly call to validating_tester's virtual method
+      chain.produce_block();  // explicitly call to validating_tester's virtual method
    }
 
-   signed_block_ptr produce_block() {
-      return validating_tester::produce_block();
+   transaction_trace_ptr push_action(const account_name& code,
+                                     const action_name& acttype,
+                                     const account_name& actor,
+                                     const variant_object& data) {
+      return chain.push_action(code, acttype, actor, data);
    }
+
+   validating_tester chain;
 };
 
 BOOST_AUTO_TEST_SUITE(sync_call_wasm_tests)
@@ -2058,7 +2063,7 @@ BOOST_AUTO_TEST_CASE(read_only_general_test)  { try {
    // Add privilege to callee account so we can test read-only check on privileged api
    t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
                  mvo()("account", "callee"_n)("is_priv", 1));
-   t.produce_block();
+   t.chain.produce_block();
 
    // Goes over each of the state modified functions
    for (auto i = 0; i < 27; ++i) {
@@ -2161,12 +2166,12 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
    // Use signed_transaction so we can pass in `no_throw` to return trace
    signed_transaction trx;
    trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
-   t.set_transaction_headers(trx);
-   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
-   auto trx_trace = t.push_transaction(trx,
-                                       fc::time_point::maximum(),
-                                       validating_tester::DEFAULT_BILLED_CPU_TIME_US,
-                                       true // `true` is for no_throw so that tester returns trace without throwing
+   t.chain.set_transaction_headers(trx);
+   trx.sign(t.chain.get_private_key("caller"_n, "active"), t.chain.get_chain_id());
+   auto trx_trace = t.chain.push_transaction(trx,
+                                             fc::time_point::maximum(),
+                                             validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+                                             true // `true` is for no_throw so that tester returns trace without throwing
                                       );
 
    auto& action_trace = trx_trace->action_traces;
@@ -2201,18 +2206,18 @@ BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
    act.account = "caller"_n;
    act.name    = "doit"_n;
    trx.actions.push_back(act);
-   t.set_transaction_headers(trx);
+   t.chain.set_transaction_headers(trx);
 
    BOOST_CHECK_EXCEPTION(
-      t.push_transaction(trx,
-                         fc::time_point::maximum(),
-                         validating_tester::DEFAULT_BILLED_CPU_TIME_US,
-                         false,
-                         transaction_metadata::trx_type::read_only),
+      t.chain.push_transaction(trx,
+                               fc::time_point::maximum(),
+                               validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+                               false,
+                               transaction_metadata::trx_type::read_only),
       unaccessible_api,
       fc_exception_message_contains("this API is not allowed in read only action/call"));
 
-   auto trx_trace = t.push_transaction(
+   auto trx_trace = t.chain.push_transaction(
       trx,
       fc::time_point::maximum(),
       validating_tester::DEFAULT_BILLED_CPU_TIME_US,
