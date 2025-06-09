@@ -89,8 +89,7 @@ namespace fc {
          line += std::string_view{str.data(), s};
       } else {
          line += str;
-         for (size_t i = 0; i < s - str.size(); ++i)
-            line += ' ';
+         line.append(s - str.size(), ' ');
       }
    }
 
