@@ -9,7 +9,8 @@ From packed HEX to json form
 ## Options
 
 - `-h,--help` - Print this help message and exit
-- `--type` - Type of the HEX data, if not specified then every type is attempted.
+- `--type` - Type of the HEX data, if not specified then some common types are attempted.
+- `--abi-file` - The abi file that contains --type for unpacking
 
 ## Usage
 
