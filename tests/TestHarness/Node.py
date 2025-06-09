@@ -244,8 +244,6 @@ class Node(Transactions):
         return True
 
     def waitForAnyProducer(self, producers, timeout=None, exitOnError=False):
-        if not isinstance(producers, list):
-            producers = [producers] # ensure producers is always a list
         if timeout is None:
             # default to the typical configuration of 21 producers, each producing 12 blocks in a row (every 1/2 second)
             timeout = 21 * 6
@@ -260,7 +258,7 @@ class Node(Transactions):
         return found
 
     def waitForProducer(self, producer, timeout=None, exitOnError=False):
-        return self.waitForAnyProducer(producer, timeout, exitOnError)
+        return self.waitForAnyProducer([producer], timeout, exitOnError)
 
     # returns True if the node has missed next scheduled production round.
     def missedNextProductionRound(self):

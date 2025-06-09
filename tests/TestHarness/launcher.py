@@ -283,9 +283,7 @@ class cluster_generator:
         non_bios = self.args.pnodes - 1
 
         # generate all defproducer names upfront
-        def_producers_names = []
-        for i in range(self.args.producers):
-            def_producers_names.append(producer_name(i))
+        def_producers_names = [producer_name(i) for i in range(self.args.producers)]
 
         node_count = 0
         to_not_start_node = self.args.total_nodes - self.args.unstarted_nodes - 1
