@@ -164,8 +164,8 @@ try:
 
     # ***   setup topogrophy   ***
 
-    # "bridge" bridge_consecutive_shape.json shape connects defproducera through defproducerk (in node0) to each other
-    # and defproducerl through defproduceru (in node01)
+    # bridge_consecutive_shape.json shape connects defproducera through defproducerk (consecutive in node0) to each other
+    # and defproducerl through defproduceru (consecutive in node01)
     # and the only connection between those 2 groups is through the bridge node
 
     if cluster.launch(prodCount=prodCount, topo="./tests/bridge_consecutive_shape.json", pnodes=totalProducerNodes,

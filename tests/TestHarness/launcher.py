@@ -283,11 +283,9 @@ class cluster_generator:
         non_bios = self.args.pnodes - 1
 
         # generate all defproducer names upfront
-        def_producers_names = []
-        for i in range(self.args.producers):
-            def_producers_names.append(producer_name(i))
+        def_producers_names = [producer_name(i) for i in range(self.args.producers)]
 
-        i = 0
+        node_count = 0
         to_not_start_node = self.args.total_nodes - self.args.unstarted_nodes - 1
         accounts = createAccountKeys(len(self.network.nodes.values()))
         for account, node in zip(accounts, self.network.nodes.values()):
@@ -301,13 +299,13 @@ class cluster_generator:
                 node.producers.append('eosio')
             else:
                 node.keys.append(KeyStrings(account.ownerPublicKey, account.ownerPrivateKey, account.blsFinalizerPublicKey, account.blsFinalizerPrivateKey, account.blsFinalizerPOP))
-                if i < non_bios:
+                if node_count < non_bios:
                     # calculate number of defproducers this producer node gets
                     count = self.args.producers // non_bios
-                    if i < (self.args.producers % non_bios):
+                    if node_count < (self.args.producers % non_bios):
                         count += 1
                     # assign non-consecutive producers
-                    producer_idx_for_node = i
+                    producer_idx_for_node = node_count
                     producers_assigned_to_node = 0
                     while producers_assigned_to_node < count:
                         if producer_idx_for_node < len(def_producers_names):
@@ -320,9 +318,9 @@ class cluster_generator:
                     for j in range(0, self.args.shared_producers):
                         prodname = producer_name(j, True)
                         node.producers.append(prodname)
-                node.dont_start = i >= to_not_start_node
+                node.dont_start = node_count >= to_not_start_node
             if not is_bios:
-                i += 1
+                node_count += 1
 
     def generate(self):
         {

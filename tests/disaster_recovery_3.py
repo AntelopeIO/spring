@@ -83,7 +83,7 @@ try:
     assert node0.waitForProducer("defproducera"), "Node 0 did not produce"
     for node in [node0, node1]:
         node.processUrllibRequest("producer", "pause", exitOnError=True)
-    time.sleep(0.5)
+    node0.waitForLibNotToAdvance()
 
     currentLIB = node0.getIrreversibleBlockNum()
     n_LIB = currentLIB + 1

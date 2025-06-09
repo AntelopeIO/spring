@@ -175,7 +175,8 @@ class Cluster(object):
         unstartedNodes: non-producer nodes that are configured into the launch, but not started.  Should be included in totalNodes.
         totalNodes: producer + non-producer nodes + unstarted non-producer nodes count
         prodCount: producers per producer node count
-        topo: cluster topology (as defined by launcher, and "bridge" shape that is specific to this launch method)
+        topo: cluster topology (as defined by launcher, and "bridge" shape that is specific to this launch method).
+              bridge configures producers non-consecutive in nodes.
         delay: delay between individual nodes launch (as defined by launcher)
           delay 0 exposes a bootstrap bug where producer handover may have a large gap confusing nodes and bringing system to a halt.
         onlyBios: When true, only loads the bios contract (and not more full bootstrapping).
