@@ -34,7 +34,7 @@ struct acct_code {
 };
 
 // The first account in accounts vector must be the caller initiating a sync call
-struct call_tester: tester {
+struct call_tester: validating_tester {
    call_tester(const std::vector<acct_code>& accounts) {
       for (auto i = 0u; i < accounts.size(); ++i) {
          create_account(accounts[i].name);
@@ -45,7 +45,11 @@ struct call_tester: tester {
          }
       }
 
-      produce_block();
+      validating_tester::produce_block();  // explicitly call to validating_tester's virtual method
+   }
+
+   signed_block_ptr produce_block() {
+      return validating_tester::produce_block();
    }
 };
 
@@ -682,6 +686,8 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    t.create_account(callee);
    t.set_code(callee, basic_params_return_value_callee_wast);
 
+   t.produce_block();
+
    // double 0
    auto trx_trace = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "0"));
    auto &atrace   = trx_trace->action_traces;
@@ -742,6 +748,8 @@ BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    const auto& callee = account_name("callee");
    t.create_account(callee);
    t.set_code(callee, get_call_data_less_memory_wast);
+
+   t.produce_block();
 
    BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
 } FC_LOG_AND_RETHROW() }
