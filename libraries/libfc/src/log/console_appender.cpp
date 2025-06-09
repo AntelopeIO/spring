@@ -82,15 +82,10 @@ namespace fc {
       }
    }
 
-   void append_fixed_size( std::string& line, size_t s, const std::string& str ) {
-      if( str.size() == s ) {
-         line += str;
-      } else if( str.size() > s ) {
-         line += std::string_view{str.data(), s};
-      } else {
-         line += str;
+   void append_fixed_size( std::string& line, size_t s, std::string_view str ) {
+      line += str.substr(0, std::min(s, str.size()));
+      if (s > str.size())
          line.append(s - str.size(), ' ');
-      }
    }
 
    void console_appender::log( const log_message& m ) {
@@ -123,15 +118,12 @@ namespace fc {
       append_fixed_size(line, 9, context.get_thread_name() ); line += ' ';
       append_fixed_size(line, 29, file_line ); line += ' ';
 
-      auto me = context.get_method();
+      std::string method = context.get_method();
+      std::string_view me = method;
       // strip all leading scopes...
-      if( me.size() ) {
-         uint32_t p = 0;
-         for( uint32_t i = 0;i < me.size(); ++i ) {
-             if( me[i] == ':' ) p = i;
-         }
-
-         if( me[p] == ':' ) ++p;
+      if( !me.empty() ) {
+         auto c = me.find_last_of( ':' );
+         std::string::size_type p = c != std::string::npos ? ++c : 0;
          append_fixed_size(line, 20, me.substr( p, 20 ) ); line += ' ';
       }
       line += "] ";
