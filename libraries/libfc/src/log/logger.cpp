@@ -11,11 +11,10 @@ namespace fc {
     class logger::impl {
       public:
          impl()
-         :_parent(nullptr),_enabled(true),_additivity(false),_level(log_level::warn){}
+         :_parent(nullptr),_enabled(true),_level(log_level::warn){}
          std::string      _name;
          logger           _parent;
          bool             _enabled;
-         bool             _additivity;
          log_level        _level;
 
          std::vector<appender::ptr> _appenders;
@@ -54,27 +53,33 @@ namespace fc {
     bool operator==( const logger& l, std::nullptr_t ) { return !l.my; }
     bool operator!=( const logger& l, std::nullptr_t ) { return !!l.my;  }
 
+    void logger::set_enabled( bool e ) {
+       my->_enabled = e;
+    }
+    bool logger::is_enabled()const {
+       return my->_enabled;
+    }
     bool logger::is_enabled( log_level e )const {
-       return e >= my->_level;
+       return my->_enabled && e >= my->_level;
     }
 
     void logger::log( log_message m ) {
        std::unique_lock g( log_config::get().log_mutex );
        m.get_context().append_context( my->_name );
 
-       for( auto itr = my->_appenders.begin(); itr != my->_appenders.end(); ++itr ) {
-          try {
-             (*itr)->log( m );
-          } catch( fc::exception& er ) {
-             std::cerr << "ERROR: logger::log fc::exception: " << er.to_detail_string() << std::endl;
-          } catch( const std::exception& e ) {
-             std::cerr << "ERROR: logger::log std::exception: " << e.what() << std::endl;
-          } catch( ... ) {
-             std::cerr << "ERROR: logger::log unknown exception: " << std::endl;
+       if (!my->_appenders.empty()) {
+          for( auto itr = my->_appenders.begin(); itr != my->_appenders.end(); ++itr ) {
+             try {
+                (*itr)->log( m );
+             } catch( fc::exception& er ) {
+                std::cerr << "ERROR: logger::log fc::exception: " << er.to_detail_string() << std::endl;
+             } catch( const std::exception& e ) {
+                std::cerr << "ERROR: logger::log std::exception: " << e.what() << std::endl;
+             } catch( ... ) {
+                std::cerr << "ERROR: logger::log unknown exception: " << std::endl;
+             }
           }
-       }
-
-       if( my->_additivity && my->_parent != nullptr) {
+       } else if (my->_parent != nullptr) {
           logger parent = my->_parent;
           g.unlock();
           parent.log( m );
