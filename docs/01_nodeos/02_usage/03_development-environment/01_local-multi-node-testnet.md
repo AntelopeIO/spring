@@ -75,7 +75,7 @@ cleos --wallet-url http://127.0.0.1:8899 wallet import --private-key 5KQwrPbwdL6
 ```
 
 ```console
-imported private key for: EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
+imported private key for: PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63
 ```
 
 ### 4. Start the First Producer Node
@@ -114,7 +114,7 @@ This will report newly generated public and private keypairs that will look simi
 
 ```console
 Private key: 5JgbL2ZnoEAhTudReWH1RnMuQS6DBeLZt4ucV6t8aymVEuYg7sr
-Public key: EOS6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyV5sDEg
+Public key: PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyXTDxc8
 ```
 
 Now import the private key portion into your wallet. If successful, the matching public key will be reported. This should match the previously generated public key:
@@ -124,18 +124,18 @@ cleos --wallet-url http://127.0.0.1:8899 wallet import 5JgbL2ZnoEAhTudReWH1RnMuQ
 ```
 
 ```console
-imported private key for: EOS6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyV5sDEg
+imported private key for: PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyXTDxc8
 ```
 
 Create the `inita` account that we will use to become a producer. The `create account` command requires two public keys, one for the account's owner key and one for its active key.  In this example, the newly created public key is used twice, as both the owner key and the active key. Example output from the create command is shown:
 
 ```sh
-cleos --wallet-url http://127.0.0.1:8899 create account eosio inita EOS6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyV5sDEg EOS6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyV5sDEg
+cleos --wallet-url http://127.0.0.1:8899 create account eosio inita PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyXTDxc8 PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyXTDxc8
 ```
 
 ```console
 executed transaction: d1ea511977803d2d88f46deb554f5b6cce355b9cc3174bec0da45fc16fe9d5f3  352 bytes  102400 cycles
-#         eosio <= eosio::newaccount            {"creator":"eosio","name":"inita","owner":{"threshold":1,"keys":[{"key":"EOS6hMjoWRF2L8x9YpeqtUEcsDK...
+#         eosio <= eosio::newaccount            {"creator":"eosio","name":"inita","owner":{"threshold":1,"keys":[{"key":"PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDK...
 ```
 
 We now have an account that is available to have a contract assigned to it, enabling it to do meaningful work. In other tutorials, the account has been used to establish simple contracts. In this case, the account will be designated as a block producer.
@@ -143,7 +143,7 @@ We now have an account that is available to have a contract assigned to it, enab
 In the fourth terminal window, start a second `nodeos` instance. Notice that this command line is substantially longer than the one we used above to create the first producer. This is necessary to avoid collisions with the first `nodeos` instance. Fortunately, you can just cut and paste this command line and adjust the keys:
 
 ```sh
-nodeos --producer-name inita --plugin eosio::chain_api_plugin --plugin eosio::net_api_plugin --http-server-address 127.0.0.1:8889 --p2p-listen-endpoint 127.0.0.1:9877 --p2p-peer-address 127.0.0.1:9876 --config-dir node2 --data-dir node2 --signature-provider EOS6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyV5sDEg=KEY:5JgbL2ZnoEAhTudReWH1RnMuQS6DBeLZt4ucV6t8aymVEuYg7sr
+nodeos --producer-name inita --plugin eosio::chain_api_plugin --plugin eosio::net_api_plugin --http-server-address 127.0.0.1:8889 --p2p-listen-endpoint 127.0.0.1:9877 --p2p-peer-address 127.0.0.1:9876 --config-dir node2 --data-dir node2 --signature-provider PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyXTDxc8=KEY:5JgbL2ZnoEAhTudReWH1RnMuQS6DBeLZt4ucV6t8aymVEuYg7sr
 ```
 
 The output from this new node will show a little activity but will stop reporting until the last step in this tutorial, when the `inita` account is registered as a producer account and activated. Here is some example output from a newly started node. Your output might look a little different, depending on how much time you took entering each of these commands. Furthermore, this example is only the last few lines of output:
@@ -163,12 +163,12 @@ The output from this new node will show a little activity but will stop reportin
 At this point, the second `nodeos` is an idle producer. To turn it into an active producer, `inita` needs to be registered as a producer with the bios node, and the bios node needs to perform an action to update the producer schedule.
 
 ```sh
-cleos --wallet-url http://127.0.0.1:8899 push action eosio setprods "{ \"schedule\": [{\"producer_name\": \"inita\",\"block_signing_key\": \"EOS6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyV5sDEg\"}]}" -p eosio@active
+cleos --wallet-url http://127.0.0.1:8899 push action eosio setprods "{ \"schedule\": [{\"producer_name\": \"inita\",\"block_signing_key\": \"PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKAyxSuM1APicxgRU1E3oyXTDxc8\"}]}" -p eosio@active
 ```
 
 ```console
 executed transaction: 2cff4d96814752aefaf9908a7650e867dab74af02253ae7d34672abb9c58235a  272 bytes  105472 cycles
-#         eosio <= eosio::setprods              {"version":1,"producers":[{"producer_name":"inita","block_signing_key":"EOS6hMjoWRF2L8x9YpeqtUEcsDKA...
+#         eosio <= eosio::setprods              {"version":1,"producers":[{"producer_name":"inita","block_signing_key":"PUB_K1_6hMjoWRF2L8x9YpeqtUEcsDKA...
 ```
 
 Congratulations, you have now configured a two-node testnet! You can see that the original node is no longer producing blocks but it is receiving them. You can verify this by running the `get info` commmand against each node.
