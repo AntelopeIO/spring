@@ -50,7 +50,7 @@ struct call_tester : validating_tester {
       // We need to call produce_block() at least once such that validating
       // node and original node are synched. But produce_block() is a virtual
       // method. It cannot be in a constructor. That's why we introduce `init()`.
-      produce_block();
+      static_cast<validating_tester&>(*this).produce_block();
    }
 };
 
