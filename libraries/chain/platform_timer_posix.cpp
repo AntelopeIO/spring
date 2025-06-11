@@ -5,6 +5,8 @@
 #include <fc/fwd_impl.hpp>
 #include <fc/exception/exception.hpp>
 
+#include <boost/core/yield_primitives.hpp>
+
 #include <atomic>
 #include <mutex>
 
@@ -26,6 +28,7 @@ struct platform_timer::impl {
 };
 
 platform_timer::platform_timer() {
+   static_assert(std::atomic<timer_state_t>::is_always_lock_free, "Only lock-free atomics AS-safe.");
    static_assert(sizeof(impl) <= fwd_size);
 
    static bool initialized;
@@ -55,45 +58,51 @@ platform_timer::~platform_timer() {
 }
 
 void platform_timer::start(fc::time_point tp) {
-   assert(_state == state_t::stopped);
+   assert(timer_state() == state_t::stopped);
    timer_running_forever = tp == fc::time_point::maximum();
    if(timer_running_forever) {
-      _state = state_t::running;
+      _state.store(timer_state_t{.state = state_t::running, .callback_in_flight = false});
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
-   if(x.count() <= 0)
-      _state = state_t::timed_out;
-   else {
+   if(x.count() <= 0) {
+      _state.store(timer_state_t{.state = state_t::timed_out, .callback_in_flight = false});
+   } else {
       time_t secs = x.count() / 1000000;
       long nsec = (x.count() - (secs*1000000)) * 1000;
       struct itimerspec enable = {{0, 0}, {secs, nsec}};
-      _state = state_t::running;
-      if(timer_settime(my->timerid, 0, &enable, NULL) != 0)
-         _state = state_t::timed_out;
+      _state.store(timer_state_t{.state = state_t::running, .callback_in_flight = false});
+      if(timer_settime(my->timerid, 0, &enable, NULL) != 0) {
+         _state.store(timer_state_t{.state = state_t::timed_out, .callback_in_flight = false});
+      }
    }
 }
 
 void platform_timer::expire_now() {
-   state_t expected = state_t::running;
-   if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
+   timer_state_t expected{.state = state_t::running, .callback_in_flight = false};
+   if (_state.compare_exchange_strong(expected, timer_state_t{state_t::timed_out, true})) {
       call_expiration_callback();
+      _state.store(timer_state_t{state_t::timed_out, false});
    }
 }
 
 void platform_timer::interrupt_timer() {
-   state_t expected = state_t::running;
-   if (_state.compare_exchange_strong(expected, state_t::interrupted)) {
+   timer_state_t expected{.state = state_t::running, .callback_in_flight = false};
+   if (_state.compare_exchange_strong(expected, timer_state_t{state_t::interrupted, true})) {
       call_expiration_callback();
+      _state.store(timer_state_t{state_t::interrupted, false});
    }
 }
 
 void platform_timer::stop() {
-   const state_t prior_state = _state;
-   if(prior_state == state_t::stopped)
+   while (_state.load().callback_in_flight)
+      boost::core::sp_thread_pause();
+
+   const timer_state_t prior_state = _state.load();
+   if(prior_state.state == state_t::stopped)
       return;
-   _state = state_t::stopped;
-   if(prior_state == state_t::timed_out || timer_running_forever)
+   _state.store(timer_state_t{.state = state_t::stopped, .callback_in_flight = false});
+   if(prior_state.state == state_t::timed_out || timer_running_forever)
       return;
    struct itimerspec disable = {{0, 0}, {0, 0}};
    timer_settime(my->timerid, 0, &disable, NULL);
