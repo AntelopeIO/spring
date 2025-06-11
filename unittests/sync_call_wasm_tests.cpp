@@ -34,28 +34,22 @@ struct acct_code {
 };
 
 // The first account in accounts vector must be the caller initiating a sync call
-struct call_tester {
-   call_tester(const std::vector<acct_code>& accounts) {
+struct call_tester : validating_tester {
+   void init(const std::vector<acct_code>& accounts) {
       for (auto i = 0u; i < accounts.size(); ++i) {
-         chain.create_account(accounts[i].name);
-         chain.set_code(accounts[i].name, accounts[i].wast);
+         create_account(accounts[i].name);
+         set_code(accounts[i].name, accounts[i].wast);
 
          if (i == 0) {
-            chain.set_abi(accounts[i].name, doit_abi);
+            set_abi(accounts[i].name, doit_abi);
          }
       }
 
-      chain.produce_block();  // explicitly call to validating_tester's virtual method
+      // We need to call produce_block() at least once such that validating
+      // node and original node are synched. But produce_block() is a virtual
+      // method. It cannot be in a constructor. That's why we introduce `init()`.
+      produce_block();
    }
-
-   transaction_trace_ptr push_action(const account_name& code,
-                                     const action_name& acttype,
-                                     const account_name& actor,
-                                     const variant_object& data) {
-      return chain.push_action(code, acttype, actor, data);
-   }
-
-   validating_tester chain;
 };
 
 BOOST_AUTO_TEST_SUITE(sync_call_wasm_tests)
@@ -603,7 +597,8 @@ static const char receiver_account_not_deployed_caller_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(receiver_account_not_deployed_caller_test)  { try {
    // receiver_account_not_deployed_caller_wast calls "callee"_n account,
    // which is not deployed in the test (we only deployed the caller contract).
-   call_tester t({ {"caller"_n, receiver_account_not_deployed_caller_wast} });
+   call_tester t;
+   t.init({ {"caller"_n, receiver_account_not_deployed_caller_wast} });
 
    // receiver_account_not_deployed_caller_wast will throw if the return
    // status is not -1
@@ -923,8 +918,9 @@ static const char return_value_before_eosio_exit_callee_wast[] = R"=====(
 
 // Verify return value is kept if it is set before eosio_exit
 BOOST_AUTO_TEST_CASE(return_value_before_eosio_exit_test) { try {
-   call_tester t({ {"caller"_n, return_value_before_eosio_exit_caller_wast},
-                   {"callee"_n, return_value_before_eosio_exit_callee_wast} });
+   call_tester t;
+   t.init({ {"caller"_n, return_value_before_eosio_exit_caller_wast},
+            {"callee"_n, return_value_before_eosio_exit_callee_wast} });
 
    auto trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
    auto &atrace   = trx_trace->action_traces;
@@ -1183,8 +1179,9 @@ static const char entry_point_num_parms_mismatched_wast[] = R"=====(
 
 // Verify sync call return -2 if sync call entry point signature is invalid
 BOOST_AUTO_TEST_CASE(entry_point_num_parms_mismatched_test)  { try {
-   call_tester t({ {"caller"_n, entry_point_validation_caller_wast},
-                   {"callee"_n, entry_point_num_parms_mismatched_wast} });
+   call_tester t;
+   t.init({ {"caller"_n, entry_point_validation_caller_wast},
+            {"callee"_n, entry_point_num_parms_mismatched_wast} });
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -2
 } FC_LOG_AND_RETHROW() }
@@ -1308,8 +1305,9 @@ static const char check_entry_point_valid_error_code_callee_wast[] = R"=====(
 
 // Verify valid return value from sync call entry point is passed to host function call()
 BOOST_AUTO_TEST_CASE(check_entry_point_valid_error_code_callee_test)  { try {
-   call_tester t({ {"caller"_n, check_entry_point_valid_error_code_caller_wast},
-                   {"callee"_n, check_entry_point_valid_error_code_callee_wast} });
+   call_tester t;
+   t.init({ {"caller"_n, check_entry_point_valid_error_code_caller_wast},
+            {"callee"_n, check_entry_point_valid_error_code_callee_wast} });
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
@@ -1354,8 +1352,9 @@ static const char check_entry_point_invalid_error_code_callee_wast[] = R"=====(
 
 // Verify invalid return value from sync call entry point is converted to -3
 BOOST_AUTO_TEST_CASE(check_entry_point_invalid_error_code_callee_test)  { try {
-   call_tester t({ {"caller"_n, check_entry_point_invalid_error_code_caller_wast},
-                   {"callee"_n, check_entry_point_invalid_error_code_callee_wast} });
+   call_tester t;
+   t.init({ {"caller"_n, check_entry_point_invalid_error_code_caller_wast},
+            {"callee"_n, check_entry_point_invalid_error_code_callee_wast} });
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
@@ -2057,13 +2056,14 @@ static const char read_only_general_callee_wast[] = R"=====(
 // Verify when `read_only` flag is set in the flags parameter of a sync call,
 // an EOS_ASSERT is raised for each state modified host function
 BOOST_AUTO_TEST_CASE(read_only_general_test)  { try {
-   call_tester t({{"caller"_n, read_only_general_caller_wast},
-                  {"callee"_n, read_only_general_callee_wast}});
+   call_tester t;
+   t.init({{"caller"_n, read_only_general_caller_wast},
+           {"callee"_n, read_only_general_callee_wast}});
 
    // Add privilege to callee account so we can test read-only check on privileged api
    t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
                  mvo()("account", "callee"_n)("is_priv", 1));
-   t.chain.produce_block();
+   t.produce_block();
 
    // Goes over each of the state modified functions
    for (auto i = 0; i < 27; ++i) {
@@ -2151,10 +2151,11 @@ static const char read_only_pass_along_callee2_wast[] = R"=====(
 // In this test, first call has read_only flag set, the second and third do not.
 // But the call traces shoud show all the calls are read only.
 BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
-   call_tester t({ {"caller"_n,  read_only_pass_along_caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast},
-                   {"callee2"_n, read_only_pass_along_callee2_wast} });
+   call_tester t;
+   t.init({ {"caller"_n,  read_only_pass_along_caller_wast},
+            {"callee"_n,  read_only_pass_along_callee_wast},
+            {"callee1"_n, read_only_pass_along_callee1_wast},
+            {"callee2"_n, read_only_pass_along_callee2_wast} });
 
    // First verify db_store_i64 is disaalowed
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
@@ -2166,12 +2167,12 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
    // Use signed_transaction so we can pass in `no_throw` to return trace
    signed_transaction trx;
    trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
-   t.chain.set_transaction_headers(trx);
-   trx.sign(t.chain.get_private_key("caller"_n, "active"), t.chain.get_chain_id());
-   auto trx_trace = t.chain.push_transaction(trx,
-                                             fc::time_point::maximum(),
-                                             validating_tester::DEFAULT_BILLED_CPU_TIME_US,
-                                             true // `true` is for no_throw so that tester returns trace without throwing
+   t.set_transaction_headers(trx);
+   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
+   auto trx_trace = t.push_transaction(trx,
+                                       fc::time_point::maximum(),
+                                       validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+                                       true // `true` is for no_throw so that tester returns trace without throwing
                                       );
 
    auto& action_trace = trx_trace->action_traces;
@@ -2195,10 +2196,11 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
 // call flags do not have read_only set.
 // Also verify the read_only value in the call trace is true.
 BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
-   call_tester t({ {"caller"_n,  caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast},
-                   {"callee2"_n, read_only_pass_along_callee2_wast} });
+   call_tester t;
+   t.init({ {"caller"_n,  caller_wast},
+            {"callee"_n,  read_only_pass_along_callee_wast},
+            {"callee1"_n, read_only_pass_along_callee1_wast},
+            {"callee2"_n, read_only_pass_along_callee2_wast} });
 
    // Construct a read_only transaction
    action act;
@@ -2206,18 +2208,18 @@ BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
    act.account = "caller"_n;
    act.name    = "doit"_n;
    trx.actions.push_back(act);
-   t.chain.set_transaction_headers(trx);
+   t.set_transaction_headers(trx);
 
    BOOST_CHECK_EXCEPTION(
-      t.chain.push_transaction(trx,
-                               fc::time_point::maximum(),
-                               validating_tester::DEFAULT_BILLED_CPU_TIME_US,
-                               false,
-                               transaction_metadata::trx_type::read_only),
+      t.push_transaction(trx,
+                         fc::time_point::maximum(),
+                         validating_tester::DEFAULT_BILLED_CPU_TIME_US,
+                         false,
+                         transaction_metadata::trx_type::read_only),
       unaccessible_api,
       fc_exception_message_contains("this API is not allowed in read only action/call"));
 
-   auto trx_trace = t.chain.push_transaction(
+   auto trx_trace = t.push_transaction(
       trx,
       fc::time_point::maximum(),
       validating_tester::DEFAULT_BILLED_CPU_TIME_US,
