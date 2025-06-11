@@ -1,4 +1,3 @@
-#include <barrier>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
 
@@ -25,14 +24,14 @@ BOOST_AUTO_TEST_CASE(correct_num_callbacks_test)
       ++(*atom);
    }, &calls);
    std::mutex m;
-   std::barrier b(num_threads+1);
+   std::atomic<size_t> barrier(num_threads);
    for (size_t i = 0; i < num_threads; ++i) {
       boost::asio::post(pool.get_executor(), [&]() {
          lock_guard lock(m);
          t.start(fc::time_point::now() + fc::milliseconds(15));
          std::this_thread::sleep_for(std::chrono::milliseconds(50));
          t.stop();
-         b.arrive_and_drop();
+         --barrier;
       });
       if (i % 2 == 0) {
          boost::asio::post(pool.get_executor(), [&, i]() {
@@ -41,7 +40,12 @@ BOOST_AUTO_TEST_CASE(correct_num_callbacks_test)
          });
       }
    }
-   b.arrive_and_wait();
+   for (size_t i = 0; i < 5000; ++i) {
+      if (barrier == 0)
+         break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+   }
+   BOOST_TEST_REQUIRE(barrier == 0);
    pool.stop();
 
    BOOST_TEST(calls == num_threads);
@@ -69,9 +73,9 @@ BOOST_AUTO_TEST_CASE(correct_callback_test)
 
    platform_timer t;
    std::mutex m;
-   std::barrier b(num_threads*2+1);
+   std::atomic<size_t> barrier(num_threads*2);
    for (size_t i = 0; i < num_threads; ++i) {
-      boost::asio::post(pool.get_executor(), [i, &t, &m, &b]() {
+      boost::asio::post(pool.get_executor(), [i, &t, &m, &barrier]() {
          lock_guard lock(m);
          t.set_expiration_callback(nullptr, nullptr);
          t.set_expiration_callback([](void* a) {
@@ -80,15 +84,20 @@ BOOST_AUTO_TEST_CASE(correct_callback_test)
          t.start(fc::time_point::now() + fc::milliseconds(15));
          std::this_thread::sleep_for(std::chrono::milliseconds(50));
          t.stop();
-         b.arrive_and_drop();
+         --barrier;
       });
       boost::asio::post(interrupt_pool.get_executor(), [&, i]() {
          std::this_thread::sleep_for(std::chrono::milliseconds((i+1)*20));
          t.interrupt_timer();
-         b.arrive_and_drop();
+         --barrier;
       });
    }
-   b.arrive_and_wait();
+   for (size_t i = 0; i < 5000; ++i) {
+      if (barrier == 0)
+         break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+   }
+   BOOST_TEST_REQUIRE(barrier == 0);
    pool.stop();
 
    std::lock_guard lock(cc_mtx);
