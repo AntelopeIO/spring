@@ -7,6 +7,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <future>
+#include <list>
 #include <memory>
 #include <optional>
 #include <thread>
