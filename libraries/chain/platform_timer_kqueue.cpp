@@ -127,10 +127,15 @@ void platform_timer::interrupt_timer() {
 }
 
 void platform_timer::stop() {
-   while (_state.load().callback_in_flight)
+   // if still running, then interrupt so expire_now() and interrupt_timer() can't start a callback call
+   timer_state_t prior_state{.state = state_t::running, .callback_in_flight = false};
+   if (_state.compare_exchange_strong(prior_state, timer_state_t{state_t::interrupted, false})) {
+      prior_state = timer_state_t{state_t::interrupted, false};
+   }
+
+   for (; prior_state.callback_in_flight; prior_state = _state.load())
       boost::core::sp_thread_pause();
 
-   const timer_state_t prior_state = _state.load();
    if(prior_state.state == state_t::stopped)
       return;
    _state.store(timer_state_t{.state = state_t::stopped, .callback_in_flight = false});
