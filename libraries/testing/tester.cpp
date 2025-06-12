@@ -465,7 +465,7 @@ namespace eosio::testing {
    }
 
    void base_tester::apply_blocks() {
-      while (control->apply_blocks( {}, {} ) == controller::apply_blocks_result::incomplete)
+      while (control->apply_blocks( {}, {} ).status == controller::apply_blocks_result_t::status_t::incomplete)
          ;
    }
 

@@ -84,6 +84,7 @@ void platform_timer::expire_now() {
 void platform_timer::interrupt_timer() {
    state_t expected = state_t::running;
    if (_state.compare_exchange_strong(expected, state_t::interrupted)) {
+      dlog("interrupted timer");
       call_expiration_callback();
    }
 }
