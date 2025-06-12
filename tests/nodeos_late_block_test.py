@@ -69,8 +69,6 @@ try:
     Print("Wait until Node_03 starts to produce its second round ")
     node3.waitForProducer("defproducerk", exitOnError=True)
 
-    blockNum = node3.getHeadBlockNum()
-
     Print("Relaunch bridge to connection Node_02 and Node_03")
     node4.relaunch()
 
@@ -83,11 +81,13 @@ try:
     node3.waitForProducer("defproducera")
 
     # verify the LIB blocks of defproduceri made it into the canonical chain
+    # defproducerk has produced at least one block, but possibly more by time of relaunch, so verify only some of the round
     for i in range(9):
         defprod=node3.getBlockProducerByNum(iProdBlockNum + i)
         assert defprod == "defproduceri", f"expected defproduceri for block {iProdBlockNum + i}, instead: {defprod}"
 
     # verify that defproducerk blocks made it into the canonical chain as well
+    # It can take a while to resolve the fork, but should have at least one defproducerk block
     iProdBlockNum += 12 # into the next set of blocks
     found_defproducerk = False
     for i in range(12):
