@@ -1,14 +1,13 @@
+#include <sync_call_tester.hpp>
 #include <eosio/chain/config.hpp>
-#include <eosio/testing/tester.hpp>
 
 using namespace eosio::chain;
 using namespace eosio::testing;
 
 using mvo = fc::mutable_variant_object;
 
-
 // Generic ABI
-static const char* doit_abi = R"=====(
+static std::string doit_abi = R"=====(
 {
    "version": "eosio::abi/1.2",
    "types": [],
@@ -28,26 +27,7 @@ static const char* doit_abi = R"=====(
 }
 )=====";
 
-struct acct_code {
-   const        account_name name;
-   const char*  wast;
-};
-
-// The first account in accounts vector must be the caller initiating a sync call
-struct call_tester: validating_tester {
-   call_tester(const std::vector<acct_code>& accounts) {
-      for (auto i = 0u; i < accounts.size(); ++i) {
-         create_account(accounts[i].name);
-         set_code(accounts[i].name, accounts[i].wast);
-
-         if (i == 0) {
-            set_abi(accounts[i].name, doit_abi);
-         }
-      }
-   }
-};
-
-BOOST_AUTO_TEST_SUITE(sync_call_tests)
+BOOST_AUTO_TEST_SUITE(sync_call_wasm_tests)
 
 // A common helper function
 void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat, validating_tester& t) {
@@ -592,7 +572,7 @@ static const char receiver_account_not_deployed_caller_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(receiver_account_not_deployed_caller_test)  { try {
    // receiver_account_not_deployed_caller_wast calls "callee"_n account,
    // which is not deployed in the test (we only deployed the caller contract).
-   call_tester t({ {"caller"_n, receiver_account_not_deployed_caller_wast} });
+   call_tester t(std::vector<account_and_wast_code>{ {"caller"_n, receiver_account_not_deployed_caller_wast, doit_abi} });
 
    // receiver_account_not_deployed_caller_wast will throw if the return
    // status is not -1
@@ -680,6 +660,8 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    t.create_account(callee);
    t.set_code(callee, basic_params_return_value_callee_wast);
 
+   t.produce_block();
+
    // double 0
    auto trx_trace = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "0"));
    auto &atrace   = trx_trace->action_traces;
@@ -740,6 +722,8 @@ BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    const auto& callee = account_name("callee");
    t.create_account(callee);
    t.set_code(callee, get_call_data_less_memory_wast);
+
+   t.produce_block();
 
    BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
 } FC_LOG_AND_RETHROW() }
@@ -908,8 +892,9 @@ static const char return_value_before_eosio_exit_callee_wast[] = R"=====(
 
 // Verify return value is kept if it is set before eosio_exit
 BOOST_AUTO_TEST_CASE(return_value_before_eosio_exit_test) { try {
-   call_tester t({ {"caller"_n, return_value_before_eosio_exit_caller_wast},
-                   {"callee"_n, return_value_before_eosio_exit_callee_wast} });
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, return_value_before_eosio_exit_caller_wast, doit_abi},
+                    {"callee"_n, return_value_before_eosio_exit_callee_wast, {}}});
 
    auto trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
    auto &atrace   = trx_trace->action_traces;
@@ -1168,8 +1153,9 @@ static const char entry_point_num_parms_mismatched_wast[] = R"=====(
 
 // Verify sync call return -2 if sync call entry point signature is invalid
 BOOST_AUTO_TEST_CASE(entry_point_num_parms_mismatched_test)  { try {
-   call_tester t({ {"caller"_n, entry_point_validation_caller_wast},
-                   {"callee"_n, entry_point_num_parms_mismatched_wast} });
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, entry_point_validation_caller_wast, doit_abi},
+                    {"callee"_n, entry_point_num_parms_mismatched_wast, {}}});
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -2
 } FC_LOG_AND_RETHROW() }
@@ -1293,8 +1279,9 @@ static const char check_entry_point_valid_error_code_callee_wast[] = R"=====(
 
 // Verify valid return value from sync call entry point is passed to host function call()
 BOOST_AUTO_TEST_CASE(check_entry_point_valid_error_code_callee_test)  { try {
-   call_tester t({ {"caller"_n, check_entry_point_valid_error_code_caller_wast},
-                   {"callee"_n, check_entry_point_valid_error_code_callee_wast} });
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, check_entry_point_valid_error_code_caller_wast, doit_abi},
+                    {"callee"_n, check_entry_point_valid_error_code_callee_wast, {}}});
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
@@ -1339,8 +1326,9 @@ static const char check_entry_point_invalid_error_code_callee_wast[] = R"=====(
 
 // Verify invalid return value from sync call entry point is converted to -3
 BOOST_AUTO_TEST_CASE(check_entry_point_invalid_error_code_callee_test)  { try {
-   call_tester t({ {"caller"_n, check_entry_point_invalid_error_code_caller_wast},
-                   {"callee"_n, check_entry_point_invalid_error_code_callee_wast} });
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, check_entry_point_invalid_error_code_caller_wast, doit_abi},
+                    {"callee"_n, check_entry_point_invalid_error_code_callee_wast, {}} });
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
@@ -2042,8 +2030,9 @@ static const char read_only_general_callee_wast[] = R"=====(
 // Verify when `read_only` flag is set in the flags parameter of a sync call,
 // an EOS_ASSERT is raised for each state modified host function
 BOOST_AUTO_TEST_CASE(read_only_general_test)  { try {
-   call_tester t({{"caller"_n, read_only_general_caller_wast},
-                  {"callee"_n, read_only_general_callee_wast}});
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, read_only_general_caller_wast, doit_abi},
+                    {"callee"_n, read_only_general_callee_wast, {}}});
 
    // Add privilege to callee account so we can test read-only check on privileged api
    t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
@@ -2136,10 +2125,11 @@ static const char read_only_pass_along_callee2_wast[] = R"=====(
 // In this test, first call has read_only flag set, the second and third do not.
 // But the call traces shoud show all the calls are read only.
 BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
-   call_tester t({ {"caller"_n,  read_only_pass_along_caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast},
-                   {"callee2"_n, read_only_pass_along_callee2_wast} });
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n,  read_only_pass_along_caller_wast,  doit_abi},
+                    {"callee"_n,  read_only_pass_along_callee_wast,  {}},
+                    {"callee1"_n, read_only_pass_along_callee1_wast, {}},
+                    {"callee2"_n, read_only_pass_along_callee2_wast, {}} });
 
    // First verify db_store_i64 is disaalowed
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
@@ -2180,10 +2170,11 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
 // call flags do not have read_only set.
 // Also verify the read_only value in the call trace is true.
 BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
-   call_tester t({ {"caller"_n,  caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast},
-                   {"callee2"_n, read_only_pass_along_callee2_wast} });
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n,  caller_wast, doit_abi},
+                    {"callee"_n,  read_only_pass_along_callee_wast,  {}},
+                    {"callee1"_n, read_only_pass_along_callee1_wast, {}},
+                    {"callee2"_n, read_only_pass_along_callee2_wast, {}} });
 
    // Construct a read_only transaction
    action act;
