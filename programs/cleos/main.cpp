@@ -70,7 +70,9 @@ Options:
 #include <regex>
 #include <iostream>
 #include <locale>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <fc/crypto/hex.hpp>
 #include <fc/variant.hpp>
 #include <fc/io/datastream.hpp>
@@ -119,6 +121,13 @@ using namespace eosio::client::help;
 using namespace eosio::client::http;
 using namespace eosio::client::localize;
 using namespace eosio::client::config;
+
+template <typename... Types>
+bool try_each_type(const std::tuple<Types...>&, auto&& func) {
+   return [&]<std::size_t... Idxs>(std::index_sequence<Idxs...>) {
+      return (func.template operator()<std::tuple_element_t<Idxs, std::tuple<Types...>>>() || ...);
+   }(std::make_index_sequence<sizeof...(Types)>{});
+}
 
 FC_DECLARE_EXCEPTION( explained_exception, 9000000, "explained exception, see error log" );
 FC_DECLARE_EXCEPTION( localized_exception, 10000000, "an error occured" );
@@ -2962,6 +2971,8 @@ int main( int argc, char** argv ) {
    });
 
    // pack hex
+   using try_types = std::tuple<block_state_legacy, signed_block, transaction_trace, action_trace, transaction_receipt,
+                                packed_transaction, signed_transaction, transaction, abi_def, action>;
    string json;
    string type;
    string abi_file;
@@ -2985,61 +2996,20 @@ int main( int argc, char** argv ) {
          success = true;
       } catch (...) {}
       if (!success) {
-         try {
-            if (type == "block_state_legacy") {
-               block_state_legacy t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<block_state_legacy>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "signed_block") {
-               signed_block t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<signed_block>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "transaction_trace") {
-               transaction_trace t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<transaction_trace>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "action_trace") {
-               action_trace t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<action_trace>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "transaction_receipt") {
-               transaction_receipt t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<transaction_receipt>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "packed_transaction") {
-               packed_transaction t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<packed_transaction>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "signed_transaction") {
-               signed_transaction t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<signed_transaction>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "transaction") {
-               transaction t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<transaction>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "abi_def") {
-               abi_def t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<abi_def>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
-            } else if (type == "action") {
-               action t;
-               from_variant(unpacked_json, t);
-               auto v = fc::raw::pack<action>(t);
-               std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = try_each_type(try_types{}, [&]<typename Type>() {
+            std::string type_name = boost::core::demangle(typeid(Type).name());
+            type_name = type_name.substr(type_name.find_last_of(':') + 1);
+            if (type == type_name) {
+               try {
+                  Type t;
+                  from_variant(unpacked_json, t);
+                  auto v = fc::raw::pack(t);
+                  std::cout << fc::json::to_pretty_string(v) << std::endl;
+                  return true;
+               } catch (...) {}
             }
-            success = true;
-
-         } catch (...) {}
+            return false;
+         });
       }
 
       if (!success) {
@@ -3076,77 +3046,16 @@ int main( int argc, char** argv ) {
       } else {
          EOS_ASSERT( abi_file.empty(), misc_exception, "--type required if --abi-file specified");
       }
-      if (type.empty() || type == "block_state_legacy") {
-         try {
-            auto v = fc::raw::unpack<block_state_legacy>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
+      if (!success && type.empty()) {
+         success = try_each_type(try_types{}, [&]<typename Type>(){
+            try {
+               auto v = fc::raw::unpack<Type>( packed_blob );
+               std::cout << fc::json::to_pretty_string(v) << std::endl;
+               return true;
+            } catch(...) {}
+            return false;
+         });
       }
-      if (type.empty() || type == "signed_block") {
-         try {
-            auto v = fc::raw::unpack<signed_block>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "transaction_trace") {
-         try {
-            auto v = fc::raw::unpack<transaction_trace>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "action_trace") {
-         try {
-            auto v = fc::raw::unpack<action_trace>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "transaction_receipt") {
-         try {
-            auto v = fc::raw::unpack<transaction_receipt>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "packed_transaction") {
-         try {
-            auto v = fc::raw::unpack<packed_transaction>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "signed_transaction") {
-         try {
-            auto v = fc::raw::unpack<signed_transaction>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "transaction") {
-         try {
-            auto v = fc::raw::unpack<transaction>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "abi_def") {
-         try {
-            auto v = fc::raw::unpack<abi_def>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-      if (type.empty() || type == "action") {
-         try {
-            auto v = fc::raw::unpack<action>( packed_blob );
-            std::cout << fc::json::to_pretty_string(v) << std::endl;
-            success = true;
-         } catch (...) {}
-      }
-
       if (!success) {
          std::cerr << "ERROR: Unable to convert the packed hex";
          if (!type.empty()) {
