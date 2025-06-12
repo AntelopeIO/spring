@@ -75,7 +75,7 @@ try:
     node4.relaunch()
 
     Print("Verify Node_03 fork switches even though it is producing")
-    node3.waitForHeadToAdvance()
+    node3.waitForProducer("defproduceri", exitOnError=True)
     Print("Verify fork switch")
     assert node3.findInLog("switching forks .* defproducerk"), "Expected to find 'switching forks' in node_03 log"
 
@@ -83,9 +83,19 @@ try:
     node3.waitForProducer("defproducera")
 
     # verify the LIB blocks of defproduceri made it into the canonical chain
-    for i in range(0, 9):
+    for i in range(9):
         defprod=node3.getBlockProducerByNum(iProdBlockNum + i)
         assert defprod == "defproduceri", f"expected defproduceri for block {iProdBlockNum + i}, instead: {defprod}"
+
+    # verify that defproducerk blocks made it into the canonical chain as well
+    iProdBlockNum += 12 # into the next set of blocks
+    found_defproducerk = False
+    for i in range(12):
+        defprod=node3.getBlockProducerByNum(iProdBlockNum + i)
+        if defprod == "defproducerk":
+            found_defproducerk = True
+
+    assert found_defproducerk, f"expected defproducerk in blocks {iProdBlockNum}-{iProdBlockNum+12}"
 
     testSuccessful=True
 finally:
