@@ -3045,8 +3045,6 @@ int main( int argc, char** argv ) {
          } catch (...) {}
       } else {
          EOS_ASSERT( abi_file.empty(), misc_exception, "--type required if --abi-file specified");
-      }
-      if (!success && type.empty()) {
          success = try_each_type(try_types{}, [&]<typename Type>(){
             try {
                auto v = fc::raw::unpack<Type>( packed_blob );
