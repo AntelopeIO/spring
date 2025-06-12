@@ -7,7 +7,6 @@ using namespace eosio::testing;
 using mvo = fc::mutable_variant_object;
 
 // Generic ABI
-//static const char* doit_abi = R"=====(
 static std::string doit_abi = R"=====(
 {
    "version": "eosio::abi/1.2",
