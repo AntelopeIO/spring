@@ -73,7 +73,8 @@ namespace fc {
       log_config::get().logger_map.clear();
       log_config::get().appender_map.clear();
 
-      logger default_logger = log_config::get().logger_map[DEFAULT_LOGGER];
+      logger::default_logger() = log_config::get().logger_map[DEFAULT_LOGGER];
+      logger& default_logger = logger::default_logger();
 
       for( size_t i = 0; i < cfg.appenders.size(); ++i ) {
          // create appender

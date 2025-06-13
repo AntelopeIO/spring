@@ -8,6 +8,8 @@
 
 namespace fc {
 
+    inline static logger the_default_logger;
+
     class logger::impl {
       public:
          impl()
@@ -91,6 +93,10 @@ namespace fc {
 
     logger logger::get( const std::string& s ) {
        return log_config::get_logger( s );
+    }
+
+    logger& logger::default_logger() {
+       return the_default_logger;
     }
 
     void logger::update( const std::string& name, logger& log ) {
