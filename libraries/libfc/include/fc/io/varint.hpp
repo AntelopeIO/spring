@@ -4,7 +4,8 @@
 namespace fc {
 
 struct unsigned_int {
-    unsigned_int( uint32_t v = 0 ):value(v){}
+    using base_uint = uint32_t;
+    unsigned_int( base_uint v = 0 ):value(v){}
 
     template<typename T>
     unsigned_int( T v ):value(v){}
@@ -14,22 +15,22 @@ struct unsigned_int {
 
     unsigned_int& operator=( int32_t v ) { value = v; return *this; }
     
-    uint32_t value;
+    base_uint value;
 
-    friend bool operator==( const unsigned_int& i, const uint32_t& v )     { return i.value == v; }
-    friend bool operator==( const uint32_t& i, const unsigned_int& v )     { return i       == v.value; }
+    friend bool operator==( const unsigned_int& i, const base_uint& v )     { return i.value == v; }
+    friend bool operator==( const base_uint& i, const unsigned_int& v )     { return i       == v.value; }
     friend bool operator==( const unsigned_int& i, const unsigned_int& v ) { return i.value == v.value; }
 
-    friend bool operator!=( const unsigned_int& i, const uint32_t& v )     { return i.value != v; }
-    friend bool operator!=( const uint32_t& i, const unsigned_int& v )     { return i       != v.value; }
+    friend bool operator!=( const unsigned_int& i, const base_uint& v )     { return i.value != v; }
+    friend bool operator!=( const base_uint& i, const unsigned_int& v )     { return i       != v.value; }
     friend bool operator!=( const unsigned_int& i, const unsigned_int& v ) { return i.value != v.value; }
 
-    friend bool operator<( const unsigned_int& i, const uint32_t& v )      { return i.value < v; }
-    friend bool operator<( const uint32_t& i, const unsigned_int& v )      { return i       < v.value; }
+    friend bool operator<( const unsigned_int& i, const base_uint& v )      { return i.value < v; }
+    friend bool operator<( const base_uint& i, const unsigned_int& v )      { return i       < v.value; }
     friend bool operator<( const unsigned_int& i, const unsigned_int& v )  { return i.value < v.value; }
 
-    friend bool operator>=( const unsigned_int& i, const uint32_t& v )     { return i.value >= v; }
-    friend bool operator>=( const uint32_t& i, const unsigned_int& v )     { return i       >= v.value; }
+    friend bool operator>=( const unsigned_int& i, const base_uint& v )     { return i.value >= v; }
+    friend bool operator>=( const base_uint& i, const unsigned_int& v )     { return i       >= v.value; }
     friend bool operator>=( const unsigned_int& i, const unsigned_int& v ) { return i.value >= v.value; }
 };
 
@@ -39,29 +40,30 @@ struct unsigned_int {
  *  Uses the google protobuf algorithm for seralizing signed numbers
  */
 struct signed_int {
-    signed_int( int32_t v = 0 ):value(v){}
+    using base_int = int32_t;
+    signed_int( base_int v = 0 ):value(v){}
     operator int32_t()const { return value; }
     template<typename T>
     signed_int& operator=( const T& v ) { value = v; return *this; }
     signed_int operator++(int) { return value++; }
     signed_int& operator++(){ ++value; return *this; }
 
-    int32_t value;
+    base_int value;
 
-    friend bool operator==( const signed_int& i, const int32_t& v )    { return i.value == v; }
-    friend bool operator==( const int32_t& i, const signed_int& v )    { return i       == v.value; }
+    friend bool operator==( const signed_int& i, const base_int& v )    { return i.value == v; }
+    friend bool operator==( const base_int& i, const signed_int& v )    { return i       == v.value; }
     friend bool operator==( const signed_int& i, const signed_int& v ) { return i.value == v.value; }
 
-    friend bool operator!=( const signed_int& i, const int32_t& v )    { return i.value != v; }
-    friend bool operator!=( const int32_t& i, const signed_int& v )    { return i       != v.value; }
+    friend bool operator!=( const signed_int& i, const base_int& v )    { return i.value != v; }
+    friend bool operator!=( const base_int& i, const signed_int& v )    { return i       != v.value; }
     friend bool operator!=( const signed_int& i, const signed_int& v ) { return i.value != v.value; }
 
-    friend bool operator<( const signed_int& i, const int32_t& v )     { return i.value < v; }
-    friend bool operator<( const int32_t& i, const signed_int& v )     { return i       < v.value; }
+    friend bool operator<( const signed_int& i, const base_int& v )     { return i.value < v; }
+    friend bool operator<( const base_int& i, const signed_int& v )     { return i       < v.value; }
     friend bool operator<( const signed_int& i, const signed_int& v )  { return i.value < v.value; }
 
-    friend bool operator>=( const signed_int& i, const int32_t& v )    { return i.value >= v; }
-    friend bool operator>=( const int32_t& i, const signed_int& v )    { return i       >= v.value; }
+    friend bool operator>=( const signed_int& i, const base_int& v )    { return i.value >= v; }
+    friend bool operator>=( const base_int& i, const signed_int& v )    { return i       >= v.value; }
     friend bool operator>=( const signed_int& i, const signed_int& v ) { return i.value >= v.value; }
 };
 
@@ -83,7 +85,7 @@ namespace std
        public:
          size_t operator()(const fc::signed_int &a) const 
          {
-            return std::hash<int32_t>()(a.value);
+            return std::hash<fc::signed_int::base_int>()(a.value);
          }
    };
    template<>
