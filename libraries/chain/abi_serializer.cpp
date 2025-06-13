@@ -507,15 +507,6 @@ namespace eosio { namespace chain {
       auto s_itr = structs.end();
       auto fixed_array_sz = is_szarray(rtype);
 
-#if 0
-      auto btype = built_in_types.find(fundamental_type(rtype));
-      if( btype != built_in_types.end() ) {
-         btype->second.second(var, ds, is_array(rtype), is_optional(rtype), ctx.get_yield_function());
-      } else if ( is_array(rtype) ) {
-         ctx.hint_array_type_if_in_array();
-         const fc::variants& vars = var.get_array();
-         fc::raw::pack(ds, (fc::unsigned_int)vars.size());
-#endif
       auto pack_array = [&](const vector<fc::variant>& vars) {
          auto h1 = ctx.push_to_path(impl::array_index_path_item{});
          auto h2 = ctx.disallow_extensions_unless(false);
