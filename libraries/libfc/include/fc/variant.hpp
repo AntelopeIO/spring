@@ -20,7 +20,7 @@ namespace fc
 {
    /**
     * @defgroup serializable Serializable _types
-    * @brief Clas_ses that may be converted to/from an variant
+    * @brief Classes that may be converted to/from an variant
     *
     * To make a class 'serializable' the following methods must be available
     * for your Serializable_type
@@ -574,6 +574,7 @@ namespace fc
    void from_variant( const fc::variant& var, std::array<T,S>& tmp )
    {
       const variants& vars = var.get_array();
+      if( vars.size() != S) throw std::length_error( "mismatch between variant vector size and expected array size" );
       for( std::size_t i = 0; i < S; ++i )
          tmp[i] = vars.at(i).as<T>();
    }
