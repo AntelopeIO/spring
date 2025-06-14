@@ -124,6 +124,15 @@ namespace eosio {
          return send_buffer;
       }
 
+      /// caches result for subsequent calls, only provide same packed_transaction_ptr instance for each invocation.
+      /// Do not use get_send_buffer() with get_notice_send_buffer(), only one valid per trx_buffer_factory instance.
+      const send_buffer_type& get_notice_send_buffer( const packed_transaction_ptr& trx ) {
+         if( !send_buffer ) {
+            send_buffer = buffer_factory::create_send_buffer( transaction_notice_message{trx->id()} );
+         }
+         return send_buffer;
+      }
+
    private:
 
       static send_buffer_type create_send_buffer( const packed_transaction_ptr& trx ) {
