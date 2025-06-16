@@ -1,6 +1,7 @@
 #pragma once
 
 #include <eosio/net_plugin/net_plugin.hpp>
+#include <eosio/net_plugin/net_logger.hpp>
 #include <eosio/net_plugin/gossip_bps_index.hpp>
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/buffer_factory.hpp>
@@ -145,7 +146,7 @@ public:
             net_utils::endpoint e{host, port};
             EOS_ASSERT(std::find(peers.begin(), peers.end(), addr) == peers.end(), chain::plugin_config_exception,
                        "\"${a}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.", ("a",addr));
-            fc_dlog(self()->get_logger(), "Setting p2p-auto-bp-peer ${a} -> ${d}", ("a", account)("d", addr));
+            fc_dlog(p2p_log, "Setting p2p-auto-bp-peer ${a} -> ${d}", ("a", account)("d", addr));
             config.auto_bp_accounts[e]        = account;
             config.auto_bp_addresses[account] = std::move(e);
          } catch (chain::name_type_exception&) {
@@ -192,7 +193,7 @@ public:
             EOS_ASSERT( is_valid_ip_address(outbound_ip_address), chain::plugin_config_exception,
                         "Invalid p2p-bp-gossip-endpoint outbound ip address ${p}, syntax ip-address", ("p", outbound_ip_address));
 
-            fc_dlog(self()->get_logger(), "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
+            fc_dlog(p2p_log, "Setting p2p-bp-gossip-endpoint ${a} -> ${i},${o}", ("a", account)("i", inbound_server_endpoint)("o", outbound_ip_address));
             EOS_ASSERT(std::ranges::find_if(config.my_bp_gossip_accounts[account],
                                             [&](const auto& e) { return e.outbound_ip_address == outbound_ip_address; }) == config.my_bp_gossip_accounts[account].end(),
                        chain::plugin_config_exception, "Duplicate p2p-bp-gossip-endpoint for: ${a}, outbound ip address: ${i}",
@@ -217,13 +218,13 @@ public:
       // normally only one bp peer account except in testing scenarios or test chains
       const controller& cc = self()->chain_plug->chain();
       block_timestamp_type expire = self()->head_block_time.load() + bp_gossip_peer_expiration;
-      fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message with expiration ${e}", ("e", expire));
+      fc_dlog(p2p_log, "Updating BP gossip_bp_peers_message with expiration ${e}", ("e", expire));
       for (const auto& my_bp_account : config.my_bp_gossip_accounts) { // my_bp_gossip_accounts not modified after plugin startup
          const auto& bp_account = my_bp_account.first;
          std::optional<peer_info_t> peer_info = cc.get_peer_info(bp_account);
          if (peer_info && peer_info->key) {
             for (const auto& le : my_bp_account.second) {
-               fc_dlog(self()->get_logger(), "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", bp_account)("s", le.server_endpoint));
+               fc_dlog(p2p_log, "Updating BP gossip_bp_peers_message for ${a} address ${s}", ("a", bp_account)("s", le.server_endpoint));
                if (!initial_updated) {
                   // update initial so always an active one
                   gossip_bp_peers_message::signed_bp_peer signed_empty{{.producer_name = bp_account}}; // .server_endpoint not set for initial message
@@ -252,7 +253,7 @@ public:
                }
             }
          } else {
-            fc_wlog(self()->get_logger(), "On-chain peer-key not found for configured BP ${a}", ("a", bp_account));
+            fc_wlog(p2p_log, "On-chain peer-key not found for configured BP ${a}", ("a", bp_account));
          }
       }
    }
@@ -344,7 +345,7 @@ public:
                prev = &peer;
             }
          } catch ( fc::exception& e ) {
-            fc_dlog(self()->get_logger(), "Exception unpacking gossip_bp_peers_message::signed_bp_peer, error: ${e}", ("e", e.to_detail_string()));
+            fc_dlog(p2p_msg_log, "Exception unpacking gossip_bp_peers_message::signed_bp_peer, error: ${e}", ("e", e.to_detail_string()));
             return false;
          }
       }
@@ -354,7 +355,7 @@ public:
       auto is_peer_key_valid = [&](const gossip_bp_peers_message::signed_bp_peer& peer) -> bool {
          try {
             if (peer.sig.is_webauthn()) {
-               fc_dlog(self()->get_logger(), "Peer ${p} signature is webauthn, not allowed.", ("p", peer.producer_name));
+               fc_dlog(p2p_msg_log, "Peer ${p} signature is webauthn, not allowed.", ("p", peer.producer_name));
                invalid_message = true;
                return false;
             }
@@ -363,17 +364,17 @@ public:
                constexpr bool check_canonical = false;
                public_key_type pk(peer.sig, peer.digest(self()->chain_id), check_canonical);
                if (pk != *peer_info->key) {
-                  fc_dlog(self()->get_logger(), "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
+                  fc_dlog(p2p_msg_log, "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
                           ("p", peer.producer_name)("pk", pk)("k", *peer_info->key));
                   return false;
                }
             } else { // unknown key
                // ok, might have just been deleted or dropped out of top ranking
-               fc_dlog(self()->get_logger(), "Failed to find peer key ${p}", ("p", peer.producer_name));
+               fc_dlog(p2p_msg_log, "Failed to find peer key ${p}", ("p", peer.producer_name));
                return false;
             }
          } catch (fc::exception& e) {
-            fc_dlog(self()->get_logger(), "Exception recovering peer key ${p}, error: ${e}", ("p", peer.producer_name)("e", e.to_detail_string()));
+            fc_dlog(p2p_msg_log, "Exception recovering peer key ${p}, error: ${e}", ("p", peer.producer_name)("e", e.to_detail_string()));
             invalid_message = true;
             return false; // invalid key
          }
@@ -477,12 +478,12 @@ public:
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
       for (const auto& account : accounts) {
          if (auto i = config.auto_bp_addresses.find(account); i != config.auto_bp_addresses.end()) {
-            fc_dlog(self()->get_logger(), "${d} manual bp peer ${p}", ("d", desc)("p", i->second));
+            fc_dlog(p2p_conn_log, "${d} manual bp peer ${p}", ("d", desc)("p", i->second));
             addresses.insert(i->second.address());
          }
          auto r = prod_idx.equal_range(account);
          for (auto i = r.first; i != r.second; ++i) {
-            fc_dlog(self()->get_logger(), "${d} gossip bp peer ${p}", ("d", desc)("p", i->server_endpoint()));
+            fc_dlog(p2p_conn_log, "${d} gossip bp peer ${p}", ("d", desc)("p", i->server_endpoint()));
             addresses.insert(i->server_endpoint());
          }
       }
@@ -497,10 +498,10 @@ public:
       {
          fc::lock_guard gm(mtx);
          active_bps = active_bp_accounts(active_schedule);
-         fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
+         fc_dlog(p2p_conn_log, "active_bps: ${a}", ("a", to_string(active_bps)));
 
          addresses = find_gossip_bp_addresses(active_bps, "connect");
-         fc_dlog(self()->get_logger(), "active addresses: ${a}", ("a", to_string(addresses)));
+         fc_dlog(p2p_conn_log, "active addresses: ${a}", ("a", to_string(addresses)));
       }
 
       for (const auto& add : addresses) {
@@ -515,12 +516,12 @@ public:
             if (pending_schedule_version != schedule.version) {
                /// establish connection to our configured BPs, resolve_and_connect ignored if already connected
 
-               fc_dlog(self()->get_logger(), "pending producer schedule switches from version ${old} to ${new}",
+               fc_dlog(p2p_conn_log, "pending producer schedule switches from version ${old} to ${new}",
                        ("old", pending_schedule_version)("new", schedule.version));
 
                auto pending_connections = active_bp_accounts(schedule.producers);
 
-               fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
+               fc_dlog(p2p_conn_log, "pending_connections: ${c}", ("c", to_string(pending_connections)));
 
                // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
                // can be holding connections mutex when trying to acquire these mutexes
@@ -534,7 +535,7 @@ public:
                pending_schedule_version = schedule.version;
             }
          } else {
-            fc_dlog(self()->get_logger(), "pending producer schedule version ${v} is being cleared", ("v", schedule.version));
+            fc_dlog(p2p_conn_log, "pending producer schedule version ${v} is being cleared", ("v", schedule.version));
             pending_bps.clear();
          }
       }
@@ -544,7 +545,7 @@ public:
    void on_active_schedule(const chain::producer_authority_schedule& schedule) {
       if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && !self()->is_lib_catchup()) {
          /// drops any BP connection which is no longer within our scheduling proximity
-         fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
+         fc_dlog(p2p_conn_log, "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
 
          fc::unique_lock gm(mtx);
@@ -559,19 +560,19 @@ public:
 
          active_bps = active_bp_accounts(schedule.producers);
 
-         fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
+         fc_dlog(p2p_conn_log, "active_bps: ${a}", ("a", to_string(active_bps)));
 
          name_set_t peers_to_stay;
          std::set_union(active_bps.begin(), active_bps.end(), pending_bps.begin(), pending_bps.end(),
                         std::inserter(peers_to_stay, peers_to_stay.begin()));
          gm.unlock();
 
-         fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
+         fc_dlog(p2p_conn_log, "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
 
          name_set_t peers_to_drop;
          std::set_difference(old_bps.begin(), old_bps.end(), peers_to_stay.begin(), peers_to_stay.end(),
                              std::inserter(peers_to_drop, peers_to_drop.end()));
-         fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
+         fc_dlog(p2p_conn_log, "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
          flat_set<std::string> addresses = find_gossip_bp_addresses(peers_to_drop, "disconnect");
          for (const auto& add : addresses) {
