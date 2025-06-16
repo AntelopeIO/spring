@@ -145,6 +145,9 @@ namespace fc
    template<typename T, std::size_t S>
    void from_variant( const fc::variant& var,  std::array<T,S>& vo );
 
+   template<typename T>
+   void to_variant( const std::initializer_list<T>& var,  fc::variant& vo );
+
    void to_variant( const time_point& var,  fc::variant& vo );
    void from_variant( const fc::variant& var,  time_point& vo );
 
@@ -586,6 +589,17 @@ namespace fc
       variants vars(S);
       for( std::size_t i = 0; i < S; ++i )
          vars[i] = fc::variant(t[i]);
+      v = std::move(vars);
+   }
+
+   /** @ingroup Serializable */
+   template<typename T>
+   void to_variant( const std::initializer_list<T>& t, fc::variant& v )
+   {
+      auto sz{t.size()};
+      variants vars(sz);
+      for( std::size_t i = 0; i < sz; ++i )
+         vars[i] = fc::variant(*(t.begin()+i));
       v = std::move(vars);
    }
 

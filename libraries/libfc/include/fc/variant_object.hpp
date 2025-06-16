@@ -191,6 +191,12 @@ namespace fc
          set(std::move(key), variant( fc::forward<T>(var) ) );
          return std::move(*this);
       }
+      template<typename T>
+      mutable_variant_object operator()( std::string key, std::initializer_list<T>&& val )
+      {
+         set(std::move(key), variant( val ) );
+         return std::move(*this);
+      }
       /**
        * Copy a variant_object into this mutable_variant_object.
        */
