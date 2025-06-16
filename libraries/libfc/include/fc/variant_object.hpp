@@ -74,9 +74,7 @@ namespace fc
       variant_object( std::string key, variant val );
 
       template<typename T>
-      variant_object( std::string key, T&& val )
-      :_key_value( std::make_shared<std::vector<entry> >() )
-      {
+      variant_object( std::string key, T&& val ) {
          *this = variant_object( std::move(key), variant(std::forward<T>(val)) );
       }
       variant_object( const variant_object& );
