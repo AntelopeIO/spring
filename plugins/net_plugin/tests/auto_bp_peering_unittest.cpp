@@ -27,7 +27,7 @@ struct mock_connections_manager {
    std::vector<std::shared_ptr<mock_connection>> connections;
 
    std::function<void(std::string, std::string)> resolve_and_connect;
-   std::function<void(std::string)> disconnect;
+   std::function<void(std::string)> disconnect_gossip_connection;
 
    uint32_t get_max_client_count() const { return max_client_count; }
 
@@ -211,7 +211,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
 
    std::vector<std::string> disconnected_hosts;
-   plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
+   plugin.connections.disconnect_gossip_connection = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
 
    // make sure nothing happens when it is not in_sync
    plugin.lib_catchup = true;
@@ -242,7 +242,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    plugin.set_active_bps( { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n } );
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
    std::vector<std::string> disconnected_hosts;
-   plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
+   plugin.connections.disconnect_gossip_connection = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
 
    // when pending and active schedules are changed simultaneously
    plugin.lib_catchup = false;

@@ -575,7 +575,7 @@ public:
 
          flat_set<std::string> addresses = find_gossip_bp_addresses(peers_to_drop, "disconnect");
          for (const auto& add : addresses) {
-            self()->connections.disconnect(add);
+            self()->connections.disconnect_gossip_connection(add);
          }
 
          active_schedule_version = schedule.version;
