@@ -489,6 +489,17 @@ public:
       return addresses;
    }
 
+   flat_set<std::string> all_gossip_bp_addresses(const char* desc) const {
+      flat_set<std::string> addresses;
+      fc::lock_guard g(gossip_bps.mtx);
+      const auto& prod_idx = gossip_bps.index.get<by_producer>();
+      for (auto& i : prod_idx) {
+         fc_dlog(self()->get_logger(), "${d} gossip bp peer ${p}", ("d", desc)("p", i.server_endpoint()));
+         addresses.insert(i.server_endpoint());
+      }
+      return addresses;
+   }
+
    // thread-safe
    void connect_to_active_bp_peers() {
       // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
@@ -573,7 +584,14 @@ public:
                              std::inserter(peers_to_drop, peers_to_drop.end()));
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
-         flat_set<std::string> addresses = find_gossip_bp_addresses(peers_to_drop, "disconnect");
+         // if we dropped out of active schedule then disconnect from all
+         bool disconnect_from_all = !config.my_bp_gossip_accounts.empty() &&
+                                    std::all_of(config.my_bp_gossip_accounts.begin(), config.my_bp_gossip_accounts.end(),
+                                                [&](const auto& e) { return peers_to_drop.contains(e.first); });
+
+         flat_set<std::string> addresses = disconnect_from_all
+                                              ? all_gossip_bp_addresses("disconnect")
+                                              : find_gossip_bp_addresses(peers_to_drop, "disconnect");
          for (const auto& add : addresses) {
             self()->connections.disconnect_gossip_connection(add);
          }
