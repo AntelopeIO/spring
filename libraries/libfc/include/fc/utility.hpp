@@ -209,9 +209,9 @@ namespace fc {
   // outside of namespace fc becuase of VC++ conflict with std::swap
   template<typename T>
   void fc_swap( T& a, T& b ) {
-    T tmp = fc::move(a);
-    a = fc::move(b);
-    b = fc::move(tmp);
+    T tmp = std::move(a);
+    a = std::move(b);
+    b = std::move(tmp);
   }
 
 #define LLCONST(constant)   static_cast<int64_t>(constant##ll)
