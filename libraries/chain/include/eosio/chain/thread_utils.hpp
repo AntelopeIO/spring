@@ -8,6 +8,7 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/use_future.hpp>
 #include <future>
+#include <list>
 #include <memory>
 #include <optional>
 #include <thread>
