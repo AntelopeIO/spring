@@ -192,7 +192,7 @@ namespace fc
          return std::move(*this);
       }
       template<typename T>
-      mutable_variant_object operator()( std::string key, std::initializer_list<T>&& val )
+      mutable_variant_object operator()( std::string key, const std::initializer_list<T>& val )
       {
          set(std::move(key), variant( val ) );
          return std::move(*this);
@@ -235,6 +235,13 @@ namespace fc
       :_key_value( new std::vector<entry>() )
       {
          set( std::move(key), variant(std::forward<T>(val)) );
+      }
+
+      template<typename T>
+      mutable_variant_object( std::string key, const std::initializer_list<T>& val )
+      :_key_value( new std::vector<entry>() )
+      {
+         set( std::move(key), variant(val) );
       }
 
       mutable_variant_object( mutable_variant_object&& ) noexcept ;
