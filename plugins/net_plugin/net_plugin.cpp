@@ -4652,7 +4652,9 @@ namespace eosio {
 
    /// RPC API
    std::optional<connection_status> net_plugin::status( const string& host )const {
-      return my->connections.status(host);
+      std::optional<connection_status> r = my->connections.status(host);
+      EOS_ASSERT(r, http_request_fail, "connection not found: ${h}", ("h", host));
+      return r;
    }
 
    /// RPC API
