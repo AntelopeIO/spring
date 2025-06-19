@@ -81,7 +81,7 @@ try:
     Print("Validating system accounts after bootstrap")
     cluster.validateAccounts(None)
 
-    accounts=createAccountKeys(4)
+    accounts=createAccountKeys(5)
     if accounts is None:
         errorExit("FAILURE - create keys")
     testeraAccount=accounts[0]
@@ -95,6 +95,8 @@ try:
     testerbAccount.name="testerb11111"
     testerbOwner = testerbAccount.ownerPublicKey
     testerbAccount.ownerPublicKey = '{"threshold":1, "accounts":[{"permission":{"actor": "' + testeraAccount.name + '", "permission":"owner"}, "weight": 1}],"keys":[{"key": "' +testerbOwner +  '", "weight": 1}],"waits":[]}'
+    vaultaAccount=accounts[4]
+    vaultaAccount.name="core.vaulta"
 
     PRV_KEY1=testeraAccount.ownerPrivateKey
     PUB_KEY1=testeraAccount.ownerPublicKey
@@ -210,11 +212,14 @@ try:
     Print("Create new account %s via %s" % (currencyAccount.name, cluster.defproduceraAccount.name))
     transId=node.createInitializeAccount(currencyAccount, cluster.defproduceraAccount, buyRAM=200000, stakedDeposit=5000, exitOnError=True)
 
+    Print("Create new account %s via %s" % (vaultaAccount.name, cluster.eosioAccount))
+    transId=node.createInitializeAccount(vaultaAccount, cluster.eosioAccount, buyRAM=200000, stakedDeposit=5000, exitOnError=True)
+
     Print("Create new account %s via %s" % (exchangeAccount.name, cluster.defproduceraAccount.name))
     transId=node.createInitializeAccount(exchangeAccount, cluster.defproduceraAccount, buyRAM=200000, waitForTransBlock=True, exitOnError=True)
 
     Print("Validating accounts after user accounts creation")
-    accounts=[testeraAccount, currencyAccount, exchangeAccount]
+    accounts=[testeraAccount, currencyAccount, exchangeAccount, vaultaAccount]
     cluster.validateAccounts(accounts)
 
     Print("Verify account %s" % (testeraAccount))
@@ -245,7 +250,7 @@ try:
         errorExit("Transfer verification failed. Excepted %s, actual: %s" % (expectedAmount, actualAmount))
 
     Print("Validating accounts after some user transactions")
-    accounts=[testeraAccount, currencyAccount, exchangeAccount]
+    accounts=[testeraAccount, currencyAccount, exchangeAccount, vaultaAccount]
     cluster.validateAccounts(accounts)
 
     Print("Locking all wallets.")
@@ -666,12 +671,72 @@ try:
         cmdError("%s wallet lock" % (ClientName))
         errorExit("Failed to lock wallet %s" % (defproduceraWallet.name))
 
+    Print("core.vaulta Contract Tests")
+    node=cluster.getNode(1)
+    contractDir="unittests/contracts/eosio.token"
+    wasmFile="eosio.token.wasm"
+    abiFile="eosio.token.abi"
+    Print("Publish contract")
+    trans=node.publishContract(vaultaAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True)
+    if trans is None:
+        cmdError("%s set contract core.vaulta" % (ClientName))
+        errorExit("Failed to publish contract.")
 
+    Print("push create action to core.vaulta contract")
+    contract="core.vaulta"
+    action="create"
+    data="{\"issuer\":\"core.vaulta\",\"maximum_supply\":\"100000.0000 A\",\"can_freeze\":\"0\",\"can_recall\":\"0\",\"can_whitelist\":\"0\"}"
+    opts="--permission core.vaulta@active"
+    trans=node.pushMessage(contract, action, data, opts)
+    try:
+        assert(trans)
+        assert(trans[0])
+    except (AssertionError, KeyError) as _:
+        Print("ERROR: Failed push create action to core.vaulta contract assertion. %s" % (trans))
+        raise
+    transId=Node.getTransId(trans[1])
+    node.waitForTransactionInBlock(transId)
+
+    Print("push issue action to core.vaulta contract")
+    action="issue"
+    data="{\"to\":\"core.vaulta\",\"quantity\":\"100000.0000 A\",\"memo\":\"issue\"}"
+    opts="--permission core.vaulta@active"
+    trans=node.pushMessage(contract, action, data, opts)
+    try:
+        assert(trans)
+        assert(trans[0])
+    except (AssertionError, KeyError) as _:
+        Print("ERROR: Failed push issue action to core.vaulta contract assertion. %s" % (trans))
+        raise
+    transId=Node.getTransId(trans[1])
+    node.waitForTransactionInBlock(transId)
+
+    Print("transfer should use core.vaulta since A asset is used, otherwise it will fail")
+    transferAmount="97.5321 A"
+    Print("Transfer funds %s from account %s to %s" % (transferAmount, defproduceraAccount.name, testeraAccount.name))
+    node.transferFunds(vaultaAccount, testeraAccount, transferAmount, "test transfer", waitForTransBlock=True)
+
+    expectedAmount=transferAmount
+    Print("Verify transfer, Expected: %s" % (expectedAmount))
+    actualAmount=node.getTableAccountBalance("core.vaulta", testeraAccount.name)
+    if expectedAmount != actualAmount:
+        cmdError("FAILURE - transfer failed")
+        errorExit("Transfer verification failed. Excepted %s, actual: %s" % (expectedAmount, actualAmount))
+
+    buyRamAmount = '"85.5 A"'
+    buyRamCmd = f"--abi-file core.vaulta:unittests/contracts/eosio.system/eosio.system.abi system buyram -j {testeraAccount.name} {testeraAccount.name} {buyRamAmount} -p {testeraAccount.name}@active"
+    trace=node.processCleosCmd(buyRamCmd, "buy ram from core.vaulta", silentErrors=False, exitOnError=True)
+    receiver = trace["processed"]["action_traces"][0]["receiver"]
+    if receiver != "core.vaulta":
+        errorExit(f"buyram should have used core.vaulta because of A asset: {receiver} in {trace}")
+
+    node=cluster.getNode(0)
+
+    Print("Setting simpledb contract without simpledb account was causing core dump in %s." % (ClientName))
     simpleDB = Account("simpledb")
     contractDir="contracts/simpledb"
     wasmFile="simpledb.wasm"
     abiFile="simpledb.abi"
-    Print("Setting simpledb contract without simpledb account was causing core dump in %s." % (ClientName))
     Print("Verify %s generates an error, but does not core dump." % (ClientName))
     retMap=node.publishContract(simpleDB, contractDir, wasmFile, abiFile, shouldFail=True)
     if retMap is None:
