@@ -174,7 +174,6 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.lib_catchup = true;
    plugin.on_pending_schedule(test_schedule1);
 
-   std::ranges::sort(connected_hosts);
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
    BOOST_TEST(plugin.pending_bps == (eosio::chain::name_set_t{ "prodj"_n, "prodm"_n }));
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
