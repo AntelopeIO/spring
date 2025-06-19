@@ -284,7 +284,10 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
-   constexpr auto     def_trx_notice_min_size = 1024; // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
+   // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes.
+   // Since both notice and trx are sent when peer does not have a trx, set a minimum requirement for sending the notice.
+   // 4096 chosen as an arbitrary threshold where an additional small notice adds little additional overhead.
+   constexpr auto     def_trx_notice_min_size = 4096;
    constexpr auto     def_allowed_clock_skew = fc::seconds(15);
 
    class connections_manager {
