@@ -4516,7 +4516,7 @@ int main( int argc, char** argv ) {
    });
 
    // system subcommand
-   auto system = app.add_subcommand("system", localized("Send eosio.system contract action to the blockchain."));
+   auto system = app.add_subcommand("system", localized("Send system action to eosio contract or core.vaulta contract for A asset"));
    system->require_subcommand();
 
    auto createAccountSystem = create_account_subcommand( system, false /*simple*/ );
