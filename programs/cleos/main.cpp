@@ -250,6 +250,13 @@ bool is_public_key_str(const std::string& potential_key_str) {
    return boost::istarts_with(potential_key_str, "EOS") || boost::istarts_with(potential_key_str, "PUB_R1") ||  boost::istarts_with(potential_key_str, "PUB_K1") ||  boost::istarts_with(potential_key_str, "PUB_WA");
 }
 
+name to_default_token_contract(const asset& a) {
+   if (a.symbol_name() == "A") {
+      return "core.vaulta"_n;
+   }
+   return "eosio.token"_n;
+}
+
 name to_default_contract(const asset& a) {
    if (a.symbol_name() == "A") {
       return "core.vaulta"_n;
@@ -918,7 +925,7 @@ asset to_asset( account_name code, const string& s ) {
    eosio::chain::symbol asset_symbol = a.get_symbol();
    eosio::chain::symbol_code sym = asset_symbol.to_symbol_code();
    if (code.empty()) {
-      code = to_default_contract_from_asset(s);
+      code = to_default_token_contract(a);
    }
    auto it = cache.find( make_pair(code, sym) );
    auto sym_str = a.symbol_name();
@@ -3690,9 +3697,8 @@ int main( int argc, char** argv ) {
 
       name token_contract = name{con};
       if (token_contract.empty()) {
-         token_contract = to_default_contract_from_asset(amount);
-         if (token_contract == config::system_account_name)
-            token_contract = "eosio.token"_n;
+         asset a = asset::from_string(amount);
+         token_contract = to_default_token_contract(a);
       }
       auto transfer_amount = to_asset(token_contract, amount);
       auto transfer = create_transfer(token_contract, name(sender), name(recipient), transfer_amount, memo);
