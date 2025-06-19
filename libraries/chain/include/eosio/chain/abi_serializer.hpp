@@ -16,6 +16,37 @@ using std::function;
 using std::pair;
 using namespace fc;
 
+struct version_t {
+   uint8_t major = 0;
+   uint8_t minor = 0;
+   bool    valid = false;
+
+   version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
+
+   version_t(std::string_view sv) {
+      auto last = sv.data() + sv.size();
+      auto [ptr, ec] = std::from_chars(sv.data(), last, major);
+      if (ec == std::errc() && *ptr == '.')
+         valid = (std::from_chars(ptr+1, last, minor).ec == std::errc());
+   }
+
+   friend auto operator<=>(const version_t&, const version_t&) = default;
+   friend bool operator==(const version_t&, const version_t&) = default;
+
+   std::string str() const {
+      std::ostringstream oss;
+      oss << std::to_string(major) << '.' << std::to_string(minor);
+      return oss.str();
+   }
+
+   bool is_valid() const {
+      return valid;
+   }
+
+};
+
+inline static const version_t current_abi_support(1, 3); // 1.3 adds support for bitset and fixed size arrays
+
 namespace impl {
    struct abi_from_variant;
    struct abi_to_variant;
