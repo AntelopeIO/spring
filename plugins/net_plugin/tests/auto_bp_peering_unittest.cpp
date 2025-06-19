@@ -174,6 +174,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.lib_catchup = true;
    plugin.on_pending_schedule(test_schedule1);
 
+   std::ranges::sort(connected_hosts);
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
    BOOST_TEST(plugin.pending_bps == (eosio::chain::name_set_t{ "prodj"_n, "prodm"_n }));
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
@@ -186,6 +187,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    BOOST_TEST(plugin.pending_bps == producers_minus_prodkt);
 
    // all connect to bp peers should be invoked
+   std::ranges::sort(connected_hosts);
    BOOST_CHECK_EQUAL(connected_hosts, peer_addresses);
 
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 1u);
