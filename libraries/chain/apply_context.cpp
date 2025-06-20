@@ -14,27 +14,32 @@ using boost::container::flat_set;
 namespace eosio::chain {
 
 static inline void print_debug(account_name receiver, const action_trace& ar) {
-   if (!ar.console.empty()) {
-      if (fc::logger::get(DEFAULT_LOGGER).is_enabled( fc::log_level::debug )) {
-         std::string prefix;
-         prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
-         prefix += "\n[(";
-         prefix += ar.act.account.to_string();
-         prefix += ",";
-         prefix += ar.act.name.to_string();
-         prefix += ")->";
-         prefix += receiver.to_string();
-         prefix += "]";
+   if (!fc::logger::get(DEFAULT_LOGGER).is_enabled( fc::log_level::debug )) {
+      return;
+   }
 
-         std::string output;
-         output.reserve(512);
-         output += prefix;
-         output += ": CONSOLE OUTPUT BEGIN =====================\n";
-         output += ar.console;
-         output += prefix;
-         output += ": CONSOLE OUTPUT END   =====================";
-         dlog( std::move(output) );
-      }
+   std::string prefix;
+   prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
+
+   prefix += "\n[(";
+   prefix += ar.act.account.to_string();
+   prefix += ",";
+   prefix += ar.act.name.to_string();
+   prefix += ")->";
+   prefix += receiver.to_string();
+   prefix += "]";
+
+   std::string header = prefix;
+   header  += ": CONSOLE OUTPUT BEGIN =====================";
+
+   std::string trailer = prefix;
+   trailer += ": CONSOLE OUTPUT END   =====================";
+
+   fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
+   std::string output = expand_console(header, trailer, ar.call_traces, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
+
+   if (!output.empty()) {
+      dlog( std::move(output) );
    }
 }
 

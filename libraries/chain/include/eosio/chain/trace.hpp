@@ -155,6 +155,14 @@ namespace eosio::chain {
       }
    };
 
+   std::string expand_console(const std::string&                   header,
+                              const std::string&                   trailer,
+                              const std::vector<call_trace>&       call_traces,
+                              fc::unsigned_int                     sender_ordinal,
+                              const std::string&                   sender_name,
+                              const std::string&                   console,
+                              const std::vector<fc::unsigned_int>& console_markers);
+
    struct transaction_trace {
       transaction_id_type                        id;
       uint32_t                                   block_num = 0;

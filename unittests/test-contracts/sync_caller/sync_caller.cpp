@@ -2,6 +2,7 @@
 
 #include <eosio/eosio.hpp>
 #include <eosio/call.hpp>
+#include <eosio/print.hpp>
 
 using namespace eosio;
 
@@ -14,7 +15,9 @@ public:
    void basictest(int32_t input) {
       sync_callee::basictest_func sync_call{ "callee"_n };
 
+      eosio::print("Before calling sync call basictest");
       eosio::check(sync_call(input) == input, "return value not the same as input"); // basic_test_func just returns the same value as input and does a print
+      eosio::print("After returned from basictest");
    }
 
    // Verify passing complex parameters
