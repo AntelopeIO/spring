@@ -203,7 +203,8 @@ namespace eosio { namespace chain {
    }
 
    int abi_serializer::get_integer_size(const std::string_view& type) const {
-      EOS_ASSERT( is_integer(type), invalid_type_inside_abi, "${type} is not an integer type", ("type",impl::limit_size(type)));
+      EOS_ASSERT(is_integer(type), invalid_type_inside_abi, "${type} is not an integer type",
+                 ("type", impl::limit_size(type)));
       if( boost::starts_with(type, "uint") ) {
          return boost::lexical_cast<int>(type.substr(4));
       } else {
