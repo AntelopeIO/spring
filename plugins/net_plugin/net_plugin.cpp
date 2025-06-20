@@ -365,6 +365,7 @@ namespace eosio {
       string connect(const string& host, const string& p2p_address);
       string resolve_and_connect(const string& host, const string& p2p_address);
       string disconnect(const string& host);
+      void disconnect_gossip_connection(const string& host);
       void close_all();
 
       std::optional<connection_status> status(const string& host) const;
@@ -4977,6 +4978,19 @@ namespace eosio {
       } );
 
       return true;
+   }
+
+   void connections_manager::disconnect_gossip_connection(const string& host) {
+      std::lock_guard g( connections_mtx );
+      // do not disconnect if a p2p-peer-address
+      if (supplied_peers.contains(host))
+         return;
+      auto& index = connections.get<by_host>();
+      if( auto i = index.find( host ); i != index.end() ) {
+         fc_ilog( logger, "disconnecting: ${cid}", ("cid", i->c->connection_id) );
+         i->c->close();
+         connections.erase(i);
+      }
    }
 
    // called by API
