@@ -1,5 +1,6 @@
 #include <test_contracts.hpp>
 #include <eosio/testing/tester.hpp>
+#include <eosio/chain/trace.hpp>
 #include <boost/test/unit_test.hpp>
 
 // Test sync calls which are initiated by contracts written in C++
@@ -53,6 +54,23 @@ BOOST_AUTO_TEST_CASE(basic_test) { try {
    auto& return_value = call_trace.return_value;
    std::memcpy(&output, return_value.data(), sizeof(output));
    BOOST_REQUIRE_EQUAL(output, input);
+
+   // Verify pretty printing of console output
+   std::string header  = "Test BEGIN ==================";
+   std::string trailer = "\nTest END   ==================";
+
+   fc::unsigned_int sender_ordinal = 0;
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+
+   static const std::string expected = R"=====(Test BEGIN ==================
+Before calling sync call basictest
+[caller->(callee,basictest)]: CALL BEGIN ======
+I am basictest from sync_callee
+[caller->(callee,basictest)]: CALL END   ======
+After returned from basictest
+Test END   ==================)=====";
+
+   BOOST_REQUIRE_EQUAL(actual, expected);
 } FC_LOG_AND_RETHROW() }
 
 // Verify complex parameter passing works
