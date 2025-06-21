@@ -4,6 +4,38 @@
     "types": [],
     "structs": [
         {
+            "name": "actioncall",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "add",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
             "name": "basictest",
             "base": "",
             "fields": [
@@ -32,6 +64,26 @@
             ]
         },
         {
+            "name": "crash",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
+            "name": "forever",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
             "name": "four_fields_struct",
             "base": "",
             "fields": [
@@ -50,6 +102,42 @@
                 {
                     "name": "d",
                     "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "mul",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "nestedcalls",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
                 }
             ]
         },
@@ -76,6 +164,43 @@
             ]
         },
         {
+            "name": "pureaction",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "recursive",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "n",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "selfcall",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
             "name": "two_fields_struct",
             "base": "",
             "fields": [
@@ -88,31 +213,153 @@
                     "type": "uint64"
                 }
             ]
+        },
+        {
+            "name": "voidparam",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
+            "name": "voidparamret",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
+            "name": "voidreturn",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "n",
+                    "type": "uint32"
+                }
+            ]
         }
     ],
-    "actions": [],
+    "actions": [
+        {
+            "name": "actioncall",
+            "type": "actioncall",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "pureaction",
+            "type": "pureaction",
+            "ricardian_contract": ""
+        }
+    ],
     "tables": [],
     "ricardian_clauses": [],
     "variants": [],
-    "action_results": [],
+    "action_results": [
+        {
+            "name": "actioncall",
+            "result_type": "uint32"
+        }
+    ],
     "calls": [
+        {
+            "name": "actioncall",
+            "type": "actioncall"
+        },
+        {
+            "name": "add",
+            "type": "add"
+        },
         {
             "name": "basictest",
             "type": "basictest"
         },
         {
+            "name": "crash",
+            "type": "crash"
+        },
+        {
+            "name": "forever",
+            "type": "forever"
+        },
+        {
+            "name": "mul",
+            "type": "mul"
+        },
+        {
+            "name": "nestedcalls",
+            "type": "nestedcalls"
+        },
+        {
             "name": "paramstest",
             "type": "paramstest"
+        },
+        {
+            "name": "recursive",
+            "type": "recursive"
+        },
+        {
+            "name": "selfcall",
+            "type": "selfcall"
+        },
+        {
+            "name": "voidparam",
+            "type": "voidparam"
+        },
+        {
+            "name": "voidparamret",
+            "type": "voidparamret"
+        },
+        {
+            "name": "voidreturn",
+            "type": "voidreturn"
         }
     ],
     "call_results": [
+        {
+            "name": "actioncall",
+            "result_type": "uint32"
+        },
+        {
+            "name": "add",
+            "result_type": "uint32"
+        },
         {
             "name": "basictest",
             "result_type": "uint32"
         },
         {
+            "name": "mul",
+            "result_type": "uint32"
+        },
+        {
+            "name": "nestedcalls",
+            "result_type": "uint32"
+        },
+        {
             "name": "paramstest",
             "result_type": "two_fields_struct"
+        },
+        {
+            "name": "recursive",
+            "result_type": "uint32"
+        },
+        {
+            "name": "selfcall",
+            "result_type": "uint32"
+        },
+        {
+            "name": "voidparam",
+            "result_type": "uint32"
         }
     ]
 }

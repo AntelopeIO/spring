@@ -4,6 +4,11 @@
     "types": [],
     "structs": [
         {
+            "name": "actcalltst",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "basictest",
             "base": "",
             "fields": [
@@ -14,20 +19,150 @@
             ]
         },
         {
+            "name": "crashtest",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "forevertest",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "nestedcalls",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "paramstest",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "recursvcall",
+            "base": "",
+            "fields": [
+                {
+                    "name": "n",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "selfcall",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "seqcalls",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "unkwnfunctst",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "unkwnrcvrtst",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "unkwnwraptst",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "voidparam",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "voidparamret",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "voidreturn",
             "base": "",
             "fields": []
         }
     ],
     "actions": [
         {
+            "name": "actcalltst",
+            "type": "actcalltst",
+            "ricardian_contract": ""
+        },
+        {
             "name": "basictest",
             "type": "basictest",
             "ricardian_contract": ""
         },
         {
+            "name": "crashtest",
+            "type": "crashtest",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "forevertest",
+            "type": "forevertest",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "nestedcalls",
+            "type": "nestedcalls",
+            "ricardian_contract": ""
+        },
+        {
             "name": "paramstest",
             "type": "paramstest",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "recursvcall",
+            "type": "recursvcall",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "selfcall",
+            "type": "selfcall",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "seqcalls",
+            "type": "seqcalls",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "unkwnfunctst",
+            "type": "unkwnfunctst",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "unkwnrcvrtst",
+            "type": "unkwnrcvrtst",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "unkwnwraptst",
+            "type": "unkwnwraptst",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "voidparam",
+            "type": "voidparam",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "voidparamret",
+            "type": "voidparamret",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "voidreturn",
+            "type": "voidreturn",
             "ricardian_contract": ""
         }
     ],
