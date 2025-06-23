@@ -62,10 +62,6 @@ namespace fc {
             return a.serialize() != b.serialize();
            }
 
-           /// Allows to convert current public key object into base58 number.
-           std::string to_base58() const;
-           static public_key from_base58( const std::string& b58 );
-
         private:
           friend class private_key;
           friend compact_signature signature_from_ecdsa(const EC_KEY* key, const public_key_data& pub_data, fc::ecdsa_sig& sig, const fc::sha256& d);
@@ -176,42 +172,6 @@ namespace fc {
 
   } // namespace r1
   } // namespace crypto
-  void to_variant( const crypto::r1::private_key& var,  variant& vo );
-  void from_variant( const variant& var,  crypto::r1::private_key& vo );
-  void to_variant( const crypto::r1::public_key& var,  variant& vo );
-  void from_variant( const variant& var,  crypto::r1::public_key& vo );
-
-  namespace raw
-  {
-      template<typename Stream>
-      void unpack( Stream& s, fc::crypto::r1::public_key& pk)
-      {
-          crypto::r1::public_key_data ser;
-          fc::raw::unpack(s,ser);
-          pk = fc::crypto::r1::public_key( ser );
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::crypto::r1::public_key& pk)
-      {
-          fc::raw::pack( s, pk.serialize() );
-      }
-
-      template<typename Stream>
-      void unpack( Stream& s, fc::crypto::r1::private_key& pk)
-      {
-          fc::sha256 sec;
-          unpack( s, sec );
-          pk = crypto::r1::private_key::regenerate(sec);
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::crypto::r1::private_key& pk)
-      {
-          fc::raw::pack( s, pk.get_secret() );
-      }
-
-  } // namespace raw
 
 } // namespace fc
 #include <fc/reflect/reflect.hpp>

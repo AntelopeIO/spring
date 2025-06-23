@@ -141,6 +141,7 @@ try:
     Print("found digest ", digest, " of PREACTIVATE_FEATURE")
 
     node0 = cluster.getNode(0)
+    node1 = cluster.getNode(1)
     contract="eosio.bios"
     contractDir="libraries/testing/contracts/old_versions/v1.7.0-develop-preactivate_feature/%s" % (contract)
     wasmFile="%s.wasm" % (contract)
@@ -155,26 +156,10 @@ try:
 
     secwait = 30
     Print("Wait for node 1 to produce...")
-    node = cluster.getNode(1)
-    while secwait > 0:
-       info = node.getInfo()
-       if info["head_block_producer"] >= "defproducerl" and info["head_block_producer"] <= "defproduceru":
-          break
-       time.sleep(1)
-       secwait = secwait - 1
+    node1.waitForAnyProducer(["defproducerb", "defproducerd", "defproducerf", "defproducerh", "defproducerj", "defproducerl", "defproducern", "defproducerp", "defproducerr", "defproducert"], timeout=secwait)
 
-    secwait = 30
-    Print("Waiting until node 0 start to produce...")
-    node = cluster.getNode(1)
-    while secwait > 0:
-       info = node.getInfo()
-       if info["head_block_producer"] >= "defproducera" and info["head_block_producer"] <= "defproducerk":
-          break
-       time.sleep(1)
-       secwait = secwait - 1
-
-    if secwait <= 0:
-       errorExit("No producer of node 0")
+    Print("Wait for node 0 to produce...")
+    node0.waitForAnyProducer(["defproducera", "defproducerc", "defproducere", "defproducerg", "defproduceri", "defproducerk", "defproducerm", "defproducero", "defproducerq", "defproducers", "defproduceru"], timeout=secwait)
 
     resource = "producer"
     command = "schedule_protocol_feature_activations"
@@ -195,16 +180,7 @@ try:
         errorExit("bios contract not result in expected unresolveable error")
 
     Print("now wait for node 1 produce a block...")
-    secwait = 30 # wait for node 1 produce a block
-    while secwait > 0:
-       info = node.getInfo()
-       if info["head_block_producer"] >= "defproducerl" and info["head_block_producer"] <= "defproduceru":
-          break
-       time.sleep(1)
-       secwait = secwait - 1
-
-    if secwait <= 0:
-       errorExit("No blocks produced by node 1")
+    node1.waitForAnyProducer(["defproducerb", "defproducerd", "defproducerf", "defproducerh", "defproducerj", "defproducerl", "defproducern", "defproducerp", "defproducerr", "defproducert"], timeout=secwait)
 
     time.sleep(0.6)
     retMap = node0.publishContract(cluster.eosioAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True, shouldFail=False)
