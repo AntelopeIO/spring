@@ -18,9 +18,13 @@ static inline void print_debug(account_name receiver, const action_trace& ar) {
       return;
    }
 
+   // If no action console and no sync calls, just return
+   if (ar.console.empty() && ar.console_markers.empty()) {
+     return;
+   }
+
    std::string prefix;
    prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
-
    prefix += "\n[(";
    prefix += ar.act.account.to_string();
    prefix += ",";
@@ -31,12 +35,20 @@ static inline void print_debug(account_name receiver, const action_trace& ar) {
 
    std::string header = prefix;
    header  += ": CONSOLE OUTPUT BEGIN =====================";
-
    std::string trailer = prefix;
    trailer += ": CONSOLE OUTPUT END   =====================";
 
-   fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
-   std::string output = expand_console(header, trailer, ar.call_traces, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
+   std::string output;
+   if (ar.console_markers.empty()) {
+      // ar.console must be non-empty
+      output = header;
+      output += "\n";
+      output += ar.console;
+      output += trailer;
+   } else {
+      fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
+      output = expand_console(header, trailer, ar.call_traces, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
+   }
 
    if (!output.empty()) {
       dlog( std::move(output) );
