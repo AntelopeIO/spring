@@ -85,4 +85,48 @@ BOOST_AUTO_TEST_CASE(params_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "paramstest"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
+// Verify initiating action does not have console but its children sync calls have console
+BOOST_AUTO_TEST_CASE(caller_has_no_console_test) { try {
+   call_tester t({
+      {"caller"_n, test_contracts::sync_caller_wasm(), test_contracts::sync_caller_abi()},
+      {"callee"_n, test_contracts::sync_callee_wasm(), test_contracts::sync_callee_abi()}
+   });
+
+   auto  trx_trace    = t.push_action("caller"_n, "callernocnsl"_n, "caller"_n, {});
+   auto& action_trace = trx_trace->action_traces[0];
+   std::string header  = "Test BEGIN ==================";
+   std::string trailer = "\nTest END   ==================";
+   fc::unsigned_int sender_ordinal = 0;
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+
+   static const std::string expected = R"=====(Test BEGIN ==================
+[caller->(callee,basictest)]: CALL BEGIN ======
+I am basictest from sync_callee
+[caller->(callee,basictest)]: CALL END   ======
+Test END   ==================)=====";
+
+   BOOST_REQUIRE_EQUAL(actual, expected);
+} FC_LOG_AND_RETHROW() }
+
+// Verify initiating action has console but its children sync calls do not have console
+BOOST_AUTO_TEST_CASE(callee_has_no_console_test) { try {
+   call_tester t({
+      {"caller"_n, test_contracts::sync_caller_wasm(), test_contracts::sync_caller_abi()},
+      {"callee"_n, test_contracts::sync_callee_wasm(), test_contracts::sync_callee_abi()}
+   });
+
+   auto  trx_trace    = t.push_action("caller"_n, "calleenocnsl"_n, "caller"_n, {});
+   auto& action_trace = trx_trace->action_traces[0];
+   std::string header  = "Test BEGIN ==================";
+   std::string trailer = "\nTest END   ==================";
+   fc::unsigned_int sender_ordinal = 0;
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+
+   static const std::string expected = R"=====(Test BEGIN ==================
+Before making sync call. After returned from sync call.
+Test END   ==================)=====";
+
+   BOOST_REQUIRE_EQUAL(actual, expected);
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()

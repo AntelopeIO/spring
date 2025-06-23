@@ -61,12 +61,15 @@ std::string expand_console(const std::string&                   header,
    // has sync calls. expand their consoles
    std::string expanded{};
    size_t last_marker = 0;
+   bool children_have_consoles = false;
 
    for (fc::unsigned_int marker : console_markers) {
       // if current marker is greater last marker, need to output the current
       // segment in the console
       if (marker > last_marker) {
-         expanded += "\n";
+         if (last_marker == 0) {
+            expanded += "\n";
+         }
          expanded += console.substr(last_marker, marker);
          last_marker = marker;
       }
@@ -106,19 +109,25 @@ std::string expand_console(const std::string&                   header,
 
       std::string header = prefix;
       header  += ": CALL BEGIN ======";
-
       std::string trailer = prefix;
       trailer += ": CALL END   ======";
 
       // The traces of a child sync call in `call_traces` are after the call trace
       // of the current call, that's why we use `call_trace_idx + 1` to avoid
       // searching from the beginning every time.
-      expanded += expand_console(header, trailer, call_traces, call_trace_idx + 1, ct.sender_ordinal, ct.receiver.to_string(), ct.console, ct.console_markers); // append expanded console of `ct`'s console (recursively)
+      std::string child_console = expand_console(header, trailer, call_traces, call_trace_idx + 1, ct.sender_ordinal, ct.receiver.to_string(), ct.console, ct.console_markers); // append expanded console of `ct`'s console (recursively)
+      if (!child_console.empty()) {
+         children_have_consoles = true;
+         expanded += child_console;
+      }
    }
 
+   // append the portion of console after the last marker to `expanded`
    if (console.size() > console_markers.back()) {
-      expanded += "\n";
-      // append the portion of console after the last marker to `expanded`
+      if (children_have_consoles) {
+         // Add "\n" if children sync calls have consoles
+         expanded += "\n";
+      }
       expanded += console.substr(console_markers.back());
    }
 
