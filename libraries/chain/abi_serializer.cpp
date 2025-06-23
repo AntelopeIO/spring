@@ -3,16 +3,13 @@
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/finality_extension.hpp>
 #include <fc/io/raw.hpp>
-#include <boost/algorithm/string/predicate.hpp>
 #include <fc/io/varint.hpp>
 #include <fc/time.hpp>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
    const size_t abi_serializer::max_recursion_depth;
 
-   using boost::algorithm::starts_with;
-   using boost::algorithm::ends_with;
    using std::string;
    using std::string_view;
 
@@ -133,7 +130,7 @@ namespace eosio { namespace chain {
    void abi_serializer::set_abi(abi_def abi, const yield_function_t& yield) {
       impl::abi_traverse_context ctx(yield, fc::microseconds{});
 
-      EOS_ASSERT(starts_with(abi.version, "eosio::abi/1."), unsupported_abi_version_exception, "ABI has an unsupported version");
+      EOS_ASSERT(abi.version.starts_with("eosio::abi/1."), unsupported_abi_version_exception, "ABI has an unsupported version");
 
       size_t types_size = abi.types.size();
       size_t structs_size = abi.structs.size();
@@ -199,12 +196,12 @@ namespace eosio { namespace chain {
    }
 
    bool abi_serializer::is_integer(const std::string_view& type) const {
-      return boost::starts_with(type, "uint") || boost::starts_with(type, "int");
+      return type.starts_with("uint") || type.starts_with("int");
    }
 
    int abi_serializer::get_integer_size(const std::string_view& type) const {
       EOS_ASSERT( is_integer(type), invalid_type_inside_abi, "${type} is not an integer type", ("type",impl::limit_size(type)));
-      if( boost::starts_with(type, "uint") ) {
+      if( type.starts_with("uint") ) {
          return boost::lexical_cast<int>(type.substr(4));
       } else {
          return boost::lexical_cast<int>(type.substr(3));
@@ -216,7 +213,7 @@ namespace eosio { namespace chain {
    }
 
    bool abi_serializer::is_array(const string_view& type)const {
-      return ends_with(type, "[]");
+      return type.ends_with("[]");
    }
 
    bool abi_serializer::is_szarray(const string_view& type)const {
@@ -233,7 +230,7 @@ namespace eosio { namespace chain {
    }
 
    bool abi_serializer::is_optional(const string_view& type)const {
-      return ends_with(type, "?");
+      return type.ends_with("?");
    }
 
    bool abi_serializer::is_type(const std::string_view& type, const yield_function_t& yield)const {
@@ -258,7 +255,7 @@ namespace eosio { namespace chain {
    }
 
    std::string_view abi_serializer::_remove_bin_extension(const std::string_view& type) {
-      if( ends_with(type, "$") )
+      if( type.ends_with("$") )
          return type.substr(0, type.size()-1);
       else
          return type;
@@ -362,7 +359,7 @@ namespace eosio { namespace chain {
       bool encountered_extension = false;
       for( uint32_t i = 0; i < st.fields.size(); ++i ) {
          const auto& field = st.fields[i];
-         bool extension = ends_with(field.type, "$");
+         bool extension = field.type.ends_with("$");
          encountered_extension |= extension;
          if( !stream.remaining() ) {
             if( extension ) {
@@ -560,7 +557,7 @@ namespace eosio { namespace chain {
                      auto h2 = ctx.disallow_extensions_unless( &field == &st.fields.back() );
                      _variant_to_binary(_remove_bin_extension(field.type), present ? vo[field.name] : fc::variant(nullptr), ds, ctx);
                   }
-               } else if( ends_with(field.type, "$") && ctx.extensions_allowed() ) {
+               } else if( field.type.ends_with("$") && ctx.extensions_allowed() ) {
                   disallow_additional_fields = true;
                } else if( disallow_additional_fields ) {
                   EOS_THROW( abi_exception, "Encountered field '${f}' without binary extension designation while processing struct '${p}'",
@@ -581,7 +578,7 @@ namespace eosio { namespace chain {
                   auto h1 = ctx.push_to_path( impl::field_path_item{ .parent_struct_itr = s_itr, .field_ordinal = i } );
                   auto h2 = ctx.disallow_extensions_unless( &field == &st.fields.back() );
                   _variant_to_binary(_remove_bin_extension(field.type), va[i], ds, ctx);
-               } else if( ends_with(field.type, "$") && ctx.extensions_allowed() ) {
+               } else if( field.type.ends_with("$") && ctx.extensions_allowed() ) {
                   break;
                } else {
                   EOS_THROW( pack_exception, "Early end to input array specifying the fields of struct '${p}'; require input for field '${f}'",
@@ -934,4 +931,4 @@ namespace eosio { namespace chain {
       }
    }
 
-} }
+}
