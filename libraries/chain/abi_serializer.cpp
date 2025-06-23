@@ -136,11 +136,9 @@ namespace eosio { namespace chain {
       auto abi_version = abi.get_version();
       EOS_ASSERT(!!abi_version, unsupported_abi_version_exception, "Unrecognized abi version: ${v}",
                  ("v", abi.version));
-#if 0
       EOS_ASSERT(*abi_version <= current_abi_support, unsupported_abi_version_exception,
                  "ABI has an unsupported version: ${v}, current nodeos supports up to: ${vc}",
-                 ("v", std::string(version_str))("vc", current_abi_support.str()));
-#endif
+                 ("v", abi.version)("vc", current_abi_support.str()));
 
       size_t types_size = abi.types.size();
       size_t structs_size = abi.structs.size();
