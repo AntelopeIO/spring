@@ -38,83 +38,88 @@ action_trace::action_trace(
 std::string expand_console(const std::string&                   header,
                            const std::string&                   trailer,
                            const std::vector<call_trace>&       call_traces,
+                           size_t                               call_trace_idx,
                            fc::unsigned_int                     sender_ordinal,
                            const std::string&                   sender_name,
                            const std::string&                   console,
                            const std::vector<fc::unsigned_int>& console_markers) {
-   ilog("entering expand_console");
-
    if (console.empty() && console_markers.empty()) { // no console output in the current action/call and no sync calls made by it
       return {};
    }
 
-   std::string expanded{};
-
+   // no sync calls but has console
    if (console_markers.empty()) {
-      if (!console.empty()) {
+      std::string output{};
+      output += header;
+      output += "\n";
+      output += console;
+      output += trailer;
+
+      return output;
+   }
+
+   // has sync calls. expand their consoles
+   std::string expanded{};
+   size_t last_marker = 0;
+
+   for (fc::unsigned_int marker : console_markers) {
+      // if current marker is greater last marker, need to output the current
+      // segment in the console
+      if (marker > last_marker) {
          expanded += "\n";
-         expanded += console;
+         expanded += console.substr(last_marker, marker);
+         last_marker = marker;
       }
-   } else {
-      size_t start = 0;
-      size_t i = 0;
-      ilog("console_markers size: ${s}", ("s", console_markers.size()));
-      for (fc::unsigned_int m : console_markers) {
-         if (m > start) {
-            // append the portion of console between start and the current marker to expanded
-            expanded += "\n";
-            expanded += console.substr(start, m);
-            start = m;
+
+      // find the call_trace corresponding to current marker
+      // note: call_trace entries and markers are arranged in the same order
+      while (call_trace_idx < call_traces.size()) {
+         if (call_traces[call_trace_idx].sender_ordinal == sender_ordinal) {
+            break;
+         } else {
+            ++call_trace_idx;
          }
+      }
+      assert(call_trace_idx < call_traces.size()); // there must be a call_trace entry for every marker
 
-         // find the call_trace corresponding to current marker
-         // note: call_trace entries and markers are arranged in the same order
-         while (i < call_traces.size()) {
-            if (call_traces[i].sender_ordinal == sender_ordinal) {
-               break;
-            } else {
-               ++i;
-            }
+      const call_trace& ct = call_traces[call_trace_idx];
+
+      std::string call_name{};
+      call_data_header data_header;
+      fc::datastream<const char*> ds(ct.data.data(), ct.data.size());
+      try{
+         fc::raw::unpack(ds, data_header);
+         if (data_header.is_version_valid()) {
+            call_name = eosio::chain::name(data_header.func_name).to_string();
+         } else {
+            call_name = "unknown_call_name";
          }
-         assert(i < call_traces.size()); // there must be a call_trace entry for every marker
+      } catch(...) {}
 
-         const call_trace& ct = call_traces[i];
+      std::string prefix = "\n[";
+      prefix += sender_name;
+      prefix += "->(";
+      prefix += ct.receiver.to_string();
+      prefix += ",";
+      prefix += call_name;
+      prefix += ")]";
 
-         std::string call_name{};
-         call_data_header data_header;
-         fc::datastream<const char*> ds(ct.data.data(), ct.data.size());
-         try{
-            fc::raw::unpack(ds, data_header);
-            if (data_header.is_version_valid()) {
-               call_name = eosio::chain::name(data_header.func_name).to_string();
-            } else {
-               call_name = "unknown_call_name";
-            }
-         } catch(...) {}
+      std::string header = prefix;
+      header  += ": CALL BEGIN ======";
 
-         std::string prefix = "\n[";
-         prefix += sender_name;
-         prefix += "->(";
-         prefix += ct.receiver.to_string();
-         prefix += ",";
-         prefix += call_name;
-         prefix += ")]";
+      std::string trailer = prefix;
+      trailer += ": CALL END   ======";
 
-         std::string header = prefix;
-         header  += ": CALL BEGIN ======";
+      // The traces of a child sync call in `call_traces` are after the call trace
+      // of the current call, that's why we use `call_trace_idx + 1` to avoid
+      // searching from the beginning every time.
+      expanded += expand_console(header, trailer, call_traces, call_trace_idx + 1, ct.sender_ordinal, ct.receiver.to_string(), ct.console, ct.console_markers); // append expanded console of `ct`'s console (recursively)
+   }
 
-         std::string trailer = prefix;
-         trailer += ": CALL END   ======";
-
-         // append expanded console of `ct`'s console (recursively)
-         expanded += expand_console(header, trailer, call_traces, ct.sender_ordinal, ct.receiver.to_string(), ct.console, ct.console_markers);
-      }
-
-      if (console.size() > console_markers.back()) {
-         expanded += "\n";
-         // append the portion of console after the last marker to `expanded`
-         expanded += console.substr(console_markers.back());
-      }
+   if (console.size() > console_markers.back()) {
+      expanded += "\n";
+      // append the portion of console after the last marker to `expanded`
+      expanded += console.substr(console_markers.back());
    }
 
    if (expanded.empty()) {
@@ -125,7 +130,6 @@ std::string expand_console(const std::string&                   header,
    output += header;
    output += expanded;
    output += trailer;
-
    return output;
 }
 } } // eosio::chain

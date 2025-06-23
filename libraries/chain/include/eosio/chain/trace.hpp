@@ -158,6 +158,7 @@ namespace eosio::chain {
    std::string expand_console(const std::string&                   header,
                               const std::string&                   trailer,
                               const std::vector<call_trace>&       call_traces,
+                              size_t                               call_trace_idx,
                               fc::unsigned_int                     sender_ordinal,
                               const std::string&                   sender_name,
                               const std::string&                   console,

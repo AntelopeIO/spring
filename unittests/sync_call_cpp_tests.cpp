@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(basic_test) { try {
    std::string trailer = "\nTest END   ==================";
 
    fc::unsigned_int sender_ordinal = 0;
-   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
 
    static const std::string expected = R"=====(Test BEGIN ==================
 Before calling sync call basictest

@@ -47,7 +47,8 @@ static inline void print_debug(account_name receiver, const action_trace& ar) {
       output += trailer;
    } else {
       fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
-      output = expand_console(header, trailer, ar.call_traces, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
+      size_t call_trace_idx = 0;  // starting from the first one
+      output = expand_console(header, trailer, ar.call_traces, sender_ordinal, call_trace_idx, receiver.to_string(), ar.console, ar.console_markers);
    }
 
    if (!output.empty()) {
