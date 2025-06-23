@@ -1,7 +1,7 @@
 #pragma once
 
 #include <eosio/chain/types.hpp>
-#include <boost/algorithm/string/predicate.hpp>
+#include <charconv>
 
 namespace eosio::chain {
 
@@ -13,7 +13,7 @@ struct version_t {
    version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
 
    version_t(std::string_view sv) {
-#if 1
+#if 0
       valid = sscanf(sv.data(), "%hhu.%hhu", &major, &minor) == 2;
 #else
       // code for when `std::from_chars` available from our gcc version.
@@ -165,9 +165,8 @@ struct abi_def {
    may_not_exist<vector<action_result_def>>  action_results;
 
    std::optional<version_t> get_version() const {
-      using boost::algorithm::starts_with;
       static constexpr std::string version_header = "eosio::abi/";
-      if (!starts_with(version, version_header))
+      if (!version.starts_with(version_header))
          return {};
       std::string_view version_str(version.c_str() + version_header.size(), version.size() - version_header.size());
 
