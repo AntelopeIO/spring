@@ -13,19 +13,22 @@ struct version_t {
    version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
 
    version_t(std::string_view sv) {
+#if 1
+      valid = sscanf(sv.data(), "%hhu.%hhu", &major, &minor) == 2;
+#else
+      // code for when `std::from_chars` available from our gcc version.
       auto last = sv.data() + sv.size();
       auto [ptr, ec] = std::from_chars(sv.data(), last, major);
       if (ec == std::errc() && *ptr == '.')
          valid = (std::from_chars(ptr+1, last, minor).ec == std::errc());
+#endif
    }
 
    friend auto operator<=>(const version_t&, const version_t&) = default;
    friend bool operator==(const version_t&, const version_t&) = default;
 
    std::string str() const {
-      std::ostringstream oss;
-      oss << std::to_string(major) << '.' << std::to_string(minor);
-      return oss.str();
+      return std::to_string(major) + "." + std::to_string(minor);
    }
 
    bool is_valid() const {
