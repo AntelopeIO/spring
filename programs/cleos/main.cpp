@@ -2794,6 +2794,8 @@ int main( int argc, char** argv ) {
 
    fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::debug);
 
+   setlocale(LC_CTYPE, "C.UTF-8");
+
    wallet_url = default_wallet_url;
 
    CLI::App app{"Command Line Interface to Spring Client"};

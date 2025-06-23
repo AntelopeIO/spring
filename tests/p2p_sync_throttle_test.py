@@ -103,10 +103,10 @@ try:
     throttlingNode = cluster.unstartedNodes[0]
     i = throttlingNode.cmd.index('--p2p-listen-endpoint')
     throttleListenAddr = throttlingNode.cmd[i+1]
-    # Using 40 Kilobytes per second to allow syncing of ~250 transaction blocks at ~175 bytes per transaction
+    # Using 20 Kilobytes per second to allow syncing of ~250 transaction blocks at ~175 bytes per transaction
     # (250*175=43750 per block or 87500 per second)
     # resulting from the trx generators in a reasonable amount of time
-    throttlingNode.cmd[i+1] = throttlingNode.cmd[i+1] + ':40KB/s'
+    throttlingNode.cmd[i+1] = throttlingNode.cmd[i+1] + ':20KB/s'
     throttleListenIP, throttleListenPort = throttleListenAddr.split(':')
     throttlingNode.cmd.append('--p2p-listen-endpoint')
     throttlingNode.cmd.append(f'{throttleListenIP}:{int(throttleListenPort)+100}:1TB/s')

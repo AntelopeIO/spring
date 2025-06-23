@@ -30,6 +30,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_signal_throw_test.py ${CMAKE_C
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_startup_catchup.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_startup_catchup.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_snapshot_diff_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_snapshot_diff_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_snapshot_forked_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_snapshot_forked_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bridge_consecutive_shape.json ${CMAKE_CURRENT_BINARY_DIR}/bridge_consecutive_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_forked_chain_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_forked_chain_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_short_fork_take_over_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_short_fork_take_over_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_run_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_run_test.py COPYONLY)
