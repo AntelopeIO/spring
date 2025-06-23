@@ -165,7 +165,7 @@ struct abi_def {
    may_not_exist<vector<action_result_def>>  action_results;
 
    std::optional<version_t> get_version() const {
-      static constexpr std::string version_header = "eosio::abi/";
+      static const std::string version_header = "eosio::abi/";
       if (!version.starts_with(version_header))
          return {};
       std::string_view version_str(version.c_str() + version_header.size(), version.size() - version_header.size());
