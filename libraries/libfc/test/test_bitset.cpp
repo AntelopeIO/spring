@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE(bitset_test)
          fc::bitset tmp = bs3;
          tmp |= bs3; // should not change anything, b3 still bs flipped
          tmp.flip();
-         BOOST_TEST(bs3 == bs);
+         BOOST_TEST(tmp == bs);
 
 
          // flip all bits using flip
