@@ -97,8 +97,9 @@ BOOST_AUTO_TEST_CASE(bitset_test)
          bs2 |= bs;
          BOOST_TEST(bs2.all());
 
-         bs3 |= bs3; // should not change anything, b3 still bs flipped
-         bs3.flip();
+         fc::bitset tmp = bs3;
+         tmp |= bs3; // should not change anything, b3 still bs flipped
+         tmp.flip();
          BOOST_TEST(bs3 == bs);
 
 
