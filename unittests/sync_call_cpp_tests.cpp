@@ -1,3 +1,4 @@
+#include <sync_call_tester.hpp>
 #include <test_contracts.hpp>
 #include <eosio/testing/tester.hpp>
 #include <eosio/chain/trace.hpp>
@@ -67,7 +68,7 @@ BOOST_AUTO_TEST_CASE(params_test) { try {
 
 // Verify initiating action does not have console but its children sync calls have console
 BOOST_AUTO_TEST_CASE(caller_has_no_console_test) { try {
-   call_tester t({
+   call_tester t(std::vector<account_and_wasm_code>{
       {"caller"_n, test_contracts::sync_caller_wasm(), test_contracts::sync_caller_abi()},
       {"callee"_n, test_contracts::sync_callee_wasm(), test_contracts::sync_callee_abi()}
    });
@@ -90,7 +91,7 @@ Test END   ==================)=====";
 
 // Verify initiating action has console but its children sync calls do not have console
 BOOST_AUTO_TEST_CASE(callee_has_no_console_test) { try {
-   call_tester t({
+   call_tester t(std::vector<account_and_wasm_code>{
       {"caller"_n, test_contracts::sync_caller_wasm(), test_contracts::sync_caller_abi()},
       {"callee"_n, test_contracts::sync_callee_wasm(), test_contracts::sync_callee_abi()}
    });
