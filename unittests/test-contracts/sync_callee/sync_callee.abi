@@ -8,26 +8,8 @@
             "base": "",
             "fields": [
                 {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
                     "name": "input",
                     "type": "uint32"
-                }
-            ]
-        },
-        {
-            "name": "call_data_header",
-            "base": "",
-            "fields": [
-                {
-                    "name": "version",
-                    "type": "uint32"
-                },
-                {
-                    "name": "func_name",
-                    "type": "uint64"
                 }
             ]
         },
@@ -54,13 +36,14 @@
             ]
         },
         {
+            "name": "noconsolefunc",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "paramstest",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "s1",
                     "type": "two_fields_struct"
@@ -99,6 +82,10 @@
         {
             "name": "basictest",
             "type": "basictest"
+        },
+        {
+            "name": "noconsolefunc",
+            "type": "noconsolefunc"
         },
         {
             "name": "paramstest",

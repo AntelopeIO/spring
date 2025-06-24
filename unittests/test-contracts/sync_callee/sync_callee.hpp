@@ -27,4 +27,8 @@ public:
 
    using basictest_func = eosio::call_wrapper<"basictest"_n, &sync_callee::basictest>;
    using paramstest_func = eosio::call_wrapper<"paramstest"_n, &sync_callee::paramstest>;
+
+   [[eosio::call]]
+   void noconsolefunc();
+   using no_console_func = eosio::call_wrapper<"noconsolefunc"_n, &sync_callee::noconsolefunc>;
 };
