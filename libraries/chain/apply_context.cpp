@@ -38,22 +38,10 @@ static inline void print_debug(account_name receiver, const action_trace& ar) {
    std::string trailer = prefix;
    trailer += ": CONSOLE OUTPUT END   =====================";
 
-   std::string output;
-   if (ar.console_markers.empty()) {
-      // ar.console must be non-empty
-      output = header;
-      output += "\n";
-      output += ar.console;
-      output += trailer;
-   } else {
-      fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
-      size_t call_trace_idx = 0;  // starting from the first one
-      output = expand_console(header, trailer, ar.call_traces, sender_ordinal, call_trace_idx, receiver.to_string(), ar.console, ar.console_markers);
-   }
-
-   if (!output.empty()) {
-      dlog( std::move(output) );
-   }
+   fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
+   size_t call_trace_idx = 0;  // starting from the first one
+   auto output = expand_console(header, trailer, ar.call_traces, sender_ordinal, call_trace_idx, receiver.to_string(), ar.console, ar.console_markers);
+   dlog(std::move(output));
 }
 
 apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth)
