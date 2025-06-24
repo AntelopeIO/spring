@@ -13,7 +13,6 @@ struct version_t {
    version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
 
    version_t(std::string_view sv) {
-      // code for when `std::from_chars` available from our gcc version.
       auto last = sv.data() + sv.size();
       auto [ptr, ec] = std::from_chars(sv.data(), last, major);
       if (ec == std::errc() && *ptr == '.')
