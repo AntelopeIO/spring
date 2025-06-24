@@ -9,31 +9,11 @@
 using namespace eosio::testing;
 using mvo = fc::mutable_variant_object;
 
-struct accountt_and_code {
-   account_name         acct{};
-   std::vector<uint8_t> wasm{};
-   std::string          abi{};
-};
-
-// Set up accouts and code
-// The first account in the accounts vector is the account initiating sync calls
-struct call_tester: tester {
-   call_tester(const std::vector<accountt_and_code>& accounts) {
-      for (auto i = 0u; i < accounts.size(); ++i) {
-         create_account(accounts[i].acct);
-         set_code(accounts[i].acct, accounts[i].wasm);
-         set_abi(accounts[i].acct, accounts[i].abi);
-      }
-
-      produce_block();
-   }
-};
-
 BOOST_AUTO_TEST_SUITE(sync_call_cpp_tests)
 
 // Verify a basic sync call works
 BOOST_AUTO_TEST_CASE(basic_test) { try {
-   call_tester t({
+   call_tester t(std::vector<account_and_wasm_code>{
       {"caller"_n, test_contracts::sync_caller_wasm(), test_contracts::sync_caller_abi()},
       {"callee"_n, test_contracts::sync_callee_wasm(), test_contracts::sync_callee_abi()}
    });
@@ -75,7 +55,7 @@ Test END   ==================)=====";
 
 // Verify complex parameter passing works
 BOOST_AUTO_TEST_CASE(params_test) { try {
-   call_tester t({
+   call_tester t(std::vector<account_and_wasm_code>{
       {"caller"_n, test_contracts::sync_caller_wasm(), test_contracts::sync_caller_abi()},
       {"callee"_n, test_contracts::sync_callee_wasm(), test_contracts::sync_callee_abi()}
    });
