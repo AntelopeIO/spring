@@ -2718,6 +2718,7 @@ BOOST_AUTO_TEST_CASE(extend)
             {"name": "i2", "type": "int8$"},
             {"name": "a", "type": "int8[]$"},
             {"name": "o", "type": "int8?$"},
+            {"name": "fa", "type": "int8[2]$"},
          ]},
          {"name": "s2", "base": "", "fields": [
             {"name": "i0", "type": "int8"},
@@ -2749,6 +2750,7 @@ BOOST_AUTO_TEST_CASE(extend)
       verify_round_trip_conversion(abis, "s", R"({"i0":5,"i1":6,"i2":7,"a":[8,9,10]})", "0506070308090a");
       verify_round_trip_conversion(abis, "s", R"({"i0":5,"i1":6,"i2":7,"a":[8,9,10],"o":null})", "0506070308090a00");
       verify_round_trip_conversion(abis, "s", R"({"i0":5,"i1":6,"i2":7,"a":[8,9,10],"o":31})", "0506070308090a011f");
+      verify_round_trip_conversion(abis, "s", R"({"i0":5,"i1":6,"i2":7,"a":[8,9,10],"o":31,"fa":[1,2]})", "0506070308090a011f0102");
 
       verify_round_trip_conversion(abis, "s", R"([5,6])", "0506", R"({"i0":5,"i1":6})");
       verify_round_trip_conversion(abis, "s", R"([5,6,7])", "050607", R"({"i0":5,"i1":6,"i2":7})");
