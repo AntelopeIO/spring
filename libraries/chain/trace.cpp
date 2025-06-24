@@ -87,15 +87,13 @@ std::string expand_console(const std::string_view&              header,
 
       const call_trace& ct = call_traces[call_trace_idx];
 
-      std::string call_name{};
+      std::string call_name = "<invalid>";
       call_data_header data_header;
       fc::datastream<const char*> ds(ct.data.data(), ct.data.size());
       try{
          fc::raw::unpack(ds, data_header);
          if (data_header.is_version_valid()) {
             call_name = eosio::chain::name(data_header.func_name).to_string();
-         } else {
-            call_name = "unknown_call_name";
          }
       } catch(...) {}
 
