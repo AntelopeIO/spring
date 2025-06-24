@@ -2818,6 +2818,8 @@ int main( int argc, char** argv ) {
 
    fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::debug);
 
+   setlocale(LC_CTYPE, "C.UTF-8");
+
    wallet_url = default_wallet_url;
 
    CLI::App app{"Command Line Interface to Spring Client"};
@@ -2900,7 +2902,7 @@ int main( int argc, char** argv ) {
    auto createAccount = create_account_subcommand( create, true /*simple*/ );
 
    // convert subcommand
-   auto convert = app.add_subcommand("convert", localized("Pack and unpack transactions")); // TODO also add converting action args based on abi from here ?
+   auto convert = app.add_subcommand("convert", localized("Pack and unpack transactions or convert public key format")); // TODO also add converting action args based on abi from here ?
    convert->require_subcommand();
 
    // pack transaction
@@ -2980,6 +2982,24 @@ int main( int argc, char** argv ) {
       fc::from_hex(packed_action_data_string, packed_action_data_blob.data(), packed_action_data_blob.size());
       fc::variant unpacked_action_data_json = bin_to_variant(name(packed_action_data_account_string), name(packed_action_data_name_string), packed_action_data_blob);
       std::cout << fc::json::to_pretty_string(unpacked_action_data_json) << std::endl;
+   });
+
+   string public_key_to_convert;
+   // output public key in legacy format
+   auto legacy_public_key = convert->add_subcommand("legacy_public_key", localized("From public key to legacy format (EOS, PUB_R1, PUB_WA)"));
+   legacy_public_key->add_option("public_key", public_key_to_convert, localized("Public key to output in legacy format"))->required();
+   legacy_public_key->callback([&] {
+      try {
+         std::cout << crypto::public_key(public_key_to_convert).to_legacy_string({}) << std::endl;
+      } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
+   });
+   // output public key in canonical format
+   auto public_key = convert->add_subcommand("public_key", localized("From public key to canonical format (PUB_K1, PUB_R1, PUB_WA)"));
+   public_key->add_option("public_key", public_key_to_convert, localized("Public key to output in canonical format"))->required();
+   public_key->callback([&] {
+      try {
+         std::cout << crypto::public_key(public_key_to_convert).to_string({}) << std::endl;
+      } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
    });
 
    // validate subcommand

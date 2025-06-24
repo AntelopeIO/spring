@@ -1,6 +1,5 @@
 #include <fc/crypto/elliptic.hpp>
 
-#include <fc/crypto/base58.hpp>
 #include <fc/crypto/hmac.hpp>
 #include <fc/crypto/openssl.hpp>
 #include <fc/crypto/sha512.hpp>
@@ -112,12 +111,6 @@ namespace fc { namespace ecc {
     bool public_key::valid()const
     {
       return my->_key != empty_pub;
-    }
-
-    std::string public_key::to_base58() const
-    {
-        FC_ASSERT( my->_key != empty_pub );
-        return to_base58( my->_key );
     }
 
     public_key_data public_key::serialize()const

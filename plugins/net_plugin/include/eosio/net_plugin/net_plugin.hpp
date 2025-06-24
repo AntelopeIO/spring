@@ -46,7 +46,7 @@ namespace eosio {
 
         string                            connect( const string& endpoint );
         string                            disconnect( const string& endpoint );
-        std::optional<connection_status>  status( const string& endpoint )const;
+        fc::variant                       status( const string& endpoint )const;
         vector<connection_status>         connections()const;
         vector<gossip_peer>               bp_gossip_peers()const;
 

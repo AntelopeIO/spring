@@ -725,6 +725,13 @@ class NodeosQueries:
                 return None
         return NodeosQueries.getBlockAttribute(block, "producer", blockNum, exitOnError=exitOnError)
 
+    def getProducerSchedule(self):
+        scheduled_producers = []
+        schedule = self.processUrllibRequest("chain", "get_producer_schedule")
+        for prod in schedule["payload"]["active"]["producers"]:
+            scheduled_producers.append(prod["producer_name"])
+        return scheduled_producers
+
     def getNextCleanProductionCycle(self, trans):
         rounds=21*12*2  # max time to ensure that at least 2/3+1 of producers x blocks per producer x at least 2 times
         if trans is not None:

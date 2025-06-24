@@ -9,9 +9,20 @@ using namespace fc::crypto;
 using namespace fc;
 
 BOOST_AUTO_TEST_SUITE(cypher_suites)
+BOOST_AUTO_TEST_CASE(test_k1_legacy_to_new) try {
+   BOOST_CHECK_EQUAL(public_key("EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV").to_string({}), "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63");
+} FC_LOG_AND_RETHROW();
+
+BOOST_AUTO_TEST_CASE(test_k1_legacy_and_new_underlying_match) try {
+   public_key from_legacy("EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV");
+   public_key from_new(from_legacy.to_string({}));
+
+   BOOST_CHECK(std::get<ecc::public_key_shim>(from_legacy._storage)._data == std::get<ecc::public_key_shim>(from_new._storage)._data);
+} FC_LOG_AND_RETHROW();
+
 BOOST_AUTO_TEST_CASE(test_k1) try {
    auto private_key_string = std::string("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3");
-   auto expected_public_key = std::string("EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV");
+   auto expected_public_key = std::string("PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63");
    auto test_private_key = private_key(private_key_string);
    auto test_public_key = test_private_key.get_public_key();
 
