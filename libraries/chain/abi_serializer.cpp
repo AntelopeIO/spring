@@ -220,7 +220,7 @@ namespace eosio::chain {
    std::optional<fc::unsigned_int> abi_serializer::is_szarray(const string_view& type) const {
       auto pos1 = type.find_last_of('[');
       auto pos2 = type.find_last_of(']');
-      if(pos1 == string_view::npos || pos2 == string_view::npos)
+      if(pos1 == string_view::npos || pos2 != type.size() - 1)
          return {};
       auto pos = pos1 + 1;
       if(pos == pos2)
