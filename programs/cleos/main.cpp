@@ -78,17 +78,14 @@ Options:
 #include <fc/io/console.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/variant_object.hpp>
+#include <fc/io/fstream.hpp>
 
 #include <eosio/chain/name.hpp>
 #include <eosio/chain/config.hpp>
 #include <eosio/chain/trace.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
 #include <eosio/chain/contract_types.hpp>
-
 #include <eosio/version/version.hpp>
-
-#pragma push_macro("N")
-#undef N
 
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
@@ -99,10 +96,6 @@ Options:
 #include <boost/range/algorithm/copy.hpp>
 #define BOOST_DLL_USE_STD_FS
 #include <boost/dll/runtime_symbol_info.hpp>
-
-#pragma pop_macro("N")
-
-#include <fc/io/fstream.hpp>
 
 #define CLI11_HAS_FILESYSTEM 0
 #include <CLI/CLI.hpp>
@@ -154,6 +147,8 @@ std::string clean_output( std::string str ) {
    return fc::escape_string( str, nullptr, escape_control_chars );
 }
 
+const name core_vaulta_name = "core.vaulta"_n;
+const name eosio_token_name = "eosio.token"_n;
 string default_url = "http://127.0.0.1:8888";
 string default_wallet_url = "unix://" + (determine_home_directory() / "eosio-wallet" / (string(key_store_executable_name) + ".sock")).string();
 string wallet_url; //to be set to default_wallet_url in main
@@ -252,14 +247,14 @@ bool is_public_key_str(const std::string& potential_key_str) {
 
 name to_default_token_contract(const asset& a) {
    if (a.symbol_name() == "A") {
-      return "core.vaulta"_n;
+      return core_vaulta_name ;
    }
-   return "eosio.token"_n;
+   return eosio_token_name;
 }
 
 name to_default_contract(const asset& a) {
    if (a.symbol_name() == "A") {
-      return "core.vaulta"_n;
+      return core_vaulta_name;
    }
    return config::system_account_name;
 }
@@ -1841,7 +1836,7 @@ struct buyram_subcommand {
       buyram->callback([this] {
          EOSC_ASSERT( !kbytes || !bytes, "ERROR: --kbytes and --bytes cannot be set at the same time" );
          if (kbytes || bytes) {
-            send_actions( { create_buyrambytes("core.vaulta"_n, name(from_str), name(receiver_str), fc::to_uint64(amount) * ((kbytes) ? 1024ull : 1ull)) }, signing_keys_opt.get_keys());
+            send_actions( { create_buyrambytes(core_vaulta_name, name(from_str), name(receiver_str), fc::to_uint64(amount) * ((kbytes) ? 1024ull : 1ull)) }, signing_keys_opt.get_keys());
          } else {
             send_actions( { create_buyram(name(from_str), name(receiver_str), to_asset(amount)) }, signing_keys_opt.get_keys());
          }
@@ -1865,7 +1860,7 @@ struct sellram_subcommand {
                ("account", receiver_str)
                ("bytes", amount);
             auto accountPermissions = get_account_permissions(tx_permission, {name(receiver_str), config::active_name});
-            send_actions({create_action(accountPermissions, "core.vaulta"_n, "sellram"_n, act_payload)}, signing_keys_opt.get_keys());
+            send_actions({create_action(accountPermissions, core_vaulta_name, "sellram"_n, act_payload)}, signing_keys_opt.get_keys());
          });
    }
 };
@@ -1882,7 +1877,7 @@ struct claimrewards_subcommand {
          fc::variant act_payload = fc::mutable_variant_object()
                   ("owner", owner);
          auto accountPermissions = get_account_permissions(tx_permission, {name(owner), config::active_name});
-         send_actions({create_action(accountPermissions, "core.vaulta"_n, "claimrewards"_n, act_payload)}, signing_keys_opt.get_keys());
+         send_actions({create_action(accountPermissions, core_vaulta_name, "claimrewards"_n, act_payload)}, signing_keys_opt.get_keys());
       });
    }
 };
@@ -4516,7 +4511,7 @@ int main( int argc, char** argv ) {
    });
 
    // system subcommand
-   auto system = app.add_subcommand("system", localized("Send system action to eosio contract or core.vaulta contract for A asset"));
+   auto system = app.add_subcommand("system", localized("Send system action to core.vaulta contract for A asset, or eosio contract for others"));
    system->require_subcommand();
 
    auto createAccountSystem = create_account_subcommand( system, false /*simple*/ );
