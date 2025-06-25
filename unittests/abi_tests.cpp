@@ -613,6 +613,76 @@ BOOST_AUTO_TEST_CASE(std_array_types_short)
 
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE(optional_std_array)
+{ try {
+
+   const char* test_abi = R"=====(
+   {
+       "version": "eosio::abi/1.0",
+       "types": [],
+       "structs": [{
+           "name": "test",
+           "base": "",
+           "fields": [{
+               "name": "a",
+               "type": "uint8[2]?"
+           }]
+       }],
+       "actions": [],
+       "tables": [],
+       "ricardian_clauses": []
+   }
+   )=====";
+
+   auto abi = fc::json::from_string(test_abi).as<abi_def>();
+
+   auto log_exception = [](const auto& e) -> bool {
+      wlog(e.to_string()); return true;
+   };
+   abi_serializer abis;
+
+   // As optional fixed size arrays are not supported in the abi, verify that they are rejected.
+   // ------------------------------------------------------------------------------------------
+   BOOST_CHECK_EXCEPTION( abis.set_abi(eosio_contract_abi(abi), yield_fn()), invalid_type_inside_abi, log_exception );
+
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(optional_vector)
+{ try {
+
+   const char* test_abi = R"=====(
+   {
+       "version": "eosio::abi/1.0",
+       "types": [],
+       "structs": [{
+           "name": "test",
+           "base": "",
+           "fields": [{
+               "name": "a",
+               "type": "uint8[]?"
+           }]
+       }],
+       "actions": [],
+       "tables": [],
+       "ricardian_clauses": []
+   }
+   )=====";
+
+   auto abi = fc::json::from_string(test_abi).as<abi_def>();
+
+   auto log_exception = [](const auto& e) -> bool {
+      wlog(e.to_string()); return true;
+   };
+   abi_serializer abis;
+
+   // As optional variable size arrays are not supported in the abi, verify that they are rejected.
+   // ---------------------------------------------------------------------------------------------
+   BOOST_CHECK_EXCEPTION( abis.set_abi(eosio_contract_abi(abi), yield_fn()), invalid_type_inside_abi, log_exception );
+
+} FC_LOG_AND_RETHROW() }
+
+
+
 BOOST_AUTO_TEST_CASE(uint_types)
 { try {
 
