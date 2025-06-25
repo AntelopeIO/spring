@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          },
          {}, {}, {}
       );
-      abi.version = "eosio::abi/1.";
+      abi.version = "eosio::abi/1.0";
 
       abi_data_handler handler(exception_handler{});
       handler.add_abi("alice"_n, std::move(abi));
@@ -124,7 +124,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          },
          {}, {}, {}
       );
-      abi.version = "eosio::abi/1.";
+      abi.version = "eosio::abi/1.0";
       abi.action_results = { std::vector<chain::action_result_def>{ chain::action_result_def{ "foo"_n, "foor"} } };
 
       abi_data_handler handler(exception_handler{});
@@ -164,7 +164,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          },
          {}, {}, {}
       );
-      abi.version = "eosio::abi/1.";
+      abi.version = "eosio::abi/1.0";
 
       abi_data_handler handler(exception_handler{});
       handler.add_abi("alice"_n, std::move(abi));
@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          },
          {}, {}, {}
       );
-      abi.version = "eosio::abi/1.";
+      abi.version = "eosio::abi/1.0";
 
       abi_data_handler handler(exception_handler{});
       handler.add_abi("alice"_n, std::move(abi));
@@ -224,7 +224,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          },
          {}, {}, {}
       );
-      abi.version = "eosio::abi/1.";
+      abi.version = "eosio::abi/1.0";
 
       bool log_called = false;
       abi_data_handler handler([&log_called](const exception_with_context& ){log_called = true;});
@@ -258,7 +258,7 @@ BOOST_AUTO_TEST_SUITE(abi_data_handler_tests)
          },
          {}, {}, {}
       );
-      abi.version = "eosio::abi/1.";
+      abi.version = "eosio::abi/1.0";
 
       abi_data_handler handler(exception_handler{});
       handler.add_abi("alice"_n, std::move(abi));

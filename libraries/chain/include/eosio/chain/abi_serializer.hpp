@@ -16,6 +16,15 @@ using std::function;
 using std::pair;
 using namespace fc;
 
+// ---------------------------
+// 1.1  variants
+//      binary extensions
+// 1.2  action return values
+// 1.3  bitset
+//      sync calls
+// ---------------------------
+inline static const version_t current_abi_support(1, 3);
+
 namespace impl {
    struct abi_from_variant;
    struct abi_to_variant;

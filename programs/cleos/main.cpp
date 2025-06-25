@@ -355,26 +355,50 @@ chain::action generate_nonce_action() {
    return chain::action( {}, config::null_account_name, name("nonce"), fc::raw::pack(fc::time_point::now().time_since_epoch().count()));
 }
 
+template <class F>
+bool abi_valid(const abi_def& abi, F&& f) {
+   std::optional<version_t> abi_ver(abi.get_version());
+   if (abi_ver && abi_ver <= current_abi_support)
+      return true;
+
+   if (!abi_ver)
+      std::cerr << std::forward<F>(f)() << " has an unrecognized version: " << abi.version << '\n';
+   else
+      std::cerr << std::forward<F>(f)() << " (" << abi_ver->str() << ") is higher than supported by cleos ("
+                << current_abi_support.str() << "). Please upgrade.\n";
+   return false;
+}
+
 //resolver for ABI serializer to decode actions in proposed transaction in multisig contract
 auto abi_serializer_resolver = [](const name& account) -> std::optional<abi_serializer> {
    static unordered_map<account_name, std::optional<abi_serializer> > abi_cache;
    auto it = abi_cache.find( account );
    if ( it == abi_cache.end() ) {
-      std::optional<abi_serializer> abis;
+      std::optional<abi_def> abi;
       if (abi_files_override.find(account) != abi_files_override.end()) {
-         abis.emplace( fc::json::from_file(abi_files_override[account]).as<abi_def>(), abi_serializer::create_yield_function( abi_serializer_max_time ));
+         abi.emplace(fc::json::from_file(abi_files_override[account]).as<abi_def>());
       } else {
          const auto raw_abi_result = call(get_raw_abi_func, fc::mutable_variant_object("account_name", account));
          const auto raw_abi_blob = raw_abi_result["abi"].as_blob().data;
          if (raw_abi_blob.size() != 0) {
-            abis.emplace(fc::raw::unpack<abi_def>(raw_abi_blob), abi_serializer::create_yield_function( abi_serializer_max_time ));
+            abi.emplace(fc::raw::unpack<abi_def>(raw_abi_blob));
          } else {
             std::cerr << "ABI for contract " << account.to_string() << " not found. Action data will be shown in hex only." << std::endl;
          }
       }
-      abi_cache.emplace( account, abis );
 
-      return abis;
+      std::optional<abi_serializer> ser;
+      if (abi) {
+         if (abi_valid(*abi, [&]() -> std::string {
+            std::ostringstream oss;
+            oss << "ABI for contract \"" << account.to_string() << "\"";
+            return oss.str();
+         })) {
+            ser.emplace(abi_serializer(std::move(*abi), abi_serializer::create_yield_function(abi_serializer_max_time)));
+         }
+      }
+      abi_cache.emplace(account, ser);
+      return ser;
    }
    return it->second;
 };
@@ -3585,9 +3609,9 @@ int main( int argc, char** argv ) {
 
         EOS_ASSERT( std::filesystem::exists( abiPath ), abi_file_not_found, "no abi file found ${f}", ("f", abiPath)  );
 
-        abi_bytes = fc::raw::pack(fc::json::from_file(abiPath).as<abi_def>());
-      } else {
-        abi_bytes = bytes();
+        auto abi = fc::json::from_file(abiPath).as<abi_def>();
+        FC_ASSERT( abi_valid(abi, []() { return std::string{"ABI"}; }), "Incorrect ABI version");
+        abi_bytes = fc::raw::pack(abi);
       }
 
       if (!suppress_duplicate_check) {

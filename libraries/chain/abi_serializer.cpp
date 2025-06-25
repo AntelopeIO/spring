@@ -133,8 +133,12 @@ namespace eosio { namespace chain {
 
    void abi_serializer::set_abi(abi_def abi, const yield_function_t& yield) {
       impl::abi_traverse_context ctx(yield, fc::microseconds{});
-
-      EOS_ASSERT(starts_with(abi.version, "eosio::abi/1."), unsupported_abi_version_exception, "ABI has an unsupported version");
+      auto abi_version = abi.get_version();
+      EOS_ASSERT(!!abi_version, unsupported_abi_version_exception, "Unrecognized abi version: ${v}",
+                 ("v", abi.version));
+      EOS_ASSERT(*abi_version <= current_abi_support, unsupported_abi_version_exception,
+                 "ABI has an unsupported version: ${v}, current nodeos supports up to: ${vc}",
+                 ("v", abi.version)("vc", current_abi_support.str()));
 
       size_t types_size = abi.types.size();
       size_t structs_size = abi.structs.size();
