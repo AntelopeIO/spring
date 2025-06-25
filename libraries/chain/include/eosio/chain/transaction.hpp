@@ -171,7 +171,6 @@ namespace eosio { namespace chain {
       digest_type packed_digest()const;
 
       const transaction_id_type& id()const { return trx_id; }
-      bytes               get_raw_transaction()const;
 
       time_point_sec                expiration()const { return unpacked_trx.expiration; }
       const vector<bytes>&          get_context_free_data()const { return unpacked_trx.context_free_data; }

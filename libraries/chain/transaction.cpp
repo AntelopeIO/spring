@@ -269,20 +269,6 @@ static bytes zlib_compress_transaction(const transaction& t) {
    return out;
 }
 
-bytes packed_transaction::get_raw_transaction() const
-{
-   try {
-      switch(compression) {
-         case compression_type::none:
-            return packed_trx;
-         case compression_type::zlib:
-            return zlib_decompress(packed_trx);
-         default:
-            EOS_THROW(unknown_transaction_compression, "Unknown transaction compression algorithm");
-      }
-   } FC_CAPTURE_AND_RETHROW((compression)(packed_trx))
-}
-
 packed_transaction::packed_transaction( bytes&& packed_txn, vector<signature_type>&& sigs, bytes&& packed_cfd, compression_type _compression )
 :signatures(std::move(sigs))
 ,compression(_compression)
