@@ -90,7 +90,7 @@ static uint64_t fibonacci(uint32_t n) {
 [[eosio::call]]
 void sync_callee::forever() {
    while (true) {
-      fibonacci(20); // expensive
+      fibonacci(20);
    }
 }
 
@@ -103,8 +103,6 @@ void sync_callee::crash() {
 
 [[eosio::call]]
 void sync_callee::insertperson(name user, std::string first_name, std::string street) {
-   // Intentionally leave out require_auth(user) so that we can test insertperson
-   // cannot be called as read_only
    address_index addresses(get_first_receiver(), get_first_receiver().value);
    auto iterator = addresses.find(user.value);
    if( iterator == addresses.end() )

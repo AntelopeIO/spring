@@ -33,7 +33,7 @@ public:
       eosio::check(output.b == m * input1.b + input2.d, "field b of output is not correct");
    }
 
-   // sequential sync calls to the same and different receivers
+   // a sequence of sync calls to the same and different receivers
    [[eosio::action]]
    void seqcalls() {
       // to `add` on receiver "callee"_n
@@ -70,6 +70,7 @@ public:
    void recursvcall(uint32_t n) {
       // call `recur` on "callee"_n, which calls `recur1` on "callee1"_n, which
       // calls `recur` again on "callee"_n, ...
+      // The result is n + (n-1) + ... + 1
       uint32_t expected = 0;
       for (uint32_t i = 1; i <= n; ++i) {
          expected += i;
@@ -79,6 +80,7 @@ public:
       eosio::check(recur(n) == expected, "result from recurvise call not expected");
    }
 
+   // called function does not return a value
    [[eosio::action]]
    void voidreturn() {
       sync_callee::voidreturn_func void_return{ "callee"_n };
@@ -86,6 +88,7 @@ public:
       void_return(10);
    }
 
+   // called function does not have parameters, it just returns 100
    [[eosio::action]]
    void voidparam() {
       sync_callee::voidparam_func void_param{ "callee"_n };
@@ -93,6 +96,7 @@ public:
       eosio::check(void_param() == 100, "void_param() did not return 100");
    }
 
+   // called function does not have parameters nor return a value
    [[eosio::action]]
    void voidparamret() {
       sync_callee::voidparamret_func void_paramret{ "callee"_n };
@@ -109,7 +113,7 @@ public:
       basictest(input);
    }
 
-   // sync_callee forgets to mark pureaction() as a sync call
+   // sync_callee does not tag pureaction as a sync call
    [[eosio::action]]
    void unkwnfunctst() {
       sync_callee::pure_action_func pure_action{ "callee"_n };
@@ -142,7 +146,7 @@ public:
       forever();
    }
 
-   // forever() is an infinite loop `while(true)`
+   // crash() intentionally accesses an unexisting memory and crashes
    [[eosio::action]]
    void crashtest() {
       sync_callee::crash_func crash{ "callee"_n };
@@ -150,20 +154,20 @@ public:
       crash();
    }
 
-   // Insert an entry using read_only sync call, which will fail because
+   // Insert an entry using read only sync call wrapper, which will fail because
    // it tries to modify states
    [[eosio::action]]
    void insertrdonly() {
       sync_callee::insert_person_read_only_func{"callee"_n}("alice"_n, "alice", "123 Main St.");
    }
 
-   // Insert an entry using regular sync call
+   // Insert an entry using regular sync call wrapper
    [[eosio::action]]
    void insertperson() {
       sync_callee::insert_person_func{"callee"_n}("alice"_n, "alice", "123 Main St.");
    }
 
-   // Read an entry
+   // Read an entry from the table
    [[eosio::action]]
    void getperson() {
       auto user_info = sync_callee::get_person_func{"callee"_n}("alice"_n);

@@ -2,12 +2,12 @@
 #include <eosio/chain/config.hpp>
 #include <boost/test/unit_test.hpp>
 
-// Test sync calls which are initiated by contracts written in C++
-// and converted to WASM by CDT.
+// Tests for sync calls initiated by contracts in C++
 
 using namespace eosio::testing;
 using mvo = fc::mutable_variant_object;
 
+// Convenient tester for cpp tests
 struct call_tester_cpp : call_tester {
    call_tester_cpp()
    : call_tester(std::vector<account_and_wasm_code>{
@@ -51,14 +51,14 @@ BOOST_AUTO_TEST_CASE(params_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "paramstest"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
-// Verify sequential sync calls works 
+// Verify a sequence of sync calls work
 BOOST_AUTO_TEST_CASE(sequential_call_test) { try {
    call_tester_cpp t;
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "seqcalls"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
-// Verify nested sync calls works 
+// Verify nested sync calls work
 BOOST_AUTO_TEST_CASE(nested_call_test) { try {
    call_tester_cpp t;
 
@@ -72,11 +72,12 @@ BOOST_AUTO_TEST_CASE(self_call_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "selfcall"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
-// Verify recursive calls
+// Verify recursive sync calls (calling back the same accounts) under
+// config::default_max_sync_call_depth work
 BOOST_AUTO_TEST_CASE(recursive_call_test) { try {
    call_tester_cpp t;
 
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "recursvcall"_n, "caller"_n, mvo() ("n", config::default_max_sync_call_depth - 1)));  // why
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "recursvcall"_n, "caller"_n, mvo() ("n", config::default_max_sync_call_depth - 1)));
 } FC_LOG_AND_RETHROW() }
 
 // Verify sync_call_depth_exception throws for too deep recursive calls
@@ -88,6 +89,7 @@ BOOST_AUTO_TEST_CASE(deep_recursive_call_test) { try {
                          fc_exception_message_contains("reached sync call max call depth"));
 } FC_LOG_AND_RETHROW() }
 
+// Verify void return sync call work
 BOOST_AUTO_TEST_CASE(void_return_test) { try {
    call_tester_cpp t;
 
@@ -99,13 +101,14 @@ BOOST_AUTO_TEST_CASE(void_return_test) { try {
    BOOST_REQUIRE_EQUAL(call_trace.console, "I am the void return function");
 } FC_LOG_AND_RETHROW() }
 
-// Verify no parameters
+// Verify sync calls without parameters work
 BOOST_AUTO_TEST_CASE(void_parameters_test) { try {
    call_tester_cpp t;
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "voidparam"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
+// Verify sync calls without return value work
 BOOST_AUTO_TEST_CASE(void_return_parameters_test) { try {
    call_tester_cpp t;
 
@@ -117,7 +120,7 @@ BOOST_AUTO_TEST_CASE(void_return_parameters_test) { try {
    BOOST_REQUIRE_EQUAL(call_trace.console, "I am the void return and void parameter function");
 } FC_LOG_AND_RETHROW() }
 
-//
+// Verify exception throws if a sync call is made on an unknown receiver
 BOOST_AUTO_TEST_CASE(unknown_receiver_test) { try {
    call_tester_cpp t;
 
@@ -126,8 +129,8 @@ BOOST_AUTO_TEST_CASE(unknown_receiver_test) { try {
                          fc_exception_message_contains("receiver does not support sync call but support_mode is set to abort"));
 } FC_LOG_AND_RETHROW() }
 
-// The called function was not declared as an action, not a sync call
-// in the contract
+// Verify exception throws if the called function was not tagged as
+// a call in the contract
 BOOST_AUTO_TEST_CASE(unknown_function_test) { try {
    call_tester_cpp t;
 
@@ -143,7 +146,7 @@ BOOST_AUTO_TEST_CASE(act_call_both_tagged_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "actcalltst"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
-// Verify when the called function is stuck in an infinite loop
+// Verify exception throws when the called function is stuck in an infinite loop
 BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
    call_tester_cpp t;
 
@@ -152,7 +155,7 @@ BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
                          fc_exception_message_contains("eos-vm system failure"));
 } FC_LOG_AND_RETHROW() }
 
-// Verify when the called function crashes
+// Verify exception throws when the called function crashes
 BOOST_AUTO_TEST_CASE(crash_test) { try {
    call_tester_cpp t;
 
@@ -161,7 +164,7 @@ BOOST_AUTO_TEST_CASE(crash_test) { try {
                          fc_exception_message_contains("wasm memory out-of-bounds"));
 } FC_LOG_AND_RETHROW() }
 
-// Verify when the call wrapper does not exist in the receiver
+// Verify exception throws when the call wrapper does not exist in the receiver
 BOOST_AUTO_TEST_CASE(unknown_call_wrapper_test) { try {
    call_tester_cpp t;
 
@@ -170,7 +173,7 @@ BOOST_AUTO_TEST_CASE(unknown_call_wrapper_test) { try {
                          fc_exception_message_contains("receiver does not support sync call but support_mode is set to abort"));
 } FC_LOG_AND_RETHROW() }
 
-// Verify a sync call can can insert a record into a table
+// Verify a sync call can insert a record into a table
 BOOST_AUTO_TEST_CASE(insert_into_table_test) { try {
    call_tester_cpp t;
 
