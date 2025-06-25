@@ -684,13 +684,14 @@ public:
       return [p = std::move(http_params), abi=std::move(abi), abi_serializer_max_time=abi_serializer_max_time]() mutable ->
          chain::t_or_exception<read_only::get_table_rows_result> {
          read_only::get_table_rows_result result;
-         abi_serializer abis;
-         abis.set_abi(std::move(abi), abi_serializer::create_yield_function(abi_serializer_max_time));
-         auto table_type = abis.get_table_type(p.table);
-         
+
          for (auto& row : p.rows) {
             fc::variant data_var;
             if( p.json ) {
+               abi_serializer abis;
+               abis.set_abi(std::move(abi), abi_serializer::create_yield_function(abi_serializer_max_time));
+               auto table_type = abis.get_table_type(p.table);
+
                data_var = abis.binary_to_variant(table_type, row.first,
                                                  abi_serializer::create_yield_function(abi_serializer_max_time),
                                                  p.shorten_abi_errors );
@@ -796,16 +797,17 @@ public:
       return [p = std::move(http_params), abi=std::move(abi), abi_serializer_max_time=abi_serializer_max_time]() mutable ->
          chain::t_or_exception<read_only::get_table_rows_result> {
          read_only::get_table_rows_result result;
-         abi_serializer abis;
-         abis.set_abi(std::move(abi), abi_serializer::create_yield_function(abi_serializer_max_time));
-         auto table_type = abis.get_table_type(p.table);
-         
+
          for (auto& row : p.rows) {
             fc::variant data_var;
             if( p.json ) {
+               abi_serializer abis;
+               abis.set_abi(std::move(abi), abi_serializer::create_yield_function(abi_serializer_max_time));
+               auto table_type = abis.get_table_type(p.table);
+
                data_var = abis.binary_to_variant(table_type, row.first,
                                                  abi_serializer::create_yield_function(abi_serializer_max_time),
-                                                 p.shorten_abi_errors );
+                                                 p.shorten_abi_errors);
             } else {
                data_var = fc::variant(row.first);
             }
