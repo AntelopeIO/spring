@@ -5,6 +5,8 @@
 #include <vector>
 #include <limits>
 
+using namespace eosio;
+
 [[eosio::call]]
 uint32_t sync_callee::basictest(uint32_t input) {
    eosio::print("I am basictest from sync_callee");
@@ -96,5 +98,34 @@ void sync_callee::forever() {
 void sync_callee::crash() {
    std::vector<uint32_t> v{};
 
-   v[std::numeric_limits<uint64_t>::max()] = 10; // access error. vector is empty
+   v[std::numeric_limits<uint32_t>::max()] = 10; // access error. vector is empty
+}
+
+[[eosio::call]]
+void sync_callee::insertperson(name user, std::string first_name, std::string street) {
+   // Intentionally leave out require_auth(user) so that we can test insertperson
+   // cannot be called as read_only
+   address_index addresses(get_first_receiver(), get_first_receiver().value);
+   auto iterator = addresses.find(user.value);
+   if( iterator == addresses.end() )
+   {
+      addresses.emplace(user, [&]( auto& row ) {
+         row.key = user;
+         row.first_name = first_name;
+         row.street = street;
+     });
+   } else {
+      check(false, "Record already existed");
+   }
+}
+
+[[eosio::call]]
+sync_callee::person_info sync_callee::getperson(name user) {
+   address_index addresses(get_first_receiver(), get_first_receiver().value);
+
+   auto iterator = addresses.find(user.value);
+   check(iterator != addresses.end(), "Record does not exist");
+
+   return person_info{ .first_name = iterator->first_name,
+                       .street     = iterator->street };
 }

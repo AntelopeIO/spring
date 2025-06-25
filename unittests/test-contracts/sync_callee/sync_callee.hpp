@@ -17,6 +17,11 @@ public:
       uint64_t d;
    };
 
+   struct person_info {
+      std::string first_name;
+      std::string street;
+   };
+
    [[eosio::call]]
    uint32_t basictest(uint32_t input);
    using basictest_func = eosio::call_wrapper<"basictest"_n, &sync_callee::basictest>;
@@ -82,4 +87,24 @@ public:
    [[eosio::call]]
    void crash();
    using crash_func = eosio::call_wrapper<"crash"_n, &sync_callee::crash>;
+
+   [[eosio::call]]
+   void insertperson(eosio::name user, std::string first_name, std::string street);
+   using insert_person_read_only_func = eosio::call_wrapper<"insertperson"_n, &sync_callee::insertperson, eosio::access_mode::read_only>;
+   using insert_person_func = eosio::call_wrapper<"insertperson"_n, &sync_callee::insertperson>;
+
+   [[eosio::call]]
+   person_info getperson(eosio::name user);
+   using get_person_func = eosio::call_wrapper<"getperson"_n, &sync_callee::getperson>;
+
+private:
+   struct [[eosio::table]] person {
+      eosio::name key;
+      std::string first_name;
+      std::string street;
+
+      uint64_t primary_key() const { return key.value; }
+   };
+
+   using address_index = eosio::multi_index<"people"_n, person>;
 };

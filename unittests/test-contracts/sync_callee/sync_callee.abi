@@ -106,6 +106,42 @@
             ]
         },
         {
+            "name": "getperson",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "user",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "insertperson",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "user",
+                    "type": "name"
+                },
+                {
+                    "name": "first_name",
+                    "type": "string"
+                },
+                {
+                    "name": "street",
+                    "type": "string"
+                }
+            ]
+        },
+        {
             "name": "mul",
             "base": "",
             "fields": [
@@ -160,6 +196,38 @@
                 {
                     "name": "s2",
                     "type": "four_fields_struct"
+                }
+            ]
+        },
+        {
+            "name": "person",
+            "base": "",
+            "fields": [
+                {
+                    "name": "key",
+                    "type": "name"
+                },
+                {
+                    "name": "first_name",
+                    "type": "string"
+                },
+                {
+                    "name": "street",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "person_info",
+            "base": "",
+            "fields": [
+                {
+                    "name": "first_name",
+                    "type": "string"
+                },
+                {
+                    "name": "street",
+                    "type": "string"
                 }
             ]
         },
@@ -261,7 +329,15 @@
             "ricardian_contract": ""
         }
     ],
-    "tables": [],
+    "tables": [
+        {
+            "name": "people",
+            "type": "person",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
     "ricardian_clauses": [],
     "variants": [],
     "action_results": [
@@ -290,6 +366,14 @@
         {
             "name": "forever",
             "type": "forever"
+        },
+        {
+            "name": "getperson",
+            "type": "getperson"
+        },
+        {
+            "name": "insertperson",
+            "type": "insertperson"
         },
         {
             "name": "mul",
@@ -336,6 +420,10 @@
         {
             "name": "basictest",
             "result_type": "uint32"
+        },
+        {
+            "name": "getperson",
+            "result_type": "person_info"
         },
         {
             "name": "mul",

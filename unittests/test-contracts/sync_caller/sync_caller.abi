@@ -29,6 +29,21 @@
             "fields": []
         },
         {
+            "name": "getperson",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "insertperson",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "insertrdonly",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "nestedcalls",
             "base": "",
             "fields": []
@@ -108,6 +123,21 @@
         {
             "name": "forevertest",
             "type": "forevertest",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "getperson",
+            "type": "getperson",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "insertperson",
+            "type": "insertperson",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "insertrdonly",
+            "type": "insertrdonly",
             "ricardian_contract": ""
         },
         {

@@ -150,4 +150,25 @@ public:
       crash();
    }
 
+   // Insert an entry using read_only sync call, which will fail because
+   // it tries to modify states
+   [[eosio::action]]
+   void insertrdonly() {
+      sync_callee::insert_person_read_only_func{"callee"_n}("alice"_n, "alice", "123 Main St.");
+   }
+
+   // Insert an entry using regular sync call
+   [[eosio::action]]
+   void insertperson() {
+      sync_callee::insert_person_func{"callee"_n}("alice"_n, "alice", "123 Main St.");
+   }
+
+   // Read an entry
+   [[eosio::action]]
+   void getperson() {
+      auto user_info = sync_callee::get_person_func{"callee"_n}("alice"_n);
+
+      eosio::check(user_info.first_name == "alice", "first name not alice");
+      eosio::check(user_info.street == "123 Main St.", "street not 123 Main St.");
+   }
 };

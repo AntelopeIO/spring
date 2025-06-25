@@ -170,4 +170,28 @@ BOOST_AUTO_TEST_CASE(unknown_call_wrapper_test) { try {
                          fc_exception_message_contains("receiver does not support sync call but support_mode is set to abort"));
 } FC_LOG_AND_RETHROW() }
 
+// Verify a sync call can can insert a record into a table
+BOOST_AUTO_TEST_CASE(insert_into_table_test) { try {
+   call_tester_cpp t;
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "insertperson"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
+// Verify a sync call can read a record from a table
+BOOST_AUTO_TEST_CASE(read_from_table_test) { try {
+   call_tester_cpp t;
+
+   t.push_action("caller"_n, "insertperson"_n, "caller"_n, {});
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "getperson"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
+// Verify a read only sync call cannot modify a table (states)
+BOOST_AUTO_TEST_CASE(insert_into_table_read_only_test) { try {
+   call_tester_cpp t;
+
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "insertrdonly"_n, "caller"_n, {}),
+                         unaccessible_api,
+                         fc_exception_message_contains("this API is not allowed in read only action/call"));
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
