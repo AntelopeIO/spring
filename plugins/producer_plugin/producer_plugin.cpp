@@ -913,7 +913,7 @@ public:
 
    // called on incoming blocks from net_plugin on the main thread. Will notify controller to process any
    // blocks ready in the fork database.
-   controller::apply_blocks_result on_incoming_block() {
+   controller::apply_blocks_result_t on_incoming_block() {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
@@ -928,12 +928,12 @@ public:
          _time_tracker.add_other_time();
          // return complete as we are producing and don't want to be interrupted right now. Next start_block will
          // give an opportunity for this incoming block to be processed.
-         return controller::apply_blocks_result::complete;
+         return {};
       }
 
       // no reason to abort_block if we have nothing ready to process
       if (chain.head().id() == chain.fork_db_head().id()) {
-         return controller::apply_blocks_result::complete; // nothing to do
+         return {}; // nothing to do
       }
 
       // start a new speculative block, adds to time tracker which includes this method's time
@@ -942,7 +942,8 @@ public:
       // abort the pending block
       abort_block();
 
-      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
+      // if an exception is thrown, don't want to report incomplete as that could cause an infinite loop of apply_block failures.
+      controller::apply_blocks_result_t result;
       try {
          result = chain.apply_blocks(
             [this](const transaction_metadata_ptr& trx) {
@@ -952,7 +953,7 @@ public:
             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (const guard_exception& e) {
          chain_plugin::handle_guard_exception(e);
-         return controller::apply_blocks_result::complete; // shutting down
+         return result; // shutting down
       } catch (const std::bad_alloc&) {
          chain_apis::api_base::handle_bad_alloc();
       } catch (boost::interprocess::bad_alloc&) {
@@ -960,7 +961,7 @@ public:
       } catch (const fork_database_exception& e) {
          fc_elog(_log, "Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
          appbase::app().quit();
-         return controller::apply_blocks_result::complete; // shutting down
+         return result; // shutting down
       } catch (const fc::exception& e) {
          throw;
       } catch (const std::exception& e) {
@@ -1708,7 +1709,7 @@ void producer_plugin::handle_sighup() {
    fc::logger::update(transient_trx_failed_trace_logger_name, _transient_trx_failed_trace_log);
 }
 
-controller::apply_blocks_result producer_plugin::on_incoming_block() {
+controller::apply_blocks_result_t producer_plugin::on_incoming_block() {
    return my->on_incoming_block();
 }
 
@@ -2163,6 +2164,7 @@ producer_plugin_impl::determine_pending_block_mode(const fc::time_point& now,
          // first block of our round, wait for block production window
          const auto start_block_time = block_time.to_time_point() - fc::microseconds(config::block_interval_us);
          if (now < start_block_time) {
+            _pending_block_mode = pending_block_mode::speculating;
             fc_dlog(_log, "Not starting block until ${bt}", ("bt", start_block_time));
             schedule_delayed_production_loop(weak_from_this(), start_block_time);
             return start_block_result::waiting_for_production;
@@ -2194,32 +2196,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   auto apply_blocks = [&]() -> controller::apply_blocks_result {
-      try {
-         return chain.apply_blocks([this](const transaction_metadata_ptr& trx) {
-                                      fc_dlog(_trx_log, "adding forked trx ${id} to unapplied queue", ("id", trx->id()));
-                                      _unapplied_transactions.add_forked(trx);
-                                   },
-                                   [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-      } catch (...) {} // errors logged in apply_blocks
-      return controller::apply_blocks_result::incomplete;
-   };
-
-   // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
-   if (!is_configured_producer()) {
-      auto r = apply_blocks();
-      if (r != controller::apply_blocks_result::complete)
-         return start_block_result::waiting_for_block;
-   }
-
-   if (chain.should_terminate()) {
-      app().quit();
-      return start_block_result::failed;
-   }
-
-   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
-
-   block_handle         head               = chain.head();
+   block_handle head = chain.head();
 
    if (head.block_num() == chain.get_pause_at_block_num())
       return start_block_result::waiting_for_block;
@@ -2232,13 +2209,32 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    if (r != start_block_result::succeeded)
       return r;
 
-   if (is_configured_producer() && in_speculating_mode()) {
-      // if not producing right now, see if any blocks have come in that need to be applied
-      const block_id_type head_id = head.id();
-      schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
-      apply_blocks();
-      head = chain.head();
-      if (head_id != head.id()) { // blocks were applied
+   auto process_pending_blocks = [&]() -> start_block_result {
+      auto apply_blocks = [&]() -> controller::apply_blocks_result_t {
+         try {
+            return chain.apply_blocks([this](const transaction_metadata_ptr& trx) {
+                                         fc_dlog(_trx_log, "adding forked trx ${id} to unapplied queue", ("id", trx->id()));
+                                         _unapplied_transactions.add_forked(trx);
+                                      },
+                                      [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+         } catch (...) {} // errors logged in apply_blocks
+         return controller::apply_blocks_result_t{.status = controller::apply_blocks_result_t::status_t::incomplete};
+      };
+
+      // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
+      // unless head not a child of pending lib, as there is no reason ever to produce on a branch that is not a child of pending lib
+      while (in_speculating_mode() || !chain.is_head_descendant_of_pending_lib()) {
+         if (is_configured_producer())
+            schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
+
+         auto result = apply_blocks();
+         if (result.status == controller::apply_blocks_result_t::status_t::complete && result.num_blocks_applied == 0)
+            return start_block_result::succeeded;
+
+         head = chain.head();
+         if (head.block_num() == chain.get_pause_at_block_num())
+            return start_block_result::waiting_for_block;
+
          now                = fc::time_point::now();
          block_time         = calculate_pending_block_time();
          scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
@@ -2246,8 +2242,25 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
          if (r != start_block_result::succeeded)
             return r;
+
+         if (in_speculating_mode()) {
+            if (result.status != controller::apply_blocks_result_t::status_t::complete) // no block applied checked above
+               return start_block_result::waiting_for_block;
+            return start_block_result::succeeded;
+         }
       }
+      return start_block_result::succeeded;
+   };
+   r = process_pending_blocks();
+   if (r != start_block_result::succeeded)
+      return r;
+
+   if (chain.should_terminate()) {
+      app().quit();
+      return start_block_result::failed;
    }
+
+   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
 
    const auto& preprocess_deadline = _pending_block_deadline;
 
@@ -3061,7 +3074,7 @@ void producer_plugin::process_blocks() {
    auto process_incoming_blocks = [this](auto self) -> void {
       try {
          auto r = on_incoming_block();
-         if (r == controller::apply_blocks_result::incomplete) {
+         if (r.status == controller::apply_blocks_result_t::status_t::incomplete) {
             app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
                self(self);
             });
