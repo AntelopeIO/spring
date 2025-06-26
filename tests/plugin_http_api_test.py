@@ -884,7 +884,7 @@ class PluginHttpTest(unittest.TestCase):
         # status with valid parameter
         payload = "localhost"
         ret_str = self.nodeos.processUrllibRequest(resource, command, payload, returnType=ReturnType.raw, endpoint=endpoint).decode('ascii')
-        self.assertEqual(ret_str, "null")
+        self.assertEqual(ret_str, "\"connection not found: localhost\"")
 
         # connections with empty parameter
         command = "connections"

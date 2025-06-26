@@ -4897,14 +4897,14 @@ struct controller_impl {
       return is_trx_transient ? nullptr : deep_mind_logger;
    }
 
-   bool head_child_of_pending_lib() const {
+   bool is_head_descendant_of_pending_lib() const {
       return fork_db_.apply<bool>(
          [&](const fork_database_legacy_t& fork_db) -> bool {
             // there is no pending lib in legacy
             return true;
          },
          [&](const fork_database_if_t& fork_db) -> bool {
-            return fork_db.child_of_pending_savanna_lib(chain_head.id());
+            return fork_db.is_descendant_of_pending_savanna_lib(chain_head.id());
          }
       );
    }
@@ -5598,8 +5598,8 @@ std::optional<block_id_type> controller::pending_producer_block_id()const {
    return my->pending_producer_block_id();
 }
 
-bool controller::head_child_of_pending_lib() const {
-   return my->head_child_of_pending_lib();
+bool controller::is_head_descendant_of_pending_lib() const {
+   return my->is_head_descendant_of_pending_lib();
 }
 
 

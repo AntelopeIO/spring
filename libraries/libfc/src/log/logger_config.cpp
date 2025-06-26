@@ -34,13 +34,17 @@ namespace fc {
    }
 
    void log_config::update_logger( const std::string& name, logger& log ) {
+      update_logger_with_default(name, log, DEFAULT_LOGGER);
+   }
+
+   void log_config::update_logger_with_default( const std::string& name, logger& log, const std::string& default_name ) {
       std::lock_guard g( log_config::get().log_mutex );
       if( log_config::get().logger_map.find( name ) != log_config::get().logger_map.end() ) {
          log = log_config::get().logger_map[name];
       } else {
          // no entry for logger, so setup with default logger if it exists, otherwise do nothing since default logger not configured
-         if( log_config::get().logger_map.find( DEFAULT_LOGGER ) != log_config::get().logger_map.end() ) {
-            log = log_config::get().logger_map[DEFAULT_LOGGER];
+         if( log_config::get().logger_map.find( default_name ) != log_config::get().logger_map.end() ) {
+            log = log_config::get().logger_map[default_name];
             log_config::get().logger_map.emplace( name, log );
          }
       }
@@ -69,6 +73,9 @@ namespace fc {
       log_config::get().logger_map.clear();
       log_config::get().appender_map.clear();
 
+      logger::default_logger() = log_config::get().logger_map[DEFAULT_LOGGER];
+      logger& default_logger = logger::default_logger();
+
       for( size_t i = 0; i < cfg.appenders.size(); ++i ) {
          // create appender
          auto fact_itr = log_config::get().appender_factory_map.find( cfg.appenders[i].type );
@@ -79,23 +86,38 @@ namespace fc {
          auto ap = fact_itr->second->create( cfg.appenders[i].args );
          log_config::get().appender_map[cfg.appenders[i].name] = ap;
       }
-      for( size_t i = 0; i < cfg.loggers.size(); ++i ) {
-         auto lgr = log_config::get().logger_map[cfg.loggers[i].name];
+      for (bool first_pass = true; ; first_pass = false) { // process default first
+         for( size_t i = 0; i < cfg.loggers.size(); ++i ) {
+            auto lgr = log_config::get().logger_map[cfg.loggers[i].name];
+            if (first_pass && cfg.loggers[i].name != DEFAULT_LOGGER)
+               continue;
+            if (!first_pass && cfg.loggers[i].name == DEFAULT_LOGGER)
+               continue;
 
-         // TODO: finish configure logger here...
-         if( cfg.loggers[i].parent ) {
-            lgr.set_parent( log_config::get().logger_map[*cfg.loggers[i].parent] );
-         }
-         lgr.set_name(cfg.loggers[i].name);
-         if( cfg.loggers[i].level ) lgr.set_log_level( *cfg.loggers[i].level );
+            lgr.set_name(cfg.loggers[i].name);
+            if (lgr.get_name() != DEFAULT_LOGGER) {
+               lgr.set_parent(default_logger);
+            }
+            if( cfg.loggers[i].enabled ) {
+               lgr.set_enabled( *cfg.loggers[i].enabled );
+            } else {
+               lgr.set_enabled( default_logger.is_enabled() );
+            }
+            if( cfg.loggers[i].level ) {
+               lgr.set_log_level( *cfg.loggers[i].level );
+            } else {
+               lgr.set_log_level( default_logger.get_log_level() );
+            }
 
-
-         for( auto a = cfg.loggers[i].appenders.begin(); a != cfg.loggers[i].appenders.end(); ++a ){
-            auto ap_it = log_config::get().appender_map.find(*a);
-            if( ap_it != log_config::get().appender_map.end() ) {
-               lgr.add_appender( ap_it->second );
+            for( auto a = cfg.loggers[i].appenders.begin(); a != cfg.loggers[i].appenders.end(); ++a ){
+               auto ap_it = log_config::get().appender_map.find(*a);
+               if( ap_it != log_config::get().appender_map.end() ) {
+                  lgr.add_appender( ap_it->second );
+               }
             }
          }
+         if (!first_pass)
+            break;
       }
       return reg_console_appender || reg_gelf_appender || reg_dmlog_appender;
       } catch ( exception& e )
