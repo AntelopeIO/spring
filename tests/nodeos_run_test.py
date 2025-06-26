@@ -679,49 +679,49 @@ try:
     Print("Publish contract")
     trans=node.publishContract(vaultaAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True)
     if trans is None:
-        cmdError("%s set contract core.vaulta" % (ClientName))
+        cmdError(f"{ClientName} set contract core.vaulta")
         errorExit("Failed to publish contract.")
 
     Print("push create action to core.vaulta contract")
     contract="core.vaulta"
     action="create"
-    data="{\"issuer\":\"core.vaulta\",\"maximum_supply\":\"100000.0000 A\",\"can_freeze\":\"0\",\"can_recall\":\"0\",\"can_whitelist\":\"0\"}"
+    data="""{"issuer":"core.vaulta","maximum_supply":"100000.0000 A","can_freeze":"0","can_recall":"0","can_whitelist":"0"}"""
     opts="--permission core.vaulta@active"
     trans=node.pushMessage(contract, action, data, opts)
     try:
         assert(trans)
         assert(trans[0])
     except (AssertionError, KeyError) as _:
-        Print("ERROR: Failed push create action to core.vaulta contract assertion. %s" % (trans))
+        Print(f"ERROR: Failed push create action to core.vaulta contract assertion. {trans}")
         raise
     transId=Node.getTransId(trans[1])
     node.waitForTransactionInBlock(transId)
 
     Print("push issue action to core.vaulta contract")
     action="issue"
-    data="{\"to\":\"core.vaulta\",\"quantity\":\"100000.0000 A\",\"memo\":\"issue\"}"
+    data="""{"to":"core.vaulta","quantity":"100000.0000 A","memo":"issue"}"""
     opts="--permission core.vaulta@active"
     trans=node.pushMessage(contract, action, data, opts)
     try:
         assert(trans)
         assert(trans[0])
     except (AssertionError, KeyError) as _:
-        Print("ERROR: Failed push issue action to core.vaulta contract assertion. %s" % (trans))
+        Print(f"ERROR: Failed push issue action to core.vaulta contract assertion. {trans}")
         raise
     transId=Node.getTransId(trans[1])
     node.waitForTransactionInBlock(transId)
 
     Print("transfer should use core.vaulta since A asset is used, otherwise it will fail")
     transferAmount="97.5321 A"
-    Print("Transfer funds %s from account %s to %s" % (transferAmount, defproduceraAccount.name, testeraAccount.name))
+    Print(f"Transfer funds {transferAmount} from account {defproduceraAccount.name} to {testeraAccount.name}")
     node.transferFunds(vaultaAccount, testeraAccount, transferAmount, "test transfer", waitForTransBlock=True)
 
     expectedAmount=transferAmount
-    Print("Verify transfer, Expected: %s" % (expectedAmount))
+    Print(f"Verify transfer, Expected: {expectedAmount}")
     actualAmount=node.getTableAccountBalance("core.vaulta", testeraAccount.name)
     if expectedAmount != actualAmount:
         cmdError("FAILURE - transfer failed")
-        errorExit("Transfer verification failed. Excepted %s, actual: %s" % (expectedAmount, actualAmount))
+        errorExit(f"Transfer verification failed. Excepted {expectedAmount}, actual: {actualAmount}")
 
     buyRamAmount = '"85.5 A"'
     buyRamCmd = f"--abi-file core.vaulta:unittests/contracts/eosio.system/eosio.system.abi system buyram -j {testeraAccount.name} {testeraAccount.name} {buyRamAmount} -p {testeraAccount.name}@active"

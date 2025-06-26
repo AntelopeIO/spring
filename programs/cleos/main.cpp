@@ -147,8 +147,9 @@ std::string clean_output( std::string str ) {
    return fc::escape_string( str, nullptr, escape_control_chars );
 }
 
-const name core_vaulta_name = "core.vaulta"_n;
-const name eosio_token_name = "eosio.token"_n;
+constexpr name core_vaulta_name = "core.vaulta"_n;
+constexpr name eosio_token_name = "eosio.token"_n;
+const symbol a_symbol = symbol::from_string("A");
 string default_url = "http://127.0.0.1:8888";
 string default_wallet_url = "unix://" + (determine_home_directory() / "eosio-wallet" / (string(key_store_executable_name) + ".sock")).string();
 string wallet_url; //to be set to default_wallet_url in main
@@ -246,14 +247,14 @@ bool is_public_key_str(const std::string& potential_key_str) {
 }
 
 name to_default_token_contract(const asset& a) {
-   if (a.symbol_name() == "A") {
+   if (a.get_symbol() == a_symbol) {
       return core_vaulta_name ;
    }
    return eosio_token_name;
 }
 
 name to_default_contract(const asset& a) {
-   if (a.symbol_name() == "A") {
+   if (a.get_symbol() == a_symbol) {
       return core_vaulta_name;
    }
    return config::system_account_name;
@@ -917,8 +918,8 @@ authority parse_json_authority_or_key(const std::string& authorityJsonOrFile) {
 asset to_asset( account_name code, const string& s ) {
    static map< pair<account_name, eosio::chain::symbol_code>, eosio::chain::symbol> cache;
    auto a = asset::from_string( s );
-   eosio::chain::symbol asset_symbol = a.get_symbol();
-   eosio::chain::symbol_code sym = asset_symbol.to_symbol_code();
+   symbol asset_symbol = a.get_symbol();
+   symbol_code sym = asset_symbol.to_symbol_code();
    if (code.empty()) {
       code = to_default_token_contract(a);
    }
