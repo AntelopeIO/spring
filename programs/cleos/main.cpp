@@ -70,7 +70,9 @@ Options:
 #include <regex>
 #include <iostream>
 #include <locale>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <fc/crypto/hex.hpp>
 #include <fc/variant.hpp>
 #include <fc/io/datastream.hpp>
@@ -120,6 +122,13 @@ using namespace eosio::client::help;
 using namespace eosio::client::http;
 using namespace eosio::client::localize;
 using namespace eosio::client::config;
+
+template <typename... Types>
+bool try_each_type(const std::tuple<Types...>&, auto&& func) {
+   return [&]<std::size_t... Idxs>(std::index_sequence<Idxs...>) {
+      return (func.template operator()<std::tuple_element_t<Idxs, std::tuple<Types...>>>() || ...);
+   }(std::make_index_sequence<sizeof...(Types)>{});
+}
 
 FC_DECLARE_EXCEPTION( explained_exception, 9000000, "explained exception, see error log" );
 FC_DECLARE_EXCEPTION( localized_exception, 10000000, "an error occured" );
@@ -631,15 +640,19 @@ fc::variant bin_to_variant( const account_name& account, const action_name& acti
 fc::variant json_from_file_or_string(const string& file_or_str, fc::json::parse_type ptype = fc::json::parse_type::legacy_parser)
 {
    regex r("^[ \t]*[\{\[]");
-   if ( !regex_search(file_or_str, r) && std::filesystem::is_regular_file(file_or_str) ) {
+   bool looks_like_json = regex_search(file_or_str, r);
+   std::error_code ec;
+   if ( !looks_like_json && std::filesystem::is_regular_file(file_or_str, ec) ) {
       try {
          return fc::json::from_file(file_or_str, ptype);
       } EOS_RETHROW_EXCEPTIONS(json_parse_exception, "Fail to parse JSON from file: ${file}", ("file", file_or_str));
 
-   } else {
+   } else if (looks_like_json) {
       try {
          return fc::json::from_string(file_or_str, ptype);
       } EOS_RETHROW_EXCEPTIONS(json_parse_exception, "Fail to parse JSON from string: ${string}", ("string", file_or_str));
+   } else {
+      return file_or_str;
    }
 }
 
@@ -3000,6 +3013,99 @@ int main( int argc, char** argv ) {
       try {
          std::cout << crypto::public_key(public_key_to_convert).to_string({}) << std::endl;
       } EOS_RETHROW_EXCEPTIONS(public_key_type_exception, "Failed to parse public key");
+   });
+
+   // pack hex
+   using try_types = std::tuple<block_state_legacy, signed_block, transaction_trace, action_trace, transaction_receipt,
+                                packed_transaction, signed_transaction, transaction, abi_def, action>;
+   string json;
+   string type;
+   string abi_file;
+   auto pack_hex = convert->add_subcommand("pack_hex", localized("From JSON to packed HEX form"));
+   pack_hex->add_option("json", json, localized("The JSON of built-in types including: signed_block, transaction/action_trace, transaction, action, abi_def"))->required();
+   pack_hex->add_option("--type", type, (localized("Type of the JSON data")))->required();
+   pack_hex->add_option("--abi-file", abi_file, localized("The abi file that contains --type for packing"));
+   pack_hex->callback([&] {
+      fc::variant unpacked_json = json_from_file_or_string(json);
+
+      std::cerr << "Packing: " << fc::json::to_pretty_string(unpacked_json) << "\n" << std::endl;
+      bool success = false;
+      std::optional<abi_def> abi;
+      if (!abi_file.empty()) {
+         abi = json::from_file(abi_file).as<abi_def>();
+      }
+      try {
+         abi_serializer s = abi ? abi_serializer(*abi, abi_serializer::create_yield_function( abi_serializer_max_time )) : abi_serializer{};
+         auto v = s.variant_to_binary(type, unpacked_json, fc::microseconds::maximum());
+         std::cout << fc::json::to_pretty_string(v) << std::endl;
+         success = true;
+      } catch (...) {}
+      if (!success) {
+         success = try_each_type(try_types{}, [&]<typename Type>() {
+            std::string type_name = boost::core::demangle(typeid(Type).name());
+            type_name = type_name.substr(type_name.find_last_of(':') + 1);
+            if (type == type_name) {
+               try {
+                  Type t;
+                  from_variant(unpacked_json, t);
+                  auto v = fc::raw::pack(t);
+                  std::cout << fc::json::to_pretty_string(v) << std::endl;
+                  return true;
+               } catch (...) {}
+            }
+            return false;
+         });
+      }
+
+      if (!success) {
+         std::cerr << "ERROR: Unable to convert the JSON";
+         if (!type.empty()) {
+            std::cerr << " to type: " << type;
+         }
+         std::cerr << std::endl;
+      }
+   });
+
+   // unpack hex
+   string packed_hex;
+   auto unpack_hex = convert->add_subcommand("unpack_hex", localized("From packed HEX to JSON form"));
+   unpack_hex->add_option("hex", packed_hex, localized("The packed HEX of built-in types including: signed_block, transaction/action_trace, transaction, action, abi_def"))->required();
+   unpack_hex->add_option("--type", type, (localized("Type of the HEX data, if not specified then some common types are attempted")));
+   unpack_hex->add_option("--abi-file", abi_file, localized("The abi file that contains --type for unpacking"));
+   unpack_hex->callback([&] {
+      EOS_ASSERT( packed_hex.size() >= 2, misc_exception, "No packed HEX data found" );
+      vector<char> packed_blob(packed_hex.size()/2);
+      fc::from_hex(packed_hex, packed_blob.data(), packed_blob.size());
+      bool success = false;
+      if (!type.empty()) {
+         std::optional<abi_def> abi;
+         if (!abi_file.empty()) {
+            abi = json::from_file(abi_file).as<abi_def>();
+         }
+         try {
+            abi_serializer s = abi ? abi_serializer(*abi, abi_serializer::create_yield_function( abi_serializer_max_time )) : abi_serializer{};
+            auto v = s.binary_to_variant(type, packed_blob, fc::microseconds::maximum());
+            std::cout << fc::json::to_pretty_string(v) << std::endl;
+            success = true;
+         } catch (...) {}
+      } else {
+         EOS_ASSERT( abi_file.empty(), misc_exception, "--type required if --abi-file specified");
+         success = try_each_type(try_types{}, [&]<typename Type>(){
+            try {
+               auto v = fc::raw::unpack<Type>( packed_blob );
+               std::cout << fc::json::to_pretty_string(v) << std::endl;
+               return true;
+            } catch(...) {}
+            return false;
+         });
+      }
+      if (!success) {
+         std::cerr << "ERROR: Unable to convert the packed hex";
+         if (!type.empty()) {
+            std::cerr << " to type: " << type;
+         }
+         std::cerr << std::endl;
+      }
    });
 
    // validate subcommand

@@ -336,3 +336,31 @@ namespace eosio { namespace chain {
    }
 
 } } // eosio::chain
+
+namespace fc {
+
+template<typename T> struct get_typename<eosio::chain::copyable_atomic<T>> {
+   static const char* name()  {
+      static std::string n = std::string("copyable_atomic<") + get_typename<T>::name() + ">";
+      return n.c_str();
+   }
+};
+
+template<typename T>
+void to_variant(const eosio::chain::copyable_atomic<T>& e, fc::variant& v) {
+   T t = e.load();
+   if constexpr (std::is_same_v<T, bool>) {
+      v = t;
+   } else {
+      to_variant( t, v );
+   }
+}
+
+template<typename T>
+void from_variant(const fc::variant& v, eosio::chain::copyable_atomic<T>& e) {
+   T t;
+   from_variant( v, t );
+   e.store(t);
+}
+
+} // namespace fc

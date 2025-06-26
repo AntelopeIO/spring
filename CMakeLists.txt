@@ -111,6 +111,8 @@ else()
             set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-invalid-partial-specialization" )
         endif()
     endif()
+
+    set( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -latomic")
 endif()
 
 if(ENABLE_WERROR)
