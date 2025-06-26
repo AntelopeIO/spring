@@ -2223,7 +2223,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
       // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
       // unless head not a child of pending lib, as there is no reason ever to produce on a branch that is not a child of pending lib
-      while (in_speculating_mode() || !chain.head_child_of_pending_lib()) {
+      while (in_speculating_mode() || !chain.is_head_descendant_of_pending_lib()) {
          if (is_configured_producer())
             schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
 

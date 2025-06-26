@@ -344,7 +344,7 @@ namespace eosio::chain {
          qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
          // not thread-safe
-         bool head_child_of_pending_lib() const;
+         bool is_head_descendant_of_pending_lib() const;
 
          // thread-safe
          void set_savanna_lib_id(const block_id_type& id);
