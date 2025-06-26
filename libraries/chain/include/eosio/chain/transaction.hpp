@@ -158,6 +158,14 @@ namespace eosio { namespace chain {
       packed_transaction( bytes&& packed_txn, vector<signature_type>&& sigs, vector<bytes>&& cfd, compression_type _compression );
       packed_transaction( transaction&& t, vector<signature_type>&& sigs, bytes&& packed_cfd, compression_type _compression );
 
+      // uncompress if compressed, validate no extra data
+      void normalize();
+
+      // throw tx_extra_data_error exception if extra data in packed_transaction
+      void validate_no_extra_data() const;
+      // throw tx_compression_error exception if packed_transaction is not compression_type::none
+      void validate_no_compression() const;
+
       friend bool operator==(const packed_transaction& lhs, const packed_transaction& rhs) {
          return std::tie(lhs.signatures, lhs.compression, lhs.packed_context_free_data, lhs.packed_trx) ==
                 std::tie(rhs.signatures, rhs.compression, rhs.packed_context_free_data, rhs.packed_trx);
@@ -202,6 +210,7 @@ namespace eosio { namespace chain {
       // cache unpacked trx, for thread safety do not modify after construction
       signed_transaction                      unpacked_trx;
       transaction_id_type                     trx_id;
+      bool                                    extra_data = false;
    };
 
    using packed_transaction_ptr = std::shared_ptr<const packed_transaction>;

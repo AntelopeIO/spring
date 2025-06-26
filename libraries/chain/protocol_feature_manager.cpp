@@ -363,6 +363,18 @@ host function call will trigger a transition to the Savanna consensus algorithm.
               builtin_protocol_feature_t::disable_deferred_trxs_stage_2
             }
          } )
+         (  builtin_protocol_feature_t::packed_transaction_restrictions, builtin_protocol_feature_spec{
+            "PACKED_TRANSACTION_RESTRICTIONS",
+            fc::variant("b0025cdde6af98ca57393dfd6af8846e67965072a41d1b0d95ede3d59042356c").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
+/*
+Builtin protocol feature: PACKED_TRANSACTION_RESTRICTIONS
+
+Do not allow extra-data in packed_transaction.
+Do not allow on-chain zlib compressed packed_transaction.
+*/
+            {builtin_protocol_feature_t::savanna}
+         } )
    ;
 
 
