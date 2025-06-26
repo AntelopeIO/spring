@@ -149,7 +149,7 @@ std::string clean_output( std::string str ) {
 
 constexpr name core_vaulta_name = "core.vaulta"_n;
 constexpr name eosio_token_name = "eosio.token"_n;
-const symbol a_symbol = symbol::from_string("4,A");
+const symbol a_symbol = symbol{4, "A"};
 string default_url = "http://127.0.0.1:8888";
 string default_wallet_url = "unix://" + (determine_home_directory() / "eosio-wallet" / (string(key_store_executable_name) + ".sock")).string();
 string wallet_url; //to be set to default_wallet_url in main
