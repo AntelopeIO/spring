@@ -246,12 +246,16 @@ namespace eosio::chain {
          accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
 
          /// Apply any blocks that are ready from the fork_db
-         enum class apply_blocks_result {
-            complete,   // all ready blocks in forkdb have been applied
-            incomplete, // time limit reached, additional blocks may be available in forkdb to process
-            paused      // apply blocks currently paused
+         struct apply_blocks_result_t {
+            enum class status_t {
+               complete,   // all ready blocks in forkdb have been applied
+               incomplete, // time limit reached, additional blocks may be available in forkdb to process
+               paused      // apply blocks currently paused
+            };
+            status_t status = status_t::complete;
+            size_t   num_blocks_applied = 0;
          };
-         apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
+         apply_blocks_result_t apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          boost::asio::io_context& get_thread_pool();
 
@@ -339,6 +343,10 @@ namespace eosio::chain {
          // thread-safe
          qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
+         // not thread-safe
+         bool is_head_descendant_of_pending_lib() const;
+
+         // thread-safe
          void set_savanna_lib_id(const block_id_type& id);
 
          // thread-safe

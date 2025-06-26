@@ -20,7 +20,7 @@ namespace fc
 {
    /**
     * @defgroup serializable Serializable _types
-    * @brief Clas_ses that may be converted to/from an variant
+    * @brief Classes that may be converted to/from an variant
     *
     * To make a class 'serializable' the following methods must be available
     * for your Serializable_type
@@ -144,6 +144,9 @@ namespace fc
    void to_variant( const std::array<T,S>& var,  fc::variant& vo );
    template<typename T, std::size_t S>
    void from_variant( const fc::variant& var,  std::array<T,S>& vo );
+
+   template<typename T>
+   void to_variant( const std::initializer_list<T>& var,  fc::variant& vo );
 
    void to_variant( const time_point& var,  fc::variant& vo );
    void from_variant( const fc::variant& var,  time_point& vo );
@@ -574,6 +577,7 @@ namespace fc
    void from_variant( const fc::variant& var, std::array<T,S>& tmp )
    {
       const variants& vars = var.get_array();
+      if( vars.size() != S) throw std::length_error( "mismatch between variant vector size and expected array size" );
       for( std::size_t i = 0; i < S; ++i )
          tmp[i] = vars.at(i).as<T>();
    }
@@ -585,6 +589,17 @@ namespace fc
       variants vars(S);
       for( std::size_t i = 0; i < S; ++i )
          vars[i] = fc::variant(t[i]);
+      v = std::move(vars);
+   }
+
+   /** @ingroup Serializable */
+   template<typename T>
+   void to_variant( const std::initializer_list<T>& t, fc::variant& v )
+   {
+      auto sz{t.size()};
+      variants vars(sz);
+      for( std::size_t i = 0; i < sz; ++i )
+         vars[i] = fc::variant(*(t.begin()+i));
       v = std::move(vars);
    }
 

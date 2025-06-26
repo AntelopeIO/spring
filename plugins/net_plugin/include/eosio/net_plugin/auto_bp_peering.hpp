@@ -8,6 +8,7 @@
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/producer_schedule.hpp>
 
+#include <boost/unordered/unordered_flat_set.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 
@@ -27,6 +28,8 @@ class bp_connection_manager {
    static constexpr fc::microseconds bp_gossip_peer_expiration = fc::hours(1);
    static constexpr fc::microseconds my_bp_gossip_peer_expiration = fc::minutes(30); // resend my bp_peer info every 30 minutes
    static constexpr fc::microseconds bp_gossip_peer_expiration_variance = bp_gossip_peer_expiration + fc::minutes(15);
+
+   using address_set_t = boost::unordered_flat_set<std::string>;
 
    gossip_bp_index_t      gossip_bps;
 
@@ -472,8 +475,8 @@ public:
       return false;
    }
 
-   flat_set<std::string> find_gossip_bp_addresses(const name_set_t& accounts, const char* desc) const {
-      flat_set<std::string> addresses;
+   address_set_t find_gossip_bp_addresses(const name_set_t& accounts, const char* desc) const {
+      address_set_t addresses;
       fc::lock_guard g(gossip_bps.mtx);
       const auto& prod_idx = gossip_bps.index.get<by_producer>();
       for (const auto& account : accounts) {
@@ -490,11 +493,22 @@ public:
       return addresses;
    }
 
+   address_set_t all_gossip_bp_addresses(const char* desc) const {
+      address_set_t addresses;
+      fc::lock_guard g(gossip_bps.mtx);
+      const auto& prod_idx = gossip_bps.index.get<by_producer>();
+      for (auto& i : prod_idx) {
+         fc_dlog(p2p_conn_log, "${d} gossip bp peer ${p}", ("d", desc)("p", i.server_endpoint()));
+         addresses.insert(i.server_endpoint());
+      }
+      return addresses;
+   }
+
    // thread-safe
    void connect_to_active_bp_peers() {
       // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
       // can be holding connections mutex when trying to acquire these mutexes
-      flat_set<std::string> addresses;
+      address_set_t addresses;
       {
          fc::lock_guard gm(mtx);
          active_bps = active_bp_accounts(active_schedule);
@@ -525,7 +539,7 @@ public:
 
                // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
                // can be holding connections mutex when trying to acquire these mutexes
-               flat_set<std::string> addresses = find_gossip_bp_addresses(pending_connections, "connect");
+               address_set_t addresses = find_gossip_bp_addresses(pending_connections, "connect");
                for (const auto& add : addresses) {
                   self()->connections.resolve_and_connect(add, self()->get_first_p2p_address());
                }
@@ -574,9 +588,16 @@ public:
                              std::inserter(peers_to_drop, peers_to_drop.end()));
          fc_dlog(p2p_conn_log, "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
-         flat_set<std::string> addresses = find_gossip_bp_addresses(peers_to_drop, "disconnect");
+         // if we dropped out of active schedule then disconnect from all
+         bool disconnect_from_all = !config.my_bp_gossip_accounts.empty() &&
+                                    std::all_of(config.my_bp_gossip_accounts.begin(), config.my_bp_gossip_accounts.end(),
+                                                [&](const auto& e) { return peers_to_drop.contains(e.first); });
+
+         address_set_t addresses = disconnect_from_all
+                                   ? all_gossip_bp_addresses("disconnect")
+                                   : find_gossip_bp_addresses(peers_to_drop, "disconnect");
          for (const auto& add : addresses) {
-            self()->connections.disconnect(add);
+            self()->connections.disconnect_gossip_connection(add);
          }
 
          active_schedule_version = schedule.version;

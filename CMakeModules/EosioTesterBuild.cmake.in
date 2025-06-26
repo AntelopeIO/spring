@@ -122,9 +122,9 @@ target_include_directories(EosioChain INTERFACE
                               @CMAKE_SOURCE_DIR@/libraries/wasm-jit/include )
 
 
-#adds -ltr. Ubuntu eosio.contracts build breaks without this
+#adds -lrt and -latomic. Ubuntu eosio.contracts build breaks without this
 if(UNIX AND NOT APPLE)
-   target_link_libraries(EosioChain INTERFACE ${LIBRT})
+   target_link_libraries(EosioChain INTERFACE ${LIBRT} -latomic)
 endif()
 
 add_library(EosioTester INTERFACE)
