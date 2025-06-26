@@ -9,7 +9,6 @@
 #include <fc/network/listener.hpp>
 
 #include <boost/asio.hpp>
-#include <boost/algorithm/string/predicate.hpp>
 
 #include <memory>
 #include <regex>
@@ -193,8 +192,7 @@ namespace eosio {
          }
          
          bool is_unix_socket_address(const std::string& address) const {
-            using boost::algorithm::starts_with;
-            return starts_with(address, "/") || starts_with(address, "./") || starts_with(address, "../");
+            return address.starts_with("/") || address.starts_with("./") || address.starts_with("../");
          }
 
          bool on_loopback_only(const std::string& address) {
