@@ -84,8 +84,11 @@ try:
     for node in [node0, node1]:
         node.processUrllibRequest("producer", "pause", exitOnError=True)
     node0.waitForLibNotToAdvance()
+    node1.waitForLibNotToAdvance()
 
     currentLIB = node0.getIrreversibleBlockNum()
+    currentLIB1 = node1.getIrreversibleBlockNum()
+    assert currentLIB == currentLIB1, f"Node0 {currentLIB} and Node1 {currentLIB1} LIBs do not match"
     n_LIB = currentLIB + 1
     libBlock = node0.getBlock(n_LIB)
 
