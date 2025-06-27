@@ -149,10 +149,14 @@ BOOST_AUTO_TEST_CASE(act_call_both_tagged_test) { try {
 // Verify exception throws when the called function is stuck in an infinite loop
 BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
    call_tester_cpp t;
+   signed_transaction trx;
+   trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n,   "forevertest"_n, bytes{});
+   t.set_transaction_headers(trx);
+   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
 
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "forevertest"_n, "caller"_n, {}),
-                         wasm_execution_error,
-                         fc_exception_message_contains("eos-vm system failure"));
+   BOOST_CHECK_EXCEPTION(t.push_transaction(trx, fc::time_point::now() + fc::microseconds(config::default_max_block_cpu_usage)),
+                         deadline_exception,
+                         fc_exception_message_contains("deadline exceeded"));
 } FC_LOG_AND_RETHROW() }
 
 // Verify exception throws when the called function crashes
