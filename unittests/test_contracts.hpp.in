@@ -41,6 +41,7 @@ namespace eosio {
          MAKE_READ_WASM_ABI(snapshot_test,         snapshot_test,         test-contracts)
          MAKE_READ_WASM_ABI(sync_caller,           sync_caller,           test-contracts)
          MAKE_READ_WASM_ABI(sync_callee,           sync_callee,           test-contracts)
+         MAKE_READ_WASM_ABI(sync_callee1,          sync_callee1,          test-contracts)
          MAKE_READ_WASM_ABI(test_api,              test_api,              test-contracts)
          MAKE_READ_WASM_ABI(test_api_db,           test_api_db,           test-contracts)
          MAKE_READ_WASM_ABI(test_api_multi_index,  test_api_multi_index,  test-contracts)
