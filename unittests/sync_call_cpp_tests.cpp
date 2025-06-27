@@ -163,9 +163,14 @@ BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
 BOOST_AUTO_TEST_CASE(crash_test) { try {
    call_tester_cpp t;
 
+   // Currently EOS-VM-OC and other VMs return different exception messages.
+   std::string expected_msg = (t.get_config().wasm_runtime == eosio::chain::wasm_interface::vm_type::eos_vm_oc)
+      ? "access violation"
+      : "wasm memory out-of-bounds";
+
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "crashtest"_n, "caller"_n, {}),
                          wasm_execution_error,
-                         fc_exception_message_contains("wasm memory out-of-bounds"));
+                         fc_exception_message_contains(expected_msg));
 } FC_LOG_AND_RETHROW() }
 
 // Verify exception throws when the call wrapper does not exist in the receiver
