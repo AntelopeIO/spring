@@ -47,11 +47,7 @@ struct abi_serializer {
 
    abi_serializer(){ configure_built_in_types(); }
    abi_serializer( abi_def abi, const yield_function_t& yield );
-   [[deprecated("use the overload with yield_function_t[=create_yield_function(max_serialization_time)]")]]
-   abi_serializer( const abi_def& abi, const fc::microseconds& max_serialization_time );
    void set_abi( abi_def abi, const yield_function_t& yield );
-   [[deprecated("use the overload with yield_function_t[=create_yield_function(max_serialization_time)]")]]
-   void set_abi(const abi_def& abi, const fc::microseconds& max_serialization_time);
 
    /// @return string_view of `t` or internal string type
    std::string_view resolve_type(const std::string_view& t)const;
