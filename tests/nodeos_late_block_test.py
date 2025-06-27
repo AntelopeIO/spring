@@ -90,8 +90,8 @@ try:
     # It can take a while to resolve the fork, but should have at least one defproducerk block unless defproducerl
     # wins the fork in which case there will be another fork switch
     expectedProd = "defproducerk"
-    if not node3.findInLog("switching forks .* defproducerl"):
-        expectedProd = "defproducerl"
+    if node3.findInLog("switching forks .* defproducerl"):
+        expectedProd = "defproducera"
     iProdBlockNum += 12 # into the next set of blocks
     found_defproducer = False
     for i in range(12):
