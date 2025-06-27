@@ -170,11 +170,12 @@ namespace eosio {
       bool sync_recently_active() const;
       bool verify_catchup( const connection_ptr& c, uint32_t num, const block_id_type& id ); // locks mutex
    public:
+      boost::asio::io_context::strand  strand;
       enum class closing_mode {
          immediately,  // closing connection immediately
          handshake     // sending handshake message
       };
-      explicit sync_manager( uint32_t span, uint32_t sync_peer_limit, uint32_t min_blocks_distance );
+      explicit sync_manager( boost::asio::io_context& io_context, uint32_t span, uint32_t sync_peer_limit, uint32_t min_blocks_distance );
       static void send_handshakes();
       static void send_block_nack_resets();
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
@@ -1903,7 +1904,7 @@ namespace eosio {
    }
    //-----------------------------------------------------------
 
-    sync_manager::sync_manager( uint32_t span, uint32_t sync_peer_limit, uint32_t min_blocks_distance )
+    sync_manager::sync_manager( boost::asio::io_context& io_context, uint32_t span, uint32_t sync_peer_limit, uint32_t min_blocks_distance )
       :sync_known_fork_db_root_num( 0 )
       ,sync_last_requested_num( 0 )
       ,sync_next_expected_num( 1 )
@@ -1912,6 +1913,7 @@ namespace eosio {
       ,sync_peer_limit( sync_peer_limit )
       ,sync_state(in_sync)
       ,min_blocks_distance(min_blocks_distance)
+      , strand(io_context)
    {
    }
 
@@ -2431,7 +2433,7 @@ namespace eosio {
    }
 
    // called from c's connection strand if c != nullptr,
-   // otherwise c == nullptr which implies blk_applied == false and called from dispatcher strand
+   // otherwise c == nullptr which implies blk_applied == false and called from sync_manager strand
    void sync_manager::sync_recv_block(const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num,
                                       const fc::microseconds& blk_latency) {
       // no connection means called when block is applied
@@ -4010,7 +4012,7 @@ namespace eosio {
    void connection::handle_message( const block_id_type& id, signed_block_ptr ptr ) {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(p2p_blk_log, this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
-      my_impl->dispatcher.strand.dispatch([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+      my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
          if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
             return;
          controller& cc = my_impl->chain_plug->chain();
@@ -4075,9 +4077,11 @@ namespace eosio {
          c->block_status_monitor_.accepted();
 
          if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
-            // non-irreversible notifies sync_manager when block is applied, call on dispatcher strand
-            const fc::microseconds age(fc::time_point::now() - obh->timestamp());
-            my_impl->sync_master->sync_recv_block(connection_ptr{}, obh->id(), obh->block_num(), age);
+            // non-irreversible notifies sync_manager when block is applied, call on sync_master strand
+            my_impl->sync_master->strand.post([sync_master = my_impl->sync_master.get(), obh{std::move(obh)}]() {
+               const fc::microseconds age(fc::time_point::now() - obh->timestamp());
+               my_impl->sync_master->sync_recv_block(connection_ptr{}, obh->id(), obh->block_num(), age);
+            });
          }
 
          if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
@@ -4087,7 +4091,7 @@ namespace eosio {
             // call before process_blocks to avoid interrupting process_blocks
             my_impl->producer_plug->received_block(block_num, fork_db_add_result);
 
-            fc_dlog(p2p_blk_log, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
+            fc_dlog(p2p_blk_log, "post process_incoming_block to app thread, block ${n}", ("n", block_num));
             my_impl->producer_plug->process_blocks();
          }
       });
@@ -4161,7 +4165,7 @@ namespace eosio {
 
       if (chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
+         sync_master->strand.post([sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4196,7 +4200,7 @@ namespace eosio {
       chain::controller& cc = chain_plug->chain();
       if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
+         sync_master->strand.post([sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4523,6 +4527,7 @@ namespace eosio {
          // interval.
          const uint32_t min_blocks_distance = (keepalive_interval.count() / config::block_interval_ms) / 2;
          sync_master = std::make_unique<sync_manager>(
+             thread_pool.get_executor(),
              options.at( "sync-fetch-span" ).as<uint32_t>(),
              options.at( "sync-peer-limit" ).as<uint32_t>(),
              min_blocks_distance);
