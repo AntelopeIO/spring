@@ -87,10 +87,14 @@ static uint64_t fibonacci(uint32_t n) {
    return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
+// The "volatile" is needed to add side effects to forever().
+// Otherwise the while loop will be optimized out by teh compiler.
+volatile bool looping = true;
+
 [[eosio::call]]
 void sync_callee::forever() {
-   while (true) {
-      fibonacci(20);
+   while (looping) {
+      fibonacci(20); // do some work
    }
 }
 
