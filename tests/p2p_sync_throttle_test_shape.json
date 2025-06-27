@@ -132,7 +132,6 @@
         }
       ],
       "peers": [
-        "testnet_02"
       ],
       "producers": [],
       "dont_start": true,
@@ -156,7 +155,6 @@
         }
       ],
       "peers": [
-        "testnet_01"
       ],
       "producers": [],
       "dont_start": true,
