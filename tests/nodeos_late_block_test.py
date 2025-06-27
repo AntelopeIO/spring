@@ -87,15 +87,19 @@ try:
         assert defprod == "defproduceri", f"expected defproduceri for block {iProdBlockNum + i}, instead: {defprod}"
 
     # verify that defproducerk blocks made it into the canonical chain as well
-    # It can take a while to resolve the fork, but should have at least one defproducerk block
+    # It can take a while to resolve the fork, but should have at least one defproducerk block unless defproducerl
+    # wins the fork in which case there will be another fork switch
+    expectedProd = "defproducerk"
+    if not node3.findInLog("switching forks .* defproducerl"):
+        expectedProd = "defproducerl"
     iProdBlockNum += 12 # into the next set of blocks
-    found_defproducerk = False
+    found_defproducer = False
     for i in range(12):
         defprod=node3.getBlockProducerByNum(iProdBlockNum + i)
-        if defprod == "defproducerk":
-            found_defproducerk = True
+        if defprod == expectedProd:
+            found_defproducer = True
 
-    assert found_defproducerk, f"expected defproducerk in blocks {iProdBlockNum}-{iProdBlockNum+12}"
+    assert found_defproducer, f"expected {expectedProd} in blocks {iProdBlockNum}-{iProdBlockNum+12}"
 
     testSuccessful=True
 finally:
