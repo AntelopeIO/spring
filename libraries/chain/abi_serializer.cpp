@@ -74,11 +74,6 @@ namespace eosio::chain {
       set_abi(std::move(abi), yield);
    }
 
-   abi_serializer::abi_serializer( const abi_def& abi, const fc::microseconds& max_serialization_time) {
-      configure_built_in_types();
-      set_abi(abi, create_yield_function(max_serialization_time));
-   }
-
    void abi_serializer::add_specialized_unpack_pack( const string& name,
                                                      std::pair<abi_serializer::unpack_function, abi_serializer::pack_function> unpack_pack ) {
       built_in_types[name] = std::move( unpack_pack );
@@ -190,10 +185,6 @@ namespace eosio::chain {
       EOS_ASSERT( action_results.size() == action_results_size, duplicate_abi_action_results_def_exception, "duplicate action results definition detected" );
 
       validate(ctx);
-   }
-
-   void abi_serializer::set_abi(const abi_def& abi, const fc::microseconds& max_serialization_time) {
-      return set_abi(abi, create_yield_function(max_serialization_time));
    }
 
    bool abi_serializer::is_builtin_type(const std::string_view& type)const {
