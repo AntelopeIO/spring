@@ -557,8 +557,9 @@ namespace eosio {
 
    struct peer_sync_state {
       enum class sync_t {
-         peer_sync, // LIB or head catchup, syncing request_message:catch_up
-         block_nack // sync due to block nack (block_notice_message) request_message:normal
+         peer_sync,    // sync_request_message, syncing
+         peer_catchup, // head catchup, syncing request_message:catch_up
+         block_nack    // sync due to block nack (block_notice_message) request_message:normal
       };
       peer_sync_state(uint32_t start, uint32_t end, uint32_t last_acted, sync_t sync_type)
          :start_block( start ), end_block( end ), last( last_acted ), sync_type( sync_type )
@@ -1506,7 +1507,7 @@ namespace eosio {
 
       auto msg_head_num = block_header::num_from_id(msg_head_id);
       if (msg_head_num == 0) {
-         blk_send_branch( msg_head_num, fork_db_root_num, head_num, peer_sync_state::sync_t::peer_sync );
+         blk_send_branch( msg_head_num, fork_db_root_num, head_num, peer_sync_state::sync_t::peer_catchup );
          return;
       }
 
@@ -1519,7 +1520,7 @@ namespace eosio {
          // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1
          if (on_fork)
             msg_head_num = 0;
-         blk_send_branch( msg_head_num, fork_db_root_num, head_num, peer_sync_state::sync_t::peer_sync );
+         blk_send_branch( msg_head_num, fork_db_root_num, head_num, peer_sync_state::sync_t::peer_catchup );
       }
    }
 
@@ -1554,8 +1555,7 @@ namespace eosio {
       }
       if( peer_requested->valid() ) {
          peer_ilog( p2p_blk_log, this, "enqueue ${t} ${s} - ${e}",
-                    ("t", sync_type == peer_sync_state::sync_t::peer_sync ? "peer" : "block")
-                    ("s", peer_requested->start_block)("e", peer_requested->end_block) );
+                    ("t", sync_type)("s", peer_requested->start_block)("e", peer_requested->end_block) );
          enqueue_sync_block();
       } else {
          peer_ilog( p2p_blk_log, this, "nothing to enqueue" );
@@ -1777,7 +1777,7 @@ namespace eosio {
             block_sync_frame_bytes_sent = 0;
             peer_dlog( p2p_blk_log, this, "completing enqueue_sync_block ${num}", ("num", num) );
          }
-      } else if (peer_requested->sync_type == peer_sync_state::sync_t::block_nack) {
+      } else if (peer_requested->sync_type == peer_sync_state::sync_t::peer_catchup || peer_requested->sync_type == peer_sync_state::sync_t::block_nack) {
          // Do not have the block, likely because in the middle of a fork-switch. A fork-switch will send out
          // block_notice_message for the new blocks. Ignore, similar to the ignore in blk_send_branch().
          peer_ilog( p2p_blk_log, this, "enqueue block sync, unable to fetch block ${num}, resetting peer request", ("num", num) );
@@ -5209,3 +5209,5 @@ namespace eosio {
       start_conn_timer( connector_period, {}, timer_type::stats );
    }
 } // namespace eosio
+
+FC_REFLECT_ENUM( eosio::peer_sync_state::sync_t, (peer_sync)(peer_catchup)(block_nack) )
