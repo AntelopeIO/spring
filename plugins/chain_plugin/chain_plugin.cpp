@@ -1404,7 +1404,6 @@ read_only::get_activated_protocol_features( const read_only::get_activated_proto
 }
 
 uint64_t read_only::get_table_index_name(const read_only::get_table_rows_params& p, bool& primary) {
-   using boost::algorithm::starts_with;
    // see multi_index packing of index name
    const uint64_t table = p.table.to_uint64_t();
    uint64_t index = table & 0xFFFFFFFFFFFFFFF0ULL;
@@ -1414,22 +1413,22 @@ uint64_t read_only::get_table_index_name(const read_only::get_table_rows_params&
    uint64_t pos = 0;
    if (p.index_position.empty() || p.index_position == "first" || p.index_position == "primary" || p.index_position == "one") {
       primary = true;
-   } else if (starts_with(p.index_position, "sec") || p.index_position == "two") { // second, secondary
-   } else if (starts_with(p.index_position , "ter") || starts_with(p.index_position, "th")) { // tertiary, ternary, third, three
+   } else if (p.index_position.starts_with("sec") || p.index_position == "two") { // second, secondary
+   } else if (p.index_position .starts_with("ter") || p.index_position.starts_with("th")) { // tertiary, ternary, third, three
       pos = 1;
-   } else if (starts_with(p.index_position, "fou")) { // four, fourth
+   } else if (p.index_position.starts_with("fou")) { // four, fourth
       pos = 2;
-   } else if (starts_with(p.index_position, "fi")) { // five, fifth
+   } else if (p.index_position.starts_with("fi")) { // five, fifth
       pos = 3;
-   } else if (starts_with(p.index_position, "six")) { // six, sixth
+   } else if (p.index_position.starts_with("six")) { // six, sixth
       pos = 4;
-   } else if (starts_with(p.index_position, "sev")) { // seven, seventh
+   } else if (p.index_position.starts_with("sev")) { // seven, seventh
       pos = 5;
-   } else if (starts_with(p.index_position, "eig")) { // eight, eighth
+   } else if (p.index_position.starts_with("eig")) { // eight, eighth
       pos = 6;
-   } else if (starts_with(p.index_position, "nin")) { // nine, ninth
+   } else if (p.index_position.starts_with("nin")) { // nine, ninth
       pos = 7;
-   } else if (starts_with(p.index_position, "ten")) { // ten, tenth
+   } else if (p.index_position.starts_with("ten")) { // ten, tenth
       pos = 8;
    } else {
       try {

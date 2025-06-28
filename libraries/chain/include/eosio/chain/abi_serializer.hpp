@@ -16,6 +16,15 @@ using std::function;
 using std::pair;
 using namespace fc;
 
+// ---------------------------
+// 1.1  variants
+//      binary extensions
+// 1.2  action return values
+// 1.3  bitset
+//      sync calls
+// ---------------------------
+inline static const version_t current_abi_support(1, 3);
+
 namespace impl {
    struct abi_from_variant;
    struct abi_to_variant;
@@ -38,16 +47,12 @@ struct abi_serializer {
 
    abi_serializer(){ configure_built_in_types(); }
    abi_serializer( abi_def abi, const yield_function_t& yield );
-   [[deprecated("use the overload with yield_function_t[=create_yield_function(max_serialization_time)]")]]
-   abi_serializer( const abi_def& abi, const fc::microseconds& max_serialization_time );
    void set_abi( abi_def abi, const yield_function_t& yield );
-   [[deprecated("use the overload with yield_function_t[=create_yield_function(max_serialization_time)]")]]
-   void set_abi(const abi_def& abi, const fc::microseconds& max_serialization_time);
 
    /// @return string_view of `t` or internal string type
    std::string_view resolve_type(const std::string_view& t)const;
    bool      is_array(const std::string_view& type)const;
-   bool      is_szarray(const std::string_view& type)const;
+   std::optional<fc::unsigned_int> is_szarray(const std::string_view& type)const;
    bool      is_optional(const std::string_view& type)const;
    bool      is_type( const std::string_view& type, const yield_function_t& yield )const;
    bool      is_type(const std::string_view& type, const fc::microseconds& max_serialization_time)const;

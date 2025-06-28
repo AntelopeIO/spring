@@ -5513,36 +5513,11 @@ block_handle controller::head()const {
    return my->chain_head;
 }
 
-uint32_t controller::head_block_num()const {
-   return my->chain_head.block_num();
-}
-block_timestamp_type controller::head_block_timestamp()const {
-   return my->chain_head.block_time();
-}
-time_point controller::head_block_time()const {
-   return my->chain_head.block_time();
-}
-block_id_type controller::head_block_id()const {
-   return my->chain_head.id();
-}
-
-account_name  controller::head_block_producer()const {
-   return my->chain_head.producer();
-}
-
-const block_header& controller::head_block_header()const {
-   return my->chain_head.header();
-}
-
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated
    return block_handle_accessor::apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
       return head;
    });
-}
-
-const signed_block_ptr& controller::head_block()const {
-   return my->chain_head.block();
 }
 
 std::optional<finality_data_t> controller::head_finality_data() const {
@@ -5551,14 +5526,6 @@ std::optional<finality_data_t> controller::head_finality_data() const {
 
 block_handle controller::fork_db_head()const {
    return my->fork_db_head();
-}
-
-uint32_t controller::fork_db_head_block_num()const {
-   return my->fork_db_head_block_num();
-}
-
-block_id_type controller::fork_db_head_block_id()const {
-   return my->fork_db_head_block_id();
 }
 
 block_timestamp_type controller::pending_block_timestamp()const {

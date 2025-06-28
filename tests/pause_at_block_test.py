@@ -64,6 +64,9 @@ try:
 
     assert prodNode.waitForLibToAdvance(), "LIB did not advance with paused nodes"
     assert prodNode2.waitForBlock(blockNum), f"Block {blockNum} did not arrive after pausing"
+    assert headNode.waitForBlock(blockNum), f"Block {blockNum} did not arrive after pausing"
+    assert specNode.waitForBlock(blockNum), f"Block {blockNum} did not arrive after pausing"
+    assert irrvNode.waitForBlock(blockNum), f"Block {blockNum} did not arrive after pausing"
 
     Utils.Print(f"Verify paused at block {blockNum}")
     assert prodNode2.getHeadBlockNum() == blockNum, "Prod Node_01 did not pause at block"

@@ -287,22 +287,11 @@ namespace eosio::chain {
          block_handle         head()const;
          block_handle         fork_db_head()const;
 
-         [[deprecated("Use head().block_num().")]]  uint32_t             head_block_num()const;
-         [[deprecated("Use head().block_time().")]] time_point           head_block_time()const;
-         [[deprecated("Use head().timestamp().")]]  block_timestamp_type head_block_timestamp()const;
-         [[deprecated("Use head().id().")]]         block_id_type        head_block_id()const;
-         [[deprecated("Use head().producer().")]]   account_name         head_block_producer()const;
-         [[deprecated("Use head().header().")]]     const block_header&  head_block_header()const;
-         [[deprecated("Use head().block().")]]      const signed_block_ptr& head_block()const;
-
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
          // returns finality_data associated with chain head for SHiP when in Savanna,
          // std::nullopt in Legacy
          std::optional<finality_data_t> head_finality_data() const;
-
-         [[deprecated("Use fork_db_head().block_num().")]] uint32_t      fork_db_head_block_num()const;
-         [[deprecated("Use fork_db_head().id().")]]        block_id_type fork_db_head_block_id()const;
 
          time_point                     pending_block_time()const;
          block_timestamp_type           pending_block_timestamp()const;

@@ -1,5 +1,5 @@
 ## Description
-Pack and unpack transactions or convert public key format
+Pack and unpack data
 
 ## subcommands
 - [pack_transaction](pack_transaction.md) - From plain signed json to packed form
@@ -8,3 +8,5 @@ Pack and unpack transactions or convert public key format
 - [unpack_action_data](unpack_action_data.md) - From packed to json action data form
 - [legacy_public_key](legacy_public_key.md) - From public key to legacy format (EOS, PUB_R1, PUB_WA)
 - [public_key](public_key.md) - From public key to canonical format (PUB_K1, PUB_R1, PUB_WA)
+- [pack_hex](pack_hex.md) - From JSON to packed HEX form
+- [unpack_hex](unpack_hex.md) - From packed HEX to JSON form
