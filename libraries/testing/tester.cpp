@@ -748,16 +748,10 @@ namespace eosio::testing {
    { try {
       if( !control->is_building_block() )
          _start_block(control->head().block_time() + fc::microseconds(config::block_interval_us));
-      auto c = packed_transaction::compression_type::none;
-
-      if( fc::raw::pack_size(trx) > 1000 ) {
-         c = packed_transaction::compression_type::zlib;
-      }
-
       auto time_limit = deadline == fc::time_point::maximum() ?
             fc::microseconds::maximum() :
             fc::microseconds( deadline - fc::time_point::now() );
-      auto ptrx = std::make_shared<packed_transaction>( trx, c );
+      auto ptrx = std::make_shared<packed_transaction>( trx, packed_transaction::compression_type::none );
       auto fut = transaction_metadata::start_recover_keys( ptrx, control->get_thread_pool(), control->get_chain_id(), time_limit, trx_type );
       auto r = control->push_transaction( fut.get(), deadline, fc::microseconds::maximum(), billed_cpu_time_us, billed_cpu_time_us > 0, 0 );
       if (no_throw) return r;
@@ -1482,7 +1476,9 @@ namespace eosio::testing {
          // from full protocol feature list such that existing tests can run.
          if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
             || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
-            || f == builtin_protocol_feature_t::savanna ) { // savanna depends on disable_deferred_trxs_stage_1 & 2
+            || f == builtin_protocol_feature_t::savanna // savanna depends on disable_deferred_trxs_stage_1 & 2
+            || f == builtin_protocol_feature_t::packed_transaction_restrictions // depeonds on savanna
+            ) {
             continue;
          }
 
