@@ -159,13 +159,20 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_multiple, blog_replay_fixture) try {
 } FC_LOG_AND_RETHROW()
 
 void currupt_blocks_log(path block_dir) {
+   fc::datastream<fc::cfile> index_file;
+   index_file.set_file_path(block_dir / "blocks.index");
+   index_file.open(fc::cfile::update_rw_mode);
+   uint32_t block_num = 5;
+   index_file.seek(sizeof(uint64_t) * block_num);
+   uint64_t pos;
+   index_file.read((char*)&pos, sizeof(pos));
+   index_file.close();
+
    fc::datastream<fc::cfile> blockslog;
    std::string bad_str = "bad corruption";
    blockslog.set_file_path(block_dir / "blocks.log");
    blockslog.open(fc::cfile::update_rw_mode);
-   blockslog.seek_end(0);
-   size_t size = blockslog.tellp();
-   blockslog.seek(size/2);
+   blockslog.seek(pos);
    blockslog.write((char*)&bad_str, bad_str.size());
    blockslog.flush();
    blockslog.close();
