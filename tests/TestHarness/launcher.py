@@ -291,7 +291,7 @@ class cluster_generator:
         for account, node in zip(accounts, self.network.nodes.values()):
             is_bios = node.name == 'bios'
             if is_bios:
-                node.keys.append(KeyStrings('EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV',
+                node.keys.append(KeyStrings('PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63',
                                             '5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3',
                                             'PUB_BLS_qVbh4IjYZpRGo8U_0spBUM-u-r_G0fMo4MzLZRsKWmm5uyeQTp74YFaMN9IDWPoVVT5rj_Tw1gvps6K9_OZ6sabkJJzug3uGfjA6qiaLbLh5Fnafwv-nVgzzzBlU2kwRrcHc8Q',
                                             'PVT_BLS_edLoUiiP2FfMem4la3Ek8zxIDjDjOFylRw9ymdeOVCC0CuXN',
