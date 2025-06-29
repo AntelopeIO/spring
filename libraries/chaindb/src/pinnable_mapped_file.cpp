@@ -251,7 +251,20 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
    }
    std::byte* start = (std::byte*)_segment_manager;
    assert(_segment_manager_map.find(start) == _segment_manager_map.end());
-   _segment_manager_map[start] = start + _segment_manager->get_size();
+
+   ss_allocator_t* ss_alloc = get_small_size_allocator(start); // relies on `_segment_manager` being initialized
+   if (!ss_alloc && _writable) {
+      // create the unique `small_size_allocator` for this `segment_manager`
+      db_header* header = reinterpret_cast<db_header*>(start - header_size);
+      header->small_size_allocator = (char *)make_small_size_allocator<byte_segment_allocator_t>(_segment_manager);
+   }
+
+   _segment_manager_map[start] = seg_info_t{start + _segment_manager->get_size()};
+}
+
+ss_allocator_t* pinnable_mapped_file::get_small_size_allocator(std::byte* seg_mgr) {
+   db_header* header = reinterpret_cast<db_header*>(seg_mgr - header_size);
+   return header->small_size_allocator ? (ss_allocator_t*)&*header->small_size_allocator : nullptr;
 }
 
 void pinnable_mapped_file::setup_copy_on_write_mapping() {
@@ -318,8 +331,8 @@ void pinnable_mapped_file::setup_non_file_mapping() {
       _non_file_mapped_mapping_size = (_non_file_mapped_mapping_size + (r-1u))/r*r;
    };
 
-   const unsigned _1gb = 1u<<30u;
-   const unsigned _2mb = 1u<<21u;
+   [[maybe_unused]] const unsigned _1gb = 1u<<30u;
+   [[maybe_unused]] const unsigned _2mb = 1u<<21u;
 
 #if defined(MAP_HUGETLB) && defined(MAP_HUGE_1GB)
    _non_file_mapped_mapping = mmap(NULL, _non_file_mapped_mapping_size, PROT_READ|PROT_WRITE, common_map_opts|MAP_HUGETLB|MAP_HUGE_1GB, -1, 0);
