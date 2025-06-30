@@ -365,7 +365,7 @@ host function call will trigger a transition to the Savanna consensus algorithm.
          } )
          (  builtin_protocol_feature_t::packed_transaction_restrictions, builtin_protocol_feature_spec{
             "PACKED_TRANSACTION_RESTRICTIONS",
-            fc::variant("b0025cdde6af98ca57393dfd6af8846e67965072a41d1b0d95ede3d59042356c").as<digest_type>(),
+            fc::variant("8919a679245961f3463a0e013626c24684f4215eaf1872edfe3f65c04037b0d8").as<digest_type>(),
             // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: PACKED_TRANSACTION_RESTRICTIONS
