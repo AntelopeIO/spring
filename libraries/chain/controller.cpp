@@ -3832,8 +3832,6 @@ struct controller_impl {
 
             pending->_block_report.start_time = start;
 
-            const bool validate_ptrx = is_builtin_activated(builtin_protocol_feature_t::packed_transaction_restrictions);
-
             // validated in accept_block()
             std::get<building_block>(pending->_block_stage).trx_mroot_or_receipt_digests() = b->transaction_mroot;
 
@@ -3880,11 +3878,6 @@ struct controller_impl {
                                                          : (!!std::get<0>(trx_metas.at(packed_idx))
                                                                ? std::get<0>(trx_metas.at(packed_idx))
                                                                : std::get<1>(trx_metas.at(packed_idx)).get()));
-                  if (validate_ptrx) {
-                     const auto& ptrx = trx_meta->packed_trx();
-                     ptrx->validate_no_extra_data();
-                     ptrx->validate_no_compression();
-                  }
                   trace = push_transaction(trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(),
                                            receipt.cpu_usage_us, true, 0);
                   ++packed_idx;

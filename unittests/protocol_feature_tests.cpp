@@ -2361,7 +2361,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    c.preactivate_all_builtin_protocol_features();
    c.produce_block();
 
-
    //
    // Verify validation does not allow packed_transaction extra-data or compression in blocks
    //
@@ -2383,7 +2382,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_trx(c_compress, false, packed_transaction::compression_type::zlib);
    c_compress.produce_block();
 
-   BOOST_CHECK_EXCEPTION( push_blocks( c_compress, v ), tx_compression_error,
+   BOOST_CHECK_EXCEPTION( push_blocks( c_compress, v ), fc::exception,
                           fc_exception_message_contains( "Compressed packed_transaction not allowed" ) );
 
    // Another chain for the invalid extra data block
@@ -2400,7 +2399,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_trx(c_extra_data, true, packed_transaction::compression_type::none);
    c_extra_data.produce_block();
 
-   BOOST_CHECK_EXCEPTION( push_blocks( c_extra_data, v ), tx_extra_data_error,
+   BOOST_CHECK_EXCEPTION( push_blocks( c_extra_data, v ), fc::exception,
                           fc_exception_message_contains( "Extra-data not allowed in packed_transaction" ) );
 
    //
