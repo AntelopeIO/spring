@@ -2355,10 +2355,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_trx(c, false, packed_transaction::compression_type::zlib);
    c.produce_block();
    push_trx(c, true, packed_transaction::compression_type::none);
-   c.produce_block();
+   auto block_before_feature = c.produce_block();
 
+   // activate packed_transaction_restrictions
    c.preactivate_all_builtin_protocol_features();
    c.produce_block();
+
+
+   //
+   // Verify validation does not allow packed_transaction extra-data or compression in blocks
+   //
 
    // Ensure validator node rejects the block
    T v(setup_policy::none, db_read_mode::HEAD);
@@ -2369,6 +2375,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_blocks( c, c_compress );
 
    c_compress.produce_block();
+   {  // allow compressed as if not packed_transaction_restictions not activated
+      const protocol_feature_manager& cpfm = c_compress.control->get_protocol_feature_manager();
+      protocol_feature_manager& pfm = const_cast<protocol_feature_manager&>(cpfm);
+      pfm.popped_blocks_to(block_before_feature->block_num());
+   }
    push_trx(c_compress, false, packed_transaction::compression_type::zlib);
    c_compress.produce_block();
 
@@ -2380,11 +2391,27 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_blocks( c, c_extra_data );
 
    c_extra_data.produce_block();
+   {  // allow compressed as if not packed_transaction_restictions not activated
+      const protocol_feature_manager& cpfm = c_extra_data.control->get_protocol_feature_manager();
+      protocol_feature_manager& pfm = const_cast<protocol_feature_manager&>(cpfm);
+      pfm.popped_blocks_to(block_before_feature->block_num());
+   }
+
    push_trx(c_extra_data, true, packed_transaction::compression_type::none);
    c_extra_data.produce_block();
 
    BOOST_CHECK_EXCEPTION( push_blocks( c_extra_data, v ), tx_extra_data_error,
                           fc_exception_message_contains( "Extra-data not allowed in packed_transaction" ) );
+
+   //
+   // Verify production does not allow packed_transaction extra-data or compression in blocks
+   //
+
+   BOOST_CHECK_EXCEPTION( push_trx(c, true, packed_transaction::compression_type::none), tx_extra_data_error,
+                          fc_exception_message_contains( "Extra-data not allowed in packed_transaction" ) );
+   BOOST_CHECK_EXCEPTION( push_trx(c, false, packed_transaction::compression_type::zlib), tx_compression_error,
+                          fc_exception_message_contains( "Compressed packed_transaction not allowed" ) );
+
 
 } FC_LOG_AND_RETHROW() }
 
