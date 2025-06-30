@@ -2316,4 +2316,52 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
                        c.error("alice does not have permission to call this API"));
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
+
+   const auto alice_account = account_name("alice");
+   c.create_accounts( {alice_account} );
+   c.produce_block();
+
+   auto push_trx = [&](bool extra_data, packed_transaction::compression_type compression) {
+      signed_transaction trx;
+      auto pl = vector<permission_level>{{config::system_account_name, config::active_name}};
+      vector<legacy::producer_key> sched = {{"eosio"_n, c.get_public_key("eosio"_n, "test")}};
+      trx.actions.emplace_back( c.get_action( config::system_account_name, "setprods"_n, pl, fc::mutable_variant_object()("schedule", sched) ) );
+      c.set_transaction_headers( trx, c.DEFAULT_EXPIRATION_DELTA );
+      auto sigs = trx.sign( c.get_private_key( config::system_account_name, "active" ), c.get_chain_id() );
+
+      auto time_limit = fc::microseconds::maximum();
+      auto ptrx = std::make_shared<packed_transaction>( signed_transaction(trx), packed_transaction::compression_type::none );
+
+      auto packed = fc::raw::pack( ptrx->get_transaction() );
+      if (extra_data) {
+         packed.push_back('7'); packed.push_back('7');
+      }
+      vector<signature_type> psigs = ptrx->get_signatures();
+      vector<bytes> pcfd = ptrx->get_context_free_data();
+      packed_transaction pkt( std::move(packed), std::move(psigs), std::move(pcfd), compression );
+      ptrx = std::make_shared<packed_transaction>( pkt );
+
+      auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), c.control->get_thread_pool(), c.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
+      auto r = c.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
+      if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
+      if( r->except) r->except->rethrow();
+      return r;
+   };
+
+   push_trx(false, packed_transaction::compression_type::zlib);
+   c.produce_block();
+   push_trx(true, packed_transaction::compression_type::none);
+   c.produce_block();
+
+   c.preactivate_all_builtin_protocol_features();
+
+   push_trx(false, packed_transaction::compression_type::zlib);
+   c.produce_block();
+   push_trx(true, packed_transaction::compression_type::none);
+   c.produce_block();
+
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
