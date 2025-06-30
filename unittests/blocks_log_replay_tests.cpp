@@ -172,7 +172,7 @@ void currupt_blocks_log(path block_dir) {
    std::string bad_str = "bad corruption";
    blockslog.set_file_path(block_dir / "blocks.log");
    blockslog.open(fc::cfile::update_rw_mode);
-   blockslog.seek(pos);
+   blockslog.seek(pos+20);
    blockslog.write((char*)&bad_str, bad_str.size());
    blockslog.flush();
    blockslog.close();
