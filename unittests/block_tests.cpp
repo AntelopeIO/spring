@@ -57,10 +57,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    auto [best_head, obh] = validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b );
    BOOST_REQUIRE(obh);
    validator.control->abort_block();
-   BOOST_REQUIRE_EXCEPTION(validator.control->apply_blocks( {}, trx_meta_cache_lookup{} ), fc::exception ,
-   [] (const fc::exception &e)->bool {
-      return e.code() == account_name_exists_exception::code_value ;
-   }) ;
+   BOOST_REQUIRE_THROW(validator.control->apply_blocks( {}, trx_meta_cache_lookup{} ), account_name_exists_exception);
 
 }
 
@@ -98,10 +95,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    // Push block with invalid transaction to other chain
    T validator;
    auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
-   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b ), fc::exception,
-                           [] (const fc::exception &e)->bool {
-                              return e.code() == block_validate_exception::code_value &&
-                                     e.to_detail_string().find("invalid block transaction merkle root") != std::string::npos;
+   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b ), block_validate_exception,
+                           [] (const fc::exception& e)->bool {
+                              return e.to_detail_string().find("invalid block transaction merkle root") != std::string::npos;
                            }) ;
 }
 
@@ -221,10 +217,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( untrusted_producer_test, T, validating_testers )
    }
 
    auto blocks = corrupt_trx_in_block<T>(main, "tstproducera"_n);
-   BOOST_REQUIRE_EXCEPTION(main.validate_push_block( blocks.second ), fc::exception ,
-   [] (const fc::exception &e)->bool {
-      return e.code() == unsatisfied_authorization::code_value ;
-   }) ;
+   BOOST_REQUIRE_THROW(main.validate_push_block( blocks.second ), unsatisfied_authorization);
 }
 
 /**
@@ -414,10 +407,9 @@ BOOST_FIXTURE_TEST_CASE( invalid_qc_claim_block_num_test, validating_tester ) {
    copy_b->producer_signature = get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
 
    // Push the corrupted block. It must be rejected.
-   BOOST_REQUIRE_EXCEPTION(validate_push_block(signed_block::create_signed_block(std::move(copy_b))), fc::exception,
-                           [] (const fc::exception &e)->bool {
-                              return e.code() == invalid_qc_claim::code_value &&
-                                     e.to_detail_string().find("that is greater than the previous block number") != std::string::npos;
+   BOOST_REQUIRE_EXCEPTION(validate_push_block(signed_block::create_signed_block(std::move(copy_b))), invalid_qc_claim,
+                           [] (const fc::exception& e)->bool {
+                              return e.to_detail_string().find("that is greater than the previous block number") != std::string::npos;
                            }) ;
 }
 
@@ -437,10 +429,9 @@ BOOST_FIXTURE_TEST_CASE( invalid_action_mroot_test, tester )
 
    // Push the block containing corruptted action mroot. It should fail
    BOOST_REQUIRE_EXCEPTION(push_block(signed_block::create_signed_block(std::move(copy_b))),
-                           fc::exception,
-                           [] (const fc::exception &e)->bool {
-                              return e.code() == block_validate_exception::code_value &&
-                                     e.to_detail_string().find("computed finality mroot") != std::string::npos &&
+                           block_validate_exception,
+                           [] (const fc::exception& e)->bool {
+                              return e.to_detail_string().find("computed finality mroot") != std::string::npos &&
                                      e.to_detail_string().find("does not match supplied finality mroot") != std::string::npos;
                            });
 }
