@@ -1477,7 +1477,7 @@ namespace eosio::testing {
          if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
             || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
             || f == builtin_protocol_feature_t::savanna // savanna depends on disable_deferred_trxs_stage_1 & 2
-            || f == builtin_protocol_feature_t::packed_transaction_restrictions // depeonds on savanna
+            || f == builtin_protocol_feature_t::packed_transaction_restrictions // depends on savanna
             ) {
             continue;
          }

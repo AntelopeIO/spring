@@ -2348,7 +2348,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
       auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
-      if( r->except) r->except->rethrow();
       return r;
    };
 
@@ -2374,7 +2373,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_blocks( c, c_compress );
 
    c_compress.produce_block();
-   {  // allow compressed as if not packed_transaction_restrictions not activated
+   {  // allow compressed as if packed_transaction_restrictions not activated
       const protocol_feature_manager& cpfm = c_compress.control->get_protocol_feature_manager();
       protocol_feature_manager& pfm = const_cast<protocol_feature_manager&>(cpfm);
       pfm.popped_blocks_to(block_before_feature->block_num());
@@ -2390,7 +2389,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    push_blocks( c, c_extra_data );
 
    c_extra_data.produce_block();
-   {  // allow compressed as if not packed_transaction_restrictions not activated
+   {  // allow extra data as if packed_transaction_restrictions not activated
       const protocol_feature_manager& cpfm = c_extra_data.control->get_protocol_feature_manager();
       protocol_feature_manager& pfm = const_cast<protocol_feature_manager&>(cpfm);
       pfm.popped_blocks_to(block_before_feature->block_num());
