@@ -2,6 +2,7 @@
 
 #include <eosio/chain/types.hpp>
 #include <charconv>
+#include <iostream>
 
 namespace eosio::chain {
 
@@ -9,6 +10,8 @@ struct version_t {
    uint8_t major = 0;
    uint8_t minor = 0;
    bool    valid = false;
+
+   version_t() = default;
 
    version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
 
@@ -24,6 +27,11 @@ struct version_t {
 
    std::string str() const {
       return std::to_string(major) + "." + std::to_string(minor);
+   }
+
+   friend std::ostream& operator<<(std::ostream& s, const version_t& v) {
+      s << "version_t(" << v.str() << ")";
+      return s;
    }
 
    bool is_valid() const {
@@ -159,16 +167,12 @@ struct abi_def {
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
 
-   std::optional<version_t> get_version() const {
+   version_t get_version() const {
       static const std::string version_header = "eosio::abi/";
       if (!version.starts_with(version_header))
          return {};
       std::string_view version_str(version.c_str() + version_header.size(), version.size() - version_header.size());
-
-      version_t ver(version_str);
-      if (!ver.is_valid())
-         return {};
-      return ver;
+      return version_t(version_str);
    }
 };
 
