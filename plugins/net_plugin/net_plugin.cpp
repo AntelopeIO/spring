@@ -3916,13 +3916,16 @@ namespace eosio {
          if( exception || unlinkable) {
             const bool first_proper_svnn_block = !proper_svnn_block_seen && ptr->is_proper_svnn_block();
             if (unlinkable && !first_proper_svnn_block) {
+               // when exception==true, exception is logged above
                fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
                        ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
-            boost::asio::post(c->strand, [c, id, blk_num=ptr->block_num(), close_mode]() {
-               peer_dlog( c, "rejected block ${bn} ${id}", ("bn", blk_num)("id", id) );
-               my_impl->sync_master->rejected_block( c, blk_num, close_mode );
-            });
+            if (exception || !first_proper_svnn_block) {
+               boost::asio::post(c->strand, [c, id, blk_num=ptr->block_num(), close_mode]() {
+                  peer_dlog( c, "rejected block ${bn} ${id}", ("bn", blk_num)("id", id) );
+                  my_impl->sync_master->rejected_block( c, blk_num, close_mode );
+               });
+            }
             return;
          }
 
