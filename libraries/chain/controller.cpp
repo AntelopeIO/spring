@@ -2798,12 +2798,13 @@ struct controller_impl {
    }
 
    transaction_trace_ptr push_scheduled_transaction( const transaction_id_type& trxid,
-                                                     fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                      uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time = false )
    {
       const auto& idx = db.get_index<generated_transaction_multi_index,by_trx_id>();
       auto itr = idx.find( trxid );
       EOS_ASSERT( itr != idx.end(), unknown_transaction_exception, "unknown transaction" );
+      const fc::time_point block_deadline = fc::time_point::maximum();
+      const fc::microseconds max_transaction_time = fc::microseconds::maximum();
       return push_scheduled_transaction( *itr, block_deadline, max_transaction_time, billed_cpu_time_us, explicit_billed_cpu_time );
    }
 
@@ -3885,8 +3886,7 @@ struct controller_impl {
                                            receipt.cpu_usage_us, true, 0);
                   ++packed_idx;
                } else if( std::holds_alternative<transaction_id_type>(receipt.trx) ) {
-                  trace = push_scheduled_transaction(std::get<transaction_id_type>(receipt.trx), fc::time_point::maximum(),
-                                                     fc::microseconds::maximum(), receipt.cpu_usage_us, true);
+                  trace = push_scheduled_transaction(std::get<transaction_id_type>(receipt.trx), receipt.cpu_usage_us, true);
                } else {
                   EOS_ASSERT( false, block_validate_exception, "encountered unexpected receipt type" );
                }
@@ -5466,11 +5466,10 @@ transaction_trace_ptr controller::push_transaction( const transaction_metadata_p
 }
 
 transaction_trace_ptr controller::push_scheduled_transaction( const transaction_id_type& trxid,
-                                                              fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                               uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time )
 {
    validate_db_available_size();
-   return my->push_scheduled_transaction( trxid, block_deadline, max_transaction_time, billed_cpu_time_us, explicit_billed_cpu_time );
+   return my->push_scheduled_transaction( trxid, billed_cpu_time_us, explicit_billed_cpu_time );
 }
 
 const flat_set<account_name>& controller::get_actor_whitelist() const {
