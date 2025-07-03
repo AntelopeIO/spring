@@ -2415,11 +2415,6 @@ namespace eosio {
    // called from connection strand
    void sync_manager::rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode ) {
       c->block_status_monitor_.rejected();
-      // reset sync on rejected block
-      fc::unique_lock g( sync_mtx );
-      sync_last_requested_num = 0;
-      sync_next_expected_num = my_impl->get_fork_db_root_num() + 1;
-      g.unlock();
       if( mode == closing_mode::immediately || c->block_status_monitor_.max_events_violated()) {
          peer_wlog(p2p_blk_log, c, "block ${bn} not accepted, closing connection ${d}",
                    ("d", mode == closing_mode::immediately ? "immediately" : "max violations reached")("bn", blk_num));
