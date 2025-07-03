@@ -135,6 +135,7 @@ private:
 
       check_log_on_init();
       check_index_on_init();
+      check_log_and_index_on_init();
 
       //check for conversions to/from pruned log, as long as log contains something
       if(!empty()) {
@@ -417,6 +418,23 @@ private:
       }
 
       ilog("${name} regeneration complete", ("name", index.display_path()));
+   }
+
+   void check_log_and_index_on_init() {
+      if(log.size() == 0)
+         return;
+
+      try {
+         log_header first_header = log.unpack_from<decltype(first_header)>(0);
+         FC_ASSERT(is_ship(first_header.magic) && is_ship_supported_version(first_header.magic), "Unexpected header magic");
+         bool is_pruned = is_ship_log_pruned(first_header.magic);
+
+         //fetch the last block header from the log solely using the log (i.e. not the index: so don't use get_pos()). This is a sanity check.
+         const uint64_t last_header_pos = log.unpack_from<std::decay_t<decltype(last_header_pos)>>(log.size() - sizeof(uint64_t) - (is_pruned ? sizeof(uint32_t) : 0));
+         //verify last index position matches last log entry
+         const uint64_t index_pos = get_pos(_end_block-1);
+         FC_ASSERT(index_pos == last_header_pos, "Last index position ${ip} does not match last entry in log ${lp}", ("ip", index_pos)("lp", last_header_pos));
+      } EOS_RETHROW_EXCEPTIONS(chain::plugin_exception, "${name} is corrupted and cannot be repaired", ("name", index.display_path()));
    }
 
    uint64_t get_pos(uint32_t block_num) {
