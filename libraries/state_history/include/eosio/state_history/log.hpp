@@ -312,6 +312,9 @@ private:
          _end_block    = chain::block_header::num_from_id(last_header.block_id) + 1;
          last_block_id = last_header.block_id;
          FC_ASSERT(_begin_block < _end_block, "Block number ${hbn} from head and block number ${tbn} from tail of log are not expected", ("hbn", _begin_block)("tbn", _end_block-1));
+         //verify last index position matches
+         const uint64_t index_pos = get_pos(_end_block-1);
+         FC_ASSERT(index_pos == last_header_pos, "Last index position ${ip} does not match last entry in log ${lp}", ("ip", index_pos)("lp", last_header_pos));
       }
       catch(const std::bad_alloc&) {
          throw;
