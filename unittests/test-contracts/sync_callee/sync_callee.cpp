@@ -12,3 +12,9 @@ uint32_t sync_callee::basictest(uint32_t input) {
 sync_callee::two_fields_struct sync_callee::paramstest(two_fields_struct s1, int32_t m, four_fields_struct s2) {
    return { .a = s1.a * m + s2.c, .b = s1.b * m + s2.d };
 }
+
+[[eosio::call]]
+void sync_callee::noconsolefunc() {
+   // just make sure we don't have any prints in this function
+   return;
+}
