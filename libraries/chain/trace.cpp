@@ -110,11 +110,13 @@ std::string expand_console(const std::string_view&              header,
       std::string trailer = prefix;
       trailer += ": CALL END   ======";
 
+      // Recursively expand `ct`'s console.
       // The traces of a child sync call in `call_traces` are after the call trace
       // of the current call, that's why we use `call_trace_idx + 1` to avoid
       // searching from the beginning every time.
-      std::string child_console = expand_console(header, trailer, call_traces, call_trace_idx + 1, ct.sender_ordinal, ct.receiver.to_string(), ct.console, ct.console_markers); // append expanded console of `ct`'s console (recursively)
-      if (!child_console.empty()) {
+      // Current ct.call_ordinal is the sender of the next sync call
+      std::string child_console = expand_console(header, trailer, call_traces, call_trace_idx + 1, ct.call_ordinal, ct.receiver.to_string(), ct.console, ct.console_markers);
+      if (!child_console.empty()) { // append the expanded console
          children_have_consoles = true;
          expanded += child_console;
       }
