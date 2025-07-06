@@ -4,12 +4,82 @@
     "types": [],
     "structs": [
         {
+            "name": "actioncall",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "add",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
             "name": "basictest",
             "base": "",
             "fields": [
                 {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
                     "name": "input",
                     "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "call_data_header",
+            "base": "",
+            "fields": [
+                {
+                    "name": "version",
+                    "type": "uint32"
+                },
+                {
+                    "name": "func_name",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "crash",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
+            "name": "forever",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
                 }
             ]
         },
@@ -36,14 +106,95 @@
             ]
         },
         {
+            "name": "getperson",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "user",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "insertperson",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "user",
+                    "type": "name"
+                },
+                {
+                    "name": "first_name",
+                    "type": "string"
+                },
+                {
+                    "name": "street",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "mul",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "nestedcalls",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
             "name": "noconsolefunc",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
         },
         {
             "name": "paramstest",
             "base": "",
             "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
                 {
                     "name": "s1",
                     "type": "two_fields_struct"
@@ -55,6 +206,75 @@
                 {
                     "name": "s2",
                     "type": "four_fields_struct"
+                }
+            ]
+        },
+        {
+            "name": "person",
+            "base": "",
+            "fields": [
+                {
+                    "name": "key",
+                    "type": "name"
+                },
+                {
+                    "name": "first_name",
+                    "type": "string"
+                },
+                {
+                    "name": "street",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "person_info",
+            "base": "",
+            "fields": [
+                {
+                    "name": "first_name",
+                    "type": "string"
+                },
+                {
+                    "name": "street",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "pureaction",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "recursive",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "n",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "selfcall",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
                 }
             ]
         },
@@ -71,17 +291,107 @@
                     "type": "uint64"
                 }
             ]
+        },
+        {
+            "name": "voidparam",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
+            "name": "voidparamret",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
+            "name": "voidreturn",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                },
+                {
+                    "name": "n",
+                    "type": "uint32"
+                }
+            ]
         }
     ],
-    "actions": [],
-    "tables": [],
+    "actions": [
+        {
+            "name": "actioncall",
+            "type": "actioncall",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "pureaction",
+            "type": "pureaction",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [
+        {
+            "name": "people",
+            "type": "person",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
     "ricardian_clauses": [],
     "variants": [],
-    "action_results": [],
+    "action_results": [
+        {
+            "name": "actioncall",
+            "result_type": "uint32"
+        }
+    ],
     "calls": [
+        {
+            "name": "actioncall",
+            "type": "actioncall"
+        },
+        {
+            "name": "add",
+            "type": "add"
+        },
         {
             "name": "basictest",
             "type": "basictest"
+        },
+        {
+            "name": "crash",
+            "type": "crash"
+        },
+        {
+            "name": "forever",
+            "type": "forever"
+        },
+        {
+            "name": "getperson",
+            "type": "getperson"
+        },
+        {
+            "name": "insertperson",
+            "type": "insertperson"
+        },
+        {
+            "name": "mul",
+            "type": "mul"
+        },
+        {
+            "name": "nestedcalls",
+            "type": "nestedcalls"
         },
         {
             "name": "noconsolefunc",
@@ -90,16 +400,68 @@
         {
             "name": "paramstest",
             "type": "paramstest"
+        },
+        {
+            "name": "recursive",
+            "type": "recursive"
+        },
+        {
+            "name": "selfcall",
+            "type": "selfcall"
+        },
+        {
+            "name": "voidparam",
+            "type": "voidparam"
+        },
+        {
+            "name": "voidparamret",
+            "type": "voidparamret"
+        },
+        {
+            "name": "voidreturn",
+            "type": "voidreturn"
         }
     ],
     "call_results": [
+        {
+            "name": "actioncall",
+            "result_type": "uint32"
+        },
+        {
+            "name": "add",
+            "result_type": "uint32"
+        },
         {
             "name": "basictest",
             "result_type": "uint32"
         },
         {
+            "name": "getperson",
+            "result_type": "person_info"
+        },
+        {
+            "name": "mul",
+            "result_type": "uint32"
+        },
+        {
+            "name": "nestedcalls",
+            "result_type": "uint32"
+        },
+        {
             "name": "paramstest",
             "result_type": "two_fields_struct"
+        },
+        {
+            "name": "recursive",
+            "result_type": "uint32"
+        },
+        {
+            "name": "selfcall",
+            "result_type": "uint32"
+        },
+        {
+            "name": "voidparam",
+            "result_type": "uint32"
         }
     ]
 }

@@ -40,7 +40,8 @@ static inline void print_debug(account_name receiver, const action_trace& ar) {
 
    fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
    size_t call_trace_idx = 0;  // starting from the first one
-   auto output = expand_console(header, trailer, ar.call_traces, sender_ordinal, call_trace_idx, receiver.to_string(), ar.console, ar.console_markers);
+   // action's receiver is the sender of the next sync call
+   auto output = expand_console(header, trailer, ar.call_traces, call_trace_idx, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
    dlog(std::move(output));
 }
 
