@@ -1,5 +1,8 @@
 #include <sync_call_tester.hpp>
+#include <test_contracts.hpp>
+#include <eosio/testing/tester.hpp>
 #include <eosio/chain/config.hpp>
+#include <eosio/chain/trace.hpp>
 #include <boost/test/unit_test.hpp>
 
 // Tests for sync calls initiated by contracts in C++
@@ -40,6 +43,23 @@ BOOST_AUTO_TEST_CASE(basic_test) { try {
    auto& return_value = call_trace.return_value;
    std::memcpy(&output, return_value.data(), sizeof(output));
    BOOST_REQUIRE_EQUAL(output, input);
+
+   // Verify pretty printing of console output
+   std::string header  = "Test BEGIN ==================";
+   std::string trailer = "\nTest END   ==================";
+
+   fc::unsigned_int sender_ordinal = 0;
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+
+   static const std::string expected = R"=====(Test BEGIN ==================
+Before calling sync call basictest
+[caller->(callee,basictest)]: CALL BEGIN ======
+I am basictest from sync_callee
+[caller->(callee,basictest)]: CALL END   ======
+After returned from basictest
+Test END   ==================)=====";
+
+   BOOST_REQUIRE_EQUAL(actual, expected);
 } FC_LOG_AND_RETHROW() }
 
 // Verify complex parameter passing works
@@ -204,6 +224,44 @@ BOOST_AUTO_TEST_CASE(insert_into_table_read_only_test) { try {
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "insertrdonly"_n, "caller"_n, {}),
                          unaccessible_api,
                          fc_exception_message_contains("this API is not allowed in read only action/call"));
+} FC_LOG_AND_RETHROW() }
+
+// Verify initiating action does not have console but its children sync calls have console
+BOOST_AUTO_TEST_CASE(caller_has_no_console_test) { try {
+   call_tester_cpp t;
+
+   auto  trx_trace    = t.push_action("caller"_n, "callernocnsl"_n, "caller"_n, {});
+   auto& action_trace = trx_trace->action_traces[0];
+   std::string header  = "Test BEGIN ==================";
+   std::string trailer = "\nTest END   ==================";
+   fc::unsigned_int sender_ordinal = 0;
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+
+   static const std::string expected = R"=====(Test BEGIN ==================
+[caller->(callee,basictest)]: CALL BEGIN ======
+I am basictest from sync_callee
+[caller->(callee,basictest)]: CALL END   ======
+Test END   ==================)=====";
+
+   BOOST_REQUIRE_EQUAL(actual, expected);
+} FC_LOG_AND_RETHROW() }
+
+// Verify initiating action has console but its children sync calls do not have console
+BOOST_AUTO_TEST_CASE(callee_has_no_console_test) { try {
+   call_tester_cpp t;
+
+   auto  trx_trace    = t.push_action("caller"_n, "calleenocnsl"_n, "caller"_n, {});
+   auto& action_trace = trx_trace->action_traces[0];
+   std::string header  = "Test BEGIN ==================";
+   std::string trailer = "\nTest END   ==================";
+   fc::unsigned_int sender_ordinal = 0;
+   std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
+
+   static const std::string expected = R"=====(Test BEGIN ==================
+Before making sync call. After returned from sync call.
+Test END   ==================)=====";
+
+   BOOST_REQUIRE_EQUAL(actual, expected);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

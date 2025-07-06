@@ -89,6 +89,10 @@ public:
    using crash_func = eosio::call_wrapper<"crash"_n, &sync_callee::crash>;
 
    [[eosio::call]]
+   void noconsolefunc();
+   using no_console_func = eosio::call_wrapper<"noconsolefunc"_n, &sync_callee::noconsolefunc>;
+
+   [[eosio::call]]
    void insertperson(eosio::name user, std::string first_name, std::string street);
    using insert_person_read_only_func = eosio::call_wrapper<"insertperson"_n, &sync_callee::insertperson, eosio::access_mode::read_only>;
    using insert_person_func = eosio::call_wrapper<"insertperson"_n, &sync_callee::insertperson>;

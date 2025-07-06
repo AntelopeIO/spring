@@ -19,6 +19,16 @@
             ]
         },
         {
+            "name": "calleenocnsl",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "callernocnsl",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "crashtest",
             "base": "",
             "fields": []
@@ -113,6 +123,16 @@
         {
             "name": "basictest",
             "type": "basictest",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "calleenocnsl",
+            "type": "calleenocnsl",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "callernocnsl",
+            "type": "callernocnsl",
             "ricardian_contract": ""
         },
         {

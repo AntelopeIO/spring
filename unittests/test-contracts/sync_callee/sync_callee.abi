@@ -178,6 +178,16 @@
             ]
         },
         {
+            "name": "noconsolefunc",
+            "base": "",
+            "fields": [
+                {
+                    "name": "header",
+                    "type": "call_data_header"
+                }
+            ]
+        },
+        {
             "name": "paramstest",
             "base": "",
             "fields": [
@@ -382,6 +392,10 @@
         {
             "name": "nestedcalls",
             "type": "nestedcalls"
+        },
+        {
+            "name": "noconsolefunc",
+            "type": "noconsolefunc"
         },
         {
             "name": "paramstest",

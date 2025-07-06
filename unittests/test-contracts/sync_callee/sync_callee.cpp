@@ -106,6 +106,12 @@ void sync_callee::crash() {
 }
 
 [[eosio::call]]
+void sync_callee::noconsolefunc() {
+   // just make sure we don't have any prints in this function
+   return;
+}
+
+[[eosio::call]]
 void sync_callee::insertperson(name user, std::string first_name, std::string street) {
    address_index addresses(get_first_receiver(), get_first_receiver().value);
    auto iterator = addresses.find(user.value);
