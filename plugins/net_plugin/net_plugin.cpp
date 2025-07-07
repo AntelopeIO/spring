@@ -2708,7 +2708,7 @@ namespace eosio {
 
    // thread safe
    void dispatch_manager::bcast_block(const signed_block_ptr& b, const block_id_type& id) {
-      fc_dlog( p2p_blk_log, "bcast block ${b}", ("b", b->block_num()) );
+      fc_dlog( p2p_blk_log, "bcast block ${b}:${id}", ("b", b->block_num())("id", id.str().substr(8,16)) );
 
       if(my_impl->sync_master->syncing_from_peer() ) return;
 
