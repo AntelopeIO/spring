@@ -28,7 +28,7 @@ namespace eosio::chain::plugin_interface {
    namespace incoming {
       namespace methods {
          // synchronously push a block/trx to a single provider, block_state_legacy_ptr may be null
-         using block_sync            = method_decl<chain_plugin_interface, controller::apply_blocks_result(const signed_block_ptr&, const block_id_type&, const block_handle&), first_provider_policy>;
+         using block_sync            = method_decl<chain_plugin_interface, controller::apply_blocks_result_t(const signed_block_ptr&, const block_id_type&, const block_handle&), first_provider_policy>;
          using transaction_async     = method_decl<chain_plugin_interface, void(const packed_transaction_ptr&, bool, transaction_metadata::trx_type, bool, next_function<transaction_trace_ptr>), first_provider_policy>;
       }
    }
