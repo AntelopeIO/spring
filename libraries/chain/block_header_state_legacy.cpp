@@ -429,7 +429,7 @@ namespace eosio::chain {
 
       std::set<public_key_type> keys;
       auto digest = sig_digest();
-      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, true ));
+      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, true )); // `allow_non_canonical_signatures` never true pre savanna
 
       for (const auto& s: additional_signatures) {
          auto res = keys.emplace(s, digest, true);
