@@ -876,12 +876,92 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_corrupted_log_recovery, T, state_history_test
    logfile.open("ab");
    const char random_data[] = "12345678901231876983271649837";
    logfile.write(random_data, sizeof(random_data));
+   logfile.close();
 
    std::filesystem::remove_all(chain.get_config().blocks_dir/"reversible");
 
    T new_chain(state_history_dir.path(), config);
    new_chain.produce_block();
    new_chain.produce_blocks(49, true);
+
+   BOOST_CHECK(get_traces(new_chain.traces_log, 10).size());
+   BOOST_CHECK(get_decompressed_entry(new_chain.chain_state_log,10).size());
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_no_index_recovery, T, state_history_testers) {
+   fc::temp_directory state_history_dir;
+
+   eosio::state_history::partition_config config{};
+
+   T chain(state_history_dir.path(), config);
+   chain.produce_block();
+   chain.produce_blocks(21, true);
+   chain.close();
+
+   std::filesystem::remove(state_history_dir.path() / "trace_history.index");
+
+   T new_chain(state_history_dir.path(), config);
+   new_chain.produce_block();
+
+   BOOST_CHECK(get_traces(new_chain.traces_log, 10).size());
+   BOOST_CHECK(get_decompressed_entry(new_chain.chain_state_log,10).size());
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_curropted_index_recovery, T, state_history_testers) {
+   fc::temp_directory state_history_dir;
+
+   eosio::state_history::partition_config config{};
+
+   T chain(state_history_dir.path(), config);
+   chain.produce_block();
+   chain.produce_blocks(21, true);
+   chain.close();
+
+   // write a few random bytes to end of index log, size will not match and it will be auto-recreated
+   fc::cfile indexfile;
+   indexfile.set_file_path(state_history_dir.path() / "trace_history.index");
+   indexfile.open("ab");
+   const char random_data[] = "12345678901231876983271649837";
+   indexfile.seek_end(0);
+   indexfile.write(random_data, sizeof(random_data));
+   indexfile.close();
+
+   T new_chain(state_history_dir.path(), config);
+   new_chain.produce_block();
+
+   BOOST_CHECK(get_traces(new_chain.traces_log, 10).size());
+   BOOST_CHECK(get_decompressed_entry(new_chain.chain_state_log,10).size());
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_curropted_index_error, T, state_history_testers) {
+   fc::temp_directory state_history_dir;
+
+   eosio::state_history::partition_config config{};
+
+   T chain(state_history_dir.path(), config);
+   chain.produce_block();
+   chain.produce_blocks(21, true);
+   chain.close();
+
+   // write a few random bytes to end of index log, size will not match and it will be auto-recreated
+   fc::cfile indexfile;
+   indexfile.set_file_path(state_history_dir.path() / "trace_history.index");
+   indexfile.open("rb+");
+   const char random_data[] = "12345678901231876983271649837";
+   indexfile.seek_end(-(sizeof(random_data)));
+   indexfile.write(random_data, sizeof(random_data));
+   indexfile.close();
+
+   BOOST_CHECK_EXCEPTION(T(state_history_dir.path(), config),
+                         plugin_exception, [](const plugin_exception& e) {
+                            return e.to_detail_string().find("trace_history.index is corrupted and cannot be repaired, will be automatically regenerated if removed") != std::string::npos;
+                         });
+
+   // remove index for auto recovery
+   std::filesystem::remove(state_history_dir.path() / "trace_history.index");
+
+   T new_chain(state_history_dir.path(), config);
+   new_chain.produce_block();
 
    BOOST_CHECK(get_traces(new_chain.traces_log, 10).size());
    BOOST_CHECK(get_decompressed_entry(new_chain.chain_state_log,10).size());

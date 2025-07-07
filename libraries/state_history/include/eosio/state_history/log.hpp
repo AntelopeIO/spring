@@ -434,7 +434,7 @@ private:
          //verify last index position matches last log entry
          const uint64_t index_pos = get_pos(_end_block-1);
          FC_ASSERT(index_pos == last_header_pos, "Last index position ${ip} does not match last entry in log ${lp}", ("ip", index_pos)("lp", last_header_pos));
-      } EOS_RETHROW_EXCEPTIONS(chain::plugin_exception, "${name} is corrupted and cannot be repaired", ("name", index.display_path()));
+      } EOS_RETHROW_EXCEPTIONS(chain::plugin_exception, "${name} is corrupted and cannot be repaired, will be automatically regenerated if removed.", ("name", index.display_path()));
    }
 
    uint64_t get_pos(uint32_t block_num) {
