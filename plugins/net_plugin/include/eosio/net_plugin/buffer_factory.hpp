@@ -103,7 +103,7 @@ namespace eosio {
 
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
-         fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
+         fc_dlog( p2p_blk_log, "sending block ${bn}", ("bn", sb->block_num()) );
          return buffer_factory::create_send_buffer( signed_block_which, *sb );
       }
 

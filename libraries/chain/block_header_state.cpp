@@ -72,7 +72,8 @@ digest_type block_header_state::compute_finality_digest() const {
 
 // returns scheduled active proposer policy for a given block at timestamp `t`
 const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_block_at(block_timestamp_type next_block_timestamp) const {
-   assert(next_block_timestamp > timestamp()); // next block timestamp must be greater than current timestamp
+   EOS_ASSERT(next_block_timestamp > timestamp(), block_too_old_exception,
+              "next block timestamp ${n} must be greater than current timestamp ${c}", ("n", next_block_timestamp)("c", timestamp()));
 
    // if the block is in the same round of current block, use current active_proposer_policy
    if (detail::in_same_round(next_block_timestamp, timestamp())) {
@@ -297,7 +298,8 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
 
 void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
                                               block_header_state& next) {
-   assert(next.timestamp() > prev.timestamp()); // next block timestamp must be greater than nextent timestamp
+   // next block timestamp must be greater than next timestamp, validated in get_active_proposer_policy_for_block_at
+   assert(next.timestamp() > prev.timestamp());
 
    auto& new_policy = prev.get_active_proposer_policy_for_block_at(next.timestamp());
    if (new_policy != next.active_proposer_policy) {
@@ -377,7 +379,8 @@ void finish_next(const block_header_state& prev,
       // this new block.
       // Add this new proposal to the `proposed_finalizer_policies` which tracks the in-flight proposals.
       // ------------------------------------------------------------------------------------------------
-      assert(new_finalizer_policy.generation > prev.finalizer_policy_generation);
+      EOS_ASSERT(new_finalizer_policy.generation > prev.finalizer_policy_generation, invalid_block_header_extension,
+                 "new finalizer policy generation ${n} not greater than previous ${p}", ("n", new_finalizer_policy.generation)("p", prev.finalizer_policy_generation));
       next_header_state.finalizer_policy_generation = new_finalizer_policy.generation;
       next_header_state.proposed_finalizer_policies.emplace_back(
          std::make_pair(next_header_state.block_num(), std::make_shared<finalizer_policy>(new_finalizer_policy)));
@@ -499,7 +502,6 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    block_header_state next_header_state;
    next_header_state.header = static_cast<const block_header&>(h);
    next_header_state.header_exts = h.validate_and_extract_header_extensions();
-   next_header_state.finalizer_policy_generation = finalizer_policy_generation;
 
    const auto& exts = next_header_state.header_exts;
 
