@@ -164,7 +164,7 @@ public:
    block_state(block_state&&) = default;
 
    block_state(const block_header_state& prev, signed_block_ptr b, const protocol_feature_set& pfs,
-               const validator_t& validator, bool skip_validate_signee);
+               const validator_t& validator, bool skip_validate_signee, bool check_canonical);
 
    block_state(const block_header_state&                bhs,
                deque<transaction_metadata_ptr>&&        trx_metas,
@@ -173,7 +173,8 @@ public:
                const std::optional<qc_t>&               qc,
                const signer_callback_type&              signer,
                const block_signing_authority&           valid_block_signing_authority,
-               const digest_type&                       action_mroot);
+               const digest_type&                       action_mroot,
+               bool                                     check_canonical);
 
    static std::shared_ptr<block_state> create_if_genesis_block(const block_state_legacy& bsp);
 

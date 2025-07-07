@@ -365,7 +365,8 @@ struct assembled_block {
    }
 
    completed_block complete_block(const protocol_feature_set& pfs, validator_t validator,
-                                  const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority) {
+                                  const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority,
+                                  bool check_canonical) {
       return std::visit(overloaded{[&](assembled_block_legacy& ab) {
                                       auto bsp = std::make_shared<block_state_legacy>(
                                          std::move(ab.pending_block_header_state), std::move(ab.unsigned_block),
@@ -375,7 +376,8 @@ struct assembled_block {
                                    [&](assembled_block_if& ab) {
                                       auto bsp = std::make_shared<block_state>(ab.bhs, std::move(ab.trx_metas),
                                                                                std::move(ab.trx_receipts), ab.valid, ab.qc, signer,
-                                                                               valid_block_signing_authority, ab.action_mroot);
+                                                                               valid_block_signing_authority, ab.action_mroot,
+                                                                               check_canonical);
                                       return completed_block{block_handle{std::move(bsp)}};
                                    }},
                         v);
@@ -1034,6 +1036,10 @@ struct controller_impl {
    std::function<void(produced_block_metrics)> _update_produced_block_metrics;
    std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
+
+   bool check_canonical() const {
+      return !is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures);
+   }
 
    vote_processor_t vote_processor{[this](const vote_signal_params& p) {
                                       emit(aggregated_vote, p, __FILE__, __LINE__);
@@ -4304,7 +4310,8 @@ struct controller_impl {
                     const flat_set<digest_type>& cur_features,
                     const vector<digest_type>& new_features )
             { check_protocol_features( timestamp, cur_features, new_features ); },
-            skip_validate_signee
+            skip_validate_signee,
+            check_canonical()
       );
 
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
@@ -4448,7 +4455,10 @@ struct controller_impl {
                   }
                }
 
-               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
+
+               BSP bsp =
+                  std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),
+                                                               validator, skip_validate_signee, check_canonical());
 
                if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result::complete) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
@@ -5394,8 +5404,7 @@ void controller::assemble_and_complete_block( const signer_callback_type& signer
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
-      signer_callback,
-      valid_block_signing_authority);
+      signer_callback, valid_block_signing_authority, my->check_canonical());
 }
 
 void controller::commit_block() {

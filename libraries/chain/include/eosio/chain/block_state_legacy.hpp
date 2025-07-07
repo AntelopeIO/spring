@@ -17,7 +17,8 @@ namespace eosio::chain {
                           signed_block_ptr b,
                           const protocol_feature_set& pfs,
                           const validator_t& validator,
-                          bool skip_validate_signee
+                          bool skip_validate_signee,
+                          bool check_canonical = true
                  );
 
       block_state_legacy( pending_block_header_state_legacy&& cur,

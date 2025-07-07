@@ -101,7 +101,7 @@ auto create_test_block_state(const block_state_ptr& prev) {
       std::optional<qc_t>{},
       signer,
       block_signing_authority_v0{ 1, {{pub_key, 1}} },
-      digest_type{});
+      digest_type{}, false);
 
    return bsp;
 }
