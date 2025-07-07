@@ -1307,8 +1307,8 @@ struct controller_impl {
 
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
-         if( trace->except)
-            trace->except->rethrow();
+         if(trace->except)
+            assert(trace->except_ptr); // except/except_ptr always set together
          getpeerkeys_res_t res;
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
@@ -3376,7 +3376,8 @@ struct controller_impl {
             if( onblock_trace->except ) {
                if (onblock_trace->except->code() == interrupt_exception::code_value) {
                   ilog("Interrupt of onblock ${bn}", ("bn", chain_head.block_num() + 1));
-                  onblock_trace->except->rethrow();
+                  assert(onblock_trace->except_ptr); // always set together
+                  std::rethrow_exception(onblock_trace->except_ptr);
                }
                wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
                     ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
@@ -3898,7 +3899,8 @@ struct controller_impl {
                   } else {
                      edump((*trace));
                   }
-                  trace->except->rethrow();
+                  assert(trace->except_ptr); // always set together
+                  std::rethrow_exception(trace->except_ptr);
                }
 
                EOS_ASSERT(trx_receipts.size() > 0, block_validate_exception,
