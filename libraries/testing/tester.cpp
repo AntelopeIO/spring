@@ -1482,7 +1482,9 @@ namespace eosio::testing {
          // from full protocol feature list such that existing tests can run.
          if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
             || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
-            || f == builtin_protocol_feature_t::savanna ) { // savanna depends on disable_deferred_trxs_stage_1 & 2
+            || f == builtin_protocol_feature_t::savanna // savanna depends on disable_deferred_trxs_stage_1 & 2
+            || f == builtin_protocol_feature_t::allow_non_canonical_signatures // depends on savanna
+            ) {
             continue;
          }
 
