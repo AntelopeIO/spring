@@ -33,9 +33,6 @@ namespace eosio::testing {
          case setup_policy::none:
             os << "none";
             break;
-         case setup_policy::old_bios_only:
-            os << "old_bios_only";
-            break;
          case setup_policy::preactivate_feature_only:
             os << "preactivate_feature_only";
             break;
@@ -234,10 +231,10 @@ namespace eosio::testing {
       };
 
       switch (policy) {
-         case setup_policy::old_bios_only: {
-            set_before_preactivate_bios_contract();
+         case setup_policy::none:
+         default:
             break;
-         }
+
          case setup_policy::preactivate_feature_only: {
             schedule_preactivate_protocol_feature();
             produce_block(); // block production is required to activate protocol feature
@@ -297,9 +294,6 @@ namespace eosio::testing {
 
             break;
          }
-         case setup_policy::none:
-         default:
-            break;
       };
    }
 

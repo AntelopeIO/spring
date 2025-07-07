@@ -63,7 +63,6 @@ namespace boost { namespace test_tools { namespace tt_detail {
 namespace eosio::testing {
    enum class setup_policy {
       none,
-      old_bios_only,
       preactivate_feature_only,
       preactivate_feature_and_new_bios,
       old_wasm_parser,
