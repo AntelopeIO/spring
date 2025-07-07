@@ -2089,8 +2089,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    }
 
    // attemp to retire the trx
-   auto deadline = fc::time_point::now() + fc::milliseconds(10); // 10ms more than enough
-   auto trace = c.control->push_scheduled_transaction(trx_id, deadline, fc::microseconds::maximum(), 0, false);
+   auto trace = c.control->push_scheduled_transaction(trx_id, 0, false);
 
    // the trx was retired as "expired" and RAM was refunded even though delay_until not reached
    BOOST_REQUIRE_EQUAL( trace->receipt->status, transaction_receipt::expired );

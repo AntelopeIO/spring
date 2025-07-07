@@ -1007,7 +1007,6 @@ void transaction_tests(T& chain) {
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
       auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
-      if( r->except) r->except->rethrow();
       tx_trace = r;
       chain.produce_block();
       BOOST_CHECK(tx_trace->action_traces.front().console == sha_expect);
@@ -1173,7 +1172,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       auto dtrxs = get_scheduled_transactions();
       BOOST_CHECK_EQUAL(dtrxs.size(), 1);
       for (const auto& trx: dtrxs) {
-         control->push_scheduled_transaction(trx, fc::time_point::maximum(), fc::microseconds::maximum(), 0, false);
+         control->push_scheduled_transaction(trx, 0, false);
       }
       BOOST_CHECK_EQUAL(1, count);
       BOOST_REQUIRE(trace);
@@ -1200,7 +1199,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       auto dtrxs = get_scheduled_transactions();
       BOOST_CHECK_EQUAL(dtrxs.size(), 1);
       for (const auto& trx: dtrxs) {
-         control->push_scheduled_transaction(trx, fc::time_point::maximum(), fc::microseconds::maximum(), billed_cpu_time_us, true);
+         control->push_scheduled_transaction(trx, billed_cpu_time_us, true);
       }
       BOOST_CHECK_EQUAL(1, count);
       BOOST_CHECK(trace);

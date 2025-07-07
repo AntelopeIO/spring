@@ -158,13 +158,12 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_multiple, blog_replay_fixture) try {
    stop_and_resume_replay(last_head_block_num - 3);
 } FC_LOG_AND_RETHROW()
 
-void currupt_blocks_log(path block_dir) {
+void currupt_blocks_log(path block_dir, block_num_type block_num) {
    fc::datastream<fc::cfile> index_file;
    index_file.set_file_path(block_dir / "blocks.index");
    index_file.open(fc::cfile::update_rw_mode);
-   uint32_t block_num = 5;
-   index_file.seek(sizeof(uint64_t) * block_num);
-   uint64_t pos;
+   index_file.seek(sizeof(uint64_t) * (block_num + 1));
+   uint64_t pos = 0;
    index_file.read((char*)&pos, sizeof(pos));
    index_file.close();
 
@@ -172,7 +171,7 @@ void currupt_blocks_log(path block_dir) {
    std::string bad_str = "bad corruption";
    blockslog.set_file_path(block_dir / "blocks.log");
    blockslog.open(fc::cfile::update_rw_mode);
-   blockslog.seek(pos+20);
+   blockslog.seek(pos);
    blockslog.write((char*)&bad_str, bad_str.size());
    blockslog.flush();
    blockslog.close();
@@ -193,7 +192,7 @@ BOOST_FIXTURE_TEST_CASE(replay_exception, blog_replay_fixture) try {
    std::filesystem::copy(copied_config.blocks_dir / "blocks.log", tmp_dir.path() / "blocks.log");
    std::filesystem::copy(copied_config.blocks_dir / "blocks.index", tmp_dir.path() / "blocks.index");
 
-   currupt_blocks_log(copied_config.blocks_dir);
+   currupt_blocks_log(copied_config.blocks_dir, last_irreversible_block_num-5);
 
    bool exception_thrown = false;
    try {

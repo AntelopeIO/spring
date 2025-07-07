@@ -570,7 +570,6 @@ public:
    bool     block_is_exhausted() const;
    bool     remove_expired_trxs(const fc::time_point& deadline);
    bool     process_unapplied_trxs(const fc::time_point& deadline);
-   bool     retire_deferred_trxs(const fc::time_point& deadline);
    bool     process_incoming_trxs(const fc::time_point& deadline, unapplied_transaction_queue::iterator& itr);
 
    struct push_result {
@@ -896,7 +895,7 @@ public:
 
    // called on incoming blocks from net_plugin on the main thread. Will notify controller to process any
    // blocks ready in the fork database.
-   controller::apply_blocks_result on_incoming_block() {
+   controller::apply_blocks_result_t on_incoming_block() {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
@@ -911,12 +910,12 @@ public:
          _time_tracker.add_other_time();
          // return complete as we are producing and don't want to be interrupted right now. Next start_block will
          // give an opportunity for this incoming block to be processed.
-         return controller::apply_blocks_result::complete;
+         return {};
       }
 
       // no reason to abort_block if we have nothing ready to process
       if (chain.head().id() == chain.fork_db_head().id()) {
-         return controller::apply_blocks_result::complete; // nothing to do
+         return {}; // nothing to do
       }
 
       // start a new speculative block, adds to time tracker which includes this method's time
@@ -925,7 +924,8 @@ public:
       // abort the pending block
       abort_block();
 
-      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
+      // if an exception is thrown, don't want to report incomplete as that could cause an infinite loop of apply_block failures.
+      controller::apply_blocks_result_t result;
       try {
          result = chain.apply_blocks(
             [this](const transaction_metadata_ptr& trx) {
@@ -935,7 +935,7 @@ public:
             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (const guard_exception& e) {
          chain_plugin::handle_guard_exception(e);
-         return controller::apply_blocks_result::complete; // shutting down
+         return result; // shutting down
       } catch (const std::bad_alloc&) {
          chain_apis::api_base::handle_bad_alloc();
       } catch (boost::interprocess::bad_alloc&) {
@@ -943,7 +943,7 @@ public:
       } catch (const fork_database_exception& e) {
          fc_elog(_log, "Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
          appbase::app().quit();
-         return controller::apply_blocks_result::complete; // shutting down
+         return result; // shutting down
       } catch (const fc::exception& e) {
          throw;
       } catch (const std::exception& e) {
@@ -1691,7 +1691,7 @@ void producer_plugin::handle_sighup() {
    fc::logger::update(transient_trx_failed_trace_logger_name, _transient_trx_failed_trace_log);
 }
 
-controller::apply_blocks_result producer_plugin::on_incoming_block() {
+controller::apply_blocks_result_t producer_plugin::on_incoming_block() {
    return my->on_incoming_block();
 }
 
@@ -2180,6 +2180,7 @@ producer_plugin_impl::determine_pending_block_mode(const fc::time_point& now,
          // first block of our round, wait for block production window
          const auto start_block_time = block_time.to_time_point() - fc::microseconds(config::block_interval_us);
          if (now < start_block_time) {
+            _pending_block_mode = pending_block_mode::speculating;
             fc_dlog(_log, "Not starting block until ${bt}", ("bt", start_block_time));
             schedule_delayed_production_loop(weak_from_this(), start_block_time);
             return start_block_result::waiting_for_production;
@@ -2211,32 +2212,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   auto apply_blocks = [&]() -> controller::apply_blocks_result {
-      try {
-         return chain.apply_blocks([this](const transaction_metadata_ptr& trx) {
-                                      fc_dlog(_trx_log, "adding forked trx ${id} to unapplied queue", ("id", trx->id()));
-                                      _unapplied_transactions.add_forked(trx);
-                                   },
-                                   [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-      } catch (...) {} // errors logged in apply_blocks
-      return controller::apply_blocks_result::incomplete;
-   };
-
-   // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
-   if (!is_configured_producer()) {
-      auto r = apply_blocks();
-      if (r != controller::apply_blocks_result::complete)
-         return start_block_result::waiting_for_block;
-   }
-
-   if (chain.should_terminate()) {
-      app().quit();
-      return start_block_result::failed;
-   }
-
-   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
-
-   block_handle         head               = chain.head();
+   block_handle head = chain.head();
 
    if (head.block_num() == chain.get_pause_at_block_num())
       return start_block_result::waiting_for_block;
@@ -2249,13 +2225,32 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    if (r != start_block_result::succeeded)
       return r;
 
-   if (is_configured_producer() && in_speculating_mode()) {
-      // if not producing right now, see if any blocks have come in that need to be applied
-      const block_id_type head_id = head.id();
-      schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
-      apply_blocks();
-      head = chain.head();
-      if (head_id != head.id()) { // blocks were applied
+   auto process_pending_blocks = [&]() -> start_block_result {
+      auto apply_blocks = [&]() -> controller::apply_blocks_result_t {
+         try {
+            return chain.apply_blocks([this](const transaction_metadata_ptr& trx) {
+                                         fc_dlog(_trx_log, "adding forked trx ${id} to unapplied queue", ("id", trx->id()));
+                                         _unapplied_transactions.add_forked(trx);
+                                      },
+                                      [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+         } catch (...) {} // errors logged in apply_blocks
+         return controller::apply_blocks_result_t{.status = controller::apply_blocks_result_t::status_t::incomplete};
+      };
+
+      // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
+      // unless head not a child of pending lib, as there is no reason ever to produce on a branch that is not a child of pending lib
+      while (in_speculating_mode() || !chain.is_head_descendant_of_pending_lib()) {
+         if (is_configured_producer())
+            schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
+
+         auto result = apply_blocks();
+         if (result.status == controller::apply_blocks_result_t::status_t::complete && result.num_blocks_applied == 0)
+            return start_block_result::succeeded;
+
+         head = chain.head();
+         if (head.block_num() == chain.get_pause_at_block_num())
+            return start_block_result::waiting_for_block;
+
          now                = fc::time_point::now();
          block_time         = calculate_pending_block_time();
          scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
@@ -2263,8 +2258,25 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
          if (r != start_block_result::succeeded)
             return r;
+
+         if (in_speculating_mode()) {
+            if (result.status != controller::apply_blocks_result_t::status_t::complete) // no block applied checked above
+               return start_block_result::waiting_for_block;
+            return start_block_result::succeeded;
+         }
       }
+      return start_block_result::succeeded;
+   };
+   r = process_pending_blocks();
+   if (r != start_block_result::succeeded)
+      return r;
+
+   if (chain.should_terminate()) {
+      app().quit();
+      return start_block_result::failed;
    }
+
+   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
 
    const auto& preprocess_deadline = _pending_block_deadline;
 
@@ -2371,16 +2383,6 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          if (in_producing_mode()) {
             if (!process_unapplied_trxs(preprocess_deadline))
                return start_block_result::exhausted;
-
-            // after DISABLE_DEFERRED_TRXS_STAGE_2 is activated,
-            // no deferred trxs are allowed to be retired
-            if (!chain.is_builtin_activated( builtin_protocol_feature_t::disable_deferred_trxs_stage_2) ) {
-               // Hard-code the deadline to retire expired deferred trxs to 10ms
-               auto deferred_trxs_deadline = std::min<fc::time_point>(preprocess_deadline, fc::time_point::now() + fc::milliseconds(10));
-               if (!retire_deferred_trxs(deferred_trxs_deadline)) {
-                  return start_block_result::failed;
-               }
-            }
          }
 
          repost_exhausted_transactions(preprocess_deadline);
@@ -2729,100 +2731,6 @@ bool producer_plugin_impl::process_unapplied_trxs(const fc::time_point& deadline
    return !exhausted;
 }
 
-bool producer_plugin_impl::retire_deferred_trxs(const fc::time_point& deadline) {
-   int   num_applied    = 0;
-   int   num_failed     = 0;
-   int   num_processed  = 0;
-   bool  exhausted      = false;
-
-   chain::controller& chain               = chain_plug->chain();
-   time_point         pending_block_time  = chain.pending_block_time();
-   const auto&        expired_idx         = chain.db().get_index<generated_transaction_multi_index, by_expiration>();
-   const auto expired_size                = expired_idx.size();
-   auto               expired_itr         = expired_idx.begin();
-   bool               stage_1_activated   = chain.is_builtin_activated( builtin_protocol_feature_t::disable_deferred_trxs_stage_1);
-
-   while (expired_itr != expired_idx.end()) {
-      // * Before disable_deferred_trxs_stage_1 is activated, retire only expired deferred trxs.
-      // * After disable_deferred_trxs_stage_1, retire any deferred trxs in any order
-      if (!stage_1_activated && expired_itr->expiration >= pending_block_time) { // before stage_1 and not expired yet
-         break;
-      }
-
-      if (exhausted || deadline <= fc::time_point::now()) {
-         exhausted = true;
-         break;
-      }
-
-      const transaction_id_type trx_id             = expired_itr->trx_id; // make copy since reference could be invalidated
-      auto                      expired_itr_next   = expired_itr; // save off next since expired_itr may be invalidated by loop
-      ++expired_itr_next;
-
-      num_processed++;
-
-      auto get_first_authorizer = [&](const transaction_trace_ptr& trace) {
-         for (const auto& a : trace->action_traces) {
-            for (const auto& u : a.act.authorization)
-               return u.actor;
-         }
-         return account_name();
-      };
-
-      try {
-         auto             start        = fc::time_point::now();
-         auto             trx_tracker  = _time_tracker.start_trx(false, start); // delayed transaction cannot be transient
-         fc::microseconds max_trx_time = fc::microseconds::maximum(); // hard-coded as it is not used in push_scheduled_transaction when trx expired.
-
-         auto trace = chain.push_scheduled_transaction(trx_id, deadline, max_trx_time, 0, false);
-         auto end   = fc::time_point::now();
-         if (trace->except) {
-            if (exception_is_exhausted(*trace->except)) {
-               if (block_is_exhausted()) {
-                  exhausted = true;
-                  break;
-               }
-            } else {
-               fc_dlog(_trx_failed_trace_log,
-                       "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING scheduled tx: ${txid}, time: ${r}, auth: ${a} : ${details}",
-                       ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx_id)("r", end - start)
-                       ("a", get_first_authorizer(trace))("details", get_detailed_contract_except_info(nullptr, trace, nullptr)));
-               fc_dlog(_trx_trace_failure_log,
-                       "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING scheduled tx: ${entire_trace}",
-                       ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
-                       ("entire_trace", chain_plug->get_log_trx_trace(trace)));
-               num_failed++;
-            }
-         } else {
-            trx_tracker.trx_success();
-            fc_dlog(_trx_successful_trace_log,
-                    "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING scheduled tx: ${txid}, time: ${r}, auth: ${a}, cpu: ${cpu}",
-                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx_id)("r", end - start)
-                    ("a", get_first_authorizer(trace))("cpu", trace->receipt ? trace->receipt->cpu_usage_us : 0));
-            fc_dlog(_trx_trace_success_log,
-                    "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING scheduled tx: ${entire_trace}",
-                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
-                    ("entire_trace", chain_plug->get_log_trx_trace(trace)));
-            num_applied++;
-         }
-      }
-      LOG_AND_DROP();
-
-      if (expired_itr_next == expired_idx.end())
-         break;
-      expired_itr = expired_itr_next;
-   }
-
-   if (expired_size > 0) {
-      fc_dlog(_log, "Processed ${m} of ${n} scheduled transactions, Applied ${applied}, Failed/Dropped ${failed}",
-              ("m", num_processed)("n", expired_size)("applied", num_applied)("failed", num_failed));
-   }
-
-   if (stage_1_activated && num_failed > 0) {
-      return false;
-   }
-   return true;
-}
-
 bool producer_plugin_impl::process_incoming_trxs(const fc::time_point& deadline, unapplied_transaction_queue::iterator& itr) {
    bool exhausted = false;
    auto end       = _unapplied_transactions.incoming_end();
@@ -3078,7 +2986,7 @@ void producer_plugin::process_blocks() {
    auto process_incoming_blocks = [this](auto self) -> void {
       try {
          auto r = on_incoming_block();
-         if (r == controller::apply_blocks_result::incomplete) {
+         if (r.status == controller::apply_blocks_result_t::status_t::incomplete) {
             app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
                self(self);
             });
