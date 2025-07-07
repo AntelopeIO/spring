@@ -67,6 +67,41 @@
         "stderr"
       ]
     },{
+      "name": "p2p_log",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_trx",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_block",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_message",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_connection",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
       "name": "http_plugin",
       "level": "debug",
       "enabled": true,

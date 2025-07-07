@@ -241,6 +241,8 @@ try:
         if conn["is_socket_open"] is False:
             continue
         peer_addr = conn["peer"]
+        if len(peer_addr) == 0:
+            continue
         found.append(peer_names[peer_addr])
 
     Print(f"Found connections of Node_03: {found}")

@@ -465,7 +465,7 @@ namespace eosio::testing {
    }
 
    void base_tester::apply_blocks() {
-      while (control->apply_blocks( {}, {} ) == controller::apply_blocks_result::incomplete)
+      while (control->apply_blocks( {}, {} ).status == controller::apply_blocks_result_t::status_t::incomplete)
          ;
    }
 
@@ -501,7 +501,7 @@ namespace eosio::testing {
          vector<transaction_id_type> scheduled_trxs;
          while ((scheduled_trxs = get_scheduled_transactions()).size() > 0 ) {
             for( const auto& trx : scheduled_trxs ) {
-               auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
+               auto trace = control->push_scheduled_transaction( trx, DEFAULT_BILLED_CPU_TIME_US, true );
                if( !no_throw && trace->except ) {
                   assert(trace->except_ptr);
                   std::rethrow_exception(trace->except_ptr);

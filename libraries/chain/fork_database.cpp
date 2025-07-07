@@ -106,6 +106,8 @@ namespace eosio::chain {
       void             remove_impl( block_num_type block_num );
       bsp_t            head_impl(include_root_t include_root) const;
       bool             set_pending_savanna_lib_id_impl(const block_id_type& id);
+      bool             is_descendant_of_pending_savanna_lib_impl(const block_id_type& id) const;
+      bool             is_descendant_of_impl(const block_id_type& ancestor, const block_id_type& descendant) const;
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       block_branch_t   fetch_block_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       branch_t         fetch_branch_impl( const block_id_type& h, const block_id_type& b ) const;
@@ -372,6 +374,45 @@ namespace eosio::chain {
          pending_savanna_lib_id = id;
          return true;
       }
+      return false;
+   }
+
+   template<class BSP>
+   bool fork_database_t<BSP>::is_descendant_of_pending_savanna_lib( const block_id_type& id ) const {
+      std::lock_guard g( my->mtx );
+      return my->is_descendant_of_pending_savanna_lib_impl(id);
+   }
+
+   template<class BSP>
+   bool fork_database_impl<BSP>::is_descendant_of_pending_savanna_lib_impl(const block_id_type& id) const {
+      if (pending_savanna_lib_id == id)
+         return true;
+      return is_descendant_of_impl(pending_savanna_lib_id, id);
+   }
+
+   template<class BSP>
+   bool fork_database_t<BSP>::is_descendant_of(const block_id_type& ancestor, const block_id_type& descendant) const {
+      std::lock_guard g( my->mtx );
+      return my->is_descendant_of_impl(ancestor, descendant);
+   }
+
+   template<class BSP>
+   bool fork_database_impl<BSP>::is_descendant_of_impl(const block_id_type& ancestor, const block_id_type& descendant) const {
+      block_num_type ancestor_block_num = block_header::num_from_id(ancestor);
+      if (ancestor_block_num >= block_header::num_from_id(descendant))
+         return false;
+
+      auto i = index.find(descendant);
+      for (; i != index.end(); i = index.find((*i)->previous())) {
+         if ((*i)->previous() == ancestor)
+            return true;
+         if ((*i)->block_num() <= ancestor_block_num+1) // +1 since comparison of previous() already done
+            return false;
+      }
+
+      // At this point descendant is not found in ancestor, but root has not been checked.
+      // However, root is either the ancestor or we can't make determination if descendant is a child because
+      // ancestor < root. Therefore, no reason to check root.
       return false;
    }
 
