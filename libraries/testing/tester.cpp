@@ -58,7 +58,7 @@ namespace eosio::testing {
        builtin_protocol_feature_t::bls_primitives}
    };
 
-   const setup_policy setup_policy::full_except_do_not_disable_deferred_trx {
+   const setup_policy setup_policy::before_disable_deferred_trx {
       {setup_action::preactivate_protocol_feature,
        setup_action::set_before_producer_authority_bios_contract,
        setup_action::activate_features},
@@ -115,7 +115,7 @@ namespace eosio::testing {
          os << "preactivate_feature_and_new_bios";
       else if (p == setup_policy::old_wasm_parser)
          os << "old_wasm_parser";
-      else if (p == setup_policy::full_except_do_not_disable_deferred_trx)
+      else if (p == setup_policy::before_disable_deferred_trx)
          os << "full_except_do_not_disable_deferred_trx";
       else if (p == setup_policy::full_except_do_not_transition_to_savanna)
          os << "full_except_do_not_transition_to_savanna";
@@ -336,7 +336,7 @@ namespace eosio::testing {
          }
 
          case setup_action::activate_savanna: {
-            // BLS voting is slow. Use only 1 finalizer for default testser.
+            // BLS voting is slow. Use only 1 finalizer for default tester.
             finalizer_keys fin_keys(*this, 1u /* num_keys */, 1u /* finset_size */);
             fin_keys.activate_savanna(0u /* first_key_idx */);
             break;

@@ -85,7 +85,7 @@ namespace eosio::testing {
       static const setup_policy preactivate_feature_only;
       static const setup_policy preactivate_feature_and_new_bios;
       static const setup_policy old_wasm_parser;
-      static const setup_policy full_except_do_not_disable_deferred_trx;
+      static const setup_policy before_disable_deferred_trx;
       static const setup_policy full_except_do_not_transition_to_savanna;
       static const setup_policy full;
    };
@@ -746,7 +746,7 @@ namespace eosio::testing {
 
    class tester_no_disable_deferred_trx : public tester {
    public:
-      tester_no_disable_deferred_trx(): tester(setup_policy::full_except_do_not_disable_deferred_trx) {
+      tester_no_disable_deferred_trx(): tester(setup_policy::before_disable_deferred_trx) {
       }
    };
 
@@ -877,7 +877,7 @@ namespace eosio::testing {
    class validating_tester_no_disable_deferred_trx : public validating_tester {
    public:
       validating_tester_no_disable_deferred_trx()
-         : validating_tester({}, nullptr, setup_policy::full_except_do_not_disable_deferred_trx) {}
+         : validating_tester({}, nullptr, setup_policy::before_disable_deferred_trx) {}
    };
 
    // The behavior of legacy_validating_tester is activating all the protocol features
