@@ -32,7 +32,7 @@ std::ostream& operator<<( std::ostream& osm, const fc::variant_object::entry& e 
 
 eosio::chain::asset core_from_string(const std::string& s);
 
-namespace boost { namespace test_tools { namespace tt_detail {
+namespace boost::test_tools::tt_detail {
 
    template<>
    struct print_log_value<fc::variant> {
@@ -58,7 +58,7 @@ namespace boost { namespace test_tools { namespace tt_detail {
       }
    };
 
-} } }
+}
 
 namespace eosio::testing {
 
