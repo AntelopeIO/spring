@@ -40,7 +40,7 @@ public:
       const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters);
       BOOST_REQUIRE(d);
       
-      preactivate_protocol_features( {*d} );
+      activate_protocol_features( {*d} );
       produce_block();
    }
 

@@ -319,13 +319,13 @@ namespace eosio::testing {
          }
 
          case setup_action::activate_features: {
-            preactivate_builtin_protocol_features(policy.features);
+            activate_builtin_protocol_features(policy.features);
             produce_block();
             break;
          }
 
          case setup_action::activate_all_features: {
-            preactivate_all_builtin_protocol_features();
+            activate_all_builtin_protocol_features();
             produce_block();
             break;
          }
@@ -1426,71 +1426,40 @@ namespace eosio::testing {
       );
    }
 
-   void base_tester::preactivate_protocol_features(const vector<digest_type>& feature_digests) {
+   void base_tester::activate_protocol_features(const vector<digest_type>& feature_digests) {
       for( const auto& feature_digest: feature_digests ) {
          push_action( config::system_account_name, "activate"_n, config::system_account_name,
                       fc::mutable_variant_object()("feature_digest", feature_digest) );
       }
    }
-
-   void base_tester::preactivate_savanna_protocol_features() {
-      const auto& pfm = control->get_protocol_feature_manager();
-
-      // dependencies of builtin_protocol_feature_t::savanna
-      vector<digest_type> feature_digests;
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::only_link_to_existing_permission));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::replace_deferred));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::no_duplicate_deferred_id));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::fix_linkauth_restriction));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disallow_empty_producer_schedule));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::restrict_action_to_self));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::only_bill_first_authorizer));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::forward_setcode));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_sender));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::ram_restrictions));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::configurable_wasm_limits));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_code_hash));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::crypto_primitives));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_block_num));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::bls_primitives));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disable_deferred_trxs_stage_1));
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disable_deferred_trxs_stage_2));
-      // savanna
-      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::savanna));
-
-      preactivate_protocol_features( feature_digests );
-   }
-
-   void base_tester::preactivate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& builtins) {
+   void base_tester::activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& builtins) {
       const auto& pfm = control->get_protocol_feature_manager();
       const auto& pfs = pfm.get_protocol_feature_set();
       const auto current_block_num  =  control->head().block_num() + (control->is_building_block() ? 1 : 0);
       const auto current_block_time = ( control->is_building_block() ? control->pending_block_time()
                                         : control->head().block_time() + fc::milliseconds(config::block_interval_ms) );
 
-      set<digest_type>    preactivation_set;
-      vector<digest_type> preactivations;
+      set<digest_type>    activation_set;
+      vector<digest_type> activations;
 
       std::function<void(const digest_type&)> add_digests =
-      [&pfm, &pfs, current_block_num, current_block_time, &preactivation_set, &preactivations, &add_digests]
+      [&pfm, &pfs, current_block_num, current_block_time, &activation_set, &activations, &add_digests]
       ( const digest_type& feature_digest ) {
          const auto& pf = pfs.get_protocol_feature( feature_digest );
          FC_ASSERT( pf.builtin_feature, "called add_digests on a non-builtin protocol feature" );
          if( !pf.enabled || pf.earliest_allowed_activation_time > current_block_time
              || pfm.is_builtin_activated( *pf.builtin_feature, current_block_num ) ) return;
 
-         auto res = preactivation_set.emplace( feature_digest );
+         // ensure unicity
+         auto res = activation_set.emplace( feature_digest );
          if( !res.second ) return;
 
+         // add dependent features
          for( const auto& dependency : pf.dependencies ) {
             add_digests( dependency );
          }
 
-         preactivations.emplace_back( feature_digest );
+         activations.emplace_back( feature_digest );
       };
 
       for( const auto& f : builtins ) {
@@ -1499,7 +1468,7 @@ namespace eosio::testing {
          add_digests( *digest );
       }
 
-      preactivate_protocol_features( preactivations );
+      activate_protocol_features( activations );
    }
 
    std::vector<builtin_protocol_feature_t> base_tester::get_all_builtin_protocol_features() {
@@ -1517,11 +1486,11 @@ namespace eosio::testing {
       return builtins;
    }
 
-   void base_tester::preactivate_all_builtin_protocol_features() {
-      preactivate_builtin_protocol_features( get_all_builtin_protocol_features() );
+   void base_tester::activate_all_builtin_protocol_features() {
+      activate_builtin_protocol_features( get_all_builtin_protocol_features() );
    }
 
-   void base_tester::preactivate_all_but_disable_deferred_trx() {
+   void base_tester::activate_all_but_disable_deferred_trx() {
       std::vector<builtin_protocol_feature_t> builtins;
       for( const auto& f : get_all_builtin_protocol_features() ) {
          // Before deferred trxs feature is fully disabled, existing tests involving
@@ -1537,7 +1506,7 @@ namespace eosio::testing {
          builtins.push_back( f );
       }
 
-      preactivate_builtin_protocol_features( builtins );
+      activate_builtin_protocol_features( builtins );
    }
 
    tester::tester(const std::function<void(controller&)>& control_setup, const setup_policy& policy, db_read_mode read_mode) {

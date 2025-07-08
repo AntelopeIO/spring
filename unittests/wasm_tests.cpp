@@ -693,7 +693,7 @@ template<typename T>
 void test_big_memory(setup_policy policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
-      t.preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
+      t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
 
    t.produce_block();
 
@@ -739,7 +739,7 @@ template<typename T>
 void test_table_init(setup_policy policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
-      t.preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
+      t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
    t.produce_block();
 
    t.create_accounts( {"tableinit"_n} );
@@ -955,7 +955,7 @@ template<typename T>
 void test_lotso_globals(setup_policy policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
-      t.preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
+      t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
 
    t.produce_block();
 
@@ -1795,7 +1795,7 @@ template<typename T>
 void test_depth(setup_policy policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
-      t.preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
+      t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
 
    t.produce_block();
    t.create_accounts( {"depth"_n} );
@@ -1879,7 +1879,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( varuint_memory_flags_tests, T, validating_testers
    }
 
    // Activate new parser
-   t.preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
+   t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
    t.produce_block();
 
    // We should still be able to execute the old code

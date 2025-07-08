@@ -488,11 +488,10 @@ namespace eosio::testing {
          }
 
          void schedule_protocol_features_wo_preactivation(const vector<digest_type>& feature_digests);
-         void preactivate_protocol_features(const vector<digest_type>& feature_digests);
-         void preactivate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
-         void preactivate_all_builtin_protocol_features();
-         void preactivate_all_but_disable_deferred_trx();
-         void preactivate_savanna_protocol_features();
+         void activate_protocol_features(const vector<digest_type>& feature_digests);
+         void activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
+         void activate_all_builtin_protocol_features();
+         void activate_all_but_disable_deferred_trx();
 
          static genesis_state default_genesis() {
             genesis_state genesis;
