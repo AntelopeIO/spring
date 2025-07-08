@@ -727,9 +727,12 @@ void test_big_memory(setup_policy policy) {
 
 }
 
-BOOST_DATA_TEST_CASE( big_memory, bdata::make({setup_policy::preactivate_feature_and_new_bios, setup_policy::old_wasm_parser, setup_policy::full}), policy ) try {
-   test_big_memory<legacy_validating_tester>(policy);
-   test_big_memory<savanna_validating_tester>(policy);
+BOOST_DATA_TEST_CASE(big_memory,
+                     bdata::make({&setup_policy::preactivate_feature_and_new_bios, &setup_policy::old_wasm_parser,
+                                  &setup_policy::full_except_do_not_transition_to_savanna, &setup_policy::full}),
+                     policy)
+try {
+   test_big_memory<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
 template<typename T>
@@ -749,9 +752,11 @@ void test_table_init(setup_policy policy) {
 
 }
 
-BOOST_DATA_TEST_CASE( table_init_tests, bdata::make({setup_policy::preactivate_feature_and_new_bios, setup_policy::old_wasm_parser, setup_policy::full}), policy ) try {
-   test_table_init<legacy_validating_tester>(policy);
-   test_table_init<savanna_validating_tester>(policy);
+BOOST_DATA_TEST_CASE(table_init_tests,
+                     bdata::make({&setup_policy::preactivate_feature_and_new_bios, &setup_policy::old_wasm_parser,
+                                  &setup_policy::full_except_do_not_transition_to_savanna, &setup_policy::full}),
+                     policy) try {
+   test_table_init<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( table_init_oob, T, validating_testers ) try {
@@ -974,9 +979,11 @@ void test_lotso_globals(setup_policy policy) {
 
 }
 
-BOOST_DATA_TEST_CASE( lotso_globals, bdata::make({setup_policy::preactivate_feature_and_new_bios, setup_policy::old_wasm_parser, setup_policy::full}), policy ) try {
-   test_lotso_globals<legacy_validating_tester>(policy);
-   test_lotso_globals<savanna_validating_tester>(policy);
+BOOST_DATA_TEST_CASE(lotso_globals,
+                     bdata::make({&setup_policy::preactivate_feature_and_new_bios, &setup_policy::old_wasm_parser,
+                                  &setup_policy::full_except_do_not_transition_to_savanna, &setup_policy::full}),
+                     policy) try {
+   test_lotso_globals<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( offset_check_old, T, validating_testers ) try {
@@ -1841,9 +1848,11 @@ void test_depth(setup_policy policy) {
 
 }
 
-BOOST_DATA_TEST_CASE( depth_tests, bdata::make({setup_policy::preactivate_feature_and_new_bios, setup_policy::old_wasm_parser, setup_policy::full}), policy ) try {
-   test_depth<legacy_validating_tester>(policy);
-   test_depth<savanna_validating_tester>(policy);
+BOOST_DATA_TEST_CASE(depth_tests,
+                     bdata::make({&setup_policy::preactivate_feature_and_new_bios, &setup_policy::old_wasm_parser,
+                                  &setup_policy::full_except_do_not_transition_to_savanna, &setup_policy::full}),
+                     policy) try {
+   test_depth<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( varuint_memory_flags_tests, T, validating_testers ) try {
