@@ -15,7 +15,7 @@ using mvo = mutable_variant_object;
 class params_tester : public tester {
 public:
    params_tester() : tester(){}
-   params_tester(setup_policy policy) : tester(policy){}
+   params_tester(const setup_policy& policy) : tester(policy){}
 
    void setup(){
       //set parameters intrinsics are priviledged so we need system account here

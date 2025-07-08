@@ -690,7 +690,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_global_reset, T, validating_testers ) try {
 
 //Make sure we can create a wasm with maximum pages, but not grow it any
 template<typename T>
-void test_big_memory(setup_policy policy) {
+void test_big_memory(const setup_policy& policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
       t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
@@ -736,7 +736,7 @@ try {
 } FC_LOG_AND_RETHROW()
 
 template<typename T>
-void test_table_init(setup_policy policy) {
+void test_table_init(const setup_policy& policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
       t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
@@ -952,7 +952,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( nested_limit_test, T, validating_testers ) try {
 
 
 template<typename T>
-void test_lotso_globals(setup_policy policy) {
+void test_lotso_globals(const setup_policy& policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
       t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
@@ -1792,7 +1792,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( big_maligned_host_ptr, T, validating_testers ) tr
 } FC_LOG_AND_RETHROW()
 
 template<typename T>
-void test_depth(setup_policy policy) {
+void test_depth(const setup_policy& policy) {
    T t(flat_set<account_name>{}, {}, policy);
    if(policy != setup_policy::full)
       t.activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});

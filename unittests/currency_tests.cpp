@@ -64,7 +64,7 @@ class currency_tester : public T {
          return trace;
       }
 
-      currency_tester(setup_policy p = setup_policy::full)
+      currency_tester(const setup_policy& p = setup_policy::full)
          :T({}, nullptr, p), abi_ser(json::from_string(test_contracts::eosio_token_abi()).as<abi_def>(), abi_serializer::create_yield_function( T::abi_serializer_max_time ))
       {
          T::create_account( "eosio.token"_n);
