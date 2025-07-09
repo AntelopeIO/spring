@@ -14,7 +14,7 @@ namespace detail {
    inline void verify_signee(const signature_type& producer_signature, const block_id_type& block_id,
                              const std::vector<signature_type>& additional_signatures,
                              const block_signing_authority& valid_block_signing_authority,
-                             bool check_canonical)
+                             fc::check_canonical_t check_canonical)
    {
       auto num_keys_in_authority = std::visit([](const auto& a) { return a.keys.size(); },
                                               valid_block_signing_authority);
@@ -49,7 +49,7 @@ namespace detail {
 
    // EOS_ASSERTs if signature does not validate
    inline bool verify_block_sig(const block_header_state& prev, const signed_block_ptr& block, bool skip_validate_signee,
-                                bool check_canonical) {
+                                fc::check_canonical_t check_canonical) {
       if (!skip_validate_signee) {
          auto sigs = detail::extract_additional_signatures(block);
          const auto& valid_block_signing_authority = prev.get_producer_for_block_at(block->timestamp).authority;
@@ -72,7 +72,7 @@ namespace detail {
 
    void sign(signed_block& block, const block_id_type& block_id,
              const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority,
-             bool check_canonical) {
+             fc::check_canonical_t check_canonical) {
       auto sigs = signer(block_id);
 
       EOS_ASSERT(!sigs.empty(), no_block_signatures, "Signer returned no signatures");
@@ -90,7 +90,7 @@ using namespace eosio::chain::detail;
 
 // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
 block_state::block_state(const block_header_state& prev, signed_block_ptr b, const protocol_feature_set& pfs,
-                         const validator_t& validator, bool skip_validate_signee, bool check_canonical)
+                         const validator_t& validator, bool skip_validate_signee, fc::check_canonical_t check_canonical)
    : block_header_state((verify_block_sig(prev, b, skip_validate_signee, check_canonical), prev.next(*b, validator)))
    , block(std::move(b))
    , strong_digest(compute_finality_digest())
@@ -107,7 +107,7 @@ block_state::block_state(const block_header_state&                bhs,
                          const signer_callback_type&              signer,
                          const block_signing_authority&           valid_block_signing_authority,
                          const digest_type&                       action_mroot,
-                         bool                                     check_canonical)
+                         fc::check_canonical_t                    check_canonical)
    : block_header_state(bhs)
    , block()
    , strong_digest(compute_finality_digest())
@@ -205,7 +205,8 @@ block_state_ptr block_state::create_transition_block(
                    bool                              skip_validate_signee,
                    const std::optional<digest_type>& action_mroot_savanna) {
    dlog("Create transition block ${bn}", ("bn", prev.block_num()+1));
-   auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee, true);
+   auto result_ptr =
+      std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee, fc::check_canonical_t::yes);
 
    result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
    // action_mroot_savanna can be empty in IRREVERSIBLE mode. Do not create valid structure

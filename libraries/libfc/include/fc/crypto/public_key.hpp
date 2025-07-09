@@ -7,7 +7,11 @@
 #include <fc/reflect/variant.hpp>
 #include <fc/static_variant.hpp>
 
-namespace fc { namespace crypto {
+namespace fc {
+
+enum class check_canonical_t : uint8_t { no, yes };
+
+namespace crypto {
    namespace config {
       constexpr const char* public_key_legacy_prefix = "EOS";
       constexpr const char* public_key_base_prefix = "PUB";
@@ -28,7 +32,7 @@ namespace fc { namespace crypto {
          public_key( const public_key& ) = default;
          public_key& operator= (const public_key& ) = default;
 
-         public_key( const signature& c, const sha256& digest, bool check_canonical = true );
+         public_key( const signature& c, const sha256& digest, check_canonical_t check_canonical );
 
          public_key( storage_type&& other_storage )
             :_storage(std::move(other_storage))

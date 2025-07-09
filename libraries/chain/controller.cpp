@@ -366,7 +366,7 @@ struct assembled_block {
 
    completed_block complete_block(const protocol_feature_set& pfs, validator_t validator,
                                   const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority,
-                                  bool check_canonical) {
+                                  fc::check_canonical_t check_canonical) {
       return std::visit(overloaded{[&](assembled_block_legacy& ab) {
                                       auto bsp = std::make_shared<block_state_legacy>(
                                          std::move(ab.pending_block_header_state), std::move(ab.unsigned_block),
@@ -1037,8 +1037,10 @@ struct controller_impl {
    std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
 
-   bool check_canonical() const {
-      return !is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures);
+   fc::check_canonical_t check_canonical() const {
+      return is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)
+                ? fc::check_canonical_t::no
+                : fc::check_canonical_t::yes;
    }
 
    vote_processor_t vote_processor{[this](const vote_signal_params& p) {
@@ -3871,7 +3873,7 @@ struct controller_impl {
                         packed_transaction_ptr ptrx( b, &pt ); // alias signed_block_ptr
                         auto fut = transaction_metadata::start_recover_keys(
                            std::move( ptrx ), thread_pool.get_executor(), chain_id, fc::microseconds::maximum(),
-                           transaction_metadata::trx_type::input  );
+                           transaction_metadata::trx_type::input, check_canonical()  );
                         trx_metas.emplace_back( transaction_metadata_ptr{}, std::move( fut ) );
                      }
                   }
@@ -6255,6 +6257,10 @@ void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer
 
 bool controller::is_node_finalizer_key(const bls_public_key& key) const {
    return my->my_finalizers.contains(key);
+}
+
+fc::check_canonical_t controller::check_canonical() const {
+   return my->check_canonical();
 }
 
 const my_finalizers_t& controller::get_node_finalizers() const {

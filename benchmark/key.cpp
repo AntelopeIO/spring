@@ -50,7 +50,7 @@ void r1_benchmarking() {
 
    auto sig = key.sign(digest);
    auto recover_f = [&]() {
-      public_key(sig, digest);
+      public_key(sig, digest, check_canonical_t::yes);
    };
    benchmarking("r1_recover", recover_f);
 }

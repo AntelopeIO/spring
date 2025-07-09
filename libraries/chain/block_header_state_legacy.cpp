@@ -429,10 +429,10 @@ namespace eosio::chain {
 
       std::set<public_key_type> keys;
       auto digest = sig_digest();
-      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, true )); // `allow_non_canonical_signatures` never true pre savanna
+      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, fc::check_canonical_t::yes )); // `allow_non_canonical_signatures` never true pre savanna
 
       for (const auto& s: additional_signatures) {
-         auto res = keys.emplace(s, digest, true);
+         auto res = keys.emplace(s, digest, fc::check_canonical_t::yes);
          EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice", ("key", *res.first));
       }
 
