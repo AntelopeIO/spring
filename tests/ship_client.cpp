@@ -1,4 +1,3 @@
-#include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/asio/local/stream_protocol.hpp>
 #include <boost/beast.hpp>
@@ -51,8 +50,8 @@ int main(int argc, char* argv[]) {
    std::string statehistory_server, statehistory_port;
 
    // unix socket
-   if(boost::algorithm::starts_with(socket_address, "ws+unix://") ||
-      boost::algorithm::starts_with(socket_address, "unix://")) {
+   if(socket_address.starts_with("ws+unix://") ||
+      socket_address.starts_with("unix://")) {
       statehistory_port = "";
       statehistory_server = socket_address.substr(socket_address.find("unix://") + strlen("unix://") + 1);
    } else {

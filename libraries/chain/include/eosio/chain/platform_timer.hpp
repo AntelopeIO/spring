@@ -43,18 +43,22 @@ struct platform_timer {
       _expiration_callbacks.push_back({func, user});
    }
 
-   enum class state_t {
-      running,
+   enum class state_t : uint8_t {
+      running = 0,
       timed_out,
       interrupted,
       stopped
    };
-   state_t timer_state() const { return _state; }
+   state_t timer_state() const { return _state.load().state; }
 
 private:
    void expire_now();
 
-   std::atomic<state_t> _state = state_t::stopped;
+   struct timer_state_t {
+      state_t state = state_t::stopped;
+      bool callback_in_flight = false;
+   };
+   std::atomic<timer_state_t> _state;
    bool timer_running_forever = false;
 
    struct impl;
@@ -75,7 +79,12 @@ private:
    }
 
    std::atomic_bool _callback_variables_busy = false;
+<<<<<<< HEAD
    std::vector<std::pair<void(*)(void*), void*>> _expiration_callbacks;
+=======
+   void(*_expiration_callback)(void*) = nullptr;
+   void* _expiration_callback_data = nullptr;
+>>>>>>> origin/release/2.0
 };
 
 }}

@@ -1,6 +1,5 @@
 #include <fc/crypto/elliptic_r1.hpp>
 
-#include <fc/crypto/base58.hpp>
 #include <fc/crypto/openssl.hpp>
 
 #include <fc/fwd_impl.hpp>
@@ -304,30 +303,6 @@ namespace fc { namespace crypto { namespace r1 {
       } FC_RETHROW_EXCEPTIONS( debug, "digest: ${digest}", ("digest",digest) );
     }
 
-    std::string public_key::to_base58() const
-    {
-      public_key_data key = serialize();
-      uint32_t check = (uint32_t)sha256::hash(key.data, sizeof(key))._hash[0];
-      static_assert(sizeof(key) + sizeof(check) == 37, ""); // hack around gcc bug: key.size() should be constexpr, but isn't
-      array<char, 37> data;
-      memcpy(data.data, key.begin(), key.size());
-      memcpy(data.begin() + key.size(), (const char*)&check, sizeof(check));
-      return fc::to_base58(data.begin(), data.size(), fc::yield_function_t());
-    }
-
-    public_key public_key::from_base58( const std::string& b58 )
-    {
-        array<char, 37> data;
-        size_t s = fc::from_base58(b58, (char*)&data, sizeof(data) );
-        FC_ASSERT( s == sizeof(data) );
-
-        public_key_data key;
-        uint32_t check = (uint32_t)sha256::hash(data.data, sizeof(key))._hash[0];
-        FC_ASSERT( memcmp( (char*)&check, data.data + sizeof(key), sizeof(check) ) == 0 );
-        memcpy( (char*)key.data, data.data, sizeof(key) );
-        return public_key(key);
-    }
-
     private_key::private_key()
     {}
 
@@ -557,7 +532,7 @@ namespace fc { namespace crypto { namespace r1 {
           FC_THROW_EXCEPTION( exception, "Unable to sign" );
 
         return signature_from_ecdsa(my->_key, my_pub_key, sig, digest);
-      } FC_RETHROW_EXCEPTIONS( warn, "sign ${digest}", ("digest", digest)("private_key",*this) );
+      } FC_RETHROW_EXCEPTIONS( warn, "failed to sign ${digest}", ("digest", digest) );
     }
 
    private_key& private_key::operator=( private_key&& pk )
@@ -575,7 +550,7 @@ namespace fc { namespace crypto { namespace r1 {
    {
    }
    public_key::public_key( public_key&& pk )
-   :my( fc::move( pk.my) )
+   :my( std::move( pk.my) )
    {
    }
    private_key::private_key( const private_key& pk )
@@ -583,7 +558,7 @@ namespace fc { namespace crypto { namespace r1 {
    {
    }
    private_key::private_key( private_key&& pk )
-   :my( fc::move( pk.my) )
+   :my( std::move( pk.my) )
    {
    }
 
@@ -618,27 +593,5 @@ namespace fc { namespace crypto { namespace r1 {
 
 }
 }
-  void to_variant( const crypto::r1::private_key& var,  variant& vo )
-  {
-    vo = var.get_secret();
-  }
-  void from_variant( const variant& var,  crypto::r1::private_key& vo )
-  {
-    fc::sha256 sec;
-    from_variant( var, sec );
-    vo = crypto::r1::private_key::regenerate(sec);
-  }
-
-  void to_variant( const crypto::r1::public_key& var,  variant& vo )
-  {
-    vo = var.serialize();
-  }
-  void from_variant( const variant& var,  crypto::r1::public_key& vo )
-  {
-    crypto::r1::public_key_data dat;
-    from_variant( var, dat );
-    vo = crypto::r1::public_key(dat);
-  }
-
 
 }

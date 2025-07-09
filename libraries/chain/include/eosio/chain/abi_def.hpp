@@ -1,8 +1,43 @@
 #pragma once
 
 #include <eosio/chain/types.hpp>
+#include <charconv>
+#include <iostream>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
+
+struct version_t {
+   uint8_t major = 0;
+   uint8_t minor = 0;
+   bool    valid = false;
+
+   version_t() = default;
+
+   version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
+
+   version_t(std::string_view sv) {
+      auto last = sv.data() + sv.size();
+      auto [ptr, ec] = std::from_chars(sv.data(), last, major);
+      if (ec == std::errc() && *ptr == '.')
+         valid = (std::from_chars(ptr+1, last, minor).ec == std::errc());
+   }
+
+   friend auto operator<=>(const version_t&, const version_t&) = default;
+   friend bool operator==(const version_t&, const version_t&) = default;
+
+   std::string str() const {
+      return std::to_string(major) + "." + std::to_string(minor);
+   }
+
+   friend std::ostream& operator<<(std::ostream& s, const version_t& v) {
+      s << "version_t(" << v.str() << ")";
+      return s;
+   }
+
+   bool is_valid() const {
+      return valid;
+   }
+};
 
 using type_name      = string;
 using field_name     = string;
@@ -161,8 +196,19 @@ struct abi_def {
    extensions_type                           abi_extensions;
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
+<<<<<<< HEAD
    may_not_exist<vector<call_def>>           calls;
    may_not_exist<vector<call_result_def>>    call_results;
+=======
+
+   version_t get_version() const {
+      static const std::string version_header = "eosio::abi/";
+      if (!version.starts_with(version_header))
+         return {};
+      std::string_view version_str(version.c_str() + version_header.size(), version.size() - version_header.size());
+      return version_t(version_str);
+   }
+>>>>>>> origin/release/2.0
 };
 
 abi_def eosio_contract_abi(const abi_def& eosio_system_abi);
@@ -170,7 +216,7 @@ vector<type_def> common_type_defs();
 
 extern unsigned char eosio_abi_bin[2132];
 
-} } /// namespace eosio::chain
+} /// namespace eosio::chain
 
 namespace fc {
 
