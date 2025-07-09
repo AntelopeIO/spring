@@ -1296,4 +1296,86 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
       BOOST_REQUIRE_EQUAL(*block_num, final_block_num); // target trx is in final block
    }
 
+// This test verifies the bug reported by https://github.com/AntelopeIO/spring/issues/1693
+// is fixed. The issue was that when starting from a snapshot not all stride files were
+// available. When it couldn't find the first stride file it reported trx not found.
+   BOOST_FIXTURE_TEST_CASE(test_get_trx_when_missing_strides, test_fixture)
+   {
+      chain::transaction_id_type target_trx_id = "0000000000000000000000000000000000000000000000000000000000000001"_h;
+      uint32_t trx_block_num = 10;
+
+      std::vector<block_trace_v2> empty_blocks;
+      for (uint32_t i = 1; i < trx_block_num; ++i) {
+         empty_blocks.push_back({
+               "b000000000000000000000000000000000000000000000000000000000000001"_h,
+               i, // block_num
+               "0000000000000000000000000000000000000000000000000000000000000000"_h,
+               chain::block_timestamp_type(0),
+               "test"_n,
+               "0000000000000000000000000000000000000000000000000000000000000000"_h,
+               "0000000000000000000000000000000000000000000000000000000000000000"_h,
+               0,
+               std::vector<transaction_trace_v2>{
+               }
+            });
+      }
+
+      transaction_trace_v2 trx_trace1 {
+         target_trx_id,
+         actions,
+         fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{
+            chain::transaction_receipt_header::status_enum::executed},
+         10,
+         5,
+         {chain::signature_type()},
+         {chain::time_point_sec(), 1, 0, 100, 50, 0}
+      };
+
+      // Block including trx_trace1
+      block_trace_v2 block_trace {
+         "b000000000000000000000000000000000000000000000000000000000000010"_h,
+         trx_block_num,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         chain::block_timestamp_type(0),
+         "test"_n,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         0,
+         std::vector<transaction_trace_v2> {
+            trx_trace1
+         }
+      };
+
+      block_trxs_entry initial_block_trxs_entry {
+         .ids       = {target_trx_id},
+         .block_num = trx_block_num
+      };
+
+      fc::temp_directory tempdir;
+      store_provider sp(tempdir.path(), 5, std::optional<uint32_t>(), std::optional<uint32_t>(), 0);
+
+      // store some empty blocks which will create a stride
+      for (const auto& bt : empty_blocks) {
+         sp.append(bt);
+         sp.append_trx_ids({.block_num = bt.number});
+      }
+
+      // on_accepted_block of the initial block
+      sp.append(block_trace);                          // block 10
+      sp.append_trx_ids(initial_block_trxs_entry);     // block 10
+
+      get_block_n block_num = sp.get_trx_block_number(target_trx_id, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, trx_block_num); // target trx is in final block
+
+      // remove first stride file and verify we can still find trx
+      BOOST_REQUIRE(std::filesystem::exists(tempdir.path() / "trace_trx_id_0000000000-0000000005.log"));
+      std::filesystem::remove(tempdir.path() / "trace_trx_id_0000000000-0000000005.log");
+
+      // verify we can still find the trx
+      block_num = sp.get_trx_block_number(target_trx_id, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, trx_block_num); // target trx is in final block
+   }
+
 BOOST_AUTO_TEST_SUITE_END()
