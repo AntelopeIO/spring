@@ -167,6 +167,19 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
    BOOST_TEST(branch[1] == bsp11b);
 } FC_LOG_AND_RETHROW();
 
+BOOST_FIXTURE_TEST_CASE(remove_block_num_test, generate_fork_db_state) try {
+   BOOST_TEST(fork_db.size() == 14u);
+   fork_db.remove(13); // remove all >= 13
+   BOOST_TEST(fork_db.size() == 8u); // 6 blocks >= 13
+
+   for (auto& i : all) {
+      if (i->block_num() < 13) {
+         BOOST_TEST(fork_db.get_block(i->id()) == i);
+      } else {
+         BOOST_TEST(!fork_db.get_block(i->id()));
+      }
+   }
+} FC_LOG_AND_RETHROW();
 
 // test `fork_database_t::validated_block_exists() const` member
 // -------------------------------------------------------------
@@ -212,6 +225,27 @@ BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_fork_db_state) try {
 
    BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), root->id()));
    BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), block_id_type{}));
+
+} FC_LOG_AND_RETHROW();
+
+// test `fork_database_t::is_descendant_of() const` member
+// -------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(is_child_of, generate_fork_db_state) try {
+
+   BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp14b->id(), bsp11b->id()));
+
+   BOOST_REQUIRE_EQUAL(true,  fork_db.is_descendant_of(bsp13b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.is_descendant_of(bsp12b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.is_descendant_of(bsp11b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.is_descendant_of(root->id(), bsp11a->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.is_descendant_of(root->id(), bsp12a->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.is_descendant_of(root->id(), bsp14b->id()));
+
+   BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp12b->id(), bsp13a->id()));
+   BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp11b->id(), bsp13a->id()));
 
 } FC_LOG_AND_RETHROW();
 

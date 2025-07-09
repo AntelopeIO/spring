@@ -44,4 +44,4 @@ jobs:
             cmake -S src -B build -DCMAKE_BUILD_TYPE=Release -GNinja
             cmake --build build
       - name: Test spring
-        run: ctest --test-dir build -j $(nproc) --output-on-failure -LE "(nonparallelizable_tests|long_running_tests)" --timeout 480
+        run: ctest --test-dir build -j $(nproc) --output-on-failure --extra-verbose -LE "(nonparallelizable_tests|long_running_tests)" --timeout 480

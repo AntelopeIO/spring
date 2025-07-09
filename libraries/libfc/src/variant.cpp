@@ -133,29 +133,29 @@ variant::variant( const wchar_t* str )
 
 variant::variant( std::string val )
 {
-   *reinterpret_cast<std::string**>(this)  = new std::string( fc::move(val) );
+   *reinterpret_cast<std::string**>(this)  = new std::string( std::move(val) );
    set_variant_type( this, string_type );
 }
 variant::variant( blob val )
 {
-   *reinterpret_cast<blob**>(this)  = new blob( fc::move(val) );
+   *reinterpret_cast<blob**>(this)  = new blob( std::move(val) );
    set_variant_type( this, blob_type );
 }
 
 variant::variant( variant_object obj)
 {
-   *reinterpret_cast<variant_object**>(this)  = new variant_object(fc::move(obj));
+   *reinterpret_cast<variant_object**>(this)  = new variant_object(std::move(obj));
    set_variant_type(this,  object_type );
 }
 variant::variant( mutable_variant_object obj)
 {
-   *reinterpret_cast<variant_object**>(this)  = new variant_object(fc::move(obj));
+   *reinterpret_cast<variant_object**>(this)  = new variant_object(std::move(obj));
    set_variant_type(this,  object_type );
 }
 
 variant::variant( variants arr )
 {
-   *reinterpret_cast<variants**>(this)  = new variants(fc::move(arr));
+   *reinterpret_cast<variants**>(this)  = new variants(std::move(arr));
    set_variant_type(this,  array_type );
 }
 
@@ -212,13 +212,13 @@ variant::variant( const variant& v )
           set_variant_type( this, blob_type );
           return;
        default:
-          memcpy( this, &v, sizeof(v) );
+          _data = v._data;
    }
 }
 
 variant::variant( variant&& v )
 {
-   memcpy( this, &v, sizeof(v) );
+   _data = v._data;
    set_variant_type( &v, null_type );
 }
 
@@ -231,7 +231,7 @@ variant& variant::operator=( variant&& v )
 {
    if( this == &v ) return *this;
    clear();
-   memcpy( (char*)this, (char*)&v, sizeof(v) );
+   _data = v._data;
    set_variant_type( &v, null_type );
    return *this;
 }
@@ -259,7 +259,7 @@ variant& variant::operator=( const variant& v )
          *reinterpret_cast<blob**>(this)  = new blob((**reinterpret_cast<const const_blob_ptr*>(&v)) );
          break;
       default:
-         memcpy( this, &v, sizeof(v) );
+         _data = v._data;
    }
    set_variant_type( this, v.get_type() );
    return *this;

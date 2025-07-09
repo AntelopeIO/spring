@@ -175,7 +175,8 @@ class Cluster(object):
         unstartedNodes: non-producer nodes that are configured into the launch, but not started.  Should be included in totalNodes.
         totalNodes: producer + non-producer nodes + unstarted non-producer nodes count
         prodCount: producers per producer node count
-        topo: cluster topology (as defined by launcher, and "bridge" shape that is specific to this launch method)
+        topo: cluster topology (as defined by launcher, and "bridge" shape that is specific to this launch method).
+              bridge configures producers non-consecutive in nodes.
         delay: delay between individual nodes launch (as defined by launcher)
           delay 0 exposes a bootstrap bug where producer handover may have a large gap confusing nodes and bringing system to a halt.
         onlyBios: When true, only loads the bios contract (and not more full bootstrapping).
@@ -319,9 +320,9 @@ class Cluster(object):
 
         if genesisPath is None:
             argsArr.append("--max-block-cpu-usage")
-            argsArr.append(str(500000))
+            argsArr.append(str(400000))
             argsArr.append("--max-transaction-cpu-usage")
-            argsArr.append(str(475000))
+            argsArr.append(str(375000))
         else:
             argsArr.append("--genesis")
             argsArr.append(str(genesisPath))
@@ -375,17 +376,9 @@ class Cluster(object):
             biosNodeObject=None
             bridgeNodes={}
             producerNodes={}
-            producers=[]
-            for append in range(ord('a'),ord('a')+numProducers):
-                name="defproducer" + chr(append)
-                producers.append(name)
-
-            # first group starts at 0
-            secondGroupStart=int((numProducers+1)/2)
             producerGroup1=[]
             producerGroup2=[]
 
-            Utils.Print("producers=%s" % (producers))
             shapeFileNodeMap = {}
             def getNodeNum(nodeName):
                 p=re.compile(r'^testnet_(\d+)$')
@@ -412,31 +405,17 @@ class Cluster(object):
                 if (numNodeProducers==0):
                     bridgeNodes[nodeName]=shapeFileNode
                 else:
+                    # producer node, add it to our producerNodes map
                     producerNodes[nodeName]=shapeFileNode
-                    group=None
-                    # go through all the producers for this node and determine which group on the bridged network they are in
-                    for shapeFileNodeProd in shapeFileNodeProds:
-                        producerIndex=0
-                        for prod in producers:
-                            if prod==shapeFileNodeProd:
-                                break
-                            producerIndex+=1
 
-                        prodGroup=None
-                        if producerIndex<secondGroupStart:
-                            prodGroup=1
-                            if group is None:
-                                group=prodGroup
-                                producerGroup1.append(nodeName)
-                                Utils.Print("Group1 grouping producerIndex=%s, secondGroupStart=%s" % (producerIndex,secondGroupStart))
-                        else:
-                            prodGroup=2
-                            if group is None:
-                                group=prodGroup
-                                producerGroup2.append(nodeName)
-                                Utils.Print("Group2 grouping producerIndex=%s, secondGroupStart=%s" % (producerIndex,secondGroupStart))
-                        if group!=prodGroup:
-                            Utils.errorExit("Node configuration not consistent with \"bridge\" topology. Node %s has producers that fall into both halves of the bridged network" % (nodeName))
+                    # assign producer to either group1 or group2
+                    if len(producerGroup1) <= len(producerGroup2):
+                        producerGroup1.append(nodeName)
+                    else:
+                        producerGroup2.append(nodeName)
+
+            Utils.Print(f"Producer Group 1: {producerGroup1}")
+            Utils.Print(f"Producer Group 2: {producerGroup2}")
 
             for _,bridgeNode in bridgeNodes.items():
                 bridgeNode["peers"]=[]
@@ -1053,7 +1032,15 @@ class Cluster(object):
         if Utils.Debug: Utils.Print("setfinalizers: %s" % (setFinStr))
         Utils.Print("Setting finalizers")
         opts = "--permission eosio@active"
-        trans = node.pushMessage("eosio", "setfinalizer", setFinStr, opts)
+        # setfinalizer can fail on ci/cd because it required too much CPU, try a few times
+        retries = 3
+        while retries > 0:
+            trans = node.pushMessage("eosio", "setfinalizer", setFinStr, opts, force=True)
+            if trans is None or not trans[0]:
+                retries = retries - 1
+                continue
+            else:
+                break
         if trans is None or not trans[0]:
             Utils.Print("ERROR: Failed to set finalizers")
             return None
@@ -1111,7 +1098,7 @@ class Cluster(object):
             return None
 
         if pfSetupPolicy == PFSetupPolicy.FULL:
-            biosNode.preactivateAllBuiltinProtocolFeature()
+            biosNode.activateAllBuiltinProtocolFeature()
         Node.validateTransaction(trans)
 
         contract="eosio.bios"

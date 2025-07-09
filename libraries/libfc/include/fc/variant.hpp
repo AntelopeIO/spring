@@ -8,8 +8,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include <string.h> // memset
-
 #include <fc/string.hpp>
 #include <fc/time.hpp>
 #include <fc/container/deque_fwd.hpp>
@@ -22,7 +20,7 @@ namespace fc
 {
    /**
     * @defgroup serializable Serializable _types
-    * @brief Clas_ses that may be converted to/from an variant
+    * @brief Classes that may be converted to/from an variant
     *
     * To make a class 'serializable' the following methods must be available
     * for your Serializable_type
@@ -147,6 +145,9 @@ namespace fc
    template<typename T, std::size_t S>
    void from_variant( const fc::variant& var,  std::array<T,S>& vo );
 
+   template<typename T>
+   void to_variant( const std::initializer_list<T>& var,  fc::variant& vo );
+
    void to_variant( const time_point& var,  fc::variant& vo );
    void from_variant( const fc::variant& var,  time_point& vo );
 
@@ -170,7 +171,7 @@ namespace fc
    template<typename T>
    void from_variant( const fc::variant& var,  std::shared_ptr<T>& vo );
 
-   typedef std::vector<fc::variant>   variants;
+   using variants = std::vector<fc::variant>;
    template<typename A, typename B>
    void to_variant( const std::pair<A,B>& t, fc::variant& v );
    template<typename A, typename B>
@@ -349,7 +350,6 @@ namespace fc
         template<typename T>
         explicit variant( const std::optional<T>& v )
         {
-           memset( this, 0, sizeof(*this) );
            if( v.has_value() ) *this = variant(*v);
         }
 
@@ -362,8 +362,8 @@ namespace fc
         void    clear();
       private:
         void    init();
-        double  _data;                ///< Alligned according to double requirements
-        char    _type[sizeof(void*)]; ///< pad to void* size
+        //enough room to store pointers, doubles, uint64s. doubled to allow 1 extra byte to store type at the end
+        alignas(double) std::array<char, std::max(sizeof(uintmax_t ), sizeof(double)) * 2> _data = {};
    };
 
    typedef std::optional<variant> ovariant;
@@ -402,11 +402,11 @@ namespace fc
    void to_variant( const std::unordered_set<T>& var,  fc::variant& vo )
    {
        if( var.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-       std::vector<fc::variant> vars(var.size());
+       variants vars(var.size());
        size_t i = 0;
        for( auto itr = var.begin(); itr != var.end(); ++itr, ++i )
           vars[i] = fc::variant(*itr);
-       vo = vars;
+       vo = std::move(vars);
    }
    template<typename T>
    void from_variant( const fc::variant& var,  std::unordered_set<T>& vo )
@@ -485,11 +485,11 @@ namespace fc
    void to_variant( const std::set<T>& var,  fc::variant& vo )
    {
        if( var.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-       std::vector<fc::variant> vars(var.size());
+       variants vars(var.size());
        size_t i = 0;
        for( auto itr = var.begin(); itr != var.end(); ++itr, ++i )
           vars[i] = fc::variant(*itr);
-       vo = vars;
+       vo = std::move(vars);
    }
    template<typename T>
    void from_variant( const fc::variant& var,  std::set<T>& vo )
@@ -518,7 +518,7 @@ namespace fc
    void to_variant( const std::deque<T>& t, fc::variant& v )
    {
       if( t.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-      std::vector<fc::variant> vars(t.size());
+      variants vars(t.size());
       for( size_t i = 0; i < t.size(); ++i )
          vars[i] = fc::variant(t[i]);
       v = std::move(vars);
@@ -566,7 +566,7 @@ namespace fc
    void to_variant( const std::vector<T>& t, fc::variant& v )
    {
       if( t.size() > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "too large" );
-      std::vector<fc::variant> vars(t.size());
+      variants vars(t.size());
        for( size_t i = 0; i < t.size(); ++i )
           vars[i] = fc::variant(t[i]);
        v = std::move(vars);
@@ -577,6 +577,7 @@ namespace fc
    void from_variant( const fc::variant& var, std::array<T,S>& tmp )
    {
       const variants& vars = var.get_array();
+      if( vars.size() != S) throw std::length_error( "mismatch between variant vector size and expected array size" );
       for( std::size_t i = 0; i < S; ++i )
          tmp[i] = vars.at(i).as<T>();
    }
@@ -585,9 +586,20 @@ namespace fc
    template<typename T, std::size_t S>
    void to_variant( const std::array<T,S>& t, fc::variant& v )
    {
-      std::vector<fc::variant> vars(S);
+      variants vars(S);
       for( std::size_t i = 0; i < S; ++i )
          vars[i] = fc::variant(t[i]);
+      v = std::move(vars);
+   }
+
+   /** @ingroup Serializable */
+   template<typename T>
+   void to_variant( const std::initializer_list<T>& t, fc::variant& v )
+   {
+      auto sz{t.size()};
+      variants vars(sz);
+      for( std::size_t i = 0; i < sz; ++i )
+         vars[i] = fc::variant(*(t.begin()+i));
       v = std::move(vars);
    }
 
@@ -595,10 +607,10 @@ namespace fc
    template<typename A, typename B>
    void to_variant( const std::pair<A,B>& t, fc::variant& v )
    {
-      std::vector<fc::variant> vars(2);
+      variants vars(2);
       vars[0] = fc::variant(t.first);
       vars[1] = fc::variant(t.second);
-       v = vars;
+      v = std::move(vars);
    }
 
    /** @ingroup Serializable */
@@ -615,14 +627,12 @@ namespace fc
    template<typename T>
    variant::variant( const T& val )
    {
-      memset( this, 0, sizeof(*this) );
       to_variant( val, *this );
    }
 
    template<typename T>
    variant::variant( const T& val, const fc::yield_function_t& yield )
    {
-      memset( this, 0, sizeof(*this) );
       to_variant( val, *this, yield );
    }
 
@@ -673,7 +683,7 @@ namespace fc
 
    template<typename T, typename... Args> void to_variant( const boost::multi_index_container<T,Args...>& c, fc::variant& v )
    {
-       std::vector<fc::variant> vars;
+       variants vars;
        vars.reserve( c.size() );
        for( const auto& item : c )
           vars.emplace_back( fc::variant(item) );

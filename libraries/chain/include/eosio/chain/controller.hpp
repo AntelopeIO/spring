@@ -10,6 +10,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/finalizer.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -149,6 +150,7 @@ namespace eosio::chain {
             uint32_t                 maximum_variable_signature_length = chain::config::default_max_variable_signature_length;
             bool                     disable_all_subjective_mitigations = false; //< for developer & testing purposes, can be configured using `disable-all-subjective-mitigations` when `EOSIO_DEVELOPER` build option is provided
             uint32_t                 terminate_at_block     = 0;
+            uint32_t                 truncate_at_block      = 0;
             uint32_t                 num_configured_p2p_peers = 0;
             bool                     integrity_hash_on_start= false;
             bool                     integrity_hash_on_stop = false;
@@ -208,8 +210,9 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler, or producer_plugin
-         void interrupt_apply_block_transaction();
+         /// Expected to be called from signal handler or producer_plugin
+         enum class interrupt_t { all_trx, apply_block_trx, speculative_block_trx };
+         void interrupt_transaction(interrupt_t interrupt);
 
        /**
         *
@@ -224,7 +227,6 @@ namespace eosio::chain {
           *
           */
          transaction_trace_ptr push_scheduled_transaction( const transaction_id_type& scheduled,
-                                                           fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                            uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time );
 
          void assemble_and_complete_block( const signer_callback_type& signer_callback );
@@ -243,12 +245,16 @@ namespace eosio::chain {
          accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
 
          /// Apply any blocks that are ready from the fork_db
-         enum class apply_blocks_result {
-            complete,   // all ready blocks in forkdb have been applied
-            incomplete, // time limit reached, additional blocks may be available in forkdb to process
-            paused      // apply blocks currently paused
+         struct apply_blocks_result_t {
+            enum class status_t {
+               complete,   // all ready blocks in forkdb have been applied
+               incomplete, // time limit reached, additional blocks may be available in forkdb to process
+               paused      // apply blocks currently paused
+            };
+            status_t status = status_t::complete;
+            size_t   num_blocks_applied = 0;
          };
-         apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
+         apply_blocks_result_t apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          boost::asio::io_context& get_thread_pool();
 
@@ -336,6 +342,10 @@ namespace eosio::chain {
          // thread-safe
          qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
+         // not thread-safe
+         bool is_head_descendant_of_pending_lib() const;
+
+         // thread-safe
          void set_savanna_lib_id(const block_id_type& id);
 
          // thread-safe
@@ -427,6 +437,12 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
+         void set_peer_keys_retrieval_active(name_set_t configured_bp_peers);
+         std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
+         bool configured_peer_keys_updated(); // thread safe
+         // used for testing, only call with an active pending block from main thread
+         getpeerkeys_res_t get_top_producer_keys();
+
          // thread safe
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
@@ -489,7 +505,11 @@ namespace eosio::chain {
       void set_to_write_window();
       void set_to_read_window();
       bool is_write_window() const;
-      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
+
+      platform_timer& get_thread_local_timer();
+
+      void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
+                                    block_num_type first_used_block_num, block_num_type block_num_last_used);
       void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
       // is the bls key a registered finalizer key of this node, thread safe
@@ -512,3 +532,5 @@ namespace eosio::chain {
    }; // controller
 
 }  /// eosio::chain
+
+FC_REFLECT(eosio::chain::peerkeys_t, (producer_name)(peer_key))

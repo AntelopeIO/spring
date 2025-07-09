@@ -58,7 +58,7 @@ public:
    };
 
    struct get_account_ram_corrections_result {
-      std::vector<fc::variant>     rows;
+      fc::variants                 rows;
       std::optional<account_name>  more;
    };
 
@@ -81,7 +81,7 @@ public:
    virtual void plugin_shutdown();
    void handle_sighup() override;
 
-   controller::apply_blocks_result on_incoming_block();
+   controller::apply_blocks_result_t on_incoming_block();
 
    struct pause_at_block_params {
       chain::block_num_type block_num{0}; // block height to pause block evaluation/production
@@ -150,6 +150,8 @@ public:
 
    // thread-safe, called when a new block is received
    void received_block(uint32_t block_num, chain::fork_db_add_t fork_db_add_result);
+   // thread-safe, called when ctrl-c/SIGINT/SIGTERM/SIGPIPE is received
+   void interrupt();
 
    const std::set<account_name>& producer_accounts() const;
 

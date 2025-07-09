@@ -281,10 +281,11 @@ class cluster_generator:
         if self.args.pnodes < 2:
             raise RuntimeError(f'Unable to allocate producers due to insufficient pnodes = {self.args.pnodes}')
         non_bios = self.args.pnodes - 1
-        per_node = int(self.args.producers / non_bios)
-        extra = self.args.producers % non_bios
-        i = 0
-        producer_number = 0
+
+        # generate all defproducer names upfront
+        def_producers_names = [producer_name(i) for i in range(self.args.producers)]
+
+        node_count = 0
         to_not_start_node = self.args.total_nodes - self.args.unstarted_nodes - 1
         accounts = createAccountKeys(len(self.network.nodes.values()))
         for account, node in zip(accounts, self.network.nodes.values()):
@@ -294,26 +295,32 @@ class cluster_generator:
                                             '5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3',
                                             'PUB_BLS_qVbh4IjYZpRGo8U_0spBUM-u-r_G0fMo4MzLZRsKWmm5uyeQTp74YFaMN9IDWPoVVT5rj_Tw1gvps6K9_OZ6sabkJJzug3uGfjA6qiaLbLh5Fnafwv-nVgzzzBlU2kwRrcHc8Q',
                                             'PVT_BLS_edLoUiiP2FfMem4la3Ek8zxIDjDjOFylRw9ymdeOVCC0CuXN',
-                                             'SIG_BLS_L5MXQpJTX_v7cXDy4ML4fWVw_69MKuG5qTq7dD_Zb3Yuw1RbMXBOYXDoAbFF37gFmHudY3kkqXtETLs9nMTjTaTwgdDZWpFy1_csEIZT-xIOQttc76bpZhI67902g2sIDf6JSf9JtbhdTUc_HNbL7H2ZR2bqGS3YPbV5z7x24AR2vwTcJogMqLyy6H5nKQAEwIvXcL15gbs2EkH_ch-IZDdn4F0zUYifpOo-ovXY_CX_yL2rKIx_2a9IHg0pPrMOdfHs9A'))
+                                            'SIG_BLS_L5MXQpJTX_v7cXDy4ML4fWVw_69MKuG5qTq7dD_Zb3Yuw1RbMXBOYXDoAbFF37gFmHudY3kkqXtETLs9nMTjTaTwgdDZWpFy1_csEIZT-xIOQttc76bpZhI67902g2sIDf6JSf9JtbhdTUc_HNbL7H2ZR2bqGS3YPbV5z7x24AR2vwTcJogMqLyy6H5nKQAEwIvXcL15gbs2EkH_ch-IZDdn4F0zUYifpOo-ovXY_CX_yL2rKIx_2a9IHg0pPrMOdfHs9A'))
                 node.producers.append('eosio')
             else:
                 node.keys.append(KeyStrings(account.ownerPublicKey, account.ownerPrivateKey, account.blsFinalizerPublicKey, account.blsFinalizerPrivateKey, account.blsFinalizerPOP))
-                if i < non_bios:
-                    count = per_node
-                    if extra:
+                if node_count < non_bios:
+                    # calculate number of defproducers this producer node gets
+                    count = self.args.producers // non_bios
+                    if node_count < (self.args.producers % non_bios):
                         count += 1
-                        extra -= 1
-                    while count > 0:
-                        prodname = producer_name(producer_number)
-                        node.producers.append(prodname)
-                        producer_number += 1
-                        count -= 1
+                    # assign non-consecutive producers
+                    producer_idx_for_node = node_count
+                    producers_assigned_to_node = 0
+                    while producers_assigned_to_node < count:
+                        if producer_idx_for_node < len(def_producers_names):
+                            node.producers.append(def_producers_names[producer_idx_for_node])
+                        else:
+                            break # ran out of available producers
+                        # increment index by non_bios to pick the next producer in the alternating sequence
+                        producer_idx_for_node += non_bios
+                        producers_assigned_to_node += 1
                     for j in range(0, self.args.shared_producers):
                         prodname = producer_name(j, True)
                         node.producers.append(prodname)
-                node.dont_start = i >= to_not_start_node
+                node.dont_start = node_count >= to_not_start_node
             if not is_bios:
-                i += 1
+                node_count += 1
 
     def generate(self):
         {
@@ -359,22 +366,22 @@ class cluster_generator:
                         'initial_key': self.network.nodes['bios'].keys[0].pubkey,
                         'initial_configuration': {
                             'max_block_net_usage': 1048576,
-                            'target_block_net_usage_pct': 1000,
+                            'target_block_net_usage_pct': 10000,
                             'max_transaction_net_usage': 524288,
                             'base_per_transaction_net_usage': 12,
                             'net_usage_leeway': 500,
                             'context_free_discount_net_usage_num': 20,
                             'context_free_discount_net_usage_den': 100,
-                            'max_block_cpu_usage': 500000 if self.args.max_block_cpu_usage is None else self.args.max_block_cpu_usage,
-                            'target_block_cpu_usage_pct': 1000,
-                            'max_transaction_cpu_usage': 475000 if self.args.max_transaction_cpu_usage is None else self.args.max_transaction_cpu_usage,
+                            'max_block_cpu_usage': 200000 if self.args.max_block_cpu_usage is None else self.args.max_block_cpu_usage,
+                            'target_block_cpu_usage_pct': 10,
+                            'max_transaction_cpu_usage': 150000 if self.args.max_transaction_cpu_usage is None else self.args.max_transaction_cpu_usage,
                             'min_transaction_cpu_usage': 100,
                             'max_transaction_lifetime': 3600,
                             'deferred_trx_expiration_window': 600,
                             'max_transaction_delay': 3888000,
-                            'max_inline_action_size': 524288,
-                            'max_inline_action_depth': 4,
-                            'max_authority_depth': 6
+                            'max_inline_action_size': 524287,
+                            'max_inline_action_depth': 10,
+                            'max_authority_depth': 10
                         }
                     }
         else:

@@ -82,6 +82,11 @@ namespace eosio::chain {
 
       void remove( const block_id_type& id );
 
+      /**
+       * Remove all blocks >= block_num
+       */
+      void remove( block_num_type block_num);
+
       bool is_valid() const; // sanity checks on this fork_db
 
       bool   has_root() const;
@@ -104,6 +109,20 @@ namespace eosio::chain {
        */
       block_id_type pending_savanna_lib_id() const;
       bool set_pending_savanna_lib_id( const block_id_type& id );
+
+      /**
+       * @return true if id is built on top of pending savanna lib or id == pending_savanna_lib
+       */
+      bool is_descendant_of_pending_savanna_lib( const block_id_type& id ) const;
+
+      /**
+       * @param ancestor the id of a possible ancestor block
+       * @param descendant the id of a possible descendant block
+       * @return false if either ancestor or descendant not found.
+       *         true if any descendant->previous.. == ancestor.
+       *         false if unable to find ancestor in any descendant->previous..
+       */
+      bool is_descendant_of(const block_id_type& ancestor, const block_id_type& descendant) const;
 
       /**
        *  Returns the sequence of block states resulting from trimming the branch from the

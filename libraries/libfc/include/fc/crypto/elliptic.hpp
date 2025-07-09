@@ -49,8 +49,6 @@ namespace fc {
            public_key( const public_key_point_data& v );
            public_key( const compact_signature& c, const fc::sha256& digest, bool check_canonical = true );
 
-           public_key child( const fc::sha256& offset )const;
-
            bool valid()const;
 
            public_key( public_key&& pk );
@@ -65,11 +63,6 @@ namespace fc {
            {
             return a.serialize() != b.serialize();
            }
-
-           /// Allows to convert current public key object into base58 number.
-           std::string to_base58() const;
-           static std::string to_base58( const public_key_data &key );
-           static public_key from_base58( const std::string& b58 );
 
            unsigned int fingerprint() const;
 
@@ -187,42 +180,6 @@ namespace fc {
       };
 
   } // namespace ecc
-  void to_variant( const ecc::private_key& var,  variant& vo );
-  void from_variant( const variant& var,  ecc::private_key& vo );
-  void to_variant( const ecc::public_key& var,  variant& vo );
-  void from_variant( const variant& var,  ecc::public_key& vo );
-
-  namespace raw
-  {
-      template<typename Stream>
-      void unpack( Stream& s, fc::ecc::public_key& pk)
-      {
-          ecc::public_key_data ser;
-          fc::raw::unpack(s,ser);
-          pk = fc::ecc::public_key( ser );
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::ecc::public_key& pk)
-      {
-          fc::raw::pack( s, pk.serialize() );
-      }
-
-      template<typename Stream>
-      void unpack( Stream& s, fc::ecc::private_key& pk)
-      {
-          fc::sha256 sec;
-          unpack( s, sec );
-          pk = ecc::private_key::regenerate(sec);
-      }
-
-      template<typename Stream>
-      void pack( Stream& s, const fc::ecc::private_key& pk)
-      {
-          fc::raw::pack( s, pk.get_secret() );
-      }
-
-  } // namespace raw
 
 } // namespace fc
 #include <fc/reflect/reflect.hpp>

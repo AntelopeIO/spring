@@ -4,8 +4,6 @@
 #include <fc/time.hpp>
 #include <fc/network/url.hpp>
 
-#include <boost/algorithm/string.hpp>
-
 namespace eosio {
    static auto _signature_provider_plugin = application::register_plugin<signature_provider_plugin>();
 
@@ -23,7 +21,7 @@ class signature_provider_plugin_impl {
       signature_provider_plugin::signature_provider_type
       make_keosd_signature_provider(const string& url_str, const chain::public_key_type pubkey) const {
          fc::url keosd_url;
-         if(boost::algorithm::starts_with(url_str, "unix://"))
+         if(url_str.starts_with("unix://"))
             //send the entire string after unix:// to http_plugin. It'll auto-detect which part
             // is the unix socket path, and which part is the url to hit on the server
             keosd_url = fc::url("unix", url_str.substr(7), fc::ostring(), fc::ostring(), fc::ostring(), fc::ostring(), fc::ovariant_object(), std::optional<uint16_t>());

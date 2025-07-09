@@ -3,7 +3,7 @@
 #include <fc/log/log_message.hpp>
 #include <string>
 
-inline std::string DEFAULT_LOGGER = "default";
+inline const std::string DEFAULT_LOGGER = "default";
 
 namespace fc
 {
@@ -20,9 +20,10 @@ namespace fc
       }
     @endcode
     */
-   class logger 
+   class logger
    {
       public:
+         static logger& default_logger();
          static logger get( const std::string& name = DEFAULT_LOGGER );
          static void update( const std::string& name, logger& log );
 
@@ -45,7 +46,9 @@ namespace fc
          void  set_name( const std::string& n );
          std::string get_name()const;
 
+         void set_enabled( bool e );
          bool is_enabled( log_level e )const;
+         bool is_enabled()const;
          void log( log_message m );
 
       private:
@@ -103,34 +106,19 @@ namespace fc
   FC_MULTILINE_MACRO_END
 
 #define tlog( FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::all ) ) \
-      lL.log( FC_LOG_MESSAGE( all, FORMAT, __VA_ARGS__ ) ); \
-  FC_MULTILINE_MACRO_END
+   fc_tlog( fc::logger::default_logger(), FORMAT, __VA_ARGS__)
 
 #define dlog( FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::debug ) ) \
-      lL.log( FC_LOG_MESSAGE( debug, FORMAT, __VA_ARGS__ ) ); \
-  FC_MULTILINE_MACRO_END
+   fc_dlog( fc::logger::default_logger(), FORMAT, __VA_ARGS__)
 
 #define ilog( FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::info ) ) \
-      lL.log( FC_LOG_MESSAGE( info, FORMAT, __VA_ARGS__ ) ); \
-  FC_MULTILINE_MACRO_END
+   fc_ilog( fc::logger::default_logger(), FORMAT, __VA_ARGS__)
 
 #define wlog( FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::warn ) ) \
-      lL.log( FC_LOG_MESSAGE( warn, FORMAT, __VA_ARGS__ ) ); \
-  FC_MULTILINE_MACRO_END
+   fc_wlog( fc::logger::default_logger(), FORMAT, __VA_ARGS__)
 
 #define elog( FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::error ) ) \
-      lL.log( FC_LOG_MESSAGE( error, FORMAT, __VA_ARGS__ ) ); \
-  FC_MULTILINE_MACRO_END
+   fc_elog( fc::logger::default_logger(), FORMAT, __VA_ARGS__)
 
 #include <boost/preprocessor/seq/for_each.hpp>
 #include <boost/preprocessor/stringize.hpp>

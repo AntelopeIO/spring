@@ -171,7 +171,8 @@ try:
     centerNode.relaunch()
 
     Print("Verify production unpaused and LIB advances after restart of centerNode")
-    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
+    # large timeout as it can take a while for votes to catchup and LIB to advance
+    assert node0.waitForLibToAdvance(timeout=60), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
     assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after centerNode restarted"
@@ -203,10 +204,13 @@ try:
     ####################### test 4 ######################
     # shutdown node0 and make sure node1 does not pause
 
+    currentBlockNum = node0.getBlockNum()
+
     Print("Restart finalizercNode")
     finalizercNode.relaunch()
 
     Print("Wait for LIB after finalizercNode back up")
+    assert finalizercNode.waitForIrreversibleBlock(currentBlockNum), "finalizercNode did not sync and advance LIB"
     assert finalizercNode.waitForLibToAdvance(), "finalizercNode did not advance LIB after relaunch"
 
     Print("Shutdown Node0")

@@ -82,29 +82,20 @@ namespace fc {
       }
    }
 
-   std::string fixed_size( size_t s, const std::string& str ) {
-      if( str.size() == s ) return str;
-      if( str.size() > s ) return str.substr( 0, s );
-      std::string tmp = str;
-      tmp.append( s - str.size(), ' ' );
-      return tmp;
+   void append_fixed_size( std::string& line, size_t s, std::string_view str ) {
+      line += str.substr(0, std::min(s, str.size()));
+      if (s > str.size())
+         line.append(s - str.size(), ' ');
    }
 
    void console_appender::log( const log_message& m ) {
-      //fc::string message = fc::format_string( m.get_format(), m.get_data() );
-      //fc::variant lmsg(m);
-
-      FILE* out = my->cfg.stream == stream::std_error ? stderr : stdout;
-
-      //fc::string fmt_str = fc::format_string( cfg.format, mutable_variant_object(m.get_context())( "message", message)  );
-
       const log_context context = m.get_context();
       std::string file_line = context.get_file().substr( 0, 22 );
       file_line += ':';
-      file_line += fixed_size(  6, std::to_string( context.get_line_number() ) );
+      append_fixed_size(file_line, 6, std::to_string( context.get_line_number() ));
 
       std::string line;
-      line.reserve( 256 );
+      line.reserve( 384 ); // Received block line is typically > 300 characters
       if(my->use_syslog_header) {
          switch(m.get_context().get_log_level()) {
             case log_level::error:
@@ -121,31 +112,24 @@ namespace fc {
                break;
          }
       }
-      line += fixed_size(  5, context.get_log_level().to_string() ); line += ' ';
-      // use now() instead of context.get_timestamp() because log_message construction can include user provided long running calls
-      line += time_point::now().to_iso_string(); line += ' ';
-      line += fixed_size(  9, context.get_thread_name() ); line += ' ';
-      line += fixed_size( 29, file_line ); line += ' ';
+      append_fixed_size(line, 5, context.get_log_level().to_string() ); line += ' ';
+      // use timestamp of when log message created, note this could cause times on log entries to not be consecutive
+      line += context.get_timestamp().to_iso_string(); line += ' ';
+      append_fixed_size(line, 9, context.get_thread_name() ); line += ' ';
+      append_fixed_size(line, 29, file_line ); line += ' ';
 
-      auto me = context.get_method();
+      std::string method = context.get_method();
+      std::string_view me = method;
       // strip all leading scopes...
-      if( me.size() ) {
-         uint32_t p = 0;
-         for( uint32_t i = 0;i < me.size(); ++i ) {
-             if( me[i] == ':' ) p = i;
-         }
-
-         if( me[p] == ':' ) ++p;
-         line += fixed_size( 20, context.get_method().substr( p, 20 ) ); line += ' ';
+      if( !me.empty() ) {
+         auto c = me.find_last_of( ':' );
+         std::string::size_type p = c != std::string::npos ? ++c : 0;
+         append_fixed_size(line, 20, me.substr( p, 20 ) ); line += ' ';
       }
       line += "] ";
       line += fc::format_string( m.get_format(), m.get_data() );
 
       print( line, my->lc[context.get_log_level()] );
-
-      fprintf( out, "\n" );
-
-      if( my->cfg.flush ) fflush( out );
    }
 
    void console_appender::print( const std::string& text, color::type text_color )
@@ -160,7 +144,7 @@ namespace fc {
       #endif
 
       if( text.size() )
-         fprintf( out, "%s", text.c_str() ); //fmt_str.c_str() );
+         fprintf( out, "%s", text.c_str() );
 
       #ifdef WIN32
       if (my->console_handle != INVALID_HANDLE_VALUE)
@@ -168,6 +152,8 @@ namespace fc {
       #else
       if(isatty(fileno(out))) fprintf( out, "%s", CONSOLE_DEFAULT );
       #endif
+
+      fprintf( out, "\n" );
 
       if( my->cfg.flush ) fflush( out );
    }

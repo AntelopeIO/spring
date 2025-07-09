@@ -16,7 +16,7 @@
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/finalizer_authority.hpp>
-#include <eosio/chain/webassembly/eos-vm-oc.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc/intrinsic.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>
@@ -1171,7 +1171,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       auto dtrxs = get_scheduled_transactions();
       BOOST_CHECK_EQUAL(dtrxs.size(), 1);
       for (const auto& trx: dtrxs) {
-         control->push_scheduled_transaction(trx, fc::time_point::maximum(), fc::microseconds::maximum(), 0, false);
+         control->push_scheduled_transaction(trx, 0, false);
       }
       BOOST_CHECK_EQUAL(1, count);
       BOOST_REQUIRE(trace);
@@ -1198,7 +1198,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       auto dtrxs = get_scheduled_transactions();
       BOOST_CHECK_EQUAL(dtrxs.size(), 1);
       for (const auto& trx: dtrxs) {
-         control->push_scheduled_transaction(trx, fc::time_point::maximum(), fc::microseconds::maximum(), billed_cpu_time_us, true);
+         control->push_scheduled_transaction(trx, billed_cpu_time_us, true);
       }
       BOOST_CHECK_EQUAL(1, count);
       BOOST_CHECK(trace);

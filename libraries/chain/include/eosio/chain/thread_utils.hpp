@@ -6,7 +6,9 @@
 #include <fc/scoped_exit.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/use_future.hpp>
 #include <future>
+#include <list>
 #include <memory>
 #include <optional>
 #include <thread>
@@ -112,13 +114,17 @@ namespace eosio { namespace chain {
       };
    };
 
-
-   inline std::string set_current_thread_name_to_typename(const std::type_info& tinfo, const unsigned i) {
+   inline std::string thread_name_base_from_typeinfo(const std::type_info& tinfo) {
       std::string tn = boost::core::demangle(tinfo.name());
       const size_t offset = tn.rfind("::");
       if(offset != std::string::npos)
          tn.erase(0, offset+2);
-      tn = tn.substr(0, tn.find('>')) + "-" + std::to_string(i);
+      tn = tn.substr(0, tn.find('>'));
+      return tn;
+   }
+
+   inline std::string set_current_thread_name_to_typename(const std::type_info& tinfo, const unsigned i) {
+      const std::string tn = thread_name_base_from_typeinfo(tinfo) + "-" + std::to_string(i);
       fc::set_thread_name(tn);
       return tn;
    }
@@ -136,7 +142,7 @@ namespace eosio { namespace chain {
    class named_thread_pool {
    public:
       using on_except_t = std::function<void(const fc::exception& e)>;
-      using init_t = std::function<void()>;
+      using init_t = std::function<void(size_t)>; // init is passed the thread pool index
 
       named_thread_pool() = default;
 
@@ -189,13 +195,22 @@ namespace eosio { namespace chain {
       /// not thread safe, expected to only be called from thread that called start()
       void stop() {
          if (_thread_pool.size() > 0) {
+            tlog("stoping ${i}", ("i", boost::core::demangle(typeid(this).name())));
             _ioc_work.reset();
             _ioc.stop();
             for( auto& t : _thread_pool ) {
                t.join();
             }
             _thread_pool.clear();
+            tlog("stopped ${i}", ("i", boost::core::demangle(typeid(this).name())));
          }
+      }
+
+      on_except_t make_on_except_abort() {
+         return [tn=thread_name_base_from_typeinfo(typeid(this))](const fc::exception& e) {
+            elog("Unexpected exception in a ${n} thread, aborting: ${e}", ("n", tn)("e", e.to_detail_string()));
+            abort();
+         };
       }
 
    private:
@@ -217,7 +232,7 @@ namespace eosio { namespace chain {
             try {
                tn = set_current_thread_name_to_typename( typeid(this), i );
                if ( init )
-                  init();
+                  init(i);
             } FC_LOG_AND_RETHROW()
          }
          catch( ... ) {
@@ -316,12 +331,42 @@ namespace eosio { namespace chain {
       boost::asio::io_context ctx;
    };
 
-   // async on io_context and return future
-   template<typename F>
-   auto post_async_task( boost::asio::io_context& ioc, F&& f ) {
-      auto task = std::make_shared<std::packaged_task<decltype( f() )()>>( std::forward<F>( f ) );
-      boost::asio::post( ioc, [task]() { (*task)(); } );
-      return task->get_future();
+   template<typename T>
+   concept SupportsASIOPost = boost::asio::execution::is_executor<std::decay_t<T>>::value ||
+                              std::is_same_v<std::decay_t<T>, boost::asio::io_context>;
+
+   // async on executor and return future
+   template<SupportsASIOPost E, typename F>
+   auto post_async_task( E&& ioc, F&& f ) {
+      return boost::asio::post( std::forward<E>(ioc), boost::asio::use_future(std::forward<F>(f)) );
    }
 
 } } // eosio::chain
+
+namespace fc {
+
+template<typename T> struct get_typename<eosio::chain::copyable_atomic<T>> {
+   static const char* name()  {
+      static std::string n = std::string("copyable_atomic<") + get_typename<T>::name() + ">";
+      return n.c_str();
+   }
+};
+
+template<typename T>
+void to_variant(const eosio::chain::copyable_atomic<T>& e, fc::variant& v) {
+   T t = e.load();
+   if constexpr (std::is_same_v<T, bool>) {
+      v = t;
+   } else {
+      to_variant( t, v );
+   }
+}
+
+template<typename T>
+void from_variant(const fc::variant& v, eosio::chain::copyable_atomic<T>& e) {
+   T t;
+   from_variant( v, t );
+   e.store(t);
+}
+
+} // namespace fc

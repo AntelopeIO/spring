@@ -15,6 +15,7 @@ namespace eosio {
       bool              connecting           = false;
       bool              syncing              = false;
       bool              is_bp_peer           = false;
+      bool              is_bp_gossip_peer    = false;
       bool              is_socket_open       = false;
       bool              is_blocks_only       = false;
       bool              is_transactions_only = false;
@@ -23,6 +24,13 @@ namespace eosio {
       uint32_t          unique_trx_count = 0;
       uint32_t          unique_blk_count = 0;
       handshake_message last_handshake;
+   };
+
+   struct gossip_peer {
+      eosio::name               producer_name;
+      std::string               server_endpoint;      // externally available address to connect to
+      std::string               outbound_ip_address;  // outbound ip address for firewall
+      block_timestamp_type      expiration;           // head block to remove bp_peer
    };
 
    class net_plugin : public appbase::plugin<net_plugin>
@@ -41,8 +49,9 @@ namespace eosio {
 
         string                            connect( const string& endpoint );
         string                            disconnect( const string& endpoint );
-        std::optional<connection_status>  status( const string& endpoint )const;
+        fc::variant                       status( const string& endpoint )const;
         vector<connection_status>         connections()const;
+        vector<gossip_peer>               bp_gossip_peers()const;
 
         struct p2p_per_connection_metrics {
             struct connection_metric {
@@ -107,5 +116,6 @@ namespace eosio {
 }
 
 FC_REFLECT( eosio::connection_status, (peer)(remote_ip)(remote_port)(connecting)(syncing)
-                                      (is_bp_peer)(is_socket_open)(is_blocks_only)(is_transactions_only)
+                                      (is_bp_peer)(is_bp_gossip_peer)(is_socket_open)(is_blocks_only)(is_transactions_only)
                                       (last_vote_received)(start_time)(unique_trx_count)(unique_blk_count)(last_handshake) )
+FC_REFLECT( eosio::gossip_peer, (producer_name)(server_endpoint)(outbound_ip_address)(expiration) )

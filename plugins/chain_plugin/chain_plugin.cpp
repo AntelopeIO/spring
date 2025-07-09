@@ -363,7 +363,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
-         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{{"xsat"}}),
+         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{"xsat", "vaulta"}),
           "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
@@ -410,9 +410,12 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
          ("delete-all-blocks", bpo::bool_switch()->default_value(false),
           "clear chain state database and block log")
          ("truncate-at-block", bpo::value<uint32_t>()->default_value(0),
-          "stop hard replay / block log recovery at this block number (if set to non-zero number)")
+          "Stop hard replay / block log recovery at this block number (if non-zero). "
+          "Can also be used with terminate-at-block to prune any received blocks from fork database on exit.")
          ("terminate-at-block", bpo::value<uint32_t>()->default_value(0),
-          "terminate after reaching this block number (if set to a non-zero number)")
+          "Stops the node after reaching the specified block number (if non-zero). "
+          "Use RPC endpoint /v1/producer/pause_at_block to pause at a specific block instead. "
+          "Combine with truncate-at-block to prune blocks beyond the specified number from the fork database on exit.")
          ("snapshot", bpo::value<std::filesystem::path>(), "File to read Snapshot State from")
          ;
 
@@ -483,9 +486,9 @@ namespace {
 
 void
 chain_plugin_impl::do_hard_replay(const variables_map& options) {
-         ilog( "Hard replay requested: deleting state database" );
-         clear_directory_contents( chain_config->state_dir );
-         auto backup_dir = block_log::repair_log( blocks_dir, options.at( "truncate-at-block" ).as<uint32_t>(), config::reversible_blocks_dir_name);
+   ilog( "Hard replay requested: deleting state database" );
+   clear_directory_contents( chain_config->state_dir );
+   auto backup_dir = block_log::repair_log( blocks_dir, options.at( "truncate-at-block" ).as<uint32_t>(), config::reversible_blocks_dir_name);
 }
 
 void chain_plugin_impl::plugin_initialize(const variables_map& options) {
@@ -686,8 +689,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
       chain_config->maximum_variable_signature_length = options.at( "maximum-variable-signature-length" ).as<uint32_t>();
 
-      if( options.count( "terminate-at-block" ))
-         chain_config->terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
+      chain_config->terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
+      chain_config->truncate_at_block = options.at( "truncate-at-block" ).as<uint32_t>();
 
       chain_config->num_configured_p2p_peers = options.count( "p2p-peer-address" );
 
@@ -766,26 +769,30 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          EOS_THROW( extract_genesis_state_exception, "extracted genesis state from blocks.log" );
       }
 
+      uint32_t truncate_at_block = options.at( "truncate-at-block" ).as<uint32_t>();
+      uint32_t terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
+      if (truncate_at_block > 0 && terminate_at_block > 0) {
+         EOS_ASSERT(truncate_at_block == terminate_at_block, plugin_config_exception,
+                    "truncate-at-block ${a} must match terminate-at-block ${b}",
+                    ("a", truncate_at_block)("b", terminate_at_block));
+      } else if (truncate_at_block > 0 && !options.at( "hard-replay-blockchain" ).as<bool>()) {
+         wlog("truncate-at-block only applicable to --hard-replay-blockchain unless specified with --terminate-at-block");
+      }
+
       if( options.at( "delete-all-blocks" ).as<bool>()) {
          ilog( "Deleting state database and blocks" );
-         if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 )
-            wlog( "The --truncate-at-block option does not make sense when deleting all blocks." );
          clear_directory_contents( chain_config->state_dir );
          clear_directory_contents( blocks_dir );
       } else if( options.at( "hard-replay-blockchain" ).as<bool>()) {
          do_hard_replay(options);
       } else if( options.at( "replay-blockchain" ).as<bool>()) {
          ilog( "Replay requested: deleting state database" );
-         if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 )
-            wlog( "The --truncate-at-block option does not work for a regular replay of the blockchain." );
          if (!options.count( "snapshot" )) {
             auto first_block = block_log::extract_first_block_num(blocks_dir, retained_dir);
             EOS_ASSERT(first_block == 1, plugin_config_exception,
                        "replay-blockchain without snapshot requested without a full block log, first block: ${n}", ("n", first_block));
          }
          clear_directory_contents( chain_config->state_dir );
-      } else if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 ) {
-         wlog( "The --truncate-at-block option can only be used with --hard-replay-blockchain." );
       }
 
       std::optional<chain_id_type> chain_id;
@@ -1397,7 +1404,6 @@ read_only::get_activated_protocol_features( const read_only::get_activated_proto
 }
 
 uint64_t read_only::get_table_index_name(const read_only::get_table_rows_params& p, bool& primary) {
-   using boost::algorithm::starts_with;
    // see multi_index packing of index name
    const uint64_t table = p.table.to_uint64_t();
    uint64_t index = table & 0xFFFFFFFFFFFFFFF0ULL;
@@ -1407,22 +1413,22 @@ uint64_t read_only::get_table_index_name(const read_only::get_table_rows_params&
    uint64_t pos = 0;
    if (p.index_position.empty() || p.index_position == "first" || p.index_position == "primary" || p.index_position == "one") {
       primary = true;
-   } else if (starts_with(p.index_position, "sec") || p.index_position == "two") { // second, secondary
-   } else if (starts_with(p.index_position , "ter") || starts_with(p.index_position, "th")) { // tertiary, ternary, third, three
+   } else if (p.index_position.starts_with("sec") || p.index_position == "two") { // second, secondary
+   } else if (p.index_position .starts_with("ter") || p.index_position.starts_with("th")) { // tertiary, ternary, third, three
       pos = 1;
-   } else if (starts_with(p.index_position, "fou")) { // four, fourth
+   } else if (p.index_position.starts_with("fou")) { // four, fourth
       pos = 2;
-   } else if (starts_with(p.index_position, "fi")) { // five, fifth
+   } else if (p.index_position.starts_with("fi")) { // five, fifth
       pos = 3;
-   } else if (starts_with(p.index_position, "six")) { // six, sixth
+   } else if (p.index_position.starts_with("six")) { // six, sixth
       pos = 4;
-   } else if (starts_with(p.index_position, "sev")) { // seven, seventh
+   } else if (p.index_position.starts_with("sev")) { // seven, seventh
       pos = 5;
-   } else if (starts_with(p.index_position, "eig")) { // eight, eighth
+   } else if (p.index_position.starts_with("eig")) { // eight, eighth
       pos = 6;
-   } else if (starts_with(p.index_position, "nin")) { // nine, ninth
+   } else if (p.index_position.starts_with("nin")) { // nine, ninth
       pos = 7;
-   } else if (starts_with(p.index_position, "ten")) { // ten, tenth
+   } else if (p.index_position.starts_with("ten")) { // ten, tenth
       pos = 8;
    } else {
       try {
@@ -2145,9 +2151,9 @@ void read_write::push_transaction(const read_write::push_transaction_params& par
                                              act_trace.get_object() );
                   }
 
-                  std::function<vector<fc::variant>(uint32_t)> convert_act_trace_to_tree_struct =
+                  std::function<fc::variants(uint32_t)> convert_act_trace_to_tree_struct =
                   [&](uint32_t closest_unnotified_ancestor_action_ordinal) {
-                     vector<fc::variant> restructured_act_traces;
+                     fc::variants restructured_act_traces;
                      auto it = act_traces_map.lower_bound(
                                  std::make_pair( closest_unnotified_ancestor_action_ordinal, 0)
                      );
@@ -2678,7 +2684,11 @@ read_only::get_consensus_parameters_results
 read_only::get_consensus_parameters(const get_consensus_parameters_params&, const fc::time_point& ) const {
    get_consensus_parameters_results results;
 
-   results.chain_config = db.get_global_properties().configuration;
+   if (db.is_builtin_activated(builtin_protocol_feature_t::action_return_value))
+      to_variant(db.get_global_properties().configuration,        results.chain_config); //chain_config_v1
+   else
+      to_variant(db.get_global_properties().configuration.base(), results.chain_config); //chain_config_v0
+
    if (db.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
       results.wasm_config = db.get_global_properties().wasm_configuration;
    }

@@ -708,12 +708,29 @@ class NodeosQueries:
         if waitForBlock:
             self.waitForBlock(blockNum, timeout=timeout, blockType=BlockType.head)
         block=self.getBlock(blockNum, exitOnError=exitOnError)
+        if block is None:
+            if exitOnError:
+                Utils.errorExit(f"getBlock returned None for {blockNum}")
+            else:
+                return None
         return NodeosQueries.getBlockAttribute(block, "producer", blockNum, exitOnError=exitOnError)
 
     def getBlockProducer(self, timeout=None, waitForBlock=True, exitOnError=True, blockType=BlockType.head):
         blockNum=self.getBlockNum(blockType=blockType)
         block=self.getBlock(blockNum, exitOnError=exitOnError, blockType=blockType)
+        if block is None:
+            if exitOnError:
+                Utils.errorExit(f"getBlock returned None for {blockNum}")
+            else:
+                return None
         return NodeosQueries.getBlockAttribute(block, "producer", blockNum, exitOnError=exitOnError)
+
+    def getProducerSchedule(self):
+        scheduled_producers = []
+        schedule = self.processUrllibRequest("chain", "get_producer_schedule")
+        for prod in schedule["payload"]["active"]["producers"]:
+            scheduled_producers.append(prod["producer_name"])
+        return scheduled_producers
 
     def getNextCleanProductionCycle(self, trans):
         rounds=21*12*2  # max time to ensure that at least 2/3+1 of producers x blocks per producer x at least 2 times

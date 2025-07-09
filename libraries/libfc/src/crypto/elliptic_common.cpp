@@ -1,4 +1,3 @@
-#include <fc/crypto/base58.hpp>
 #include <fc/crypto/elliptic.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/crypto/hmac.hpp>
@@ -110,37 +109,6 @@ namespace fc { namespace ecc {
         return public_key(data);
     }
 
-    private_key private_key::child( const fc::sha256& offset )const
-    {
-       fc::sha256::encoder enc;
-       fc::raw::pack( enc, get_public_key() );
-       fc::raw::pack( enc, offset );
-       return generate_from_seed( get_secret(), enc.result() );
-    }
-
-    std::string public_key::to_base58( const public_key_data &key )
-    {
-      uint32_t check = (uint32_t)sha256::hash(key.data, sizeof(key))._hash[0];
-      static_assert(sizeof(key) + sizeof(check) == 37, ""); // hack around gcc bug: key.size() should be constexpr, but isn't
-      array<char, 37> data;
-      memcpy(data.data, key.begin(), key.size());
-      memcpy(data.begin() + key.size(), (const char*)&check, sizeof(check));
-      return fc::to_base58(data.begin(), data.size(), fc::yield_function_t());
-    }
-
-    public_key public_key::from_base58( const std::string& b58 )
-    {
-        array<char, 37> data;
-        size_t s = fc::from_base58(b58, (char*)&data, sizeof(data) );
-        FC_ASSERT( s == sizeof(data) );
-
-        public_key_data key;
-        uint32_t check = (uint32_t)sha256::hash(data.data, sizeof(key))._hash[0];
-        FC_ASSERT( memcmp( (char*)&check, data.data + sizeof(key), sizeof(check) ) == 0 );
-        memcpy( (char*)key.data, data.data, sizeof(key) );
-        return from_key_data(key);
-    }
-
     unsigned int public_key::fingerprint() const
     {
         public_key_data key = serialize();
@@ -196,30 +164,6 @@ namespace fc { namespace ecc {
        BN_bn2bin(bn, &((unsigned char*)&sec)[32-nbytes] );
        return sec;
     }
-}
-
-void to_variant( const ecc::private_key& var,  variant& vo )
-{
-    vo = var.get_secret();
-}
-
-void from_variant( const variant& var,  ecc::private_key& vo )
-{
-    fc::sha256 sec;
-    from_variant( var, sec );
-    vo = ecc::private_key::regenerate(sec);
-}
-
-void to_variant( const ecc::public_key& var,  variant& vo )
-{
-    vo = var.serialize();
-}
-
-void from_variant( const variant& var,  ecc::public_key& vo )
-{
-    ecc::public_key_data dat;
-    from_variant( var, dat );
-    vo = ecc::public_key(dat);
 }
 
 }

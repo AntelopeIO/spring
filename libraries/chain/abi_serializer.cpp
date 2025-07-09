@@ -3,16 +3,13 @@
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/finality_extension.hpp>
 #include <fc/io/raw.hpp>
-#include <boost/algorithm/string/predicate.hpp>
 #include <fc/io/varint.hpp>
 #include <fc/time.hpp>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
    const size_t abi_serializer::max_recursion_depth;
 
-   using boost::algorithm::starts_with;
-   using boost::algorithm::ends_with;
    using std::string;
    using std::string_view;
 
@@ -133,7 +130,7 @@ namespace eosio { namespace chain {
    void abi_serializer::set_abi(abi_def abi, const yield_function_t& yield) {
       impl::abi_traverse_context ctx(yield, fc::microseconds{});
 
-      EOS_ASSERT(starts_with(abi.version, "eosio::abi/1."), unsupported_abi_version_exception, "ABI has an unsupported version");
+      EOS_ASSERT(abi.version.starts_with("eosio::abi/1."), unsupported_abi_version_exception, "ABI has an unsupported version");
 
       size_t types_size = abi.types.size();
       size_t structs_size = abi.structs.size();
@@ -199,12 +196,13 @@ namespace eosio { namespace chain {
    }
 
    bool abi_serializer::is_integer(const std::string_view& type) const {
-      return boost::starts_with(type, "uint") || boost::starts_with(type, "int");
+      return type.starts_with("uint") || type.starts_with("int");
    }
 
    int abi_serializer::get_integer_size(const std::string_view& type) const {
-      EOS_ASSERT( is_integer(type), invalid_type_inside_abi, "${type} is not an integer type", ("type",impl::limit_size(type)));
-      if( boost::starts_with(type, "uint") ) {
+      EOS_ASSERT( is_integer(type), invalid_type_inside_abi, "${type} is not an integer type",
+                  ("type",impl::limit_size(type)));
+      if( type.starts_with("uint") ) {
          return boost::lexical_cast<int>(type.substr(4));
       } else {
          return boost::lexical_cast<int>(type.substr(3));
@@ -216,24 +214,30 @@ namespace eosio { namespace chain {
    }
 
    bool abi_serializer::is_array(const string_view& type)const {
-      return ends_with(type, "[]");
+      return type.ends_with("[]");
    }
 
-   bool abi_serializer::is_szarray(const string_view& type)const {
+   std::optional<fc::unsigned_int> abi_serializer::is_szarray(const string_view& type) const {
       auto pos1 = type.find_last_of('[');
       auto pos2 = type.find_last_of(']');
-      if(pos1 == string_view::npos || pos2 == string_view::npos) return false;
+      if(pos1 == string_view::npos || pos2 != type.size() - 1)
+         return {};
       auto pos = pos1 + 1;
-      if(pos == pos2) return false;
+      if(pos == pos2)
+         return {};
+
+      fc::unsigned_int sz = 0;
       while(pos < pos2) {
-         if( ! (type[pos] >= '0' && type[pos] <= '9') ) return false;
+         if( ! (type[pos] >= '0' && type[pos] <= '9') )
+            return {};
+         sz = 10 * sz +  (type[pos] - '0');
          ++pos;
       }
-      return true;
+      return  std::optional<fc::unsigned_int>{sz};
    }
 
    bool abi_serializer::is_optional(const string_view& type)const {
-      return ends_with(type, "?");
+      return type.ends_with("?");
    }
 
    bool abi_serializer::is_type(const std::string_view& type, const yield_function_t& yield)const {
@@ -258,7 +262,7 @@ namespace eosio { namespace chain {
    }
 
    std::string_view abi_serializer::_remove_bin_extension(const std::string_view& type) {
-      if( ends_with(type, "$") )
+      if( type.ends_with("$") )
          return type.substr(0, type.size()-1);
       else
          return type;
@@ -362,7 +366,7 @@ namespace eosio { namespace chain {
       bool encountered_extension = false;
       for( uint32_t i = 0; i < st.fields.size(); ++i ) {
          const auto& field = st.fields[i];
-         bool extension = ends_with(field.type, "$");
+         bool extension = field.type.ends_with("$");
          encountered_extension |= extension;
          if( !stream.remaining() ) {
             if( extension ) {
@@ -401,8 +405,26 @@ namespace eosio { namespace chain {
       auto h = ctx.enter_scope();
       auto rtype = resolve_type(type);
       auto ftype = fundamental_type(rtype);
-      auto btype = built_in_types.find(ftype );
-      if( btype != built_in_types.end() ) {
+      auto fixed_array_sz = is_szarray(rtype);
+
+      auto read_array = [&](fc::unsigned_int::base_uint sz) {
+         ctx.hint_array_type_if_in_array();
+         fc::variants vars;
+         vars.reserve(std::min(sz, 1024u)); // limit the maximum size that can be reserved before data is read
+         auto h1 = ctx.push_to_path( impl::array_index_path_item{} );
+         for( fc::unsigned_int::base_uint i = 0; i < sz; ++i ) {
+            ctx.set_array_index_of_path_back(i);
+            auto v = _binary_to_variant(ftype, stream, ctx);
+            // The exception below is commented out to allow array of optional as input data
+            //EOS_ASSERT( !v.is_null(), unpack_exception, "Invalid packed array '${p}'", ("p", ctx.get_path_string()) );
+            vars.emplace_back(std::move(v));
+         }
+         return fc::variant(std::move(vars));
+      };
+
+      if (fixed_array_sz) {
+         return read_array(*fixed_array_sz);
+      } else if( auto btype = built_in_types.find(ftype ); btype != built_in_types.end() ) {
          try {
             return btype->second.first(stream, is_array(rtype), is_optional(rtype), ctx.get_yield_function());
          } EOS_RETHROW_EXCEPTIONS( unpack_exception, "Unable to unpack ${class} type '${type}' while processing '${p}'",
@@ -410,27 +432,11 @@ namespace eosio { namespace chain {
                                    ("type", impl::limit_size(ftype))("p", ctx.get_path_string()) )
       }
       if ( is_array(rtype) ) {
-         ctx.hint_array_type_if_in_array();
          fc::unsigned_int size;
          try {
             fc::raw::unpack(stream, size);
          } EOS_RETHROW_EXCEPTIONS( unpack_exception, "Unable to unpack size of array '${p}'", ("p", ctx.get_path_string()) )
-         vector<fc::variant> vars;
-         vars.reserve(std::min(size.value, 1024u)); // limit the maximum size that can be reserved before data is read
-         auto h1 = ctx.push_to_path( impl::array_index_path_item{} );
-         for( decltype(size.value) i = 0; i < size; ++i ) {
-            ctx.set_array_index_of_path_back(i);
-            auto v = _binary_to_variant(ftype, stream, ctx);
-            // The exception below is commented out to allow array of optional as input data
-            //EOS_ASSERT( !v.is_null(), unpack_exception, "Invalid packed array '${p}'", ("p", ctx.get_path_string()) );
-            vars.emplace_back(std::move(v));
-         }
-         // QUESTION: Why would the assert below ever fail?
-         EOS_ASSERT( vars.size() == size.value,
-                     unpack_exception,
-                     "packed size does not match unpacked array size, packed size ${p} actual size ${a}",
-                     ("p", size)("a", vars.size()) );
-         return fc::variant( std::move(vars) );
+         return read_array(size.value);
       } else if ( is_optional(rtype) ) {
          char flag;
          try {
@@ -448,7 +454,7 @@ namespace eosio { namespace chain {
             EOS_ASSERT( (size_t)select < v_itr->second.types.size(), unpack_exception,
                         "Unpacked invalid tag (${select}) for variant '${p}'", ("select", select.value)("p",ctx.get_path_string()) );
             auto h1 = ctx.push_to_path( impl::variant_path_item{ .variant_itr = v_itr, .variant_ordinal = static_cast<uint32_t>(select) } );
-            return vector<fc::variant>{v_itr->second.types[select], _binary_to_variant(v_itr->second.types[select], stream, ctx)};
+            return fc::variants{v_itr->second.types[select], _binary_to_variant(v_itr->second.types[select], stream, ctx)};
          }
       }
 
@@ -497,24 +503,33 @@ namespace eosio { namespace chain {
 
       auto v_itr = variants.end();
       auto s_itr = structs.end();
+      auto fixed_array_sz = is_szarray(rtype);
 
-      auto btype = built_in_types.find(fundamental_type(rtype));
-      if( btype != built_in_types.end() ) {
-         btype->second.second(var, ds, is_array(rtype), is_optional(rtype), ctx.get_yield_function());
-      } else if ( is_array(rtype) ) {
-         ctx.hint_array_type_if_in_array();
-         const vector<fc::variant>& vars = var.get_array();
-         fc::raw::pack(ds, (fc::unsigned_int)vars.size());
-
-         auto h1 = ctx.push_to_path( impl::array_index_path_item{} );
+      auto pack_array = [&](const vector<fc::variant>& vars) {
+         auto h1 = ctx.push_to_path(impl::array_index_path_item{});
          auto h2 = ctx.disallow_extensions_unless(false);
 
          int64_t i = 0;
          for (const auto& var : vars) {
             ctx.set_array_index_of_path_back(i);
-           _variant_to_binary(fundamental_type(rtype), var, ds, ctx);
-           ++i;
+            _variant_to_binary(fundamental_type(rtype), var, ds, ctx);
+            ++i;
          }
+      };
+      if (fixed_array_sz) {
+         size_t sz = *fixed_array_sz;
+         ctx.hint_array_type_if_in_array();
+         const vector<fc::variant>& vars = var.get_array();
+         EOS_ASSERT( vars.size() == sz, pack_exception,
+                     "Incorrect number of values provided (${a}) for fixed-size (${b}) array type", ("a", sz)("b", vars.size()));
+         pack_array(vars);
+      } else if( auto btype = built_in_types.find(fundamental_type(rtype)); btype != built_in_types.end() ) {
+         btype->second.second(var, ds, is_array(rtype), is_optional(rtype), ctx.get_yield_function());
+      } else if ( is_array(rtype) ) {
+         ctx.hint_array_type_if_in_array();
+         const vector<fc::variant>& vars = var.get_array();
+         fc::raw::pack(ds, (fc::unsigned_int)vars.size());
+         pack_array(vars);
       } else if( is_optional(rtype) ) {
          char flag = !var.is_null();
          fc::raw::pack(ds, flag);
@@ -560,7 +575,7 @@ namespace eosio { namespace chain {
                      auto h2 = ctx.disallow_extensions_unless( &field == &st.fields.back() );
                      _variant_to_binary(_remove_bin_extension(field.type), present ? vo[field.name] : fc::variant(nullptr), ds, ctx);
                   }
-               } else if( ends_with(field.type, "$") && ctx.extensions_allowed() ) {
+               } else if( field.type.ends_with("$") && ctx.extensions_allowed() ) {
                   disallow_additional_fields = true;
                } else if( disallow_additional_fields ) {
                   EOS_THROW( abi_exception, "Encountered field '${f}' without binary extension designation while processing struct '${p}'",
@@ -581,7 +596,7 @@ namespace eosio { namespace chain {
                   auto h1 = ctx.push_to_path( impl::field_path_item{ .parent_struct_itr = s_itr, .field_ordinal = i } );
                   auto h2 = ctx.disallow_extensions_unless( &field == &st.fields.back() );
                   _variant_to_binary(_remove_bin_extension(field.type), va[i], ds, ctx);
-               } else if( ends_with(field.type, "$") && ctx.extensions_allowed() ) {
+               } else if( field.type.ends_with("$") && ctx.extensions_allowed() ) {
                   break;
                } else {
                   EOS_THROW( pack_exception, "Early end to input array specifying the fields of struct '${p}'; require input for field '${f}'",
@@ -934,4 +949,4 @@ namespace eosio { namespace chain {
       }
    }
 
-} }
+}
