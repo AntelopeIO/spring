@@ -117,12 +117,13 @@ struct call_data_header {  // match with CDT definition
 
 struct call_def {
    call_def() = default;
-   call_def(const call_name& name, const type_name& type)
-   :name(name), type(type)
+   call_def(const call_name& name, const type_name& type, uint64_t id)
+   :name(name), type(type), id(id)
    {}
 
    call_name name;
    type_name type;
+   uint64_t  id = 0;
 };
 
 struct call_result_def {
@@ -209,7 +210,7 @@ FC_REFLECT( eosio::chain::error_message                    , (error_code)(error_
 FC_REFLECT( eosio::chain::variant_def                      , (name)(types) )
 FC_REFLECT( eosio::chain::action_result_def                , (name)(result_type) )
 FC_REFLECT( eosio::chain::call_data_header                 , (version)(func_name) )
-FC_REFLECT( eosio::chain::call_def                         , (name)(type) )
+FC_REFLECT( eosio::chain::call_def                         , (name)(type)(id) )
 FC_REFLECT( eosio::chain::call_result_def                  , (name)(result_type) )
 FC_REFLECT( eosio::chain::abi_def                          , (version)(types)(structs)(actions)(tables)
                                                              (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results)

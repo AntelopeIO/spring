@@ -69,6 +69,7 @@ struct abi_serializer {
    type_name get_action_result_type(name action_result)const;
    type_name get_call_type(call_name call)const;
    type_name get_call_result_type(call_name call_result)const;
+   call_name get_call_name(uint64_t id)const;
 
    std::optional<string>  get_error_message( uint64_t error_code )const;
 
@@ -151,8 +152,9 @@ private:
    map<uint64_t, string>                      error_messages;
    map<type_name, variant_def, std::less<>>   variants;
    map<name,type_name>                        action_results;
-   map<call_name,type_name>                   calls;
-   map<call_name,type_name>                   call_results;
+   map<call_name, type_name>                  calls;
+   map<uint64_t,  call_name>                  call_ids; // from short id to name
+   map<call_name, type_name>                  call_results;
 
    map<type_name, pair<unpack_function, pack_function>, std::less<>> built_in_types;
    void configure_built_in_types();
@@ -620,11 +622,11 @@ namespace impl {
             fc::raw::unpack(ds, data_header);
 
             if (data_header.is_version_valid()) {
-               fname = eosio::chain::name(data_header.func_name).to_string();
-
                auto abi_optional = resolver(cal_trace.receiver);
                if (abi_optional) {
                   const abi_serializer& abi = *abi_optional;
+                  auto id = data_header.func_name; // short ID
+                  fname = abi.get_call_name(id);
                   auto type = abi.get_call_type(fname);
                   if (!type.empty()) {
                      call_data_to_variant_context _ctx(abi, ctx, type);
