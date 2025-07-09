@@ -21,8 +21,9 @@ class TraceApiPluginTest(unittest.TestCase):
     def startEnv(self) :
         account_names = ["alice", "bob", "charlie"]
         abs_path = os.path.abspath(os.getcwd() + '/unittests/contracts/eosio.token/eosio.token.abi')
-        traceNodeosArgs = " --verbose-http-errors --trace-rpc-abi eosio.token=" + abs_path
-        self.cluster.launch(totalNodes=2, activateIF=True, extraNodeosArgs=traceNodeosArgs)
+        extraNodeosArgs = " --verbose-http-errors --trace-slice-stride 10000 --trace-rpc-abi eosio.token=" + abs_path
+        extraNodeosArgs+=" --production-pause-vote-timeout-ms 0"
+        self.cluster.launch(totalNodes=2, activateIF=True, extraNodeosArgs=extraNodeosArgs)
         self.walletMgr.launch()
         testWalletName="testwallet"
         testWallet=self.walletMgr.create(testWalletName, [self.cluster.eosioAccount, self.cluster.defproduceraAccount])
@@ -94,9 +95,12 @@ class TraceApiPluginTest(unittest.TestCase):
                 break
         self.assertTrue(isTrxInBlockFromTraceApi)
 
+        # use trace_api to get transId
+        node.getTransaction(transId, silentErrors=False, exitOnError=True)
+
         # relaunch with no time allocated for http response & abi-serializer
         node.kill(signal.SIGTERM)
-        isRelaunchSuccess = node.relaunch(timeout=10, addSwapFlags={"--http-max-response-time-ms": "0", "--abi-serializer-max-time-ms": "0"})
+        isRelaunchSuccess = node.relaunch(timeout=10, chainArg="--enable-stale-production", addSwapFlags={"--http-max-response-time-ms": "0", "--abi-serializer-max-time-ms": "0"})
         self.assertTrue(isRelaunchSuccess)
 
         # Verify get block_trace still works even with no time for http-max-response-time-ms and no time for bi-serializer-max-time-ms
@@ -104,9 +108,41 @@ class TraceApiPluginTest(unittest.TestCase):
         cmd=" --print-response %s %d" % (cmdDesc, blockNum)
         cmd="%s %s %s" % (Utils.EosClientPath, node.eosClientArgs(), cmd)
         result=Utils.runCmdReturnStr(cmd, ignoreError=True)
-
         Utils.Print(f"{cmdDesc} returned: {result}")
         self.assertIn("test transfer a->b", result)
+
+        Utils.Print("Verify get transaction_trace works for trx after loading from a snapshot")
+        Utils.Print("Create snapshot (node 0)")
+        ret = node.createSnapshot()
+        assert ret is not None, "Snapshot creation failed"
+        ret_head_block_num = ret["payload"]["head_block_num"]
+        Utils.Print(f"Snapshot head block number {ret_head_block_num}")
+        node.kill(signal.SIGTERM)
+        assert not node.verifyAlive(), "Node did not shutdown"
+        node.removeState()
+        node.removeReversibleBlks()
+        node.removeTracesDir()
+
+        isRelaunchSuccess = node.relaunch(chainArg="--snapshot {}".format(node.getLatestSnapshot()), addSwapFlags={"--trace-slice-stride": "2"})
+        assert isRelaunchSuccess, f"node0 relaunch from snapshot failed"
+        assert node.waitForHeadToAdvance(), "Node0 did not advance HEAD after relaunch"
+
+        # Removed trace dir above, should not find the transId
+        Utils.Print("Verify can't find transaction trace because trace dir removed")
+        assert not node.getTransaction(transId, silentErrors=True, exitOnError=False)
+
+        # Transfer after restart, should be able to find this one
+        Utils.Print("New transfer transactions")
+        xferAmount = Node.currencyIntToStr(1, CORE_SYMBOL)
+        transIds = []
+        for i in range(0, 3): # stride is 2
+            trans = node.transferFunds(self.accounts[0], self.accounts[1], xferAmount, "test transfer a->b", force=True)
+            node.waitForHeadToAdvance()
+            transId = Node.getTransId(trans)
+            transIds.append(transId)
+        Utils.Print("Find new transactions created after snapshot")
+        for transId in transIds:
+            assert node.getTransaction(transId, silentErrors=False, exitOnError=True)
 
         global testSuccessful
         testSuccessful = True
