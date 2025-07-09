@@ -202,6 +202,14 @@ namespace eosio::trace_api {
       bool find_trx_id_slice(uint32_t slice_number, open_state state, fc::cfile& trx_id_file, bool open_file = true) const;
 
       /**
+       * Traverses the trx id slice files in reverse order of block num, latest block num stride first
+       *
+       * Call callback with each already opened at beginning trx id slice file
+       * @param callback return false to stop iteration
+       */
+      void for_each_trx_id_slice(std::function<bool(fc::cfile&)> callback) const;
+
+      /**
        * set the LIB for maintenance
        * @param lib
        */
@@ -278,7 +286,7 @@ namespace eosio::trace_api {
        */
       get_block_t get_block(uint32_t block_height, const yield_function& yield= {});
 
-      get_block_n get_trx_block_number(const chain::transaction_id_type& trx_id, std::optional<uint32_t> minimum_irreversible_history_blocks, const yield_function& yield= {});
+      get_block_n get_trx_block_number(const chain::transaction_id_type& trx_id, const yield_function& yield= {});
 
       void start_maintenance_thread( log_handler log ) {
          _slice_directory.start_maintenance_thread( std::move(log) );

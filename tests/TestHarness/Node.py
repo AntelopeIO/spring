@@ -658,6 +658,11 @@ class Node(Transactions):
         finalizersDir = os.path.join(dataDir, "finalizers")
         shutil.rmtree(finalizersDir, ignore_errors=True)
 
+    def removeTracesDir(self):
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        tracesDir = os.path.join(dataDir, "traces")
+        shutil.rmtree(tracesDir, ignore_errors=True)
+
     @staticmethod
     def findStderrFiles(path):
         files=[]
