@@ -4,11 +4,6 @@
     "types": [],
     "structs": [
         {
-            "name": "actcalltst",
-            "base": "",
-            "fields": []
-        },
-        {
             "name": "basictest",
             "base": "",
             "fields": [
@@ -115,11 +110,6 @@
         }
     ],
     "actions": [
-        {
-            "name": "actcalltst",
-            "type": "actcalltst",
-            "ricardian_contract": ""
-        },
         {
             "name": "basictest",
             "type": "basictest",

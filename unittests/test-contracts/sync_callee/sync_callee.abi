@@ -4,20 +4,6 @@
     "types": [],
     "structs": [
         {
-            "name": "actioncall",
-            "base": "",
-            "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
-                    "name": "x",
-                    "type": "uint32"
-                }
-            ]
-        },
-        {
             "name": "add",
             "base": "",
             "fields": [
@@ -329,11 +315,6 @@
     ],
     "actions": [
         {
-            "name": "actioncall",
-            "type": "actioncall",
-            "ricardian_contract": ""
-        },
-        {
             "name": "pureaction",
             "type": "pureaction",
             "ricardian_contract": ""
@@ -350,83 +331,85 @@
     ],
     "ricardian_clauses": [],
     "variants": [],
-    "action_results": [
-        {
-            "name": "actioncall",
-            "result_type": "uint32"
-        }
-    ],
+    "action_results": [],
     "calls": [
         {
-            "name": "actioncall",
-            "type": "actioncall"
-        },
-        {
             "name": "add",
-            "type": "add"
+            "type": "add",
+            "id": 193486030
         },
         {
             "name": "basictest",
-            "type": "basictest"
+            "type": "basictest",
+            "id": 249882312350186951
         },
         {
             "name": "crash",
-            "type": "crash"
+            "type": "crash",
+            "id": 210709162262
         },
         {
             "name": "forever",
-            "type": "forever"
+            "type": "forever",
+            "id": 229466054377278
         },
         {
             "name": "getperson",
-            "type": "getperson"
+            "type": "getperson",
+            "id": 249889516434780860
         },
         {
             "name": "insertperson",
-            "type": "insertperson"
+            "type": "insertperson",
+            "id": 15276739392287013521
         },
         {
             "name": "mul",
-            "type": "mul"
+            "type": "mul",
+            "id": 193499667
         },
         {
             "name": "nestedcalls",
-            "type": "nestedcalls"
+            "type": "nestedcalls",
+            "id": 13885986181937266871
         },
         {
             "name": "noconsolefunc",
-            "type": "noconsolefunc"
+            "type": "noconsolefunc",
+            "id": 14436252818385678849
         },
         {
             "name": "paramstest",
-            "type": "paramstest"
+            "type": "paramstest",
+            "id": 8246766015778301897
         },
         {
             "name": "recursive",
-            "type": "recursive"
+            "type": "recursive",
+            "id": 249904965185745245
         },
         {
             "name": "selfcall",
-            "type": "selfcall"
+            "type": "selfcall",
+            "id": 7572920685215499
         },
         {
             "name": "voidparam",
-            "type": "voidparam"
+            "type": "voidparam",
+            "id": 249911024085144520
         },
         {
             "name": "voidparamret",
-            "type": "voidparamret"
+            "type": "voidparamret",
+            "id": 15934852724996657459
         },
         {
             "name": "voidreturn",
-            "type": "voidreturn"
+            "type": "voidreturn",
+            "id": 8247063794892877559
         }
     ],
     "call_results": [
-        {
-            "name": "actioncall",
-            "result_type": "uint32"
-        },
         {
             "name": "add",
             "result_type": "uint32"

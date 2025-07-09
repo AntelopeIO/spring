@@ -75,12 +75,6 @@ void sync_callee::pureaction() {
    return;
 }
 
-// mark a function as both an action and a call
-[[eosio::action, eosio::call]]
-uint32_t sync_callee::actioncall(uint32_t x) {
-   return x;
-}
-
 // an internal expensive function
 static uint64_t fibonacci(uint32_t n) {
    if (n <= 1) return n;

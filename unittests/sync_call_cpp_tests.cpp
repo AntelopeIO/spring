@@ -53,9 +53,9 @@ BOOST_AUTO_TEST_CASE(basic_test) { try {
 
    static const std::string expected = R"=====(Test BEGIN ==================
 Before calling sync call basictest
-[caller->(callee,basictest)]: CALL BEGIN ======
+[caller->(callee,249882312350186951)]: CALL BEGIN ======
 I am basictest from sync_callee
-[caller->(callee,basictest)]: CALL END   ======
+[caller->(callee,249882312350186951)]: CALL END   ======
 After returned from basictest
 Test END   ==================)=====";
 
@@ -159,13 +159,6 @@ BOOST_AUTO_TEST_CASE(unknown_function_test) { try {
                          fc_exception_message_contains("receiver does not support sync call but support_mode is set to abort"));
 } FC_LOG_AND_RETHROW() }
 
-// Verify a function can be tagged as both an action and a call
-BOOST_AUTO_TEST_CASE(act_call_both_tagged_test) { try {
-   call_tester_cpp t;
-
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "actcalltst"_n, "caller"_n, {}));
-} FC_LOG_AND_RETHROW() }
-
 // Verify exception throws when the called function is stuck in an infinite loop
 BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
    call_tester_cpp t;
@@ -238,9 +231,9 @@ BOOST_AUTO_TEST_CASE(caller_has_no_console_test) { try {
    std::string actual = eosio::chain::expand_console(header, trailer, action_trace.call_traces, 0, sender_ordinal, "caller", action_trace.console, action_trace.console_markers);
 
    static const std::string expected = R"=====(Test BEGIN ==================
-[caller->(callee,basictest)]: CALL BEGIN ======
+[caller->(callee,249882312350186951)]: CALL BEGIN ======
 I am basictest from sync_callee
-[caller->(callee,basictest)]: CALL END   ======
+[caller->(callee,249882312350186951)]: CALL END   ======
 Test END   ==================)=====";
 
    BOOST_REQUIRE_EQUAL(actual, expected);
