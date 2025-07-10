@@ -35,8 +35,12 @@ struct platform_timer {
       });
       EOS_ASSERT(!(!appending && func && !_expiration_callbacks.empty()), misc_exception, "Setting a platform_timer callback when one already exists");
 
-      if (!func && !_expiration_callbacks.empty()) {
-         _expiration_callbacks.pop_back();
+      if (!func) {
+         if (!_expiration_callbacks.empty()) {
+            _expiration_callbacks.pop_back();
+         }
+
+         // Never push a callback into _expiration_callbacks if it is null.
          return;
       }
 
