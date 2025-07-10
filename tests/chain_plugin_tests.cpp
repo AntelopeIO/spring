@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(!parms.chain_config.get_object().contains("max_action_return_value_size"));
    BOOST_TEST(!parms.wasm_config);
 
-   t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
+   t.activate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
    t.produce_block();
 
    parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
@@ -175,7 +175,7 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(v1config.max_action_return_value_size == t.control->get_global_properties().configuration.max_action_return_value_size);
    BOOST_TEST(!parms.wasm_config);
 
-   t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::configurable_wasm_limits} );
+   t.activate_builtin_protocol_features( {builtin_protocol_feature_t::configurable_wasm_limits} );
    t.produce_block();
    parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
 
