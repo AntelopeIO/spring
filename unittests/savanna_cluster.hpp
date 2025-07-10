@@ -126,7 +126,7 @@ namespace savanna_cluster {
       cluster_t&                                      _cluster;
 
    public:
-      node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
+      node_t(size_t node_idx, cluster_t& cluster, const setup_policy& policy = setup_policy::none);
 
       virtual ~node_t();
 
