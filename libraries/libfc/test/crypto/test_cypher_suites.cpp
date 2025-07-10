@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(test_r1) try {
 
 BOOST_AUTO_TEST_CASE(test_k1_recovery) try {
    auto payload = "Test Cases";
-   auto digest = sha256::hash_raw(std::string_view(payload));
+   auto digest = sha256::hash(payload);
    auto key = private_key::generate<ecc::private_key_shim>();
    auto pub = key.get_public_key();
    auto sig = key.sign(digest);
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(test_k1_recovery) try {
 
 BOOST_AUTO_TEST_CASE(test_r1_recovery) try {
    auto payload = "Test Cases";
-   auto digest = sha256::hash_raw(std::string_view(payload));
+   auto digest = sha256::hash(payload);
    auto key = private_key::generate<r1::private_key_shim>();
    auto pub = key.get_public_key();
    auto sig = key.sign(digest);

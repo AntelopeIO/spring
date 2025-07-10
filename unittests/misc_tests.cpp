@@ -214,7 +214,7 @@ BOOST_AUTO_TEST_CASE(variant_format_string_limited)
             const std::string key_name_str = permission.actor.to_string() + permission.permission.to_string();
             auto sig_digest = digest_type::hash(std::make_pair("1234", "abcd"));
             const fc::crypto::signature sig = private_key_type::regenerate<fc::ecc::private_key_shim>(
-                  fc::sha256::hash_raw(key_name_str + "active")).sign(sig_digest);
+                  fc::sha256::hash(key_name_str + "active")).sign(sig_digest);
             provided_keys.insert(public_key_type{sig, fc::sha256{digest}, true});
          }
       };

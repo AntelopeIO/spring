@@ -86,7 +86,7 @@ private:
 };
 
 auto get_private_key( chain::name keyname, std::string role = "owner" ) {
-   auto secret = fc::sha256::hash_raw( keyname.to_string() + role );
+   auto secret = fc::sha256::hash( keyname.to_string() + role );
    return chain::private_key_type::regenerate<fc::ecc::private_key_shim>( secret );
 }
 

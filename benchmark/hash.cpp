@@ -25,62 +25,62 @@ void hash_benchmarking() {
    }
 
    auto sha1_small_msg = [&]() {
-      fc::sha1::hash_raw(small_message);
+      fc::sha1::hash(small_message);
    };
    benchmarking("sha1 (" + std::to_string(small_message.length()) + " bytes)", sha1_small_msg);
 
    auto sha1_large_msg = [&]() {
-      fc::sha1::hash_raw(large_message);
+      fc::sha1::hash(large_message);
    };
    benchmarking("sha1 (" + std::to_string(large_message.length()) + " bytes)", sha1_large_msg);
 
    auto sha256_small_msg = [&]() {
-      fc::sha256::hash_raw(small_message);
+      fc::sha256::hash(small_message);
    };
    benchmarking("sha256 (" + std::to_string(small_message.length()) + " bytes)", sha256_small_msg);
 
    auto sha256_large_msg = [&]() {
-      fc::sha256::hash_raw(large_message);
+      fc::sha256::hash(large_message);
    };
    benchmarking("sha256 (" + std::to_string(large_message.length()) + " bytes)", sha256_large_msg);
 
    auto sha512_small_msg = [&]() {
-      fc::sha512::hash_raw(small_message);
+      fc::sha512::hash(small_message);
    };
    benchmarking("sha512 (" + std::to_string(small_message.length()) + " bytes)", sha512_small_msg);
 
    auto sha512_large_msg = [&]() {
-      fc::sha512::hash_raw(large_message);
+      fc::sha512::hash(large_message);
    };
    benchmarking("sha512 (" + std::to_string(large_message.length()) + " bytes)", sha512_large_msg);
 
    auto ripemd160_small_msg = [&]() {
-      fc::ripemd160::hash_raw(small_message);
+      fc::ripemd160::hash(small_message);
    };
    benchmarking("ripemd160 (" + std::to_string(small_message.length()) + " bytes)", ripemd160_small_msg);
 
    auto ripemd160_large_msg = [&]() {
-      fc::ripemd160::hash_raw(large_message);
+      fc::ripemd160::hash(large_message);
    };
    benchmarking("ripemd160 (" + std::to_string(large_message.length()) + " bytes)", ripemd160_large_msg);
 
    auto sha3_small_msg = [&]() {
-      fc::sha3::hash_raw(small_message, true);
+      fc::sha3::hash(small_message, true);
    };
    benchmarking("sha3-256 (" + std::to_string(small_message.length()) + " bytes)", sha3_small_msg);
 
    auto sha3_large_msg = [&]() {
-      fc::sha3::hash_raw(large_message, true);
+      fc::sha3::hash(large_message, true);
    };
    benchmarking("sha3-256 (" + std::to_string(large_message.length()) + " bytes)", sha3_large_msg);
 
    auto keccak_small_msg = [&]() {
-      fc::sha3::hash_raw(small_message, false);
+      fc::sha3::hash(small_message, false);
    };
    benchmarking("keccak256 (" + std::to_string(small_message.length()) + " bytes)", keccak_small_msg);
 
    auto keccak_large_msg = [&]() {
-      fc::sha3::hash_raw(large_message, false);
+      fc::sha3::hash(large_message, false);
    };
    benchmarking("keccak256 (" + std::to_string(large_message.length()) + " bytes)", keccak_large_msg);
 
