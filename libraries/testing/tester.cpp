@@ -42,45 +42,16 @@ namespace eosio::testing {
    const setup_policy setup_policy::old_wasm_parser{
       {setup_action::preactivate_protocol_feature,
        setup_action::set_before_producer_authority_bios_contract,
-       setup_action::activate_features},
-      {builtin_protocol_feature_t::only_link_to_existing_permission,
-       builtin_protocol_feature_t::replace_deferred,
-       builtin_protocol_feature_t::no_duplicate_deferred_id,
-       builtin_protocol_feature_t::fix_linkauth_restriction,
-       builtin_protocol_feature_t::disallow_empty_producer_schedule,
-       builtin_protocol_feature_t::restrict_action_to_self,
-       builtin_protocol_feature_t::only_bill_first_authorizer,
-       builtin_protocol_feature_t::forward_setcode,
-       builtin_protocol_feature_t::get_sender,
-       builtin_protocol_feature_t::ram_restrictions,
-       builtin_protocol_feature_t::webauthn_key,
-       builtin_protocol_feature_t::wtmsig_block_signatures,
-       builtin_protocol_feature_t::bls_primitives}
+       setup_action::activate_features_up_to},
+      {builtin_protocol_feature_t::wtmsig_block_signatures, // all features up to `wtmsig_block_signatures` are activated
+       builtin_protocol_feature_t::bls_primitives}          // `bls_primitives` is activated as well
    };
 
    const setup_policy setup_policy::before_disable_deferred_trx {
       {setup_action::preactivate_protocol_feature,
        setup_action::set_before_producer_authority_bios_contract,
-       setup_action::activate_features},
-      {builtin_protocol_feature_t::only_link_to_existing_permission,
-       builtin_protocol_feature_t::replace_deferred,
-       builtin_protocol_feature_t::no_duplicate_deferred_id,
-       builtin_protocol_feature_t::fix_linkauth_restriction,
-       builtin_protocol_feature_t::disallow_empty_producer_schedule,
-       builtin_protocol_feature_t::restrict_action_to_self,
-       builtin_protocol_feature_t::only_bill_first_authorizer,
-       builtin_protocol_feature_t::forward_setcode,
-       builtin_protocol_feature_t::get_sender,
-       builtin_protocol_feature_t::ram_restrictions,
-       builtin_protocol_feature_t::webauthn_key,
-       builtin_protocol_feature_t::wtmsig_block_signatures,
-       builtin_protocol_feature_t::action_return_value,
-       builtin_protocol_feature_t::blockchain_parameters,
-       builtin_protocol_feature_t::get_code_hash,
-       builtin_protocol_feature_t::configurable_wasm_limits,
-       builtin_protocol_feature_t::crypto_primitives,
-       builtin_protocol_feature_t::get_block_num,
-       builtin_protocol_feature_t::bls_primitives
+       setup_action::activate_features_up_to},
+      {builtin_protocol_feature_t::bls_primitives          // all features up to `bls_primitives` are activated
       }
    };
 
@@ -320,6 +291,12 @@ namespace eosio::testing {
 
          case setup_action::activate_features: {
             activate_builtin_protocol_features(policy.features);
+            produce_block();
+            break;
+         }
+
+         case setup_action::activate_features_up_to: {
+            activate_builtin_protocol_features_up_to(policy.features);
             produce_block();
             break;
          }
@@ -1469,6 +1446,18 @@ namespace eosio::testing {
       }
 
       activate_protocol_features( activations );
+   }
+
+   void base_tester::activate_builtin_protocol_features_up_to(const std::vector<builtin_protocol_feature_t>& builtins) {
+      assert(builtins.size() >= 1);
+      auto upto = builtins[0];
+      std::vector<builtin_protocol_feature_t> full_list;
+      for( const auto& f : builtin_protocol_feature_codenames ) {
+         if (f.first <= upto && f.first != builtin_protocol_feature_t::preactivate_feature)
+            full_list.push_back(f.first);
+      }
+      full_list.insert(full_list.end(), ++builtins.begin(), builtins.end());
+      activate_builtin_protocol_features(full_list);
    }
 
    std::vector<builtin_protocol_feature_t> base_tester::get_all_builtin_protocol_features() {

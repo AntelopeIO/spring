@@ -67,8 +67,10 @@ namespace eosio::testing {
    enum class setup_action {
       preactivate_protocol_feature,
       set_before_producer_authority_bios_contract,
-      activate_features,     // activate features listed in `setup_policy::features`. enforce dependencies.
-      activate_all_features, // activate all available features
+      activate_features,       // activate features listed in `setup_policy::features`. enforce dependencies.
+      activate_features_up_to, // activate all features up to the first one specified in `setup_policy::features`
+                               // if `setup_policy::features` contains more than one the remaining are also activated
+      activate_all_features,   // activate all available features
       set_bios_contract,
       activate_savanna
    };
@@ -490,6 +492,7 @@ namespace eosio::testing {
          void schedule_protocol_features_wo_preactivation(const vector<digest_type>& feature_digests);
          void activate_protocol_features(const vector<digest_type>& feature_digests);
          void activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
+         void activate_builtin_protocol_features_up_to(const std::vector<builtin_protocol_feature_t>& features);
          void activate_all_builtin_protocol_features();
 
          static genesis_state default_genesis() {
