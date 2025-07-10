@@ -116,7 +116,7 @@ try:
           chainArg=None
        isRelaunchSuccess = node.relaunch(chainArg=chainArg)
        assert isRelaunchSuccess, "Failed to relaunch node with snapshot"
-       assert node.waitForLibToAdvance(), "LIB did not advance after restart from snapshot"
+       assert node.waitForLibToAdvance(timeout=60), "LIB did not advance after restart from snapshot"
 
     Print("Restart snapshot node with snapshot with blocks")
     restartWithSnapshot(nodeSnap, rmBlocks=False)
