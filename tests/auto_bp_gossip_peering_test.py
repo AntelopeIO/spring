@@ -171,9 +171,11 @@ try:
                 continue
             peer_addr = conn["peer"]
             if len(peer_addr) == 0:
-                if len(conn["last_handshake"]["p2p_address"]) == 0:
+                if not conn["last_handshake"]["p2p_address"]:
                     continue
                 peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
+                if not peer_addr:
+                    continue
             if peer_names[peer_addr] != "bios" and peer_addr != getHostName(nodeId):
                 if conn["is_bp_peer"]:
                     peers.append(peer_names[peer_addr])
