@@ -163,6 +163,24 @@ try:
         Utils.Print(f"Wait for block ${blockNum} on node ", nodeId)
         cluster.getNode(nodeId).waitForBlock(blockNum)
 
+    # return the peer names (defproducera) of the connected peers in the v1/net/connections JSON
+    def connectedPeers(nodeId, connectionsJson):
+        peers = []
+        for conn in connectionsJson["payload"]:
+            if conn["is_socket_open"] is False:
+                continue
+            peer_addr = conn["peer"]
+            if len(peer_addr) == 0:
+                if not conn["last_handshake"]["p2p_address"]:
+                    continue
+                peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
+                if not peer_addr:
+                    continue
+            if peer_names[peer_addr] != "bios" and peer_addr != getHostName(nodeId):
+                if conn["is_bp_peer"]:
+                    peers.append(peer_names[peer_addr])
+        return peers
+
     def verifyGossipConnections(scheduled_producers):
         assert(len(scheduled_producers) > 0)
         scheduled_producers.sort()
@@ -176,19 +194,7 @@ try:
             if Utils.Debug: Utils.Print(f"v1/net/connections: {connections}")
             bp_peers = cluster.nodes[nodeId].processUrllibRequest("net", "bp_gossip_peers")
             if Utils.Debug: Utils.Print(f"v1/net/bp_gossip_peers: {bp_peers}")
-            peers = []
-            for conn in connections["payload"]:
-                if conn["is_socket_open"] is False:
-                    continue
-                peer_addr = conn["peer"]
-                if len(peer_addr) == 0:
-                    if len(conn["last_handshake"]["p2p_address"]) == 0:
-                        continue
-                    peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
-                if peer_names[peer_addr] != "bios" and peer_addr != getHostName(nodeId):
-                    if conn["is_bp_peer"]:
-                        peers.append(peer_names[peer_addr])
-
+            peers = connectedPeers(nodeId, connections)
             if not peers:
                 Utils.Print(f"ERROR: found no connected peers for node {nodeId}")
                 connection_failure = True
@@ -236,18 +242,10 @@ try:
     Print("Verify manual connection still connected")
     connections = cluster.nodes[3].processUrllibRequest("net", "connections")
     if Utils.Debug: Utils.Print(f"v1/net/connections: {connections}")
-    found = []
-    for conn in connections["payload"]:
-        if conn["is_socket_open"] is False:
-            continue
-        peer_addr = conn["peer"]
-        if len(peer_addr) == 0:
-            continue
-        found.append(peer_names[peer_addr])
-
+    found = connectedPeers(3, connections)
     Print(f"Found connections of Node_03: {found}")
-    assert(len(found) == 2)
-    assert("bios" in found and "defproducere" in found)
+    assert("defproducere" in found)     # still connected to manual connection
+    assert("defproducerh" not in found) # not connected to new schedule
 
     testSuccessful = success
 
