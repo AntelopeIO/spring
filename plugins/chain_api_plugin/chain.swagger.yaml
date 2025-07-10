@@ -44,7 +44,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Account.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/Account.yaml"
   /get_block:
     post:
       description: Returns an object containing various details about a specific block on the blockchain.
@@ -66,7 +66,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Block.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/Block.yaml"
   /get_block_info:
     post:
       description: Similar to `get_block` but returns a fixed-size smaller subset of the block data.
@@ -88,7 +88,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "https://eosio.github.io/schemata/v2.1/oas/BlockInfo.yaml"
+                : "https://eosio.github.io/schemata/v2.1/oas/BlockInfo.yaml"
   /get_finalizer_info:
     post:
       description: Returns information about finalizers
@@ -198,7 +198,7 @@ paths:
                           description: Block number voted on
                           example: 1234
                         voted_for_block_timestamp:
-                          $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
+                          : "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
                           description: Timestamp for the voted on block
 
         "400":
@@ -265,7 +265,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Info.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/Info.yaml"
 
   /push_transaction:
     post:
@@ -281,7 +281,7 @@ paths:
                   type: array
                   description: array of signatures required to authorize transaction
                   items:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
                 compression:
                   type: boolean
                   description: Compression used, usually false
@@ -313,7 +313,7 @@ paths:
                   type: array
                   description: array of signatures required to authorize transaction
                   items:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
                 compression:
                   type: boolean
                   description: Compression used, usually false
@@ -342,7 +342,7 @@ paths:
             schema:
               type: array
               items:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
       responses:
         "200":
           description: OK
@@ -373,7 +373,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/BlockHeaderState.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/BlockHeaderState.yaml"
 
   /get_abi:
     post:
@@ -388,14 +388,14 @@ paths:
                 - account_name
               properties:
                 account_name:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Abi.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/Abi.yaml"
   /get_currency_balance:
     post:
       description: Retrieves the current balance
@@ -411,11 +411,11 @@ paths:
                 - symbol
               properties:
                 code:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                 account:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                 symbol:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
 
       responses:
         "200":
@@ -425,7 +425,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
 
   /get_currency_stats:
     post:
@@ -438,9 +438,9 @@ paths:
               type: object
               properties:
                 code:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                 symbol:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
 
       responses:
         "200":
@@ -464,12 +464,12 @@ paths:
                 - available_keys
               properties:
                 transaction:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
                 available_keys:
                   type: array
                   description: Provide the available keys
                   items:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
       responses:
         "200":
           description: OK
@@ -515,7 +515,7 @@ paths:
                     type: array
                     nullable: true
                     items:
-                      $ref: "https://docs.eosnetwork.com/openapi/v2.0/Producer.yaml"
+                      : "https://docs.eosnetwork.com/openapi/v2.0/Producer.yaml"
                   total_producer_vote_weight:
                     type: string
                     description: The sum of all producer votes.
@@ -536,7 +536,7 @@ paths:
                 - account_name
               properties:
                 account_name:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
 
       responses:
         "200":
@@ -547,7 +547,7 @@ paths:
                 type: object
                 properties:
                   account_name:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                   wasm:
                     type: string
                     description: base64 encoded wasm
@@ -566,7 +566,7 @@ paths:
               type: object
               properties:
                 lower_bound:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
                 limit:
                   description: The maximum number of transactions to return
                   type: integer
@@ -584,7 +584,7 @@ paths:
                   transactions:
                     type: array
                     items:
-                      $ref: "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
+                      : "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
 
 
   /get_table_by_scope:
@@ -635,9 +635,9 @@ paths:
                   rows:
                     type: array
                     items:
-                      $ref: "https://docs.eosnetwork.com/openapi/v2.0/TableScope.yaml"
+                      : "https://docs.eosnetwork.com/openapi/v2.0/TableScope.yaml"
                   more:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
 
   /get_table_rows:
     post:
@@ -716,7 +716,7 @@ paths:
                 - code_as_wasm
               properties:
                 account_name:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                 code_as_wasm:
                   type: integer
                   default: 1
@@ -731,15 +731,15 @@ paths:
                 title: GetCodeResponse.yaml
                 properties:
                   name:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                   code_hash:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
                   wast:
                     type: string
                   wasm:
                     type: string
                   abi:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Abi.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Abi.yaml"
 
   /get_raw_abi:
     post:
@@ -754,7 +754,7 @@ paths:
                 - account_name
               properties:
                 account_name:
-                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                  : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
       responses:
         "200":
           description: OK
@@ -764,12 +764,12 @@ paths:
                 type: object
                 properties:
                   account_name:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                   code_hash:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
                   abi_hash:
                     allOf:
-                      - $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
+                      - : "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
                   abi:
                     type: string
 
@@ -833,13 +833,13 @@ paths:
                   description: List of authorizing accounts and/or actor/permissions
                   items:
                     anyOf:
-                      - $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
-                      - $ref: "https://docs.eosnetwork.com/openapi/v2.0/Authority.yaml"
+                      - : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                      - : "https://docs.eosnetwork.com/openapi/v2.0/Authority.yaml"
                 keys:
                   type: array
                   description: List of authorizing keys
                   items:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
       responses:
         "200":
           description: OK
@@ -865,13 +865,13 @@ paths:
                         - threshold
                       properties:
                         account_name:
-                          $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                          : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                         permission_name:
-                          $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                          : "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                         authorizer:
                           oneOf:
-                            - $ref: "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
-                            - $ref: "https://docs.eosnetwork.com/openapi/v2.0/Authority.yaml"
+                            - : "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
+                            - : "https://docs.eosnetwork.com/openapi/v2.0/Authority.yaml"
                         weight:
                           type: "integer"
                           description: the weight that this authorizer adds to satisfy the permission
@@ -899,7 +899,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/TransactionStatus.yaml"
+                : "https://docs.eosnetwork.com/openapi/v2.0/TransactionStatus.yaml"
 
   /send_transaction2:
     post:
@@ -927,7 +927,7 @@ paths:
                       type: array
                       description: array of signatures required to authorize transaction.
                       items:
-                        $ref: "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
+                        : "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
                     compression:
                       type: boolean
                       description: Compression used, usually false
@@ -959,7 +959,7 @@ paths:
                   type: array
                   description: array of signatures required to authorize transaction
                   items:
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/Signature.yaml"
                 compression:
                   type: boolean
                   description: Compression used, usually false
@@ -1004,6 +1004,150 @@ paths:
                   code_hash:
                     type: string
                     description: A string that represents the hash value of the specified account's smart contract code.
+  /get_consensus_parameters:
+    post:
+      description: Retrieves the current consensus parameters from the blockchain.
+      operationId: get_consensus_parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              nullable: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chain_config:
+                    type: object
+                    description: "The current chain configuration. The structure and results returned depends on activated protocol features `ACTION_RETURN_VALUE`. Show below is the expect v1 version when `ACTION_RETURN_VALUE` is activated"
+                    properties:
+                      max_block_net_usage:
+                        type: integer
+                        description: The maximum net usage of a block in bytes.
+                        example: 1048576
+                      target_block_net_usage_pct:
+                        type: integer
+                        description: The target percentage (times 1000) of net usage per block.
+                        example: 1000
+                      max_transaction_net_usage:
+                        type: integer
+                        description: The maximum net usage of a single transaction in bytes.
+                        example: 524288
+                      base_per_transaction_net_usage:
+                        type: integer
+                        description: The base net usage charged for every transaction in bytes.
+                        example: 12
+                      net_usage_leeway:
+                        type: integer
+                        description: The leeway for net usage.
+                        example: 500
+                      context_free_discount_net_usage_num:
+                        type: integer
+                        description: The numerator for context-free data net usage discount.
+                        example: 20
+                      context_free_discount_net_usage_den:
+                        type: integer
+                        description: The denominator for context-free data net usage discount.
+                        example: 100
+                      max_block_cpu_usage:
+                        type: integer
+                        description: The maximum CPU usage of a block in microseconds.
+                        example: 200000
+                      target_block_cpu_usage_pct:
+                        type: integer
+                        description: The target percentage (times 1000) of CPU usage per block.
+                        example: 1000
+                      max_transaction_cpu_usage:
+                        type: integer
+                        description: The maximum CPU usage of a single transaction in microseconds.
+                        example: 150000
+                      min_transaction_cpu_usage:
+                        type: integer
+                        description: The minimum CPU usage charged for every transaction in microseconds.
+                        example: 100
+                      max_transaction_lifetime:
+                        type: integer
+                        description: The maximum lifetime of a transaction in seconds.
+                        example: 3600
+                      deferred_trx_expiration_window:
+                        type: integer
+                        description: The window for deferred transaction expiration in seconds.
+                        example: 600
+                      max_transaction_delay:
+                        type: integer
+                        description: The maximum delay for a transaction in seconds.
+                        example: 3888000
+                      max_inline_action_size:
+                        type: integer
+                        description: The maximum size of an inline action in bytes.
+                        example: 524288
+                      max_inline_action_depth:
+                        type: integer
+                        description: The maximum depth of inline action nesting.
+                        example: 4
+                      max_authority_depth:
+                        type: integer
+                        description: The maximum depth of authority checking.
+                        example: 6
+                      max_action_return_value_size:
+                        type: integer
+                        description: The maximum size of an action's return value in bytes. Only present if ACTION_RETURN_VALUE is activated.
+                        example: 256
+                  wasm_config:
+                    type: object
+                    nullable: true
+                    description: "The current WASM configuration. Only present if CONFIGURABLE_WASM_LIMITS is activated."
+                    properties:
+                      max_mutable_global_bytes:
+                        type: integer
+                        description: The maximum number of mutable global bytes in a WASM module.
+                        example: 1024
+                      max_table_elements:
+                        type: integer
+                        description: The maximum number of elements in a WASM table.
+                        example: 1024
+                      max_section_elements:
+                        type: integer
+                        description: The maximum number of elements in a WASM section.
+                        example: 8192
+                      max_linear_memory_init:
+                        type: integer
+                        description: The maximum initial linear memory size in bytes.
+                        example: 65536
+                      max_func_local_bytes:
+                        type: integer
+                        description: The maximum number of local bytes in a WASM function.
+                        example: 8192
+                      max_nested_structures:
+                        type: integer
+                        description: The maximum number of nested structures in a WASM module.
+                        example: 1024
+                      max_symbol_bytes:
+                        type: integer
+                        description: The maximum number of symbol bytes in a WASM module.
+                        example: 8192
+                      max_module_bytes:
+                        type: integer
+                        description: The maximum size of a WASM module in bytes.
+                        example: 20971520
+                      max_code_bytes:
+                        type: integer
+                        description: The maximum size of the code section in a WASM module in bytes.
+                        example: 20971520
+                      max_pages:
+                        type: integer
+                        description: The maximum number of memory pages (64KB each).
+                        example: 528
+                      max_call_depth:
+                        type: integer
+                        description: The maximum call depth for WASM functions.
+                        example: 251
 
   /get_transaction_id:
     post:
@@ -1015,7 +1159,7 @@ paths:
             schema:
               type: object
               description: The transaction in JSON format for which the ID should be retrieved.
-              $ref: "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
+              : "https://docs.eosnetwork.com/openapi/v2.0/Transaction.yaml"
       responses:
         "200":
           description: OK
@@ -1039,13 +1183,13 @@ paths:
                 properties:
                   active:
                     description: A JSON object that encapsulates the list of active producers schedule and its version.
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
                   pending:
                     description: A JSON object that encapsulates the list of pending producers schedule and its version.
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
                   proposed:
                     description: A JSON object that encapsulates the list of proposed producers schedule and its version.
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
+                    : "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
 
   /send_read_only_transaction:
     post:
@@ -1085,7 +1229,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "https://docs.eosnetwork.com/openapi/v2.0/Block.yaml"
+              : "https://docs.eosnetwork.com/openapi/v2.0/Block.yaml"
       responses:
         "200":
           description: OK
