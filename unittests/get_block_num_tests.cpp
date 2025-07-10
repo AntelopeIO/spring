@@ -28,7 +28,7 @@ BOOST_AUTO_TEST_CASE( get_block_num ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::get_block_num );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::get_block_num_test_wasm() );
