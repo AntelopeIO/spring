@@ -1,7 +1,7 @@
 #pragma once
 #include <fc/fwd.hpp>
-#include <fc/string.hpp>
 #include <fc/crypto/hash_concepts.hpp>
+#include <fc/io/raw.hpp>
 
 namespace fc
 {
@@ -25,11 +25,12 @@ class sha512
       return e.result();
     }
 
-    template<typename T>
-    static sha512 hash( const T& t ) 
+    template<typename... T>
+    requires ( sizeof...(T) > 0 )
+    static sha512 hash( const T&... t )
     { 
       sha512::encoder e; 
-      e << t; 
+      fc::raw::pack(e,t...);
       return e.result(); 
     } 
 

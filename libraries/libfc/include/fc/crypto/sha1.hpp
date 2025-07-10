@@ -2,6 +2,7 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/crypto/hash_concepts.hpp>
+#include <fc/io/raw.hpp>
 
 namespace fc{
 
@@ -24,11 +25,12 @@ class sha1
       return e.result();
     }
 
-    template<typename T>
-    static sha1 hash( const T& t ) 
+    template<typename... T>
+    requires ( sizeof...(T) > 0 )
+    static sha1 hash( const T&... t )
     { 
       sha1::encoder e; 
-      e << t; 
+      fc::raw::pack(e,t...);
       return e.result(); 
     } 
 
