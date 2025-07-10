@@ -1,6 +1,7 @@
 #include <fc/variant_object.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/crypto/base64.hpp>
+#include <fc/bitset.hpp>
 
 #include <boost/test/unit_test.hpp>
 
@@ -10,6 +11,7 @@ using namespace fc;
 using std::string;
 
 BOOST_AUTO_TEST_SUITE(variant_test_suite)
+
 BOOST_AUTO_TEST_CASE(mutable_variant_object_test)
 {
   // no BOOST_CHECK / BOOST_REQUIRE, just see that this compiles on all supported platforms
@@ -170,6 +172,95 @@ BOOST_AUTO_TEST_CASE(variant_blob_backwards_compatibility)
       std::string_view b64_str(b64.data(), b64.size());
       BOOST_CHECK_EQUAL(b64_str, org);
    }
+}
+
+BOOST_AUTO_TEST_CASE(bitset_test)
+{
+   auto check_variant_round_trip = [&](const fc::bitset& bs) {
+      fc::mutable_variant_object mu;
+      mu("bs", bs);
+
+      fc::bitset bs2;
+      fc::from_variant(mu["bs"], bs2);
+
+      BOOST_TEST(bs2 == bs);
+   };
+
+   check_variant_round_trip(fc::bitset(""));
+   check_variant_round_trip(fc::bitset("0"));
+   check_variant_round_trip(fc::bitset("1"));
+   check_variant_round_trip(fc::bitset("01"));
+   check_variant_round_trip(fc::bitset("0101"));
+   check_variant_round_trip(fc::bitset("010100"));
+   check_variant_round_trip(fc::bitset("001010100"));
+   check_variant_round_trip(fc::bitset("0101010100"));
+   check_variant_round_trip(fc::bitset("0110011010100"));
+   check_variant_round_trip(fc::bitset("00110011010100"));
+   check_variant_round_trip(fc::bitset("0000000001010100"));
+   check_variant_round_trip(fc::bitset("01110011010100101"));
+   check_variant_round_trip(fc::bitset("0111001101010010111"));
+   check_variant_round_trip(fc::bitset("011100110101001011101"));
+   check_variant_round_trip(fc::bitset("0111001101010010111011001"));
+   check_variant_round_trip(fc::bitset("01110011010100101110110010"));
+   check_variant_round_trip(fc::bitset("01110011010100101110110010010"));
+   check_variant_round_trip(fc::bitset("0111001101010010111011001001011"));
+   check_variant_round_trip(fc::bitset("011100110101001011101100100100110"));
+   check_variant_round_trip(fc::bitset("01110011010100101110110010010011000"));
+   check_variant_round_trip(fc::bitset("01110011010100101001001001100000010000110"));
+   check_variant_round_trip(fc::bitset("0111001101010010111011001001001100000000000000110"));
+   check_variant_round_trip(fc::bitset("01110011010100101111001101100100100111111111111111111001"));
+}
+
+BOOST_AUTO_TEST_CASE(array) {
+   // check that variant arrays can be created or updated from:
+   //  - `std::initializer_list`
+   //  - `std::vector`
+   //  - `std::array`
+   // --------------------------------------------------------------------------------------------
+   auto check_variant_round_trip = []<class C>(const C& arr) {
+      fc::variant m(arr);
+
+      std::vector<int> v;
+      fc::from_variant(m, v);
+      auto expected = std::vector<int>{arr.begin(), arr.end()};
+      BOOST_TEST(v == expected);
+   };
+
+   check_variant_round_trip(std::initializer_list<int>{});
+   check_variant_round_trip(std::initializer_list<int>{1, 2, 3});
+
+   check_variant_round_trip(std::vector<int>{});
+   check_variant_round_trip(std::vector<int>{1, 2, 3});
+
+   check_variant_round_trip(std::array<int, 0>{});
+   check_variant_round_trip(std::array{1, 2, 3});
+
+   // check that mutable_variant_object arrays can be created or updated from:
+   //  - `std::initializer_list`
+   //  - `std::vector`
+   //  - `std::array`
+   // --------------------------------------------------------------------------------------------
+   auto check_variant_round_trip2 = []<class C>(const C& arr) {
+      fc::mutable_variant_object mu("a", arr);
+
+      std::vector<int> v;
+      fc::from_variant(mu["a"], v);
+      auto expected = std::vector<int>{arr.begin(), arr.end()};
+      BOOST_TEST(v == expected);
+
+      auto mu2 = fc::mutable_variant_object()("b", arr); // also test mutable_variant_object operator()
+      fc::from_variant(mu2["b"], v);
+      BOOST_TEST(v == expected);
+   };
+
+   check_variant_round_trip2(std::initializer_list<int>{});
+   check_variant_round_trip2(std::initializer_list<int>{1, 2, 3});
+
+   check_variant_round_trip2(std::vector<int>{});
+   check_variant_round_trip2(std::vector<int>{1, 2, 3});
+
+   check_variant_round_trip2(std::array<int, 0>{});
+   check_variant_round_trip2(std::array{1, 2, 3});
 }
 
 BOOST_AUTO_TEST_SUITE_END()

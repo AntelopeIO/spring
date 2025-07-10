@@ -4,7 +4,6 @@
       "name": "stderr",
       "type": "console",
       "args": {
-        "format": "${timestamp} ${thread_name} ${context} ${file}:${line} ${method} ${level}]  ${message}",
         "stream": "std_error",
         "level_colors": [{
             "level": "debug",
@@ -15,11 +14,13 @@
           },{
             "level": "error",
             "color": "red"
+          },{
+            "level": "info",
+            "color": "console_default"
           }
         ],
         "flush": true
-      },
-      "enabled": true
+      }
     },{
       "name": "stdout",
       "type": "console",
@@ -27,18 +28,20 @@
         "stream": "std_out",
         "level_colors": [{
             "level": "debug",
-            "color": "green"
+            "color": "blue"
           },{
             "level": "warn",
-            "color": "brown"
+            "color": "magenta"
           },{
             "level": "error",
-            "color": "red"
+            "color": "cyan"
+          },{
+            "level": "info",
+            "color": "white"
           }
         ],
-        "flush": true
-      },
-      "enabled": true
+        "flush": false
+      }
     },{
       "name": "net",
       "type": "gelf",
@@ -46,60 +49,83 @@
         "endpoint": "my_server.example.invalid:12201",
         "host": "host_name",
         "_network": "jungle"
-      },
-      "enabled": true
+      }
     }
   ],
   "loggers": [{
       "name": "default",
       "level": "debug",
       "enabled": true,
-      "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "net_plugin_impl",
       "level": "info",
       "enabled": true,
-      "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
+      ]
+    },{
+      "name": "p2p_log",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_trx",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_block",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_message",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "p2p_connection",
+      "level": "info",
+      "enabled": true,
+      "appenders": [
+        "stderr"
       ]
     },{
       "name": "http_plugin",
       "level": "debug",
       "enabled": true,
-      "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "producer_plugin",
       "level": "debug",
       "enabled": true,
-      "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_success_tracing",
       "level": "debug",
-      "enabled": true,
-      "additivity": false,
+      "enabled": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_failure_tracing",
       "level": "debug",
-      "enabled": true,
-      "additivity": false,
+      "enabled": false,
       "appenders": [
         "stderr",
         "net"
@@ -108,73 +134,57 @@
       "name": "trace_api",
       "level": "debug",
       "enabled": true,
-      "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_trace_success",
-      "level": "info",
-      "enabled": true,
-      "additivity": false,
+      "level": "debug",
+      "enabled": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transaction_trace_failure",
-      "level": "info",
-      "enabled": true,
-      "additivity": false,
+      "level": "debug",
+      "enabled": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transient_trx_success_tracing",
       "level": "debug",
-      "enabled": true,
-      "additivity": false,
+      "enabled": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
       "name": "transient_trx_failure_tracing",
       "level": "debug",
-      "enabled": true,
-      "additivity": false,
+      "enabled": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     },{
     "name": "state_history",
     "level": "info",
     "enabled": true,
-    "additivity": false,
     "appenders": [
-      "stderr",
-      "net"
+      "stderr"
       ]
     },{
     "name": "vote",
-    "level": "debug",
+    "level": "info",
     "enabled": true,
-    "additivity": false,
     "appenders": [
-      "stderr",
-      "net"
+      "stderr"
       ]
     },{
       "name": "transaction",
       "level": "info",
       "enabled": true,
-      "additivity": false,
       "appenders": [
-        "stderr",
-        "net"
+        "stderr"
       ]
     }
   ]

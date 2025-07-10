@@ -108,6 +108,7 @@ nodeos --data-dir data_dir --config-dir config_dir --trace-dir traces_dir
 --plugin eosio::trace_api_plugin 
 --trace-rpc-abi=eosio=abis/eosio.abi 
 --trace-rpc-abi=eosio.token=abis/eosio.token.abi 
+--trace-rpc-abi=eosio.token=abis/core.vaulta.abi 
 --trace-rpc-abi=eosio.msig=abis/eosio.msig.abi 
 --trace-rpc-abi=eosio.wrap=abis/eosio.wrap.abi
 ```

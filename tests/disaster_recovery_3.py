@@ -79,15 +79,21 @@ try:
     assert node1.waitForLibToAdvance(), "Node1 did not advance LIB after snapshot of Node0"
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
 
-    Print("Stop production on Node0 and Node1")
+    Print("Stop production on all nodes")
     assert node0.waitForProducer("defproducera"), "Node 0 did not produce"
-    for node in [node0, node1]:
+    for node in [node0, node1, node2, node3]:
         node.processUrllibRequest("producer", "pause", exitOnError=True)
-    time.sleep(0.5)
+    assert node0.waitForLibNotToAdvance(), "Node0 LIB is still advancing"
 
     currentLIB = node0.getIrreversibleBlockNum()
+    currentLIB1 = node1.getIrreversibleBlockNum()
+    assert currentLIB == currentLIB1, f"Node0 {currentLIB} and Node1 {currentLIB1} LIBs do not match"
     n_LIB = currentLIB + 1
     libBlock = node0.getBlock(n_LIB)
+
+    Print("Resume production on Node2 and Node3")
+    for node in [node2, node3]:
+        node.processUrllibRequest("producer", "resume", exitOnError=True)
 
     Print("Shutdown two nodes at LIB N-1, should be locked on block after N")
     for node in [node0, node1]:

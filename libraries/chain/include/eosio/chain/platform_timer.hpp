@@ -35,26 +35,34 @@ struct platform_timer {
       });
       EOS_ASSERT(!(!appending && func && !_expiration_callbacks.empty()), misc_exception, "Setting a platform_timer callback when one already exists");
 
-      if (!func && !_expiration_callbacks.empty()) {
-         _expiration_callbacks.pop_back();
+      if (!func) {
+         if (!_expiration_callbacks.empty()) {
+            _expiration_callbacks.pop_back();
+         }
+
+         // Never push a callback into _expiration_callbacks if it is null.
          return;
       }
 
       _expiration_callbacks.push_back({func, user});
    }
 
-   enum class state_t {
-      running,
+   enum class state_t : uint8_t {
+      running = 0,
       timed_out,
       interrupted,
       stopped
    };
-   state_t timer_state() const { return _state; }
+   state_t timer_state() const { return _state.load().state; }
 
 private:
    void expire_now();
 
-   std::atomic<state_t> _state = state_t::stopped;
+   struct timer_state_t {
+      state_t state = state_t::stopped;
+      bool callback_in_flight = false;
+   };
+   std::atomic<timer_state_t> _state;
    bool timer_running_forever = false;
 
    struct impl;
