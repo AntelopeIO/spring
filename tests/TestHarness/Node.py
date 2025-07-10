@@ -243,19 +243,22 @@ class Node(Transactions):
                 return False
         return True
 
-    def waitForProducer(self, producer, timeout=None, exitOnError=False):
+    def waitForAnyProducer(self, producers, timeout=None, exitOnError=False):
         if timeout is None:
             # default to the typical configuration of 21 producers, each producing 12 blocks in a row (every 1/2 second)
-            timeout = 21 * 6;
+            timeout = 21 * 6
         start=time.perf_counter()
         Utils.Print(self.getInfo())
         initialProducer=self.getInfo()["head_block_producer"]
-        def isProducer():
-            return self.getInfo()["head_block_producer"] == producer;
-        found = Utils.waitForBool(isProducer, timeout)
+        def isProducerInList():
+            return self.getInfo()["head_block_producer"] in producers
+        found = Utils.waitForBool(isProducerInList, timeout)
         assert not exitOnError or found, \
-            f"Waited for {time.perf_counter()-start} sec but never found producer: {producer}. Started with {initialProducer} and ended with {self.getInfo()['head_block_producer']}"
+            f"Waited for {time.perf_counter()-start} sec but never found a producer in: {producers}. Started with {initialProducer} and ended with {self.getInfo()['head_block_producer']}"
         return found
+
+    def waitForProducer(self, producer, timeout=None, exitOnError=False):
+        return self.waitForAnyProducer([producer], timeout, exitOnError)
 
     # returns True if the node has missed next scheduled production round.
     def missedNextProductionRound(self):
@@ -673,21 +676,23 @@ class Node(Transactions):
     def findInLog(self, searchStr):
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
+        pattern = re.compile(searchStr)
         for file in files:
             with open(file, 'r') as f:
                 for line in f:
-                    if searchStr in line:
+                    if pattern.search(line):
                         return True
         return False
 
     def linesInLog(self, searchStr):
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
+        pattern = re.compile(searchStr)
         lines=[]
         for file in files:
             with open(file, 'r') as f:
                 for line in f:
-                    if searchStr in line:
+                    if pattern.search(line):
                         lines.append(line)
         return lines
 

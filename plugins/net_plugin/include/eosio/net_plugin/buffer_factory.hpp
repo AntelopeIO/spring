@@ -103,7 +103,7 @@ namespace eosio {
 
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
-         fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
+         fc_dlog( p2p_blk_log, "sending block ${bn}", ("bn", sb->block_num()) );
          return buffer_factory::create_send_buffer( signed_block_which, *sb );
       }
 
@@ -120,6 +120,15 @@ namespace eosio {
       const send_buffer_type& get_send_buffer( const packed_transaction_ptr& trx ) {
          if( !send_buffer ) {
             send_buffer = create_send_buffer( trx );
+         }
+         return send_buffer;
+      }
+
+      /// caches result for subsequent calls, only provide same packed_transaction_ptr instance for each invocation.
+      /// Do not use get_send_buffer() with get_notice_send_buffer(), only one valid per trx_buffer_factory instance.
+      const send_buffer_type& get_notice_send_buffer( const packed_transaction_ptr& trx ) {
+         if( !send_buffer ) {
+            send_buffer = buffer_factory::create_send_buffer( transaction_notice_message{trx->id()} );
          }
          return send_buffer;
       }

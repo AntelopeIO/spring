@@ -143,8 +143,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    } );
 
    // apply block, caught in an "infinite" loop
-   BOOST_CHECK_EXCEPTION( other.push_block(signed_block::create_signed_block(std::move(copy_b))), fc::exception,
-                          [](const fc::exception& e) { return e.code() == interrupt_exception::code_value; } );
+   BOOST_CHECK_THROW( other.push_block(signed_block::create_signed_block(std::move(copy_b))), interrupt_exception);
 
    th.join();
 

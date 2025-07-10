@@ -52,8 +52,8 @@ try:
     Print("Stand up cluster")
     # Custom topology:
     #    prodNode <-> nonProdNode
-    #                             <-> throttlingNode <-> throttledNode
-    #                             <-> unThrottledNode
+    #                             <-> throttlingNode <-> throttledNode  (20KB/s)
+    #                                                <-> unThrottledNode (1TB/s)
     #
     # Compare the sync time of throttledNode and unThrottledNode
     if cluster.launch(pnodes=pnodes, unstartedNodes=3, totalNodes=total_nodes, prodCount=prod_count,
@@ -103,23 +103,30 @@ try:
     throttlingNode = cluster.unstartedNodes[0]
     i = throttlingNode.cmd.index('--p2p-listen-endpoint')
     throttleListenAddr = throttlingNode.cmd[i+1]
-    # Using 40 Kilobytes per second to allow syncing of ~250 transaction blocks at ~175 bytes per transaction
+    # Using 20 Kilobytes per second to allow syncing of ~250 transaction blocks at ~175 bytes per transaction
     # (250*175=43750 per block or 87500 per second)
     # resulting from the trx generators in a reasonable amount of time
-    throttlingNode.cmd[i+1] = throttlingNode.cmd[i+1] + ':40KB/s'
+    throttlingNode.cmd[i+1] = throttlingNode.cmd[i+1] + ':20KB/s'
     throttleListenIP, throttleListenPort = throttleListenAddr.split(':')
     throttlingNode.cmd.append('--p2p-listen-endpoint')
-    throttlingNode.cmd.append(f'{throttleListenIP}:{int(throttleListenPort)+100}:1TB/s')
+    unThrottleListenAddr = f'{throttleListenIP}:{int(throttleListenPort)+100}'
+    throttlingNode.cmd.append(f'{unThrottleListenAddr}:1TB/s')
 
     cluster.biosNode.kill(signal.SIGTERM)
 
     Print("Launch throttling node")
     cluster.launchUnstarted(1)
-
     assert throttlingNode.verifyAlive(), "throttling node did not launch"
 
     # Throttling node was offline during block generation and once online receives blocks as fast as possible
     assert throttlingNode.waitForBlock(endLargeBlocksHeadBlock), f'wait for block {endLargeBlocksHeadBlock}  on throttled node timed out'
+
+    throttledNode = cluster.unstartedNodes[0]
+    throttledNode.cmd.append('--p2p-peer-address')
+    throttledNode.cmd.append(throttleListenAddr)
+    unThrottledNode = cluster.unstartedNodes[1]
+    unThrottledNode.cmd.append('--p2p-peer-address')
+    unThrottledNode.cmd.append(unThrottleListenAddr)
 
     Print("Launch throttled and un-throttled nodes")
     clusterStart = time.time()
