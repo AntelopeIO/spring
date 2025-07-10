@@ -79,12 +79,7 @@ private:
    }
 
    std::atomic_bool _callback_variables_busy = false;
-<<<<<<< HEAD
    std::vector<std::pair<void(*)(void*), void*>> _expiration_callbacks;
-=======
-   void(*_expiration_callback)(void*) = nullptr;
-   void* _expiration_callback_data = nullptr;
->>>>>>> origin/release/2.0
 };
 
 }}

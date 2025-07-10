@@ -196,10 +196,8 @@ struct abi_def {
    extensions_type                           abi_extensions;
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
-<<<<<<< HEAD
    may_not_exist<vector<call_def>>           calls;
    may_not_exist<vector<call_result_def>>    call_results;
-=======
 
    version_t get_version() const {
       static const std::string version_header = "eosio::abi/";
@@ -208,7 +206,6 @@ struct abi_def {
       std::string_view version_str(version.c_str() + version_header.size(), version.size() - version_header.size());
       return version_t(version_str);
    }
->>>>>>> origin/release/2.0
 };
 
 abi_def eosio_contract_abi(const abi_def& eosio_system_abi);

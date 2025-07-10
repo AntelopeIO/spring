@@ -28,6 +28,8 @@ namespace eosio::chain {
       {
       }
 
+      call_trace() {}
+
       // receiver's ordinal. A sequence number starting with 1, unique within
       // an action. It can be used to reference `call_trace` struct in `call_traces`
       // vector in `action_trace` struct.
