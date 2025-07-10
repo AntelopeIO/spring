@@ -89,7 +89,7 @@ COPY <<-"EOF" /pinnedtoolchain/pinnedtoolchain.cmake
 
 	set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CURRENT_LIST_DIR}/lib/x86_64-unknown-linux-gnu/libc++.a ${CMAKE_CURRENT_LIST_DIR}/lib/x86_64-unknown-linux-gnu/libc++abi.a")
 
-	set(CMAKE_SYSTEM_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/pinllvm")
+	set(LLVM_ROOT "${CMAKE_CURRENT_LIST_DIR}/pinllvm")
 EOF
 ENV CMAKE_TOOLCHAIN_FILE=/pinnedtoolchain/pinnedtoolchain.cmake
 
