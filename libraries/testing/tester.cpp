@@ -1490,27 +1490,6 @@ namespace eosio::testing {
       activate_builtin_protocol_features( get_all_builtin_protocol_features() );
    }
 
-   void base_tester::activate_all_but_disable_deferred_trx() {
-      std::vector<builtin_protocol_feature_t> builtins;
-      for( const auto& f : get_all_builtin_protocol_features() ) {
-         // Before deferred trxs feature is fully disabled, existing tests involving
-         // deferred trxs need to be exercised to make sure existing behaviors are
-         // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2
-         // from full protocol feature list such that existing tests can run.
-         if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
-            || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
-            || f == builtin_protocol_feature_t::savanna // savanna depends on disable_deferred_trxs_stage_1 & 2
-            || f == builtin_protocol_feature_t::allow_non_canonical_signatures // depends on savanna
-            ) {
-            continue;
-         }
-
-         builtins.push_back( f );
-      }
-
-      activate_builtin_protocol_features( builtins );
-   }
-
    tester::tester(const std::function<void(controller&)>& control_setup, const setup_policy& policy, db_read_mode read_mode) {
       auto def_conf            = default_config(tempdir);
       def_conf.first.read_mode = read_mode;
