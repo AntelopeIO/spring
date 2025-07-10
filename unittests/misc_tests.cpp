@@ -215,7 +215,7 @@ BOOST_AUTO_TEST_CASE(variant_format_string_limited)
             auto sig_digest = digest_type::hash(std::make_pair("1234", "abcd"));
             const fc::crypto::signature sig = private_key_type::regenerate<fc::ecc::private_key_shim>(
                   fc::sha256::hash(key_name_str + "active")).sign(sig_digest);
-            provided_keys.insert(public_key_type{sig, fc::sha256{digest}, fc::check_canonical_t::yes});
+            provided_keys.insert(public_key_type{sig, fc::sha256{digest}, fc::check_canonical_t::no});
          }
       };
       fill_keys(provided_permissions, provided_keys);
@@ -771,11 +771,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_test, T, validating_testers ) { try {
    BOOST_CHECK_EQUAL(pkt.get_signed_transaction().id(), pkt2.id());
 
    flat_set<public_key_type> keys;
-   auto cpu_time1 = pkt.get_signed_transaction().get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, fc::check_canonical_t::yes);
+   auto cpu_time1 = pkt.get_signed_transaction().get_signature_keys(test.get_chain_id(), fc::time_point::maximum(),
+                                                                    keys, test.control->check_canonical());
    BOOST_CHECK_EQUAL(1u, keys.size());
    BOOST_CHECK_EQUAL(public_key, *keys.begin());
    keys.clear();
-   auto cpu_time2 = pkt.get_signed_transaction().get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, fc::check_canonical_t::yes);
+   auto cpu_time2 = pkt.get_signed_transaction().get_signature_keys(test.get_chain_id(), fc::time_point::maximum(),
+                                                                    keys, test.control->check_canonical());
    BOOST_CHECK_EQUAL(1u, keys.size());
    BOOST_CHECK_EQUAL(public_key, *keys.begin());
 
@@ -818,7 +820,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_test, T, validating_testers ) { try {
    BOOST_CHECK_EQUAL(true, trx.expiration == pkt4.expiration());
    BOOST_CHECK_EQUAL(true, trx.expiration == pkt4.get_signed_transaction().expiration);
    keys.clear();
-   pkt4.get_signed_transaction().get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, fc::check_canonical_t::yes);
+   pkt4.get_signed_transaction().get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys,
+                                                    test.control->check_canonical());
    BOOST_CHECK_EQUAL(1u, keys.size());
    BOOST_CHECK_EQUAL(public_key, *keys.begin());
 
@@ -925,12 +928,23 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_metadata_test, T, validating_testers 
       named_thread_pool<struct misc> thread_pool;
       thread_pool.start( 5, {} );
 
-      auto fut = transaction_metadata::start_recover_keys( ptrx, thread_pool.get_executor(), test.get_chain_id(), fc::microseconds::maximum(), transaction_metadata::trx_type::input, fc::check_canonical_t::yes );
-      auto fut2 = transaction_metadata::start_recover_keys( ptrx2, thread_pool.get_executor(), test.get_chain_id(), fc::microseconds::maximum(), transaction_metadata::trx_type::input, fc::check_canonical_t::yes );
+      auto check_canonical = test.control->check_canonical();
 
-      // start another key reovery on same packed_transaction, creates a new future with transaction_metadata, should not interfere with above
-      transaction_metadata::start_recover_keys( ptrx, thread_pool.get_executor(), test.get_chain_id(), fc::microseconds::maximum(), transaction_metadata::trx_type::input, fc::check_canonical_t::yes );
-      transaction_metadata::start_recover_keys( ptrx2, thread_pool.get_executor(), test.get_chain_id(), fc::microseconds::maximum(), transaction_metadata::trx_type::input, fc::check_canonical_t::yes );
+      auto fut = transaction_metadata::start_recover_keys(
+         ptrx, thread_pool.get_executor(), test.get_chain_id(), fc::microseconds::maximum(),
+         transaction_metadata::trx_type::input, check_canonical);
+      auto fut2 = transaction_metadata::start_recover_keys(
+         ptrx2, thread_pool.get_executor(), test.get_chain_id(), fc::microseconds::maximum(),
+         transaction_metadata::trx_type::input, check_canonical);
+
+      // start another key reovery on same packed_transaction, creates a new future with transaction_metadata,
+      // should not interfere with above
+      transaction_metadata::start_recover_keys(ptrx, thread_pool.get_executor(), test.get_chain_id(),
+                                               fc::microseconds::maximum(), transaction_metadata::trx_type::input,
+                                               check_canonical);
+      transaction_metadata::start_recover_keys(ptrx2, thread_pool.get_executor(), test.get_chain_id(),
+                                               fc::microseconds::maximum(), transaction_metadata::trx_type::input,
+                                               check_canonical);
 
       auto mtrx = fut.get();
       const auto& keys = mtrx->recovered_keys();

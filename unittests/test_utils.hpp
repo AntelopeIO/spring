@@ -87,12 +87,12 @@ void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu
       auto sigs = trx.sign(test.get_private_key(account, "active"), test.get_chain_id());
    }
    flat_set<public_key_type> keys;
-   trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, fc::check_canonical_t::no);
+   trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, test.control->check_canonical());
    auto ptrx = std::make_shared<packed_transaction>( std::move(trx) );
 
    auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), test.control->get_thread_pool(),
                                                         test.get_chain_id(), fc::microseconds::maximum(),
-                                                        trx_type, fc::check_canonical_t::no );
+                                                        trx_type, test.control->check_canonical() );
    auto res = test.control->push_transaction( fut.get(), fc::time_point::now() + fc::milliseconds(max_block_cpu_ms),
                                               fc::milliseconds(max_cpu_usage_ms), billed_cpu_time_us, explicit_bill, 0 );
    if( res->except_ptr ) std::rethrow_exception( res->except_ptr );
@@ -125,7 +125,7 @@ transaction_trace_ptr CallAction(testing::validating_tester& test, T ac, const v
    test.set_transaction_headers(trx);
    auto sigs = trx.sign(test.get_private_key(scope[0], "active"), test.get_chain_id());
    flat_set<public_key_type> keys;
-   trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, fc::check_canonical_t::no);
+   trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, test.control->check_canonical());
    auto res = test.push_transaction(trx);
    BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
    test.produce_block();
@@ -151,7 +151,7 @@ std::pair<transaction_trace_ptr, signed_block_ptr> _CallFunction(Tester& test, T
       auto sigs = trx.sign(test.get_private_key(scope[0], "active"), test.get_chain_id());
 
       flat_set<public_key_type> keys;
-      trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, fc::check_canonical_t::no);
+      trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys, test.control->check_canonical());
 
       auto res = test.push_transaction(trx, fc::time_point::maximum(), Tester::DEFAULT_BILLED_CPU_TIME_US, no_throw);
       if (!no_throw) {

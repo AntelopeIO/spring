@@ -58,7 +58,7 @@ namespace eosio::chain {
                                            const protocol_feature_set& pfs,
                                            const validator_t& validator,
                                            bool skip_validate_signee,
-                                           fc::check_canonical_t check_canonical /* = fc::check_canonical_t::yes */
+                                           fc::check_canonical_t check_canonical
                            )
       :block_header_state_legacy( prev.next( *b, detail::extract_additional_signatures(b), pfs, validator, skip_validate_signee ) )
       ,block( std::move(b) )
