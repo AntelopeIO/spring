@@ -1013,6 +1013,7 @@ struct controller_impl {
    std::atomic<bool>               applying_block = false;
    platform_timer&                 main_thread_timer;
    peer_keys_db_t                  peer_keys_db;
+   std::atomic<fc::check_canonical_t> check_canonical_ = fc::check_canonical_t::yes;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
@@ -1038,9 +1039,7 @@ struct controller_impl {
    std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
 
    fc::check_canonical_t check_canonical() const {
-      return is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)
-                ? fc::check_canonical_t::no
-                : fc::check_canonical_t::yes;
+      return check_canonical_.load();
    }
 
    vote_processor_t vote_processor{[this](const vote_signal_params& p) {
@@ -1646,6 +1645,10 @@ struct controller_impl {
                db.commit( (*bitr)->block_num() );
                root_id = (*bitr)->id();
 
+               if (check_canonical_.load(std::memory_order_relaxed) == fc::check_canonical_t::yes &&
+                   is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures))
+                  check_canonical_.store(fc::check_canonical_t::no);
+
                if ((*bitr)->block->is_proper_svnn_block() && fork_db_.version_in_use() == fork_database::in_use_t::both) {
                   fork_db_.switch_to(fork_database::in_use_t::savanna);
                   break;
@@ -2129,7 +2132,7 @@ struct controller_impl {
          // see https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
          // -------------------------------------------------------------------------------------------
          if (in_use  == fork_database::in_use_t::both) {
-            // fork_db_legacy is present as well, which means that we have not completed the transition
+            // fork_db_legacy is present as well, which means that we have std::not completed the transition
             auto set_finalizer_defaults = [&](auto& fork_db) -> void {
                auto lib = fork_db.root();
                my_finalizers.set_default_safety_information(
@@ -2150,6 +2153,9 @@ struct controller_impl {
             fork_db_.apply_s<void>(set_finalizer_defaults);
          }
       }
+      check_canonical_.store(is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)
+                                ? fc::check_canonical_t::no
+                                : fc::check_canonical_t::yes);
    }
 
    ~controller_impl() {
