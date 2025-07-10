@@ -51,9 +51,9 @@ struct reqactivated {
 
 inline private_key_type get_private_key( name keyname, string role ) {
    if (keyname == config::system_account_name)
-      return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash_raw(std::string("nathan")));
+      return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("nathan")));
 
-   return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash_raw(keyname.to_string()+role));
+   return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(keyname.to_string()+role));
 }
 
 inline public_key_type  get_public_key( name keyname, string role ){

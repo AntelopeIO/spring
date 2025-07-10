@@ -20,7 +20,7 @@ struct block_log_fixture {
       bounce();
    }
 
-   fc::sha256 non_genesis_chain_id = fc::sha256::hash_raw(std::string("spoon was here"));
+   fc::sha256 non_genesis_chain_id = fc::sha256::hash(std::string("spoon was here"));
 
    void startup(uint32_t first) {
       if(first > 1) {
