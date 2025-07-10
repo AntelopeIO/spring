@@ -100,6 +100,14 @@ RUN tar xf llvm-project-${_SPRING_LLVM_VERSION}.src.tar.xz && \
     cmake --build build-pinllvm -t install && \
     rm -rf build* llvm*
 
+# It's possible to extract the toolchain to the host using this target by something like,
+#  docker build --target export-toolchain -o $HOME/springtoolchain/ -f tools/reproducible.Dockerfile .
+# and then use it for building spring by something like,
+#  cmake -DCMAKE_TOOLCHAIN_FILE=$HOME/springtoolchain/pinnedtoolchain.cmake -D....
+# The build won't be reproducible, but it may help it troubleshooting errors, warnings, or bugs with the pinned compiler
+FROM scratch AS export-toolchain
+COPY --from=builder /pinnedtoolchain/ /
+
 FROM builder AS build
 
 ARG SPRING_BUILD_JOBS
