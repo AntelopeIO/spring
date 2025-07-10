@@ -3575,7 +3575,7 @@ BOOST_AUTO_TEST_CASE(call_trace_with_return_value)
          ]}
       ],
       "calls": [
-         { "name": "calltest", "type": "calltest" }
+         { "name": "calltest", "type": "calltest", "id": 4729655554853568512 }
       ],
       "call_results": [
          { "name": "calltest", "result_type": "uint16" }
@@ -3614,7 +3614,7 @@ BOOST_AUTO_TEST_CASE(call_trace_without_return_value)
          ]}
       ],
       "calls": [
-         { "name": "calltest", "type": "calltest" }
+         { "name": "calltest", "type": "calltest", "id": 4729655554853568512 }
       ]
    })=====";
 
@@ -3735,7 +3735,7 @@ BOOST_AUTO_TEST_CASE(action_trace_embedding_call_trace_test) {
          }
       ],
       "calls": [
-         { "name": "calltest", "type": "calltest" }
+         { "name": "calltest", "type": "calltest", "id": 4729655554853568512 }
       ],
       "call_results": [
          { "name": "calltest", "result_type": "uint16" }

@@ -150,6 +150,7 @@ namespace eosio::chain {
       variants.clear();
       action_results.clear();
       calls.clear();
+      call_ids.clear();
       call_results.clear();
 
       for( auto& st : abi.structs )
@@ -176,8 +177,10 @@ namespace eosio::chain {
       for( auto& r : abi.action_results.value )
          action_results[std::move(r.name)] = std::move(r.result_type);
 
-      for( auto& c : abi.calls.value )
-         calls[std::move(c.name)] = std::move(c.type);
+      for( auto& c : abi.calls.value ) {
+         calls[c.name] = std::move(c.type);
+         call_ids[std::move(c.id)] = std::move(c.name);
+      }
 
       for( auto& r : abi.call_results.value )
          call_results[std::move(r.name)] = std::move(r.result_type);
@@ -689,6 +692,12 @@ namespace eosio::chain {
       auto itr = action_results.find(action_result);
       if( itr != action_results.end() ) return itr->second;
       return type_name();
+   }
+
+   call_name abi_serializer::get_call_name(uint64_t id)const {
+      auto itr = call_ids.find(id);
+      if( itr != call_ids.end() ) return itr->second;
+      return {};
    }
 
    type_name abi_serializer::get_call_type(call_name name)const {

@@ -93,7 +93,7 @@ std::string expand_console(const std::string_view&              header,
       try{
          fc::raw::unpack(ds, data_header);
          if (data_header.is_version_valid()) {
-            call_name = eosio::chain::name(data_header.func_name).to_string();
+            call_name = std::to_string(data_header.func_name); // Use short ID temporarily for dev-preview-1
          }
       } catch(...) {}
 

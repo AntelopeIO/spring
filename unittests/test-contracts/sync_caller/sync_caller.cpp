@@ -132,15 +132,6 @@ public:
       div(10, 2);
    }
 
-   // actioncall() is tagged by both eosio::action and eosio::call
-   [[eosio::action]]
-   void actcalltst() {
-      sync_callee::action_and_call_func action_and_call{ "callee"_n };
-
-      // action_and_call just returns the value of the argument
-      eosio::check(action_and_call(50) == 50, "action_and_call() did not return the argument");
-   }
-
    // forever() is an infinite loop `while(true)`
    [[eosio::action]]
    void forevertest() {
