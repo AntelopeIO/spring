@@ -75,8 +75,13 @@ COPY <<-"EOF" /pinnedtoolchain/pinnedtoolchain.cmake
 
 	set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_LIST_DIR}/include/c++/v1 ${CMAKE_CURRENT_LIST_DIR}/include/x86_64-unknown-linux-gnu/c++/v1 /usr/local/include /usr/include)
 
-	set(CMAKE_C_FLAGS_INIT "-D_FORTIFY_SOURCE=2 -fstack-protector-strong -fpie -pthread")
-	set(CMAKE_CXX_FLAGS_INIT "-nostdinc++ -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fpie -pthread")
+	foreach(v CMAKE_C_FLAGS_RELEASE_INIT        CMAKE_CXX_FLAGS_RELEASE_INIT
+	          CMAKE_C_FLAGS_RELWITHDEBINFO_INIT CMAKE_CXX_FLAGS_RELWITHDEBINFO_INIT)
+	   set(${v} "-D_FORTIFY_SOURCE=2 -fstack-protector-strong")
+	endforeach()
+
+	set(CMAKE_C_FLAGS_INIT "-fpie -pthread")
+	set(CMAKE_CXX_FLAGS_INIT "-nostdinc++ -fpie -pthread")
 
 	set(CMAKE_EXE_LINKER_FLAGS_INIT "-stdlib=libc++ -nostdlib++ -pie -pthread -Wl,-z,relro,-z,now")
 	set(CMAKE_SHARED_LINKER_FLAGS_INIT "-stdlib=libc++ -nostdlib++")
