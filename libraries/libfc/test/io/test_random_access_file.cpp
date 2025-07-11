@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE(long_datastream) try {
    {
       std::string s;
       fc::read_file_contents(filepath, s);
-      BOOST_REQUIRE_EQUAL(fc::sha256::hash(s.data(), s.size()), hash_of_written_data);
+      BOOST_REQUIRE_EQUAL(fc::sha256::hash_raw(s), hash_of_written_data);
    }
 
    //load everything in to memory via device
@@ -122,7 +122,8 @@ BOOST_AUTO_TEST_CASE(long_datastream) try {
       while((red = boost::iostreams::read(device, (char*)buff.prepare(read_amount).data(), read_amount)) != -1) {
          buff.commit(red);
       }
-      BOOST_REQUIRE_EQUAL(fc::sha256::hash((char*)buff.cdata().data(), buff.size()), hash_of_written_data);
+      const auto buff_buffer = boost::beast::buffers_front(buff.cdata());
+      BOOST_REQUIRE_EQUAL(fc::sha256::hash_raw(std::span((const char*)buff_buffer.data(), buff_buffer.size())), hash_of_written_data);
    }
 } FC_LOG_AND_RETHROW();
 
@@ -304,7 +305,7 @@ BOOST_AUTO_TEST_CASE(hole_punch) try {
       buff.resize(first_part_size);
       fc::rand_bytes(buff.data(), buff.size());
       BOOST_REQUIRE_EQUAL(device.write(buff.data(), buff.size()), (std::streamsize)buff.size());
-      first_part_hash = fc::sha256::hash(buff.data(), buff.size());
+      first_part_hash = fc::sha256::hash_raw(buff);
    }
    {
       std::vector<char> buff;
@@ -317,7 +318,7 @@ BOOST_AUTO_TEST_CASE(hole_punch) try {
       buff.resize(last_part_size);
       fc::rand_bytes(buff.data(), buff.size());
       BOOST_REQUIRE_EQUAL(device.write(buff.data(), buff.size()), (std::streamsize)buff.size());
-      last_part_hash = fc::sha256::hash(buff.data(), buff.size());
+      last_part_hash = fc::sha256::hash_raw(buff);
    }
 
    f.punch_hole(first_part_size, first_part_size+second_part_size);
@@ -326,7 +327,7 @@ BOOST_AUTO_TEST_CASE(hole_punch) try {
       std::vector<char> buff;
       buff.resize(first_part_size);
       BOOST_REQUIRE_EQUAL(device.read(buff.data(), buff.size()), (std::streamsize)buff.size());
-      BOOST_REQUIRE_EQUAL(first_part_hash, fc::sha256::hash(buff.data(), buff.size()));
+      BOOST_REQUIRE_EQUAL(first_part_hash, fc::sha256::hash_raw(buff));
    }
    {
       std::vector<char> buff;
@@ -342,7 +343,7 @@ BOOST_AUTO_TEST_CASE(hole_punch) try {
       std::vector<char> buff;
       buff.resize(last_part_size);
       BOOST_REQUIRE_EQUAL(device.read(buff.data(), buff.size()), (std::streamsize)buff.size());
-      BOOST_REQUIRE_EQUAL(last_part_hash, fc::sha256::hash(buff.data(), buff.size()));
+      BOOST_REQUIRE_EQUAL(last_part_hash, fc::sha256::hash_raw(buff));
    }
 } FC_LOG_AND_RETHROW();
 

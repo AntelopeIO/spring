@@ -33,7 +33,7 @@ private_key_type derive_private_key( const std::string& prefix_string,
                                          int sequence_number )
 {
    std::string sequence_string = std::to_string(sequence_number);
-   fc::sha512 h = fc::sha512::hash(prefix_string + " " + sequence_string);
+   fc::sha512 h = fc::sha512::hash_raw(prefix_string + " " + sequence_string);
    return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(h));
 }
 
@@ -350,7 +350,7 @@ void soft_wallet::lock()
 void soft_wallet::unlock(string password)
 { try {
    FC_ASSERT(password.size() > 0);
-   auto pw = fc::sha512::hash(password.c_str(), password.size());
+   auto pw = fc::sha512::hash_raw(password);
    vector<char> decrypted = fc::aes_decrypt(pw, my->_wallet.cipher_keys);
    auto pk = fc::raw::unpack<plain_keys>(decrypted);
    FC_ASSERT(pk.checksum == pw);
@@ -362,7 +362,7 @@ void soft_wallet::unlock(string password)
 void soft_wallet::check_password(string password)
 { try {
    FC_ASSERT(password.size() > 0);
-   auto pw = fc::sha512::hash(password.c_str(), password.size());
+   auto pw = fc::sha512::hash_raw(password);
    vector<char> decrypted = fc::aes_decrypt(pw, my->_wallet.cipher_keys);
    auto pk = fc::raw::unpack<plain_keys>(decrypted);
    FC_ASSERT(pk.checksum == pw);
@@ -373,7 +373,7 @@ void soft_wallet::set_password( string password )
 {
    if( !is_new() )
       EOS_ASSERT( !is_locked(), wallet_locked_exception, "The wallet must be unlocked before the password can be set" );
-   my->_checksum = fc::sha512::hash( password.c_str(), password.size() );
+   my->_checksum = fc::sha512::hash_raw( password );
    lock();
 }
 
@@ -402,7 +402,7 @@ std::optional<signature_type> soft_wallet::try_sign_digest( const digest_type di
 pair<public_key_type,private_key_type> soft_wallet::get_private_key_from_password( string account, string role, string password )const {
    auto seed = account + role + password;
    EOS_ASSERT( seed.size(), wallet_exception, "seed should not be empty" );
-   auto secret = fc::sha256::hash( seed.c_str(), seed.size() );
+   auto secret = fc::sha256::hash_raw( seed );
    auto priv = private_key_type::regenerate<fc::ecc::private_key_shim>( secret );
    return std::make_pair(  priv.get_public_key(), priv );
 }

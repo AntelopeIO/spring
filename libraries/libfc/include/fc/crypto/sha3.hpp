@@ -2,7 +2,8 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
-#include <fc/io/raw_fwd.hpp>
+#include <fc/crypto/hash_concepts.hpp>
+#include <fc/io/raw.hpp>
 #include <boost/functional/hash.hpp>
 
 namespace fc
@@ -23,21 +24,31 @@ public:
 	char* data();
 	size_t data_size() const { return 256 / 8; }
 
-	static sha3 hash(const char *d, uint32_t dlen, bool is_nist=true) {
+	static sha3 hash_raw(const ContiguousCharSource auto& r, bool is_nist=true) {
 		encoder e;
-		e.write(d, dlen);
-		const auto& sha = e.result(is_nist);
-		return sha;
+		e.write(r.data(), r.size());
+		return e.result(is_nist);
 	}
-	static sha3 hash(const std::string& s, bool is_nist=true) { return hash(s.c_str(), s.size(), is_nist); }
-	static sha3 hash(const sha3& s, bool is_nist=true) { return hash(s.data(), sizeof(s._hash), is_nist); }
 
-	template <typename T>
-	static sha3 hash(const T &t, bool is_nist=true)
+	struct keccak {};
+	struct nist {};
+
+	template<typename... T>
+	requires ( sizeof...(T) > 0 )
+	static sha3 hash( keccak, const T&... t )
 	{
 		sha3::encoder e;
-		fc::raw::pack(e, t);
-		return e.result(is_nist);
+		fc::raw::pack(e,t...);
+		return e.result(false);
+	}
+
+	template<typename... T>
+	requires ( sizeof...(T) > 0 )
+	static sha3 hash( nist, const T&... t )
+	{
+		sha3::encoder e;
+		fc::raw::pack(e,t...);
+		return e.result(true);
 	}
 
 	class encoder

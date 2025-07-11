@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(sha3) try {
    };
 
    for(const auto& test : tests) {
-      BOOST_CHECK_EQUAL(fc::sha3::hash(std::get<0>(test), true).str(), std::get<1>(test));
+      BOOST_CHECK_EQUAL(fc::sha3::hash_raw(std::get<0>(test), true).str(), std::get<1>(test));
    }
 
 } FC_LOG_AND_RETHROW();
@@ -61,7 +61,7 @@ BOOST_AUTO_TEST_CASE(keccak256) try {
    };
 
    for(const auto& test : tests) {
-      BOOST_CHECK_EQUAL(fc::sha3::hash(std::get<0>(test), false).str(), std::get<1>(test));
+      BOOST_CHECK_EQUAL(fc::sha3::hash_raw(std::get<0>(test), false).str(), std::get<1>(test));
    }
 
 } FC_LOG_AND_RETHROW();

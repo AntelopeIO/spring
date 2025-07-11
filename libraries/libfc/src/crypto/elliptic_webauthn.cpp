@@ -240,11 +240,11 @@ public_key::public_key(const signature& c, const fc::sha256& digest, bool) {
       user_verification_type = user_presence_t::USER_PRESENCE_VERIFIED;
 
    static_assert(min_auth_data_size >= sizeof(fc::sha256), "auth_data min size not enough to store a sha256");
-   FC_ASSERT(memcmp(c.auth_data.data(), fc::sha256::hash(rpid).data(), sizeof(fc::sha256)) == 0, "webauthn rpid hash doesn't match origin");
+   FC_ASSERT(memcmp(c.auth_data.data(), fc::sha256::hash_raw(rpid).data(), sizeof(fc::sha256)) == 0, "webauthn rpid hash doesn't match origin");
 
    //the signature (and thus public key we need to return) will be over
    // sha256(auth_data || client_data_hash)
-   fc::sha256 client_data_hash = fc::sha256::hash(c.client_json);
+   fc::sha256 client_data_hash = fc::sha256::hash_raw(c.client_json);
    fc::sha256::encoder e;
    e.write((char*)c.auth_data.data(), c.auth_data.size());
    e.write(client_data_hash.data(), client_data_hash.data_size());

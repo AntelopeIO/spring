@@ -1,6 +1,7 @@
 #pragma once
 #include <fc/fwd.hpp>
-#include <fc/string.hpp>
+#include <fc/crypto/hash_concepts.hpp>
+#include <fc/io/raw.hpp>
 
 namespace fc
 {
@@ -18,14 +19,18 @@ class sha512
     const char* data()const;
     size_t data_size()const { return 512 / 8; }
 
-    static sha512 hash( const char* d, uint32_t dlen );
-    static sha512 hash( const std::string& );
+    static sha512 hash_raw(const ContiguousCharSource auto& r) {
+      encoder e;
+      e.write(r.data(), r.size());
+      return e.result();
+    }
 
-    template<typename T>
-    static sha512 hash( const T& t ) 
+    template<typename... T>
+    requires ( sizeof...(T) > 0 )
+    static sha512 hash( const T&... t )
     { 
       sha512::encoder e; 
-      e << t; 
+      fc::raw::pack(e,t...);
       return e.result(); 
     } 
 

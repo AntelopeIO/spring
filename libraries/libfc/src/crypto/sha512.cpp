@@ -34,15 +34,6 @@ namespace fc {
       reset();
     }
 
-    sha512 sha512::hash( const char* d, uint32_t dlen ) {
-      encoder e;
-      e.write(d,dlen);
-      return e.result();
-    }
-    sha512 sha512::hash( const std::string& s ) {
-      return hash( s.c_str(), s.size() );
-    }
-
     void sha512::encoder::write( const char* d, uint32_t dlen ) {
       SHA512_Update( &my->ctx, d, dlen);
     }

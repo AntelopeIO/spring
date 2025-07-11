@@ -41,21 +41,6 @@ namespace fc {
       reset();
     }
 
-    sha256 sha256::hash( const char* d, uint32_t dlen ) {
-      encoder e;
-      e.write(d,dlen);
-      return e.result();
-    }
-
-    sha256 sha256::hash( const std::string& s ) {
-      return hash( s.c_str(), s.size() );
-    }
-
-    sha256 sha256::hash( const sha256& s )
-    {
-        return hash( s.data(), sizeof( s._hash ) );
-    }
-
     void sha256::encoder::write( const char* d, uint32_t dlen ) {
       SHA256_Update( &my->ctx, d, dlen);
     }
@@ -207,12 +192,6 @@ namespace fc {
     }
     else
         memset( bi.data(), char(0), sizeof(bi) );
-  }
-
-  uint64_t hash64(const char* buf, size_t len)
-  {
-    sha256 sha_value = sha256::hash(buf,len);
-    return sha_value._hash[0];
   }
 
     template<>

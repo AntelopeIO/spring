@@ -15,7 +15,7 @@ static fc::crypto::webauthn::signature make_webauthn_sig(const fc::crypto::r1::p
                                                          const std::string& json) {
 
    //webauthn signature is sha256(auth_data || client_data_hash)
-   fc::sha256 client_data_hash = fc::sha256::hash(json);
+   fc::sha256 client_data_hash = fc::sha256::hash_raw(json);
    fc::sha256::encoder e;
    e.write((char*)auth_data.data(), auth_data.size());
    e.write(client_data_hash.data(), client_data_hash.data_size());
@@ -38,8 +38,8 @@ static fc::crypto::webauthn::signature make_webauthn_sig(const fc::crypto::r1::p
 //used for many below
 static const r1::private_key priv = fc::crypto::r1::private_key::generate();
 static const r1::public_key pub = priv.get_public_key();
-static const fc::sha256 d = fc::sha256::hash("monkeys"s);
-static const fc::sha256 origin_hash = fc::sha256::hash("fctesting.invalid"s);
+static const fc::sha256 d = fc::sha256::hash_raw("monkeys"s);
+static const fc::sha256 origin_hash = fc::sha256::hash_raw("fctesting.invalid"s);
 
 BOOST_AUTO_TEST_SUITE(webauthn_suite)
 
@@ -73,7 +73,7 @@ BOOST_AUTO_TEST_CASE(mismatch_origin) try {
    std::string json = "{\"origin\":\"https://mallory.invalid\",\"type\":\"webauthn.get\",\"challenge\":\"" + fc::base64url_encode(d.data(), d.data_size()) + "\"}";
 
    std::vector<uint8_t> auth_data(37);
-   fc::sha256 mallory_origin_hash = fc::sha256::hash("mallory.invalid"s);
+   fc::sha256 mallory_origin_hash = fc::sha256::hash_raw("mallory.invalid"s);
    memcpy(auth_data.data(), mallory_origin_hash.data(), sizeof(mallory_origin_hash));
 
    BOOST_CHECK_NE(wa_pub, make_webauthn_sig(priv, auth_data, json).recover(d, true));
@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(challenge_extra_bytes) try {
 //valid signature but with some other digest in the challenge that is not the one we are recovering from
 BOOST_AUTO_TEST_CASE(challenge_wrong) try {
    webauthn::public_key wa_pub(pub.serialize(), webauthn::public_key::user_presence_t::USER_PRESENCE_NONE, "fctesting.invalid");
-   fc::sha256 other_digest = fc::sha256::hash("yo"s);
+   fc::sha256 other_digest = fc::sha256::hash_raw("yo"s);
    std::string json = "{\"origin\":\"https://fctesting.invalid\",\"type\":\"webauthn.get\",\"challenge\":\"" + fc::base64url_encode(other_digest.data(), other_digest.data_size()) + "\"}";
 
    std::vector<uint8_t> auth_data(37);
@@ -271,7 +271,7 @@ BOOST_AUTO_TEST_CASE(auth_data_rpid_hash_bad) try {
    std::string json = "{\"origin\":\"https://fctesting.invalid\",\"type\":\"webauthn.get\",\"challenge\":\"" + fc::base64url_encode(d.data(), d.data_size()) + "\"}";
 
    std::vector<uint8_t> auth_data(37);
-   fc::sha256 origin_hash_corrupt = fc::sha256::hash("fctesting.invalid"s);
+   fc::sha256 origin_hash_corrupt = fc::sha256::hash_raw("fctesting.invalid"s);
    memcpy(auth_data.data(), origin_hash_corrupt.data(), sizeof(origin_hash_corrupt));
    auth_data[4]++;
 

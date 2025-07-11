@@ -112,7 +112,7 @@ namespace fc { namespace ecc {
     unsigned int public_key::fingerprint() const
     {
         public_key_data key = serialize();
-        ripemd160 hash = ripemd160::hash( sha256::hash( key.begin(), key.size() ) );
+        ripemd160 hash = ripemd160::hash( sha256::hash_raw( std::span(key.begin(), key.size()) ) );
         unsigned char* fp = (unsigned char*) hash._hash;
         return (fp[0] << 24) | (fp[1] << 16) | (fp[2] << 8) | fp[3];
     }

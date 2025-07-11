@@ -91,7 +91,7 @@ struct ship_log_fixture {
       a.assign(size, fillchar);
 
       auto block_for_id = [](const uint32_t bnum, const char fillc) {
-         fc::sha256 m = fc::sha256::hash(fc::sha256::hash(std::to_string(bnum)+fillc));
+         fc::sha256 m = fc::sha256::hash(fc::sha256::hash_raw(std::to_string(bnum)+fillc));
          m._hash[0] = fc::endian_reverse_u32(bnum);
          return m;
       };
