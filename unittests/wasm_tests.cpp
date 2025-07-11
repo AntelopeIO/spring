@@ -986,8 +986,8 @@ BOOST_DATA_TEST_CASE(lotso_globals,
    test_lotso_globals<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( offset_check_old, T, validating_testers ) try {
-   T t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
+BOOST_AUTO_TEST_CASE( offset_check_old ) try {
+   validating_tester t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
    t.produce_block();
 
    t.create_accounts( {"offsets"_n} );
@@ -1204,8 +1204,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( eosio_abi, T, validating_testers ) try {
    chain.produce_block();
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( check_big_deserialization, T, validating_testers ) try {
-   T t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
+BOOST_AUTO_TEST_CASE( check_big_deserialization ) try {
+   validating_tester t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
    t.produce_block();
    t.create_accounts( {"cbd"_n} );
    t.produce_block();
@@ -1855,8 +1855,8 @@ BOOST_DATA_TEST_CASE(depth_tests,
    test_depth<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( varuint_memory_flags_tests, T, validating_testers ) try {
-   T t(flat_set<account_name>{}, {}, setup_policy::preactivate_feature_and_new_bios);
+BOOST_AUTO_TEST_CASE( varuint_memory_flags_tests ) try {
+   validating_tester t(flat_set<account_name>{}, {}, setup_policy::preactivate_feature_and_new_bios);
    t.produce_block();
 
    t.create_accounts( {"memflags"_n} );
