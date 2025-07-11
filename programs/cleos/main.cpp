@@ -628,11 +628,15 @@ void print_call( const fc::variant& ct, std::unordered_map<uint64_t, std::string
    if( itr != sender_name_map.end() ) sender = itr->second;
 
    if (ct.get_object().contains("data") ) {
-      data = fc::json::to_string( ct["data"], fc::time_point::maximum() );
       if (ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
          auto id = ct["data"]["header"]["func_name"].as_uint64();
          call_name = get_call_name(ct["receiver"].as<account_name>(), id);
       }
+
+      // Do not display header field (it is internal), display arguments only.
+      fc::mutable_variant_object mvo{ct["data"].get_object()};
+      mvo.erase("header");
+      data = fc::json::to_string( mvo, fc::time_point::maximum() );
    }
    if( data.size() > 100 ) data = data.substr(0,100) + "...";
 
