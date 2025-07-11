@@ -606,8 +606,8 @@ void print_return_value( const fc::variant& at ) {
    }
 }
 
-constexpr uint32_t receiver_width = 25;
-constexpr uint32_t function_width = 25;
+constexpr uint32_t receiver_width = 35;
+constexpr uint32_t sender_width = 35;
 
 std::string get_call_name(const account_name& account, uint64_t id) {
    auto abis = abi_serializer_resolver(account);
@@ -636,7 +636,7 @@ void print_call( const fc::variant& ct, std::unordered_map<uint64_t, std::string
    }
    if( data.size() > 100 ) data = data.substr(0,100) + "...";
 
-   cout << "#" << std::setw(receiver_width) << right << (receiver + "::" + call_name) << " <= " << std::setw(function_width) << std::left << sender << " " << data << "\n";
+   cout << "#" << std::setw(receiver_width) << right << (receiver + "::" + call_name) << " <= " << std::setw(sender_width) << std::left << sender << " " << data << "\n";
 
    // Continuously build map the map from call ordinal to name
    sender_name_map.insert({ct["call_ordinal"].as_uint64(), receiver});
@@ -763,7 +763,7 @@ void print_action( const fc::variant& at ) {
       args = args.substr(40)+"...";
    */
    if( args.size() > 100 ) args = args.substr(0,100) + "...";
-   cout << "#" << std::setw(receiver_width) << right << receiver << " <= " << std::setw(function_width) << std::left << (code +"::" + func) << " " << args << "\n";
+   cout << "#" << std::setw(receiver_width) << right << receiver << " <= " << std::setw(sender_width) << std::left << (code +"::" + func) << " " << args << "\n";
    print_return_value(at);
 
    if( at.get_object().contains( "call_traces" ) ) {
@@ -783,7 +783,7 @@ void print_action( const fc::variant& at ) {
          const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
 
          auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
-         cout << output << "\n";
+         cout << clean_output(output) << "\n";
       } else {
          std::stringstream ss(console);
          string line;
