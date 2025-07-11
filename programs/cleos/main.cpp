@@ -606,14 +606,23 @@ void print_return_value( const fc::variant& at ) {
    }
 }
 
-constexpr uint32_t receiver_width = 14;
-constexpr uint32_t function_width = 30;
+constexpr uint32_t receiver_width = 25;
+constexpr uint32_t function_width = 25;
+
+std::string get_call_name(const account_name& account, uint64_t id) {
+   auto abis = abi_serializer_resolver(account);
+   if (!abis) {
+      return "unavailable name";
+   }
+
+   return abis->get_call_name(id);
+}
 
 void print_call( const fc::variant& ct, std::unordered_map<uint64_t, std::string>& sender_name_map ) {
    auto receiver = ct["receiver"].as_string();
    std::string data = "unavailable payload data";
    std::string sender = "unavailable sender";
-   std::string func_name = "unavailable function name";
+   std::string call_name = "unavailable name";
 
    auto itr = sender_name_map.find(ct["sender_ordinal"].as_uint64());
    if( itr != sender_name_map.end() ) sender = itr->second;
@@ -621,12 +630,13 @@ void print_call( const fc::variant& ct, std::unordered_map<uint64_t, std::string
    if (ct.get_object().contains("data") ) {
       data = fc::json::to_string( ct["data"], fc::time_point::maximum() );
       if (ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
-         func_name = ct["data"]["header"]["func_name"].as_string();
+         auto id = ct["data"]["header"]["func_name"].as_uint64();
+         call_name = get_call_name(ct["receiver"].as<account_name>(), id);
       }
    }
    if( data.size() > 100 ) data = data.substr(0,100) + "...";
 
-   cout << "#" << std::setw(receiver_width) << right << receiver << " <= " << std::setw(function_width) << std::left << (sender + "::" + func_name) << " " << data << "\n";
+   cout << "#" << std::setw(receiver_width) << right << (receiver + "::" + call_name) << " <= " << std::setw(function_width) << std::left << sender << " " << data << "\n";
 
    // Continuously build map the map from call ordinal to name
    sender_name_map.insert({ct["call_ordinal"].as_uint64(), receiver});
@@ -689,7 +699,8 @@ std::string expand_console(const std::string_view&              header,
 
       std::string call_name = "<invalid>";
       if (ct.get_object().contains("data") && ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
-         call_name = ct["data"]["header"]["func_name"].as_string();
+         auto id = ct["data"]["header"]["func_name"].as_uint64();
+         call_name = get_call_name(ct["receiver"].as<account_name>(), id);
       }
 
       std::string prefix = "\n[";
