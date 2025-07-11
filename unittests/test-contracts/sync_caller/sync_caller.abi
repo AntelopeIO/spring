@@ -4,6 +4,20 @@
     "types": [],
     "structs": [
         {
+            "name": "addaction",
+            "base": "",
+            "fields": [
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
             "name": "basictest",
             "base": "",
             "fields": [
@@ -110,6 +124,11 @@
         }
     ],
     "actions": [
+        {
+            "name": "addaction",
+            "type": "addaction",
+            "ricardian_contract": ""
+        },
         {
             "name": "basictest",
             "type": "basictest",

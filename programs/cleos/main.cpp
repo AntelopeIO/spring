@@ -606,6 +606,152 @@ void print_return_value( const fc::variant& at ) {
    }
 }
 
+constexpr uint32_t receiver_width = 35;
+constexpr uint32_t sender_width = 35;
+
+std::string get_call_name(const account_name& account, uint64_t id) {
+   auto abis = abi_serializer_resolver(account);
+   if (!abis) {
+      return "unavailable name";
+   }
+
+   return abis->get_call_name(id);
+}
+
+void print_call( const fc::variant& ct, std::unordered_map<uint64_t, std::string>& sender_name_map ) {
+   auto receiver = ct["receiver"].as_string();
+   std::string data = "unavailable payload data";
+   std::string sender = "unavailable sender";
+   std::string call_name = "unavailable name";
+
+   auto itr = sender_name_map.find(ct["sender_ordinal"].as_uint64());
+   if( itr != sender_name_map.end() ) sender = itr->second;
+
+   if (ct.get_object().contains("data") ) {
+      if (ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
+         auto id = ct["data"]["header"]["func_name"].as_uint64();
+         call_name = get_call_name(ct["receiver"].as<account_name>(), id);
+      }
+
+      // Do not display header field (it is internal), display arguments only.
+      fc::mutable_variant_object mvo{ct["data"].get_object()};
+      mvo.erase("header");
+      data = fc::json::to_string( mvo, fc::time_point::maximum() );
+   }
+   if( data.size() > 100 ) data = data.substr(0,100) + "...";
+
+   cout << "#" << std::setw(receiver_width) << right << (receiver + "::" + call_name) << " <= " << std::setw(sender_width) << std::left << sender << " " << data << "\n";
+
+   // Continuously build map the map from call ordinal to name
+   sender_name_map.insert({ct["call_ordinal"].as_uint64(), receiver});
+
+   print_return_value(ct);
+}
+
+// !!! This is cloned from trace.cpp. After dev-preview-1, combine it using templated type of call_traces.
+std::string expand_console(const std::string_view&              header,
+                           const std::string_view&              trailer,
+                           const variants&                      call_traces,
+                           size_t                               call_trace_idx,
+                           fc::unsigned_int                     sender_ordinal,
+                           const std::string_view&              sender_name,
+                           const std::string_view&              console,
+                           const std::vector<fc::unsigned_int>& console_markers) {
+   if (console.empty() && console_markers.empty()) { // no console output in the current action/call and no sync calls made by it
+      return {};
+   }
+
+   // no sync calls but has console
+   if (console_markers.empty()) {
+      std::string output{};
+      output += header;
+      output += "\n";
+      output += console;
+      output += trailer;
+
+      return output;
+   }
+
+   // has sync calls. expand their consoles
+   std::string expanded{};
+   size_t last_marker = 0;
+   bool children_have_consoles = false;
+
+   for (fc::unsigned_int marker : console_markers) {
+      // if current marker is greater last marker, need to output the current
+      // segment in the console
+      if (marker > last_marker) {
+         if (last_marker == 0) {
+            expanded += "\n";
+         }
+         expanded += console.substr(last_marker, marker);
+         last_marker = marker;
+      }
+
+      // find the call_trace corresponding to current marker
+      // note: call_trace entries and markers are arranged in the same order
+      while (call_trace_idx < call_traces.size()) {
+         if (call_traces[call_trace_idx]["sender_ordinal"].as<fc::unsigned_int>() == sender_ordinal) {
+            break;
+         } else {
+            ++call_trace_idx;
+         }
+      }
+      assert(call_trace_idx < call_traces.size()); // there must be a call_trace entry for every marker
+
+      const auto& ct = call_traces[call_trace_idx];
+
+      std::string call_name = "<invalid>";
+      if (ct.get_object().contains("data") && ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
+         auto id = ct["data"]["header"]["func_name"].as_uint64();
+         call_name = get_call_name(ct["receiver"].as<account_name>(), id);
+      }
+
+      std::string prefix = "\n[";
+      prefix += sender_name;
+      prefix += "->(";
+      prefix += ct["receiver"].as_string();
+      prefix += ",";
+      prefix += call_name;
+      prefix += ")]";
+
+      std::string header = prefix;
+      header  += ": CALL BEGIN ======";
+      std::string trailer = prefix;
+      trailer += ": CALL END   ======";
+
+      // Recursively expand `ct`'s console.
+      // The traces of a child sync call in `call_traces` are after the call trace
+      // of the current call, that's why we use `call_trace_idx + 1` to avoid
+      // searching from the beginning every time.
+      // Current ct.call_ordinal is the sender of the next sync call
+      std::string child_console = expand_console(header, trailer, call_traces, call_trace_idx + 1, ct["call_ordinal"].as<fc::unsigned_int>(), ct["receiver"].as_string(), ct["console"].as_string(), ct["console_markers"].as<std::vector<fc::unsigned_int>>());
+      if (!child_console.empty()) { // append the expanded console
+         children_have_consoles = true;
+         expanded += child_console;
+      }
+   }
+
+   // append the portion of console after the last marker to `expanded`
+   if (console.size() > console_markers.back()) {
+      if (children_have_consoles) {
+         // Add "\n" if children sync calls have consoles
+         expanded += "\n";
+      }
+      expanded += console.substr(console_markers.back());
+   }
+
+   if (expanded.empty()) {
+      return {};
+   }
+
+   std::string output;
+   output += header;
+   output += expanded;
+   output += trailer;
+   return output;
+}
+
 void print_action( const fc::variant& at ) {
    auto receiver = at["receiver"].as_string();
    const auto& act = at["act"].get_object();
@@ -621,15 +767,35 @@ void print_action( const fc::variant& at ) {
       args = args.substr(40)+"...";
    */
    if( args.size() > 100 ) args = args.substr(0,100) + "...";
-   cout << "#" << std::setw(14) << right << receiver << " <= " << std::setw(28) << std::left << (code +"::" + func) << " " << args << "\n";
+   cout << "#" << std::setw(receiver_width) << right << receiver << " <= " << std::setw(sender_width) << std::left << (code +"::" + func) << " " << args << "\n";
    print_return_value(at);
+
+   if( at.get_object().contains( "call_traces" ) ) {
+      std::unordered_map<uint64_t, std::string> sender_name_map; // build the map as we go
+      sender_name_map.insert({0, receiver});
+      const auto& call_traces = at["call_traces"].get_array();
+      for( const auto& t : call_traces ) {
+         print_call( t, sender_name_map );
+      }
+   }
+
    if( console.size() ) {
-      std::stringstream ss(console);
-      string line;
-      while( std::getline( ss, line ) ) {
-         cout << ">> " << clean_output( std::move( line ) ) << "\n";
-         if( !verbose ) break;
-         line.clear();
+      if( at.get_object().contains( "console_markers" ) ) { // has sync calls
+         std::string header  = "\nCONSOLE OUTPUT BEGIN =====================";
+         std::string trailer = "\nCONSOLE OUTPUT END   =====================";
+         const auto& call_traces = at["call_traces"].get_array();
+         const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
+
+         auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
+         cout << clean_output(std::move(output)) << "\n";
+      } else {
+         std::stringstream ss(console);
+         string line;
+         while( std::getline( ss, line ) ) {
+            cout << ">> " << clean_output( std::move( line ) ) << "\n";
+            if( !verbose ) break;
+            line.clear();
+         }
       }
    }
 }

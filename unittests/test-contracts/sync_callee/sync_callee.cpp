@@ -21,6 +21,7 @@ sync_callee::two_fields_struct sync_callee::paramstest(two_fields_struct s1, int
 
 [[eosio::call]]
 uint32_t sync_callee::add(uint32_t x, uint32_t y) {
+   eosio::print("inside add()");
    return x + y;
 }
 
