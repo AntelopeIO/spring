@@ -17,10 +17,11 @@ namespace eosio { namespace chain {
    class protocol_state_object : public chainbase::object<protocol_state_object_type, protocol_state_object>
    {
    public:
-      template<typename Constructor>
-      protocol_state_object(Constructor&& c, chainbase::constructor_tag) :
-         id(0),
-         whitelisted_intrinsics(*activated_protocol_features.get_allocator(this)) {
+      template <typename Constructor>
+      protocol_state_object(Constructor&& c, chainbase::constructor_tag)
+         : id(0)
+         , whitelisted_intrinsics(
+              chainbase::make_allocator<whitelisted_intrinsics_type::value_type>(&whitelisted_intrinsics)) {
          c(*this);
       }
 
