@@ -17,7 +17,8 @@ namespace eosio::chain {
                           signed_block_ptr b,
                           const protocol_feature_set& pfs,
                           const validator_t& validator,
-                          bool skip_validate_signee
+                          bool skip_validate_signee,
+                          fc::check_canonical_t check_canonical
                  );
 
       block_state_legacy( pending_block_header_state_legacy&& cur,
@@ -26,7 +27,8 @@ namespace eosio::chain {
                           const std::optional<digests_t>& action_receipt_digests_savanna,
                           const protocol_feature_set& pfs,
                           const validator_t& validator,
-                          const signer_callback_type& signer
+                          const signer_callback_type& signer,
+                          fc::check_canonical_t check_canonical
                 );
 
       block_state_legacy() = default;

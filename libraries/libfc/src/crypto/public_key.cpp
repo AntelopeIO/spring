@@ -5,21 +5,21 @@
 namespace fc { namespace crypto {
 
    struct recovery_visitor : fc::visitor<public_key::storage_type> {
-      recovery_visitor(const sha256& digest, bool check_canonical)
+      recovery_visitor(const sha256& digest, check_canonical_t check_canonical)
       :_digest(digest)
       ,_check_canonical(check_canonical)
       {}
 
       template<typename SignatureType>
       public_key::storage_type operator()(const SignatureType& s) const {
-         return public_key::storage_type(s.recover(_digest, _check_canonical));
+         return public_key::storage_type(s.recover(_digest, _check_canonical == check_canonical_t::yes));
       }
 
       const sha256& _digest;
-      bool _check_canonical;
+      check_canonical_t _check_canonical;
    };
 
-   public_key::public_key( const signature& c, const sha256& digest, bool check_canonical )
+   public_key::public_key( const signature& c, const sha256& digest, check_canonical_t check_canonical )
    :_storage(std::visit(recovery_visitor(digest, check_canonical), c._storage))
    {
    }

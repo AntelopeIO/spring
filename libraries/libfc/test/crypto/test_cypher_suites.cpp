@@ -47,7 +47,7 @@ BOOST_AUTO_TEST_CASE(test_k1_recovery) try {
    auto pub = key.get_public_key();
    auto sig = key.sign(digest);
 
-   auto recovered_pub = public_key(sig, digest);
+   auto recovered_pub = public_key(sig, digest, fc::check_canonical_t::yes);
    std::cout << recovered_pub.to_string({}) << std::endl;
 
    BOOST_CHECK_EQUAL(recovered_pub.to_string({}), pub.to_string({}));
@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(test_r1_recovery) try {
    auto pub = key.get_public_key();
    auto sig = key.sign(digest);
 
-   auto recovered_pub = public_key(sig, digest);
+   auto recovered_pub = public_key(sig, digest, fc::check_canonical_t::yes);
    std::cout << recovered_pub.to_string({}) << std::endl;
 
    BOOST_CHECK_EQUAL(recovered_pub.to_string({}), pub.to_string({}));

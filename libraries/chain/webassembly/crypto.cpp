@@ -50,7 +50,7 @@ namespace eosio::chain::webassembly {
          EOS_ASSERT(s.variable_size() <= context.control.configured_subjective_signature_length_limit(),
                     sig_variable_size_limit_exception, "signature variable length component size greater than subjective maximum");
 
-      auto check = fc::crypto::public_key( s, *digest, false );
+      auto check = fc::crypto::public_key( s, *digest, fc::check_canonical_t::no );
       EOS_ASSERT( check == p, crypto_api_exception, "Error expected key different than recovered key" );
    }
 
@@ -69,7 +69,7 @@ namespace eosio::chain::webassembly {
                     sig_variable_size_limit_exception, "signature variable length component size greater than subjective maximum");
 
 
-      auto recovered = fc::crypto::public_key(s, *digest, false);
+      auto recovered = fc::crypto::public_key(s, *digest, fc::check_canonical_t::no);
 
       // the key types newer than the first 2 may be varible in length
       if (s.which() >= config::genesis_num_supported_key_types ) {

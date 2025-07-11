@@ -58,7 +58,9 @@ digest_type transaction::sig_digest( const chain_id_type& chain_id, const vector
 
 fc::microseconds transaction::get_signature_keys( const vector<signature_type>& signatures,
       const chain_id_type& chain_id, fc::time_point deadline, const vector<bytes>& cfd,
-      flat_set<public_key_type>& recovered_pub_keys, bool allow_duplicate_keys)const
+                                                  flat_set<public_key_type>& recovered_pub_keys,
+                                                  fc::check_canonical_t check_canonical,
+                                                  bool allow_duplicate_keys)const
 { try {
    auto start = fc::time_point::now();
    recovered_pub_keys.clear();
@@ -70,7 +72,7 @@ fc::microseconds transaction::get_signature_keys( const vector<signature_type>& 
          auto now = fc::time_point::now();
          EOS_ASSERT( now < deadline, tx_cpu_usage_exceeded, "transaction signature verification executed for too long ${time}us",
                      ("time", now - start)("now", now)("deadline", deadline)("start", start) );
-         auto[ itr, successful_insertion ] = recovered_pub_keys.emplace( sig, digest );
+         auto[ itr, successful_insertion ] = recovered_pub_keys.emplace( sig, digest, check_canonical );
          EOS_ASSERT( allow_duplicate_keys || successful_insertion, tx_duplicate_sig,
                      "transaction includes more than one signature signed using the same key associated with public key: ${key}",
                      ("key", *itr ) );
@@ -131,9 +133,11 @@ signature_type signed_transaction::sign(const private_key_type& key, const chain
 fc::microseconds
 signed_transaction::get_signature_keys( const chain_id_type& chain_id, fc::time_point deadline,
                                         flat_set<public_key_type>& recovered_pub_keys,
+                                        fc::check_canonical_t check_canonical,
                                         bool allow_duplicate_keys)const
 {
-   return transaction::get_signature_keys(signatures, chain_id, deadline, context_free_data, recovered_pub_keys, allow_duplicate_keys);
+   return transaction::get_signature_keys(signatures, chain_id, deadline, context_free_data, recovered_pub_keys,
+                                          check_canonical, allow_duplicate_keys);
 }
 
 uint32_t packed_transaction::get_unprunable_size()const {

@@ -986,8 +986,8 @@ BOOST_DATA_TEST_CASE(lotso_globals,
    test_lotso_globals<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( offset_check_old, T, validating_testers ) try {
-   T t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
+BOOST_AUTO_TEST_CASE( offset_check_old ) try {
+   validating_tester t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
    t.produce_block();
 
    t.create_accounts( {"offsets"_n} );
@@ -1204,8 +1204,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( eosio_abi, T, validating_testers ) try {
    chain.produce_block();
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( check_big_deserialization, T, validating_testers ) try {
-   T t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
+BOOST_AUTO_TEST_CASE( check_big_deserialization ) try {
+   validating_tester t(flat_set<account_name>{}, {}, setup_policy::old_wasm_parser);
    t.produce_block();
    t.create_accounts( {"cbd"_n} );
    t.produce_block();
@@ -1855,8 +1855,8 @@ BOOST_DATA_TEST_CASE(depth_tests,
    test_depth<validating_tester>(*policy);
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( varuint_memory_flags_tests, T, validating_testers ) try {
-   T t(flat_set<account_name>{}, {}, setup_policy::preactivate_feature_and_new_bios);
+BOOST_AUTO_TEST_CASE( varuint_memory_flags_tests ) try {
+   validating_tester t(flat_set<account_name>{}, {}, setup_policy::preactivate_feature_and_new_bios);
    t.produce_block();
 
    t.create_accounts( {"memflags"_n} );
@@ -2001,7 +2001,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( billed_cpu_test, T, testers ) try {
       trx.max_cpu_usage_ms = trx_max_ms;
       trx.sign( chain.get_private_key( acc, "active" ), chain.get_chain_id() );
       auto ptrx = std::make_shared<packed_transaction>(trx);
-      auto fut = transaction_metadata::start_recover_keys( ptrx, chain.control->get_thread_pool(), chain.get_chain_id(), fc::microseconds::maximum(), transaction_metadata::trx_type::input );
+      auto fut = transaction_metadata::start_recover_keys( ptrx, chain.control->get_thread_pool(), chain.get_chain_id(), fc::microseconds::maximum(), transaction_metadata::trx_type::input, chain.control->check_canonical() );
       return fut.get();
    };
 
@@ -2316,8 +2316,10 @@ static uint32_t get_num_memory_mappings() {
    return num_mappings;
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( memory_mapping_test, T, validating_testers ) try {
-   T chain;
+// this is a costly test... it should be good enough to run it in "full" mode only,
+// as pre-savanna doesn't make a difference.
+BOOST_AUTO_TEST_CASE( memory_mapping_test ) try {
+   tester chain;
 
    static const std::string mem_map_wast_start = R"=====(
    (module
@@ -2346,7 +2348,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( memory_mapping_test, T, validating_testers ) try 
    auto num_mappings_before = get_num_memory_mappings();
    BOOST_CHECK_GT(num_mappings_before, 0U); // must be able to get number of memory mappings
 
-   // num_contracts used to be 5000. It made CICD run over 8 minutues occasionally.
+   // num_contracts used to be 5000. It made CICD run over 8 minutes occasionally.
    // It does not need to be that big, a smaller of contracts should be sufficient
    // to make sure no memory leaks happen.
    constexpr uint32_t num_contracts = 2000; // number of contracts to deploy

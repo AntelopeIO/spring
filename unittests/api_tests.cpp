@@ -1002,7 +1002,7 @@ void transaction_tests(T& chain) {
       BOOST_CHECK(pkt.get_packed_transaction() == packed_copy);
       ptrx = std::make_shared<packed_transaction>( pkt );
 
-      auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
+      auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input, fc::check_canonical_t::no );
       auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
       tx_trace = r;
