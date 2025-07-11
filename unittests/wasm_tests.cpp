@@ -2316,8 +2316,10 @@ static uint32_t get_num_memory_mappings() {
    return num_mappings;
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE( memory_mapping_test, T, validating_testers ) try {
-   T chain;
+// this is a costly test... it should be good enough to run it in "full" mode only,
+// as pre-savanna doesn't make a difference.
+BOOST_AUTO_TEST_CASE( memory_mapping_test ) try {
+   tester chain;
 
    static const std::string mem_map_wast_start = R"=====(
    (module
@@ -2346,7 +2348,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( memory_mapping_test, T, validating_testers ) try 
    auto num_mappings_before = get_num_memory_mappings();
    BOOST_CHECK_GT(num_mappings_before, 0U); // must be able to get number of memory mappings
 
-   // num_contracts used to be 5000. It made CICD run over 8 minutues occasionally.
+   // num_contracts used to be 5000. It made CICD run over 8 minutes occasionally.
    // It does not need to be that big, a smaller of contracts should be sufficient
    // to make sure no memory leaks happen.
    constexpr uint32_t num_contracts = 2000; // number of contracts to deploy
