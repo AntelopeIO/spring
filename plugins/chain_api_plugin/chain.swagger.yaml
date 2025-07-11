@@ -38,13 +38,16 @@ paths:
               properties:
                 account_name:
                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                expected_core_symbol:
+                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Symbol.yaml"
+                  description: The expected core symbol of the chain, if provided it will be validated against the chain's core symbol
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Account.yaml"
+                $ref: "https://docs.eosnetwork.com/openapi/v2.0/Account2.yaml"
   /get_block:
     post:
       description: Returns an object containing various details about a specific block on the blockchain.
@@ -653,23 +656,32 @@ paths:
                 - table
                 - scope
               properties:
+                json:
+                  type: boolean
+                  description: "Return the data as JSON. If false, data will be returned as a hex string."
+                  default: false
                 code:
-                  type: string
+                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                   description: The name of the smart contract that controls the provided table
                 table:
-                  type: string
+                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                   description: The name of the table to query
                 scope:
                   type: string
                   description: The account to which this data belongs
                 index_position:
                   type: string
-                  description: Position of the index used, accepted parameters `primary`, `secondary`, `tertiary`, `fourth`, `fifth`, `sixth`, `seventh`, `eighth`, `ninth` , `tenth`
+                  description: "Position of the index to use. Can be a number (1 for primary, 2 for secondary, etc.) or a string ('primary', 'secondary', etc.)."
                 key_type:
                   type: string
                   description: Type of key specified by index_position (for example - `uint64_t` or `name`)
+                table_key:
+                  type: string
+                  description: "Deprecated parameter. The key of the table to query. Will be ignored if `lower_bound` and `upper_bound` are specified."
                 encode_type:
                   type: string
+                  description: "The encoding type of the key. Can be 'dec' or 'hex'. Defaults to 'dec'."
+                  default: "dec"
                 lower_bound:
                   type: string
                   description: Filters results to return the first element that is not less than provided value in set
@@ -689,6 +701,10 @@ paths:
                   type: boolean
                   description: Show RAM payer
                   default: false
+                time_limit_ms:
+                  type: integer
+                  description: "Maximum time in milliseconds to spend on this call. If not specified, the node's configured `http-max-response-time-ms` will be used."
+                  format: int32
 
       responses:
         "200":
@@ -700,7 +716,15 @@ paths:
                 properties:
                   rows:
                     type: array
-                    items: {}
+                    description: "An array of row objects. The structure of the objects depends on the `json` and `show_payer` parameters. If `json` is false, row data is a hex-encoded string. If `json` is true, it's a JSON object. If `show_payer` is true, each item is an object with `data` and `payer` fields."
+                    items:
+                      type: object
+                  more:
+                    type: boolean
+                    description: "True if more rows are available. The `next_key` field can be used to fetch the next page of results."
+                  next_key:
+                    type: string
+                    description: "The key of the next row. Use this value as the `lower_bound` in the next request to fetch the next page of results."
 
   /get_code:
     post:
@@ -718,9 +742,9 @@ paths:
                 account_name:
                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                 code_as_wasm:
-                  type: integer
-                  default: 1
-                  description: This must be 1 (true)
+                  type: boolean
+                  default: true
+                  description: "Return the WASM code as a hex-encoded string. This must be set to `true` as returning WAST is no longer supported."
       responses:
         "200":
           description: OK
@@ -730,22 +754,27 @@ paths:
                 type: object
                 title: GetCodeResponse.yaml
                 properties:
-                  name:
+                  account_name:
                     $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                   code_hash:
                     $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
+                    description: "The hash of the contract's WASM code. This will be a string of all zeros if no code is set."
                   wast:
                     type: string
+                    description: "Legacy field. Always returns an empty string."
                   wasm:
                     type: string
+                    description: "The contract's WASM code, hex-encoded. This will be an empty string if no code is set."
                   abi:
-                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Abi.yaml"
+                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Abi.yaml"
+                    description: "The contract's ABI. This field is optional and will only be present if an ABI is set on the account."
 
   /get_raw_abi:
     post:
       description: Returns an object containing the smart contract abi.
       operationId: get_raw_abi
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -755,6 +784,9 @@ paths:
               properties:
                 account_name:
                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                abi_hash:
+                  $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
+                  description: An optional hash of the ABI. If provided and it matches the hash of the ABI on-chain, the `abi` field in the response will be empty.
       responses:
         "200":
           description: OK
@@ -768,11 +800,10 @@ paths:
                   code_hash:
                     $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
                   abi_hash:
-                    allOf:
-                      - $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
+                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/Sha256.yaml"
                   abi:
                     type: string
-
+                    description: The ABI, hex-encoded. This field is omitted if the `abi_hash` in the request matches the on-chain ABI hash.
 
   /get_activated_protocol_features:
     post:
