@@ -23,5 +23,5 @@ Only the k1 key format differs between legacy format and canonical format.
 ## Output
 
 ```
-EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
+PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63
 ```

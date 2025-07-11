@@ -27,12 +27,12 @@ The following step shows how to create a new account **bob** authorized by the d
 1. Run the following command to create the new account **bob**:
 
 ```sh
-cleos create account eosio bob EOS87TQktA5RVse2EguhztfQVEh6XXxBmgkU8b4Y5YnGvtYAoLGNN
+cleos create account eosio bob PUB_K1_87TQktA5RVse2EguhztfQVEh6XXxBmgkU8b4Y5YnGvtY8hjMXC
 ```
 **Where**:
 * `eosio` = the system account that authorizes the creation of a new account
 * `bob` = the name of the new account conforming to [account naming conventions](/protocol-guides/04_accounts_and_permissions.md#2-accounts)
-* `EOS87TQ...AoLGNN` = the owner public key or permission level for the new account (**required**)
+* `PUB_K1_87TQ...8hjMXC` = the owner public key or permission level for the new account (**required**)
 [[info | Note]]
 | To create a new account in the Antelope blockchain, an existing account, also referred to as a creator account, is required to authorize the creation of a new account. For a newly created Antelope blockchain, the default system account used to create a new account is **eosio**.
 
@@ -40,7 +40,7 @@ cleos create account eosio bob EOS87TQktA5RVse2EguhztfQVEh6XXxBmgkU8b4Y5YnGvtYAo
 
 ```console
 executed transaction: 4d65a274de9f809f9926b74c3c54aadc0947020bcfb6dd96043d1bcd9c46604c  200 bytes  166 us
-#         eosio <= eosio::newaccount            {"creator":"eosio","name":"bob","owner":{"threshold":1,"keys":[{"key":"EOS87TQktA5RVse2EguhztfQVEh6X...
+#         eosio <= eosio::newaccount            {"creator":"eosio","name":"bob","owner":{"threshold":1,"keys":[{"key":"PUB_K1_87TQktA5RVse2EguhztfQVEh6X...
 warning: transaction executed locally, but may not be confirmed by the network yet         ]
 ```
 

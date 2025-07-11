@@ -12,7 +12,7 @@ Retrieves all accounts associated with a defined public key
 
 
 ```sh
-cleos get accounts EOS8mUftJXepGzdQ2TaCduNuSPAfXJHf22uex4u41ab1EVv9EAhWt
+cleos get accounts PUB_K1_8mUftJXepGzdQ2TaCduNuSPAfXJHf22uex4u41ab1EVv7ctUZy
 {
   "account_names": [
     "testaccount"
