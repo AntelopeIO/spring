@@ -783,7 +783,7 @@ void print_action( const fc::variant& at ) {
          const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
 
          auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
-         cout << clean_output(output) << "\n";
+         cout << clean_output(std::move(output)) << "\n";
       } else {
          std::stringstream ss(console);
          string line;
