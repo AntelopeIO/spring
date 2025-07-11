@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.16...4.0 )
+cmake_minimum_required( VERSION 3.21...4.0 )
 
 project( antelope-spring )
 include(CTest)
@@ -263,26 +263,14 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/TestHarness DESTINATION ${CM
         PATTERN "__pycache__" EXCLUDE
         PATTERN "CMakeFiles" EXCLUDE)
 
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
-   # Cmake versions < 3.21 did not support installing symbolic links to a directory via install(FILES ...)
-   # Cmake 3.21 fixed this (https://gitlab.kitware.com/cmake/cmake/-/commit/d71a7cc19d6e03f89581efdaa8d63db216184d40)
-   # If/when the lowest cmake version supported becomes >= 3.21, the else block as well as the postinit and prerm scripts
-   # would be a good option to remove in favor of using the facilities in cmake / cpack directly.
+add_custom_target(link_target ALL
+   COMMAND ${CMAKE_COMMAND} -E make_directory lib/python3/dist-packages
+   COMMAND ${CMAKE_COMMAND} -E create_symlink ../../../share/spring_testing/tests/TestHarness lib/python3/dist-packages/TestHarness
+   COMMAND ${CMAKE_COMMAND} -E make_directory share/spring_testing
+   COMMAND ${CMAKE_COMMAND} -E create_symlink ../../bin share/spring_testing/bin)
 
-   add_custom_target(link_target ALL
-      COMMAND ${CMAKE_COMMAND} -E make_directory lib/python3/dist-packages
-      COMMAND ${CMAKE_COMMAND} -E create_symlink ../../../share/spring_testing/tests/TestHarness lib/python3/dist-packages/TestHarness
-      COMMAND ${CMAKE_COMMAND} -E make_directory share/spring_testing
-      COMMAND ${CMAKE_COMMAND} -E create_symlink ../../bin share/spring_testing/bin)
-
-   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib/python3/dist-packages/TestHarness DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/python3/dist-packages COMPONENT dev EXCLUDE_FROM_ALL)
-   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/spring_testing/bin DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_testing COMPONENT dev EXCLUDE_FROM_ALL)
-else()
-   # The following install(SCRIPT ...) steps are necessary for `make dev-install` to work on cmake versions < 3.21.
-   install(SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/scripts/install_testharness_symlinks.cmake COMPONENT dev EXCLUDE_FROM_ALL)
-
-   # The `make package` installation of symlinks happens via the `postinst` script installed in cmake.package via the line below
-endif()
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib/python3/dist-packages/TestHarness DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/python3/dist-packages COMPONENT dev EXCLUDE_FROM_ALL)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/spring_testing/bin DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_testing COMPONENT dev EXCLUDE_FROM_ALL)
 
 configure_file(${CMAKE_SOURCE_DIR}/libraries/cli11/bash-completion/completions/spring-util
                ${CMAKE_BINARY_DIR}/programs/spring-util/bash-completion/completions/spring-util COPYONLY)
