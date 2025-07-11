@@ -2356,7 +2356,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    auto block_before_feature = c.produce_block();
 
    // activate packed_transaction_restrictions
-   c.preactivate_all_builtin_protocol_features();
+   c.activate_all_builtin_protocol_features();
    c.produce_block();
 
    //
