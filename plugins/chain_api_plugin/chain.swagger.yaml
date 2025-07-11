@@ -38,6 +38,9 @@ paths:
               properties:
                 account_name:
                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                expected_core_symbol_precision:
+                  type: integer
+                  description: The expected core symbol precision. If provided, it will be validated against the chain's core symbol.
       responses:
         "200":
           description: OK
@@ -653,6 +656,10 @@ paths:
                 - table
                 - scope
               properties:
+                json:
+                  type: boolean
+                  description: "Return the data as JSON. If false, data will be returned as a hex string."
+                  default: false
                 code:
                   type: string
                   description: The name of the smart contract that controls the provided table
@@ -718,9 +725,9 @@ paths:
                 account_name:
                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
                 code_as_wasm:
-                  type: integer
-                  default: 1
-                  description: This must be 1 (true)
+                  type: boolean
+                  default: true
+                  description: "Return the WASM code as a hex-encoded string."
       responses:
         "200":
           description: OK
@@ -755,6 +762,9 @@ paths:
               properties:
                 account_name:
                   $ref: "https://docs.eosnetwork.com/openapi/v2.0/Name.yaml"
+                block_num:
+                  type: integer
+                  description: "The block number to retrieve the ABI for. If not specified, the head block is used."
       responses:
         "200":
           description: OK
