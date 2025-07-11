@@ -2,7 +2,7 @@
 
 namespace savanna_cluster {
 
-node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = setup_policy::none */)
+node_t::node_t(size_t node_idx, cluster_t& cluster, const setup_policy& policy /* = setup_policy::none */)
    : tester(policy)
    , _node_idx(node_idx)
    , _last_vote({}, false)

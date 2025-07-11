@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE( bls_testg1add ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE( bls_testg2add ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE( bls_testg1weightedsum ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -286,7 +286,7 @@ BOOST_AUTO_TEST_CASE( bls_testg2weightedsum ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -396,7 +396,7 @@ BOOST_AUTO_TEST_CASE( bls_testpairing ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -475,7 +475,7 @@ BOOST_AUTO_TEST_CASE( bls_testg1map ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -544,7 +544,7 @@ BOOST_AUTO_TEST_CASE( bls_testg2map ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -612,7 +612,7 @@ BOOST_AUTO_TEST_CASE( bls_empty ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -659,7 +659,7 @@ BOOST_AUTO_TEST_CASE( bls_testfpmul ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -721,7 +721,7 @@ BOOST_AUTO_TEST_CASE( bls_testfpexp ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
@@ -790,7 +790,7 @@ BOOST_AUTO_TEST_CASE( bls_testfpmod ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::bls_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::bls_primitives_test_wasm() );
