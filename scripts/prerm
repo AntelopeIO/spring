@@ -1,15 +1,6 @@
 #!/bin/sh
 
 # Cleanup symbolic links created during postinst
-Python_SITELIB=$(python3 <<EOF
-import sys
-if sys.version_info < (3, 10, 0):
-    from distutils import sysconfig
-    print(sysconfig.get_python_lib(plat_specific=False,standard_lib=False))
-else:
-    from sysconfig import get_path; print(get_path('platlib', 'deb_system'))
-EOF
-)
-
+Python_SITELIB=$(python3 -c "from sysconfig import get_path; print(get_path('platlib', 'deb_system'))")
 rm -f $Python_SITELIB/TestHarness
 rm -f @CMAKE_INSTALL_FULL_DATAROOTDIR@/spring_testing/bin
