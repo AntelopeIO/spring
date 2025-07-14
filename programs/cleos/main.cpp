@@ -777,23 +777,21 @@ void print_action( const fc::variant& at ) {
       }
    }
 
-   if( console.size() ) {
-      if( at.get_object().contains( "console_markers" ) ) { // has sync calls
-         std::string header  = "\nCONSOLE OUTPUT BEGIN =====================";
-         std::string trailer = "\nCONSOLE OUTPUT END   =====================";
-         const auto& call_traces = at["call_traces"].get_array();
-         const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
+   if( at.get_object().contains( "console_markers" ) ) { // has sync calls
+      std::string header  = "\nCONSOLE OUTPUT BEGIN =====================";
+      std::string trailer = "\nCONSOLE OUTPUT END   =====================";
+      const auto& call_traces = at["call_traces"].get_array();
+      const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
 
-         auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
-         cout << clean_output(std::move(output)) << "\n";
-      } else {
-         std::stringstream ss(console);
-         string line;
-         while( std::getline( ss, line ) ) {
-            cout << ">> " << clean_output( std::move( line ) ) << "\n";
-            if( !verbose ) break;
-            line.clear();
-         }
+      auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
+      cout << clean_output(std::move(output)) << "\n";
+   } else if( console.size() ) {
+      std::stringstream ss(console);
+      string line;
+      while( std::getline( ss, line ) ) {
+         cout << ">> " << clean_output( std::move( line ) ) << "\n";
+         if( !verbose ) break;
+         line.clear();
       }
    }
 }
