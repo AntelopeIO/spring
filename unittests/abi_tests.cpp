@@ -3520,11 +3520,11 @@ inline std::pair<call_trace, std::string> generate_call_trace(bool include_retur
     "receiver": "test",
     "read_only": false,
     "hex_data": "0000000000000019ab1ca3411266697273745f706172616d5f737472696e67",
+    "payload_header": {
+      "version": 0,
+      "func_name": "4729655554853568512"
+    },
     "data": {
-      "header": {
-        "version": 0,
-        "func_name": "4729655554853568512"
-      },
       "param": "first_param_string"
     },
     "elapsed": 3,
@@ -3565,20 +3565,12 @@ BOOST_AUTO_TEST_CASE(call_trace_with_return_value)
    auto abi = R"=====({
       "version": "eosio::abi/1.3",
       "structs": [
-         {"name": "call_data_header", "base": "", "fields": [
-            { "name": "version", "type": "uint32" },
-            { "name": "func_name", "type": "uint64" }
-         ]},
          {"name": "calltest", "base": "", "fields": [
-            {"name": "header", "type": "call_data_header"},
             {"name": "param", "type": "string"}
          ]}
       ],
       "calls": [
-         { "name": "calltest", "type": "calltest", "id": 4729655554853568512 }
-      ],
-      "call_results": [
-         { "name": "calltest", "result_type": "uint16" }
+         { "name": "calltest", "type": "calltest", "id": 4729655554853568512, "result_type": "uint16" }
       ]
    })=====";
 
@@ -3604,17 +3596,12 @@ BOOST_AUTO_TEST_CASE(call_trace_without_return_value)
    auto abi = R"=====({
       "version": "eosio::abi/1.3",
       "structs": [
-         {"name": "call_data_header", "base": "", "fields": [
-            { "name": "version", "type": "uint32" },
-            { "name": "func_name", "type": "uint64" }
-         ]},
          {"name": "calltest", "base": "", "fields": [
-            {"name": "header", "type": "call_data_header"},
             {"name": "param", "type": "string"}
          ]}
       ],
       "calls": [
-         { "name": "calltest", "type": "calltest", "id": 4729655554853568512 }
+         { "name": "calltest", "type": "calltest", "id": 4729655554853568512, "result_type": "" }
       ]
    })=====";
 
@@ -3719,12 +3706,7 @@ BOOST_AUTO_TEST_CASE(action_trace_embedding_call_trace_test) {
          {"name": "acttest", "base": "", "fields": [
             {"name": "str", "type": "string"}
          ]},
-         {"name": "call_data_header", "base": "", "fields": [
-            { "name": "version", "type": "uint32" },
-            { "name": "func_name", "type": "uint64" }
-         ]},
          {"name": "calltest", "base": "", "fields": [
-            {"name": "header", "type": "call_data_header"},
             {"name": "param", "type": "string"}
          ]}
       ],
@@ -3735,10 +3717,7 @@ BOOST_AUTO_TEST_CASE(action_trace_embedding_call_trace_test) {
          }
       ],
       "calls": [
-         { "name": "calltest", "type": "calltest", "id": 4729655554853568512 }
-      ],
-      "call_results": [
-         { "name": "calltest", "result_type": "uint16" }
+         { "name": "calltest", "type": "calltest", "id": 4729655554853568512, "result_type": "uint16" }
       ]
    })";
    auto abidef = fc::json::from_string(abi).as<abi_def>();

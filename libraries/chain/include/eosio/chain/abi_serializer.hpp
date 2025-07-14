@@ -623,9 +623,12 @@ namespace impl {
          try {
             call_data_header data_header;
             fc::datastream<const char*> ds(cal_trace.data.data(), cal_trace.data.size());
-            fc::raw::unpack(ds, data_header);
+            fc::raw::unpack(ds, data_header);  // now position of ds is after the header
 
             if (data_header.is_version_valid()) {
+               // header is valid so add it
+               mvo("payload_header", data_header);
+
                auto abi_optional = resolver(cal_trace.receiver);
                if (abi_optional) {
                   const abi_serializer& abi = *abi_optional;
@@ -634,7 +637,7 @@ namespace impl {
                   auto type = abi.get_call_type(fname);
                   if (!type.empty()) {
                      call_data_to_variant_context _ctx(abi, ctx, type);
-                     mvo( "data", abi._binary_to_variant( type, cal_trace.data, _ctx ));
+                     mvo( "data", abi._binary_to_variant( type, ds, _ctx ));
                   }
                }
             }

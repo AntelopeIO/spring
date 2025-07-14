@@ -159,15 +159,6 @@ struct call_def {
    call_name name;
    type_name type;
    uint64_t  id = 0;
-};
-
-struct call_result_def {
-   call_result_def() = default;
-   call_result_def(const call_name& name, const type_name& result_type)
-   :name(name), result_type(result_type)
-   {}
-
-   call_name name;
    type_name result_type;
 };
 
@@ -198,7 +189,6 @@ struct abi_def {
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
    may_not_exist<vector<call_def>>           calls;
-   may_not_exist<vector<call_result_def>>    call_results;
 
    version_t get_version() const {
       static const std::string version_header = "eosio::abi/";
@@ -253,8 +243,7 @@ FC_REFLECT( eosio::chain::error_message                    , (error_code)(error_
 FC_REFLECT( eosio::chain::variant_def                      , (name)(types) )
 FC_REFLECT( eosio::chain::action_result_def                , (name)(result_type) )
 FC_REFLECT( eosio::chain::call_data_header                 , (version)(func_name) )
-FC_REFLECT( eosio::chain::call_def                         , (name)(type)(id) )
-FC_REFLECT( eosio::chain::call_result_def                  , (name)(result_type) )
+FC_REFLECT( eosio::chain::call_def                         , (name)(type)(id)(result_type) )
 FC_REFLECT( eosio::chain::abi_def                          , (version)(types)(structs)(actions)(tables)
                                                              (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results)
-                                                             (calls)(call_results) )
+                                                             (calls) )
