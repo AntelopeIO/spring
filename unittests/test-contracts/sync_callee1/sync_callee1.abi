@@ -4,27 +4,9 @@
     "types": [],
     "structs": [
         {
-            "name": "call_data_header",
-            "base": "",
-            "fields": [
-                {
-                    "name": "version",
-                    "type": "uint32"
-                },
-                {
-                    "name": "func_name",
-                    "type": "uint64"
-                }
-            ]
-        },
-        {
             "name": "div",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "x",
                     "type": "uint32"
@@ -39,10 +21,6 @@
             "name": "recursive",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "n",
                     "type": "uint32"
@@ -59,21 +37,13 @@
         {
             "name": "div",
             "type": "div",
-            "id": 193489480
-        },
-        {
-            "name": "recursive",
-            "type": "recursive",
-            "id": 249904965185745245
-        }
-    ],
-    "call_results": [
-        {
-            "name": "div",
+            "id": 193489480,
             "result_type": "uint32"
         },
         {
             "name": "recursive",
+            "type": "recursive",
+            "id": 249904965185745245,
             "result_type": "uint32"
         }
     ]

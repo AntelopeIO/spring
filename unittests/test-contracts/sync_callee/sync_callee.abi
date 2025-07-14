@@ -8,10 +8,6 @@
             "base": "",
             "fields": [
                 {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
                     "name": "x",
                     "type": "uint32"
                 },
@@ -26,48 +22,20 @@
             "base": "",
             "fields": [
                 {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
                     "name": "input",
                     "type": "uint32"
                 }
             ]
         },
         {
-            "name": "call_data_header",
-            "base": "",
-            "fields": [
-                {
-                    "name": "version",
-                    "type": "uint32"
-                },
-                {
-                    "name": "func_name",
-                    "type": "uint64"
-                }
-            ]
-        },
-        {
             "name": "crash",
             "base": "",
-            "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                }
-            ]
+            "fields": []
         },
         {
             "name": "forever",
             "base": "",
-            "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                }
-            ]
+            "fields": []
         },
         {
             "name": "four_fields_struct",
@@ -96,10 +64,6 @@
             "base": "",
             "fields": [
                 {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
                     "name": "user",
                     "type": "name"
                 }
@@ -109,10 +73,6 @@
             "name": "insertperson",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "user",
                     "type": "name"
@@ -132,10 +92,6 @@
             "base": "",
             "fields": [
                 {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
                     "name": "x",
                     "type": "uint32"
                 },
@@ -150,10 +106,6 @@
             "base": "",
             "fields": [
                 {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
-                {
                     "name": "x",
                     "type": "uint32"
                 },
@@ -166,21 +118,12 @@
         {
             "name": "noconsolefunc",
             "base": "",
-            "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                }
-            ]
+            "fields": []
         },
         {
             "name": "paramstest",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "s1",
                     "type": "two_fields_struct"
@@ -214,20 +157,6 @@
             ]
         },
         {
-            "name": "person_info",
-            "base": "",
-            "fields": [
-                {
-                    "name": "first_name",
-                    "type": "string"
-                },
-                {
-                    "name": "street",
-                    "type": "string"
-                }
-            ]
-        },
-        {
             "name": "pureaction",
             "base": "",
             "fields": []
@@ -236,10 +165,6 @@
             "name": "recursive",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "n",
                     "type": "uint32"
@@ -250,10 +175,6 @@
             "name": "selfcall",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "x",
                     "type": "uint32"
@@ -281,31 +202,17 @@
         {
             "name": "voidparam",
             "base": "",
-            "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                }
-            ]
+            "fields": []
         },
         {
             "name": "voidparamret",
             "base": "",
-            "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                }
-            ]
+            "fields": []
         },
         {
             "name": "voidreturn",
             "base": "",
             "fields": [
-                {
-                    "name": "header",
-                    "type": "call_data_header"
-                },
                 {
                     "name": "n",
                     "type": "uint32"
@@ -336,115 +243,92 @@
         {
             "name": "add",
             "type": "add",
-            "id": 193486030
+            "id": 193486030,
+            "result_type": "uint32"
         },
         {
             "name": "basictest",
             "type": "basictest",
-            "id": 249882312350186951
+            "id": 249882312350186951,
+            "result_type": "uint32"
         },
         {
             "name": "crash",
             "type": "crash",
-            "id": 210709162262
+            "id": 210709162262,
+            "result_type": ""
         },
         {
             "name": "forever",
             "type": "forever",
-            "id": 229466054377278
+            "id": 229466054377278,
+            "result_type": ""
         },
         {
             "name": "getperson",
             "type": "getperson",
-            "id": 249889516434780860
+            "id": 249889516434780860,
+            "result_type": "person_info"
         },
         {
             "name": "insertperson",
             "type": "insertperson",
-            "id": 15276739392287013521
+            "id": 15276739392287013521,
+            "result_type": ""
         },
         {
             "name": "mul",
             "type": "mul",
-            "id": 193499667
+            "id": 193499667,
+            "result_type": "uint32"
         },
         {
             "name": "nestedcalls",
             "type": "nestedcalls",
-            "id": 13885986181937266871
+            "id": 13885986181937266871,
+            "result_type": "uint32"
         },
         {
             "name": "noconsolefunc",
             "type": "noconsolefunc",
-            "id": 14436252818385678849
+            "id": 14436252818385678849,
+            "result_type": ""
         },
         {
             "name": "paramstest",
             "type": "paramstest",
-            "id": 8246766015778301897
-        },
-        {
-            "name": "recursive",
-            "type": "recursive",
-            "id": 249904965185745245
-        },
-        {
-            "name": "selfcall",
-            "type": "selfcall",
-            "id": 7572920685215499
-        },
-        {
-            "name": "voidparam",
-            "type": "voidparam",
-            "id": 249911024085144520
-        },
-        {
-            "name": "voidparamret",
-            "type": "voidparamret",
-            "id": 15934852724996657459
-        },
-        {
-            "name": "voidreturn",
-            "type": "voidreturn",
-            "id": 8247063794892877559
-        }
-    ],
-    "call_results": [
-        {
-            "name": "add",
-            "result_type": "uint32"
-        },
-        {
-            "name": "basictest",
-            "result_type": "uint32"
-        },
-        {
-            "name": "getperson",
-            "result_type": "person_info"
-        },
-        {
-            "name": "mul",
-            "result_type": "uint32"
-        },
-        {
-            "name": "nestedcalls",
-            "result_type": "uint32"
-        },
-        {
-            "name": "paramstest",
+            "id": 8246766015778301897,
             "result_type": "two_fields_struct"
         },
         {
             "name": "recursive",
+            "type": "recursive",
+            "id": 249904965185745245,
             "result_type": "uint32"
         },
         {
             "name": "selfcall",
+            "type": "selfcall",
+            "id": 7572920685215499,
             "result_type": "uint32"
         },
         {
             "name": "voidparam",
+            "type": "voidparam",
+            "id": 249911024085144520,
             "result_type": "uint32"
+        },
+        {
+            "name": "voidparamret",
+            "type": "voidparamret",
+            "id": 15934852724996657459,
+            "result_type": ""
+        },
+        {
+            "name": "voidreturn",
+            "type": "voidreturn",
+            "id": 8247063794892877559,
+            "result_type": ""
         }
     ]
 }
