@@ -2400,7 +2400,7 @@ namespace eosio {
       {
          // reset sync on rejected block
          fc::lock_guard g( sync_mtx );
-         if (blk_num <= sync_next_expected_num-1) { // no need to reset if we already reset and are syncing again
+         if (sync_last_requested_num != 0 && blk_num <= sync_next_expected_num-1) { // no need to reset if we already reset and are syncing again
             sync_last_requested_num = 0;
             sync_next_expected_num = my_impl->get_fork_db_root_num() + 1;
          }
