@@ -445,7 +445,6 @@ namespace eosio {
 
       void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
 
-      void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
       void start_monitors();
 
@@ -2398,6 +2397,14 @@ namespace eosio {
    // called from connection strand
    void sync_manager::rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode ) {
       c->block_status_monitor_.rejected();
+      {
+         // reset sync on rejected block
+         fc::lock_guard g( sync_mtx );
+         if (blk_num <= sync_next_expected_num-1) { // no need to reset if we already reset and are syncing again
+            sync_last_requested_num = 0;
+            sync_next_expected_num = my_impl->get_fork_db_root_num() + 1;
+         }
+      }
       if( mode == closing_mode::immediately || c->block_status_monitor_.max_events_violated()) {
          peer_wlog(c, "block ${bn} not accepted, closing connection ${d}",
                    ("d", mode == closing_mode::immediately ? "immediately" : "max violations reached")("bn", blk_num));
