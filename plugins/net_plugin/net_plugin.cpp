@@ -1571,7 +1571,7 @@ namespace eosio {
       if( latest_msg_time > std::chrono::steady_clock::time_point::min() ) {
          if( current_time > latest_msg_time + hb_timeout ) {
             no_retry = go_away_reason::benign_other;
-            if( !peer_address().empty() ) {
+            if( !incoming() ) {
                peer_wlog(this, "heartbeat timed out for peer address");
                close(true);
             } else {
@@ -2781,7 +2781,7 @@ namespace eosio {
          string                    paddr_desc = paddr_str + ":" + std::to_string(paddr_port);
          connections.for_each_connection([&visitors, &from_addr, &paddr_str](const connection_ptr& conn) {
             if (conn->socket_is_open()) {
-               if (conn->peer_address().empty()) {
+               if (conn->incoming()) {
                   ++visitors;
                   fc::lock_guard g_conn(conn->conn_mtx);
                   if (paddr_str == conn->remote_endpoint_ip) {
