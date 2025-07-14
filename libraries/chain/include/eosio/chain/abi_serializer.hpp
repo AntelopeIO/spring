@@ -1137,6 +1137,10 @@ public:
    abi_serializer_cache_builder&& add_serializers(const transaction_trace_ptr& trace_ptr) && {
       for( const auto& trace: trace_ptr->action_traces ) {
          add_to_cache(trace.act);
+
+         for( const auto& call_trace: trace.call_traces ) {
+            add_to_cache(call_trace.receiver);
+         }
       }
       return std::move(*this);
    }
@@ -1147,10 +1151,14 @@ public:
 
 private:
    void add_to_cache(const chain::action& a) {
-      auto it = abi_serializers.find( a.account );
+      add_to_cache(a.account);
+   }
+
+   void add_to_cache(const account_name& account) {
+      auto it = abi_serializers.find( account );
       if( it == abi_serializers.end() ) {
          try {
-            abi_serializers.emplace_hint( it, a.account, resolver_( a.account ) );
+            abi_serializers.emplace_hint( it, account, resolver_( account ) );
          } catch( ... ) {
             // keep behavior of not throwing on invalid abi, will result in hex data
          }

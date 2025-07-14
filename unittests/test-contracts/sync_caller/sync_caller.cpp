@@ -21,6 +21,15 @@ public:
       eosio::print("After returned from basictest");
    }
 
+   // Used for manual testing
+   [[eosio::action]]
+   void addaction(uint32_t x, uint32_t y) {
+      sync_callee::add_func add{ "callee"_n };
+      eosio::print("before add()");
+      eosio::check(add(x, y) == x + y, "x + y was not correct");
+      eosio::print("after add()");
+   }
+
    // pass complex parameters
    [[eosio::action]]
    void paramstest() {
