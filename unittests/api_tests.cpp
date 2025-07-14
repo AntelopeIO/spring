@@ -437,8 +437,8 @@ BOOST_AUTO_TEST_CASE(ram_billing_in_notify_tests) { try {
    fc::temp_directory tempdir;
    validating_tester chain( tempdir, true );
    chain.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
 
    chain.produce_block();
    chain.create_account( "testapi"_n );
@@ -1082,8 +1082,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( inline_action_objective_limit, T, testers ) { try
 
 BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    const uint32_t _4k = 4 * 1024;
+<<<<<<< HEAD
    tester chain(setup_policy::full_prior_to_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
    tester chain2(setup_policy::full_prior_to_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+=======
+   tester chain(setup_policy::before_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+   tester chain2(setup_policy::before_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+>>>>>>> origin/release/2.0
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
       block = chain.produce_block();
@@ -1320,8 +1325,8 @@ BOOST_AUTO_TEST_CASE(more_deferred_transaction_tests) { try {
    fc::temp_directory tempdir;
    validating_tester chain( tempdir, true );
    chain.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::replace_deferred} );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::replace_deferred} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
    chain.produce_block();
 
    const auto& index = chain.control->db().get_index<generated_transaction_multi_index,by_id>();
