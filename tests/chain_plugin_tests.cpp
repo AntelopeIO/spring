@@ -202,7 +202,7 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_data_size"));
 
    // verifying max_sync_call_depth and max_sync_call_data_size
-   t.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::sync_call} );
+   t.activate_builtin_protocol_features( {builtin_protocol_feature_t::sync_call} );
    t.produce_block();
 
    parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());

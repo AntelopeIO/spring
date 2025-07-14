@@ -1082,13 +1082,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( inline_action_objective_limit, T, testers ) { try
 
 BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    const uint32_t _4k = 4 * 1024;
-<<<<<<< HEAD
-   tester chain(setup_policy::full_prior_to_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
-   tester chain2(setup_policy::full_prior_to_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
-=======
    tester chain(setup_policy::before_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
    tester chain2(setup_policy::before_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
->>>>>>> origin/release/2.0
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
       block = chain.produce_block();

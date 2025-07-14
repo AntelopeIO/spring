@@ -61,18 +61,6 @@ namespace boost::test_tools::tt_detail {
 }
 
 namespace eosio::testing {
-<<<<<<< HEAD
-   enum class setup_policy {
-      none,
-      old_bios_only,
-      preactivate_feature_only,
-      preactivate_feature_and_new_bios,
-      old_wasm_parser,
-      full_prior_to_disable_deferred_trx,
-      full_except_do_not_transition_to_savanna,
-      full
-=======
-
    using builtin_protocol_feature_t = chain::builtin_protocol_feature_t;
 
    enum class setup_action {
@@ -99,7 +87,6 @@ namespace eosio::testing {
       static const setup_policy before_disable_deferred_trx;
       static const setup_policy full_except_do_not_transition_to_savanna;
       static const setup_policy full;
->>>>>>> origin/release/2.0
    };
 
    enum class call_startup_t {
@@ -500,18 +487,10 @@ namespace eosio::testing {
          }
 
          void schedule_protocol_features_wo_preactivation(const vector<digest_type>& feature_digests);
-<<<<<<< HEAD
-         void preactivate_protocol_features(const vector<digest_type>& feature_digests);
-         void preactivate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
-         void preactivate_all_builtin_protocol_features();
-         void preactivate_all_prior_to_disable_deferred_trx();
-         void preactivate_savanna_protocol_features();
-=======
          void activate_protocol_features(const vector<digest_type>& feature_digests);
          void activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
          void activate_all_builtin_protocol_features();
          void activate_all_but_disable_deferred_trx();
->>>>>>> origin/release/2.0
 
          static genesis_state default_genesis() {
             genesis_state genesis;
@@ -766,11 +745,7 @@ namespace eosio::testing {
 
    class tester_no_disable_deferred_trx : public tester {
    public:
-<<<<<<< HEAD
-      tester_no_disable_deferred_trx(): tester(setup_policy::full_prior_to_disable_deferred_trx) {
-=======
       tester_no_disable_deferred_trx(): tester(setup_policy::before_disable_deferred_trx) {
->>>>>>> origin/release/2.0
       }
    };
 
@@ -900,13 +875,8 @@ namespace eosio::testing {
 
    class validating_tester_no_disable_deferred_trx : public validating_tester {
    public:
-<<<<<<< HEAD
-      validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_prior_to_disable_deferred_trx) {
-      }
-=======
       validating_tester_no_disable_deferred_trx()
          : validating_tester({}, nullptr, setup_policy::before_disable_deferred_trx) {}
->>>>>>> origin/release/2.0
    };
 
    // The behavior of legacy_validating_tester is activating all the protocol features

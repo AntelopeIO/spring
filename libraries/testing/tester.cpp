@@ -312,60 +312,6 @@ namespace eosio::testing {
             produce_block(); // block production is required to activate protocol feature
             break;
          }
-<<<<<<< HEAD
-         case setup_policy::preactivate_feature_and_new_bios: {
-            schedule_preactivate_protocol_feature();
-            produce_block();
-            set_before_producer_authority_bios_contract();
-            break;
-         }
-         case setup_policy::old_wasm_parser: {
-            schedule_preactivate_protocol_feature();
-            produce_block();
-            set_before_producer_authority_bios_contract();
-            preactivate_builtin_protocol_features({
-               builtin_protocol_feature_t::only_link_to_existing_permission,
-               builtin_protocol_feature_t::replace_deferred,
-               builtin_protocol_feature_t::no_duplicate_deferred_id,
-               builtin_protocol_feature_t::fix_linkauth_restriction,
-               builtin_protocol_feature_t::disallow_empty_producer_schedule,
-               builtin_protocol_feature_t::restrict_action_to_self,
-               builtin_protocol_feature_t::only_bill_first_authorizer,
-               builtin_protocol_feature_t::forward_setcode,
-               builtin_protocol_feature_t::get_sender,
-               builtin_protocol_feature_t::ram_restrictions,
-               builtin_protocol_feature_t::webauthn_key,
-               builtin_protocol_feature_t::wtmsig_block_signatures,
-               builtin_protocol_feature_t::bls_primitives
-            });
-            produce_block();
-            break;
-         }
-         case setup_policy::full:
-         case setup_policy::full_prior_to_disable_deferred_trx:
-         case setup_policy::full_except_do_not_transition_to_savanna: {
-            schedule_preactivate_protocol_feature();
-            produce_block();
-            set_before_producer_authority_bios_contract();
-            if( policy == setup_policy::full_prior_to_disable_deferred_trx ) {
-               preactivate_all_prior_to_disable_deferred_trx();
-            } else {
-               preactivate_all_builtin_protocol_features();
-            }
-            produce_block();
-            if (policy == setup_policy::full || policy == setup_policy::full_except_do_not_transition_to_savanna ) {
-               set_bios_contract();
-            }
-
-            // Do not transition to Savanna under full_except_do_not_transition_to_savanna or
-            // full_prior_to_disable_deferred_trx
-            if( policy == setup_policy::full ) {
-               // BLS voting is slow. Use only 1 finalizer for default testser.
-               finalizer_keys fin_keys(*this, 1u /* num_keys */, 1u /* finset_size */);
-               fin_keys.activate_savanna(0u /* first_key_idx */);
-            }
-=======
->>>>>>> origin/release/2.0
 
          case setup_action::set_before_producer_authority_bios_contract: {
             set_before_producer_authority_bios_contract();
@@ -1544,11 +1490,7 @@ namespace eosio::testing {
       activate_builtin_protocol_features( get_all_builtin_protocol_features() );
    }
 
-<<<<<<< HEAD
-   void base_tester::preactivate_all_prior_to_disable_deferred_trx() {
-=======
    void base_tester::activate_all_but_disable_deferred_trx() {
->>>>>>> origin/release/2.0
       std::vector<builtin_protocol_feature_t> builtins;
       for( const auto& f : get_all_builtin_protocol_features() ) {
          // Before deferred trxs feature is fully disabled, existing tests involving

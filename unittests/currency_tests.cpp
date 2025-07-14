@@ -97,11 +97,7 @@ using currency_testers = boost::mpl::list<currency_tester<legacy_validating_test
 
 class pre_disable_deferred_trx_currency_tester : public currency_tester<legacy_validating_tester> {
    public:
-<<<<<<< HEAD
-      pre_disable_deferred_trx_currency_tester() : currency_tester(setup_policy::full_prior_to_disable_deferred_trx) {}
-=======
       pre_disable_deferred_trx_currency_tester() : currency_tester(setup_policy::before_disable_deferred_trx) {}
->>>>>>> origin/release/2.0
 };
 
 template <typename T>

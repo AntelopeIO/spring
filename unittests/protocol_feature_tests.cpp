@@ -2348,7 +2348,7 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
    // Cannot activate SYNC_CALL because the dependency is not met (it depends on SAVANNA).
    auto d = pfm.get_builtin_digest(builtin_protocol_feature_t::sync_call);
    BOOST_REQUIRE(d);
-   BOOST_CHECK_EXCEPTION(c.preactivate_protocol_features({ *d }),
+   BOOST_CHECK_EXCEPTION(c.activate_protocol_features({ *d }),
                           protocol_feature_exception,
                           fc_exception_message_starts_with("not all dependencies of protocol feature with digest"));
 
@@ -2361,11 +2361,11 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
                          fc_exception_message_contains("unresolveable"));
 
    // Activate the depending Savanna
-   c.preactivate_savanna_protocol_features();
+   c.activate_builtin_protocol_features({builtin_protocol_feature_t::savanna});
    c.produce_block();
 
    // Activate SYNC_CALL after the dependency met
-   c.preactivate_protocol_features({ *d });
+   c.activate_protocol_features({ *d });
    c.produce_block();
 
    // Ensure SYNC_CALL is now activated
