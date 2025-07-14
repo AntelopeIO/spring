@@ -35,6 +35,7 @@ namespace fc { namespace crypto {
          size_t which() const;
 
          size_t variable_size() const;
+         bool   is_canonical() const;
 
       private:
          storage_type _storage;

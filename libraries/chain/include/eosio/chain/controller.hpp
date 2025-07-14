@@ -508,8 +508,6 @@ namespace eosio::chain {
       void register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)>&&);
       void register_update_incoming_block_metrics(std::function<void(incoming_block_metrics)>&&);
 
-      fc::check_canonical_t check_canonical() const;
-
       private:
          const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).
 

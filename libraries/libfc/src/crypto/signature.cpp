@@ -53,6 +53,20 @@ namespace fc { namespace crypto {
       }, _storage);
    }
 
+   bool signature::is_canonical() const {
+      return std::visit(overloaded {
+         [&](const ecc::signature_shim& s) {
+            return ecc::public_key::is_canonical(s._data);
+         },
+         [&](const r1::signature_shim& s) {
+            return true;
+         },
+         [&](const webauthn::signature& wa) {
+            return true;
+         }
+      }, _storage);
+   }
+
    std::string signature::to_string(const fc::yield_function_t& yield) const
    {
       auto data_str = std::visit(base58str_visitor<storage_type, config::signature_prefix>(yield), _storage);

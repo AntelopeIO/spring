@@ -66,10 +66,11 @@ namespace fc {
 
            unsigned int fingerprint() const;
 
+           static bool is_canonical( const compact_signature& c );
+
         private:
           friend class private_key;
           static public_key from_key_data( const public_key_data& v );
-          static bool is_canonical( const compact_signature& c );
           fc::fwd<detail::public_key_impl,33> my;
     };
 

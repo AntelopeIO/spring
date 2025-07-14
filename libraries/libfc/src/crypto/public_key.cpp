@@ -2,7 +2,7 @@
 #include <fc/crypto/common.hpp>
 #include <fc/exception/exception.hpp>
 
-namespace fc { namespace crypto {
+namespace fc::crypto {
 
    struct recovery_visitor : fc::visitor<public_key::storage_type> {
       recovery_visitor(const sha256& digest, check_canonical_t check_canonical)
@@ -110,7 +110,7 @@ namespace fc { namespace crypto {
    {
       return less_comparator<public_key::storage_type>::apply(p1._storage, p2._storage);
    }
-} } // fc::crypto
+} // fc::crypto
 
 namespace fc
 {
