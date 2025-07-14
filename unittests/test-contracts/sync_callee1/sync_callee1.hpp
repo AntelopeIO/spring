@@ -8,10 +8,10 @@ public:
    // returns x / y
    [[eosio::call]]
    uint32_t div(uint32_t x, uint32_t y);
-   using div_func = eosio::call_wrapper<"div"_n, &sync_callee1::div>;
+   using div_func = eosio::call_wrapper<"div"_i, &sync_callee1::div>;
 
    // recursively calls back the caller
    [[eosio::call]]
    uint32_t recursive(uint32_t n);
-   using recursive_func = eosio::call_wrapper<"recursive"_n, &sync_callee1::recursive>;
+   using recursive_func = eosio::call_wrapper<"recursive"_i, &sync_callee1::recursive>;
 };
