@@ -620,27 +620,25 @@ std::string get_call_name(const account_name& account, uint64_t id) {
 
 void print_call( const fc::variant& ct, std::unordered_map<uint64_t, std::string>& sender_name_map ) {
    auto receiver = ct["receiver"].as_string();
-   std::string data = "unavailable payload data";
+   std::string args{};
+
    std::string sender = "unavailable sender";
    std::string call_name = "unavailable name";
 
    auto itr = sender_name_map.find(ct["sender_ordinal"].as_uint64());
    if( itr != sender_name_map.end() ) sender = itr->second;
 
-   if (ct.get_object().contains("data") ) {
-      if (ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
-         auto id = ct["data"]["header"]["func_name"].as_uint64();
-         call_name = get_call_name(ct["receiver"].as<account_name>(), id);
-      }
-
-      // Do not display header field (it is internal), display arguments only.
-      fc::mutable_variant_object mvo{ct["data"].get_object()};
-      mvo.erase("header");
-      data = fc::json::to_string( mvo, fc::time_point::maximum() );
+   if (ct.get_object().contains("payload_header")) {
+      auto id = ct["payload_header"]["func_name"].as_uint64();
+      call_name = get_call_name(ct["receiver"].as<account_name>(), id);
    }
-   if( data.size() > 100 ) data = data.substr(0,100) + "...";
 
-   cout << "#" << std::setw(receiver_width) << right << (receiver + "::" + call_name) << " <= " << std::setw(sender_width) << std::left << sender << " " << data << "\n";
+   if (ct.get_object().contains("data")) {
+      args = fc::json::to_string( ct["data"], fc::time_point::maximum() );
+      if( args.size() > 100 ) args = args.substr(0,100) + "...";
+   }
+
+   cout << "#" << std::setw(receiver_width) << right << (receiver + "::" + call_name) << " <= " << std::setw(sender_width) << std::left << sender << " " << args << "\n";
 
    // Continuously build map the map from call ordinal to name
    sender_name_map.insert({ct["call_ordinal"].as_uint64(), receiver});
@@ -702,8 +700,8 @@ std::string expand_console(const std::string_view&              header,
       const auto& ct = call_traces[call_trace_idx];
 
       std::string call_name = "<invalid>";
-      if (ct.get_object().contains("data") && ct["data"].get_object().contains("header") && ct["data"]["header"].get_object().contains("func_name")) {
-         auto id = ct["data"]["header"]["func_name"].as_uint64();
+      if (ct.get_object().contains("payload_header")) {
+         auto id = ct["payload_header"]["func_name"].as_uint64();
          call_name = get_call_name(ct["receiver"].as<account_name>(), id);
       }
 
@@ -779,23 +777,21 @@ void print_action( const fc::variant& at ) {
       }
    }
 
-   if( console.size() ) {
-      if( at.get_object().contains( "console_markers" ) ) { // has sync calls
-         std::string header  = "\nCONSOLE OUTPUT BEGIN =====================";
-         std::string trailer = "\nCONSOLE OUTPUT END   =====================";
-         const auto& call_traces = at["call_traces"].get_array();
-         const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
+   if( at.get_object().contains( "console_markers" ) ) { // has sync calls
+      std::string header  = "\nCONSOLE OUTPUT BEGIN =====================";
+      std::string trailer = "\nCONSOLE OUTPUT END   =====================";
+      const auto& call_traces = at["call_traces"].get_array();
+      const std::vector<fc::unsigned_int>& console_markers = at["console_markers"].as<std::vector<fc::unsigned_int>>();
 
-         auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
-         cout << clean_output(std::move(output)) << "\n";
-      } else {
-         std::stringstream ss(console);
-         string line;
-         while( std::getline( ss, line ) ) {
-            cout << ">> " << clean_output( std::move( line ) ) << "\n";
-            if( !verbose ) break;
-            line.clear();
-         }
+      auto output = expand_console(header, trailer, call_traces, 0, 0, receiver, console, console_markers);
+      cout << clean_output(std::move(output)) << "\n";
+   } else if( console.size() ) {
+      std::stringstream ss(console);
+      string line;
+      while( std::getline( ss, line ) ) {
+         cout << ">> " << clean_output( std::move( line ) ) << "\n";
+         if( !verbose ) break;
+         line.clear();
       }
    }
 }

@@ -140,7 +140,6 @@ namespace eosio::chain {
       size_t variants_size = abi.variants.value.size();
       size_t action_results_size = abi.action_results.value.size();
       size_t calls_size = abi.calls.value.size();
-      size_t call_results_size = abi.call_results.value.size();
 
       typedefs.clear();
       structs.clear();
@@ -179,11 +178,9 @@ namespace eosio::chain {
 
       for( auto& c : abi.calls.value ) {
          calls[c.name] = std::move(c.type);
-         call_ids[std::move(c.id)] = std::move(c.name);
+         call_ids[std::move(c.id)] = c.name;
+         call_results[std::move(c.name)] = std::move(c.result_type);
       }
-
-      for( auto& r : abi.call_results.value )
-         call_results[std::move(r.name)] = std::move(r.result_type);
 
       /**
        *  The ABI vector may contain duplicates which would make it
@@ -197,7 +194,6 @@ namespace eosio::chain {
       EOS_ASSERT( variants.size() == variants_size, duplicate_abi_variant_def_exception, "duplicate variant definition detected" );
       EOS_ASSERT( action_results.size() == action_results_size, duplicate_abi_action_results_def_exception, "duplicate action results definition detected" );
       EOS_ASSERT( calls.size() == calls_size, duplicate_abi_call_def_exception, "duplicate call definition detected" );
-      EOS_ASSERT( call_results.size() == call_results_size, duplicate_abi_call_results_def_exception, "duplicate call results definition detected" );
 
       validate(ctx);
    }
@@ -354,11 +350,6 @@ namespace eosio::chain {
         ctx.check_deadline();
         EOS_ASSERT(_is_type(c.second, ctx), invalid_type_inside_abi, "${type}", ("type",impl::limit_size(c.second)) );
       } FC_CAPTURE_AND_RETHROW( (c)  ) }
-
-      for( const auto& r : call_results ) { try {
-        ctx.check_deadline();
-        EOS_ASSERT(_is_type(r.second, ctx), invalid_type_inside_abi, "${type}", ("type",impl::limit_size(r.second)) );
-      } FC_CAPTURE_AND_RETHROW( (r)  ) }
    }
 
    std::string_view abi_serializer::resolve_type(const std::string_view& type)const {

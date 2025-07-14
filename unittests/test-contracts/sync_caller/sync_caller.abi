@@ -229,6 +229,5 @@
     "ricardian_clauses": [],
     "variants": [],
     "action_results": [],
-    "calls": [],
-    "call_results": []
+    "calls": []
 }
