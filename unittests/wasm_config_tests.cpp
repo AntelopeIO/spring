@@ -1258,7 +1258,7 @@ BOOST_FIXTURE_TEST_CASE(large_custom_section, old_wasm_tester)
    set_code( "hugecustom"_n, okay_custom );
 
    // It's also okay once CONFIGURABLE_WASM_LIMITS is activated
-   preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
+   activate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
    produce_block();
 
    set_code( "hugecustom"_n, custom_section_wasm );
