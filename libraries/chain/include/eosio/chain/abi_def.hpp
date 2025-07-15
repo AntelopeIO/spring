@@ -1,11 +1,47 @@
 #pragma once
 
 #include <eosio/chain/types.hpp>
+#include <charconv>
+#include <iostream>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
+
+struct version_t {
+   uint8_t major = 0;
+   uint8_t minor = 0;
+   bool    valid = false;
+
+   version_t() = default;
+
+   version_t(uint8_t major, uint8_t minor) : major(major), minor(minor), valid(true) {}
+
+   version_t(std::string_view sv) {
+      auto last = sv.data() + sv.size();
+      auto [ptr, ec] = std::from_chars(sv.data(), last, major);
+      if (ec == std::errc() && *ptr == '.')
+         valid = (std::from_chars(ptr+1, last, minor).ec == std::errc());
+   }
+
+   friend auto operator<=>(const version_t&, const version_t&) = default;
+   friend bool operator==(const version_t&, const version_t&) = default;
+
+   std::string str() const {
+      return std::to_string(major) + "." + std::to_string(minor);
+   }
+
+   friend std::ostream& operator<<(std::ostream& s, const version_t& v) {
+      s << "version_t(" << v.str() << ")";
+      return s;
+   }
+
+   bool is_valid() const {
+      return valid;
+   }
+};
 
 using type_name      = string;
 using field_name     = string;
+using call_name      = string;
 
 struct type_def {
    type_def() = default;
@@ -105,6 +141,27 @@ struct action_result_def {
    type_name   result_type;
 };
 
+struct call_data_header {  // match with CDT definition
+   static constexpr uint32_t current_version = 0;  // sync call
+
+   uint32_t version   = 0;
+   uint64_t func_name = 0;
+
+   bool is_version_valid() { return version <= current_version; }
+};
+
+struct call_def {
+   call_def() = default;
+   call_def(const call_name& name, const type_name& type, uint64_t id)
+   :name(name), type(type), id(id)
+   {}
+
+   call_name name;
+   type_name type;
+   uint64_t  id = 0;
+   type_name result_type;
+};
+
 template<typename T>
 struct may_not_exist {
    T value{};
@@ -131,6 +188,15 @@ struct abi_def {
    extensions_type                           abi_extensions;
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
+   may_not_exist<vector<call_def>>           calls;
+
+   version_t get_version() const {
+      static const std::string version_header = "eosio::abi/";
+      if (!version.starts_with(version_header))
+         return {};
+      std::string_view version_str(version.c_str() + version_header.size(), version.size() - version_header.size());
+      return version_t(version_str);
+   }
 };
 
 abi_def eosio_contract_abi(const abi_def& eosio_system_abi);
@@ -138,7 +204,7 @@ vector<type_def> common_type_defs();
 
 extern unsigned char eosio_abi_bin[2132];
 
-} } /// namespace eosio::chain
+} /// namespace eosio::chain
 
 namespace fc {
 
@@ -176,5 +242,8 @@ FC_REFLECT( eosio::chain::clause_pair                      , (id)(body) )
 FC_REFLECT( eosio::chain::error_message                    , (error_code)(error_msg) )
 FC_REFLECT( eosio::chain::variant_def                      , (name)(types) )
 FC_REFLECT( eosio::chain::action_result_def                , (name)(result_type) )
+FC_REFLECT( eosio::chain::call_data_header                 , (version)(func_name) )
+FC_REFLECT( eosio::chain::call_def                         , (name)(type)(id)(result_type) )
 FC_REFLECT( eosio::chain::abi_def                          , (version)(types)(structs)(actions)(tables)
-                                                             (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results) )
+                                                             (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results)
+                                                             (calls) )

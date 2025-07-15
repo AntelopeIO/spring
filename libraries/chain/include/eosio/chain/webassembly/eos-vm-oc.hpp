@@ -3,12 +3,14 @@
 #include <eosio/chain/webassembly/common.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/webassembly/runtime_interface.hpp>
-#include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/sync_call_resource_pool.hpp>
+#include <eosio/chain/host_context.hpp>
 #include <softfloat.hpp>
 #include "IR/Types.h"
 
 #include <eosio/chain/webassembly/eos-vm-oc/eos-vm-oc.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/memory.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc/memory_pools.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/executor.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/code_cache.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
@@ -30,14 +32,30 @@ class eosvmoc_runtime : public eosio::chain::wasm_runtime_interface {
       eosvmoc_runtime(const std::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, const chainbase::database& db);
       ~eosvmoc_runtime();
       std::unique_ptr<wasm_instantiated_module_interface> instantiate_module(const char* code_bytes, size_t code_size,
-                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& ) override;
+                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) override;
 
       void init_thread_local_data() override;
+      uint32_t acquire_main_thread_exec_mem_index();
+      void     release_main_thread_exec_mem_index();
+      uint32_t acquire_ro_thread_exec_mem_index();
+      void     release_ro_thread_exec_mem_index();
+
+      // For sync calls
+      eosvmoc::executor* acquire_call_exec();
+      void release_call_exec(eosvmoc::executor* e);
+      eosvmoc::memory* acquire_call_mem(uint32_t call_depth);
+      void release_call_mem(uint32_t call_depth, eosvmoc::memory* m);
+      void set_num_threads_for_call_res_pools(uint32_t num_threads);
+      void set_max_call_depth_for_call_res_pools(uint32_t depth);
 
       friend eosvmoc_instantiated_module;
       eosvmoc::code_cache_sync cc;
       eosvmoc::executor exec;
       eosvmoc::memory mem;
+
+      // For sync calls
+      call_resource_pool<eosvmoc::executor> exec_pool;
+      memory_pools mem_pools;
 
       // Defined in eos-vm-oc.cpp. Used for non-main thread in multi-threaded execution
       thread_local static std::unique_ptr<eosvmoc::executor> exec_thread_local;
@@ -360,10 +378,10 @@ auto fn(A... a) {
 #pragma GCC diagnostic pop
 
       constexpr int cb_ctx_ptr_offset = OFFSET_OF_CONTROL_BLOCK_MEMBER(ctx);
-      apply_context* ctx;
-      asm("mov %%gs:%c[applyContextOffset], %[cPtr]\n"
+      host_context* ctx;
+      asm("mov %%gs:%c[hostContextOffset], %[cPtr]\n"
           : [cPtr] "=r" (ctx)
-          : [applyContextOffset] "i" (cb_ctx_ptr_offset)
+          : [hostContextOffset] "i" (cb_ctx_ptr_offset)
           );
       Interface host(*ctx);
       eos_vm_oc_type_converter tc{&host, eos_vm_oc_execution_interface{stack + sizeof...(A)}};

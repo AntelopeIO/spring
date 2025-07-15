@@ -32,7 +32,7 @@ std::ostream& operator<<( std::ostream& osm, const fc::variant_object::entry& e 
 
 eosio::chain::asset core_from_string(const std::string& s);
 
-namespace boost { namespace test_tools { namespace tt_detail {
+namespace boost::test_tools::tt_detail {
 
    template<>
    struct print_log_value<fc::variant> {
@@ -58,18 +58,35 @@ namespace boost { namespace test_tools { namespace tt_detail {
       }
    };
 
-} } }
+}
 
 namespace eosio::testing {
-   enum class setup_policy {
-      none,
-      old_bios_only,
-      preactivate_feature_only,
-      preactivate_feature_and_new_bios,
-      old_wasm_parser,
-      full_prior_to_disable_deferred_trx,
-      full_except_do_not_transition_to_savanna,
-      full
+   using builtin_protocol_feature_t = chain::builtin_protocol_feature_t;
+
+   enum class setup_action {
+      preactivate_protocol_feature,
+      set_before_producer_authority_bios_contract,
+      activate_features,     // activate features listed in `setup_policy::features`. enforce dependencies.
+      activate_all_features, // activate all available features
+      set_bios_contract,
+      activate_savanna
+   };
+
+   struct setup_policy {
+      std::vector<setup_action>               actions;  // ordered list of actions to execute
+      std::vector<builtin_protocol_feature_t> features; // features to be activated for action `activate_features`
+
+      friend bool operator==(const setup_policy&, const setup_policy&) = default;
+
+      friend std::ostream& operator<<(std::ostream& s, const setup_policy& p);
+
+      static const setup_policy none;
+      static const setup_policy preactivate_feature_only;
+      static const setup_policy preactivate_feature_and_new_bios;
+      static const setup_policy old_wasm_parser;
+      static const setup_policy before_disable_deferred_trx;
+      static const setup_policy full_except_do_not_transition_to_savanna;
+      static const setup_policy full;
    };
 
    enum class call_startup_t {
@@ -81,8 +98,6 @@ namespace eosio::testing {
    // Number of chains required for a block to become final.
    // Current protocol is 2: strong-strong or weak-strong.
    constexpr size_t num_chains_to_final = 2;
-
-   std::ostream& operator<<(std::ostream& os, setup_policy p);
 
    std::vector<uint8_t> read_wasm( const char* fn );
    std::vector<char>    read_abi( const char* fn );
@@ -180,14 +195,14 @@ namespace eosio::testing {
          base_tester() = default;
          base_tester(base_tester&&) = default;
 
-         void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
+         void              init(const setup_policy& policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
          void              init(controller::config config, const genesis_state& genesis, call_startup_t call_startup);
          void              init(controller::config config);
          void              init(controller::config config, protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot);
          void              init(controller::config config, protocol_feature_set&& pfs, const genesis_state& genesis);
          void              init(controller::config config, protocol_feature_set&& pfs);
-         void              execute_setup_policy(const setup_policy policy);
+         void              execute_setup_policy(const setup_policy& policy);
 
          void              close();
          void              open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id, const std::function<void()>& lambda );
@@ -472,11 +487,10 @@ namespace eosio::testing {
          }
 
          void schedule_protocol_features_wo_preactivation(const vector<digest_type>& feature_digests);
-         void preactivate_protocol_features(const vector<digest_type>& feature_digests);
-         void preactivate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
-         void preactivate_all_builtin_protocol_features();
-         void preactivate_all_prior_to_disable_deferred_trx();
-         void preactivate_savanna_protocol_features();
+         void activate_protocol_features(const vector<digest_type>& feature_digests);
+         void activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
+         void activate_all_builtin_protocol_features();
+         void activate_all_but_disable_deferred_trx();
 
          static genesis_state default_genesis() {
             genesis_state genesis;
@@ -618,7 +632,7 @@ namespace eosio::testing {
 
    class tester : public base_tester {
    public:
-      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
+      tester(const setup_policy& policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
@@ -667,7 +681,7 @@ namespace eosio::testing {
          }
       }
 
-      tester(const std::function<void(controller&)>& control_setup, setup_policy policy = setup_policy::full,
+      tester(const std::function<void(controller&)>& control_setup, const setup_policy& policy = setup_policy::full,
              db_read_mode read_mode = db_read_mode::HEAD);
 
       using base_tester::produce_block;
@@ -699,7 +713,7 @@ namespace eosio::testing {
    // set_finalizer host function only.
    class legacy_tester : public tester {
    public:
-      legacy_tester(setup_policy policy = setup_policy::full_except_do_not_transition_to_savanna, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{})
+      legacy_tester(const setup_policy& policy = setup_policy::full_except_do_not_transition_to_savanna, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{})
       : tester(policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna
                                             : policy,
                read_mode, genesis_max_inline_action_size) {};
@@ -714,14 +728,14 @@ namespace eosio::testing {
       legacy_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
       : tester(tempdir, conf_edit, use_genesis) {};
 
-      legacy_tester(const std::function<void(controller&)>& control_setup, setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD)
+      legacy_tester(const std::function<void(controller&)>& control_setup, const setup_policy& policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD)
       : tester(control_setup,
                policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna
                                             : policy,
                read_mode) {};
 
       // setup_policy::full does not not transition to Savanna consensus.
-      void execute_setup_policy(const setup_policy policy) {
+      void execute_setup_policy(const setup_policy& policy) {
          tester::execute_setup_policy(policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : policy);
       };
    };
@@ -731,7 +745,7 @@ namespace eosio::testing {
 
    class tester_no_disable_deferred_trx : public tester {
    public:
-      tester_no_disable_deferred_trx(): tester(setup_policy::full_prior_to_disable_deferred_trx) {
+      tester_no_disable_deferred_trx(): tester(setup_policy::before_disable_deferred_trx) {
       }
    };
 
@@ -751,7 +765,7 @@ namespace eosio::testing {
       }
       controller::config vcfg;
 
-      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full) {
+      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, const setup_policy& p = setup_policy::full) {
          auto def_conf = default_config(tempdir);
 
          vcfg = def_conf.first;
@@ -861,8 +875,8 @@ namespace eosio::testing {
 
    class validating_tester_no_disable_deferred_trx : public validating_tester {
    public:
-      validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_prior_to_disable_deferred_trx) {
-      }
+      validating_tester_no_disable_deferred_trx()
+         : validating_tester({}, nullptr, setup_policy::before_disable_deferred_trx) {}
    };
 
    // The behavior of legacy_validating_tester is activating all the protocol features
@@ -871,15 +885,18 @@ namespace eosio::testing {
    // set_finalizer host function only.
    class legacy_validating_tester : public validating_tester {
    public:
-      legacy_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full_except_do_not_transition_to_savanna)
-      : validating_tester(trusted_producers, dmlog, p == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : p) {};
+      legacy_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(),
+                               deep_mind_handler*            dmlog             = nullptr,
+                               const setup_policy&           p = setup_policy::full_except_do_not_transition_to_savanna)
+         : validating_tester(trusted_producers, dmlog,
+                             p == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : p) {};
 
       legacy_validating_tester(const fc::temp_directory& tempdir, bool use_genesis)
-      : validating_tester(tempdir, use_genesis) {};
+         : validating_tester(tempdir, use_genesis) {};
 
       template <typename Lambda>
       legacy_validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
-      : validating_tester(tempdir, conf_edit, use_genesis) {};
+         : validating_tester(tempdir, conf_edit, use_genesis){};
    };
 
    using savanna_validating_tester = validating_tester;

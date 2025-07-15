@@ -29,9 +29,13 @@ namespace webassembly { namespace eos_vm_runtime {
 using namespace fc;
 using namespace eosio::vm;
 
-void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics );
+struct validate_result {
+   bool sync_call_supported = false;
+};
 
-void validate(const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics );
+validate_result validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics);
+validate_result validate(const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics);
+bool is_sync_call_supported(const char* code_bytes, size_t code_size);
 
 struct apply_options;
 
@@ -45,7 +49,7 @@ class eos_vm_runtime : public eosio::chain::wasm_runtime_interface {
    public:
       eos_vm_runtime();
       std::unique_ptr<wasm_instantiated_module_interface> instantiate_module(const char* code_bytes, size_t code_size,
-                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& sync_call_supported) override;
+                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) override;
 
    private:
       // todo: managing this will get more complicated with sync calls;
@@ -63,7 +67,7 @@ class eos_vm_profile_runtime : public eosio::chain::wasm_runtime_interface {
    public:
       eos_vm_profile_runtime();
       std::unique_ptr<wasm_instantiated_module_interface> instantiate_module(const char* code_bytes, size_t code_size,
-                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, bool& sync_call_supported) override;
+                                                                             const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) override;
 };
 
 }}}}// eosio::chain::webassembly::eos_vm_runtime

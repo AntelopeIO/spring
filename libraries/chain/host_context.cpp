@@ -70,16 +70,15 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
       throw;
    };
 
-   auto handle_call_failure = [&]()
+   auto handle_call_failure = [&](int64_t error_id)
    {
       auto& call_trace = get_call_trace(ordinal);
-      call_trace.error_id = -1;
+      call_trace.error_id = error_id;
       finalize_call_trace(call_trace, start);
       trx_context.checktime();
       if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
          dm_logger->on_end_call();
-      }
-      return -1;
+      return error_id;
    };
 
    last_sync_call_return_value.clear(); // reset for current sync call
@@ -97,15 +96,21 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
                     "sync call call data size must be less or equal to ${max_data_size} bytes", ("max_data_size", max_data_size));
 
          const auto* code = control.db().find<account_object, by_name>(call_receiver);
-         EOS_ASSERT(code != nullptr, sync_call_validate_exception,
-                    "sync call's receiver account ${r} does not exist", ("r", call_receiver));
+         if (code == nullptr) {
+            return handle_call_failure(static_cast<int64_t>(call_error_code::no_account_or_no_contract));
+         }
 
          EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::all_allowed_bits), sync_call_validate_exception,  // all but `std::bit_width(all_allowed_bits)` LSBs must be 0s
                     "only ${bits} least significant bits of sync call's flags (${flags}) can be set", ("bits", std::bit_width(static_cast<uint64_t>(sync_call_flags::all_allowed_bits)))("flags", flags));
 
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( call_receiver);
          if (receiver_account->code_hash.empty()) {
-            return handle_call_failure();
+            return handle_call_failure(static_cast<int64_t>(call_error_code::no_account_or_no_contract));
+         }
+
+         const code_object* const codeobject = db.find<code_object, by_code_hash>(boost::make_tuple(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version));
+         if (!codeobject || !codeobject->sync_call_supported) {
+            return handle_call_failure(static_cast<int64_t>(call_error_code::sync_call_not_supported));
          }
 
          // use a new sync_call_context for next sync call
@@ -113,10 +118,17 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
 
          try {
             // execute the sync call
-            auto rc = control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
-
-            if (rc == sync_call_return_code::receiver_not_support_sync_call) {  //  Currently -1 means there is no valid sync call entry point
-               return handle_call_failure();
+            auto status = control.get_wasm_interface().execute(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
+            // 0: success
+            // <= -10000: valid error return code
+            // otherwise (>0 || -1 .. -9999): invalid error return code
+            if (status != sync_call_executed &&
+                status > valid_sync_call_error_return_code_start) {
+               // convert invalid error code returned from sync call entry function to protocol call_error_code::invalid_return_value
+               status = static_cast<int64_t>(call_error_code::invalid_return_value);
+            }
+            if (status < sync_call_executed) {
+               return handle_call_failure(status);
             }
          } catch( const wasm_exit&) {}
 
@@ -519,4 +531,22 @@ int host_context::db_end_i64( name code, name scope, name table ) {
    return keyval_cache.cache_table( *tab );
 }
 
+bool host_context::is_eos_vm_oc_whitelisted() const {
+   return receiver.prefix() == config::system_account_name || // "eosio"_n
+          control.is_eos_vm_oc_whitelisted(receiver);
+}
+
+// Context             |    OC?
+//-------------------------------------------------------------------------------
+// Building block      | baseline, OC for whitelisted
+// Applying block      | OC unless a producer, OC for whitelisted including producers
+// Speculative API trx | baseline, OC for whitelisted
+// Speculative P2P trx | baseline, OC for whitelisted
+// Compute trx         | baseline, OC for whitelisted
+// Read only trx       | OC
+bool host_context::should_use_eos_vm_oc()const {
+   return is_eos_vm_oc_whitelisted() // all whitelisted accounts use OC always
+          || (is_applying_block() && !control.is_producer_node()) // validating/applying block
+          || trx_context.is_read_only();
+}
 } /// eosio::chain

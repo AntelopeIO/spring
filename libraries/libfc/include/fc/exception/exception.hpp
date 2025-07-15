@@ -65,20 +65,20 @@ namespace fc
          };
 
          explicit exception( int64_t code = unspecified_exception_code,
-                    const std::string& name_value = "exception",
-                    const std::string& what_value = "unspecified");
+                             std::string_view name_value = "exception",
+                             std::string_view what_value = "unspecified");
          exception( log_message&&, int64_t code = unspecified_exception_code,
-                                   const std::string& name_value = "exception",
-                                   const std::string& what_value = "unspecified");
+                    std::string_view name_value = "exception",
+                    std::string_view what_value = "unspecified");
          exception( log_messages&&, int64_t code = unspecified_exception_code,
-                                    const std::string& name_value = "exception",
-                                    const std::string& what_value = "unspecified");
+                    std::string_view name_value = "exception",
+                    std::string_view what_value = "unspecified");
          exception( const log_messages&,
                     int64_t code = unspecified_exception_code,
-                    const std::string& name_value = "exception",
-                    const std::string& what_value = "unspecified");
+                    std::string_view name_value = "exception",
+                    std::string_view what_value = "unspecified");
          exception( const exception& e );
-         exception( exception&& e );
+         exception( exception&& e ) noexcept;
          virtual ~exception();
 
          const char*          name()const throw();
@@ -117,6 +117,7 @@ namespace fc
           *  @endcode
           */
           virtual std::shared_ptr<exception> dynamic_copy_exception()const;
+          virtual void rethrow() const { throw *this; }
 
          friend void to_variant( const exception& e, variant& v );
          friend void from_variant( const variant& e, exception& ll );
@@ -156,7 +157,7 @@ namespace fc
 
        std::exception_ptr get_inner_exception()const;
 
-       virtual std::shared_ptr<exception>   dynamic_copy_exception()const;
+       std::shared_ptr<exception>   dynamic_copy_exception()const override;
       private:
        std::exception_ptr _inner;
    };
@@ -180,7 +181,8 @@ namespace fc
 
        static std_exception_wrapper from_current_exception(const std::exception& e);
 
-       virtual std::shared_ptr<exception>   dynamic_copy_exception()const;
+       std::shared_ptr<exception>   dynamic_copy_exception()const override;
+       void rethrow() const override { throw *this; }
       private:
        std::exception_ptr _inner;
    };
@@ -216,17 +218,18 @@ namespace fc
        TYPE( const std::string& what_value, const fc::log_messages& m ) \
        :BASE( m, CODE, BOOST_PP_STRINGIZE(TYPE), what_value ){} \
        TYPE( fc::log_message&& m ) \
-       :BASE( fc::move(m), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ){}\
+       :BASE( std::move(m), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ){}\
        TYPE( fc::log_messages msgs ) \
-       :BASE( fc::move( msgs ), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ) {} \
+       :BASE( std::move( msgs ), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ) {} \
        TYPE( const TYPE& c ) \
        :BASE(c){} \
        TYPE( const BASE& c ) \
        :BASE(c){} \
        TYPE():BASE(CODE, BOOST_PP_STRINGIZE(TYPE), WHAT){}\
        \
-       virtual std::shared_ptr<fc::exception> dynamic_copy_exception()const\
+       std::shared_ptr<fc::exception> dynamic_copy_exception()const override\
        { return std::make_shared<TYPE>( *this ); } \
+       void rethrow() const override { throw *this; } \
    };
 
   #define FC_DECLARE_EXCEPTION( TYPE, CODE, WHAT ) \

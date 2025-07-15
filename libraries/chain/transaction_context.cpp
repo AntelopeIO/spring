@@ -539,6 +539,17 @@ namespace eosio::chain {
       EOS_ASSERT( false,  transaction_exception, "unexpected deadline exception code ${code}", ("code", deadline_exception_code) );
    }
 
+   // This is used where eosio::vm::timeout_exception or EOSVMOC_EXIT_CHECKTIME_FAIL is caught,
+   // checktime() must throw. Otherwise we would have interrupted contract execution
+   // at some unknown time but still considered it completed successfully.
+   [[noreturn]]
+   void transaction_context::checktime_must_throw()const {
+      checktime();
+
+      assert(false);
+      __builtin_unreachable();
+   }
+
    void transaction_context::pause_billing_timer() {
       paused_time = fc::time_point::now();
       billed_time = paused_time - pseudo_start;

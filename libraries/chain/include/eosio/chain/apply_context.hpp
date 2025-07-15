@@ -82,15 +82,10 @@ class apply_context : public host_context {
       const action* get_action_ptr()const { return act; }
 
       action_name get_sender() const override;
-
-      bool is_applying_block() const { return trx_context.explicit_billed_cpu_time; }
-      bool is_eos_vm_oc_whitelisted() const;
-      bool should_use_eos_vm_oc()const;
-
       action_trace& get_current_action_trace() const override { return trx_context.get_action_trace( action_ordinal ); }
       uint32_t get_sync_call_ordinal() override { return 0; }
       bool is_read_only() const override { return trx_context.is_read_only(); }
-
+  
    private:
 
       const action*                 act = nullptr; ///< action being applied

@@ -16,7 +16,7 @@
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/finalizer_authority.hpp>
-#include <eosio/chain/webassembly/eos-vm-oc.hpp>
+#include <eosio/chain/webassembly/eos-vm-oc/intrinsic.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>
@@ -437,8 +437,8 @@ BOOST_AUTO_TEST_CASE(ram_billing_in_notify_tests) { try {
    fc::temp_directory tempdir;
    validating_tester chain( tempdir, true );
    chain.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
 
    chain.produce_block();
    chain.create_account( "testapi"_n );
@@ -1005,7 +1005,6 @@ void transaction_tests(T& chain) {
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
       auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
-      if( r->except) throw *r->except;
       tx_trace = r;
       chain.produce_block();
       BOOST_CHECK(tx_trace->action_traces.front().console == sha_expect);
@@ -1083,8 +1082,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( inline_action_objective_limit, T, testers ) { try
 
 BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    const uint32_t _4k = 4 * 1024;
-   tester chain(setup_policy::full_prior_to_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
-   tester chain2(setup_policy::full_prior_to_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+   tester chain(setup_policy::before_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+   tester chain2(setup_policy::before_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
       block = chain.produce_block();
@@ -1171,7 +1170,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       auto dtrxs = get_scheduled_transactions();
       BOOST_CHECK_EQUAL(dtrxs.size(), 1);
       for (const auto& trx: dtrxs) {
-         control->push_scheduled_transaction(trx, fc::time_point::maximum(), fc::microseconds::maximum(), 0, false);
+         control->push_scheduled_transaction(trx, 0, false);
       }
       BOOST_CHECK_EQUAL(1, count);
       BOOST_REQUIRE(trace);
@@ -1198,7 +1197,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       auto dtrxs = get_scheduled_transactions();
       BOOST_CHECK_EQUAL(dtrxs.size(), 1);
       for (const auto& trx: dtrxs) {
-         control->push_scheduled_transaction(trx, fc::time_point::maximum(), fc::microseconds::maximum(), billed_cpu_time_us, true);
+         control->push_scheduled_transaction(trx, billed_cpu_time_us, true);
       }
       BOOST_CHECK_EQUAL(1, count);
       BOOST_CHECK(trace);
@@ -1321,8 +1320,8 @@ BOOST_AUTO_TEST_CASE(more_deferred_transaction_tests) { try {
    fc::temp_directory tempdir;
    validating_tester chain( tempdir, true );
    chain.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::replace_deferred} );
-   chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::replace_deferred} );
+   chain.activate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
    chain.produce_block();
 
    const auto& index = chain.control->db().get_index<generated_transaction_multi_index,by_id>();

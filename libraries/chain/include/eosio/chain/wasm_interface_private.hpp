@@ -43,7 +43,6 @@ namespace eosio { namespace chain {
          std::unique_ptr<wasm_instantiated_module_interface>  module;
          uint8_t                                              vm_type = 0;
          uint8_t                                              vm_version = 0;
-         bool                                                 sync_call_supported = false;
       };
       struct by_hash;
       struct by_last_block_num;
@@ -53,7 +52,9 @@ struct eosvmoc_tier {
    // Called from main thread
    eosvmoc_tier(const std::filesystem::path& d, const eosvmoc::config& c, const chainbase::database& db,
                 eosvmoc::code_cache_async::compile_complete_callback cb)
-      : cc(d, c, db, std::move(cb)) {
+      : cc(d, c, db, std::move(cb))
+      , exec_pool([&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); })
+   {
       // Construct exec and mem for the main thread
       exec = std::make_unique<eosvmoc::executor>(cc);
       mem  = std::make_unique<eosvmoc::memory>(wasm_constraints::maximum_linear_memory/wasm_constraints::wasm_page_size);
@@ -65,7 +66,21 @@ struct eosvmoc_tier {
       mem  = std::make_unique<eosvmoc::memory>(eosvmoc::memory::sliced_pages_for_ro_thread);
    }
 
+   void set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      exec_pool.set_num_threads(num_threads, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+      mem_pools.set_num_threads(num_threads);
+   }
+
+   void set_max_call_depth_for_call_res_pools(uint32_t depth) {
+      exec_pool.set_max_call_depth(depth, [&]() -> eosvmoc::executor* { return new eosvmoc::executor(cc); });
+      mem_pools.set_max_call_depth(depth);
+   }
+
    eosvmoc::code_cache_async cc;
+
+   // For sync calls
+   call_resource_pool<eosvmoc::executor> exec_pool;
+   eosvmoc::memory_pools mem_pools;
 
    // Each thread requires its own exec and mem. Defined in wasm_interface.cpp
    thread_local static std::unique_ptr<eosvmoc::executor> exec;
@@ -133,7 +148,7 @@ struct eosvmoc_tier {
       }
 #endif
 
-      void apply( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+      int64_t execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
          bool attempt_tierup = false;
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
@@ -161,8 +176,18 @@ struct eosvmoc_tier {
             if (cd) {
                if (!context.is_applying_block()) // read_only_trx_test.py looks for this log statement
                   tlog("${a} speculatively executing ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
-               eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
-               return;
+
+               if (context.is_sync_call()) {
+                  auto exec = eosvmoc->exec_pool.acquire();
+                  auto mem  = eosvmoc->mem_pools.acquire_mem(context.sync_call_depth);
+                  auto cleanup = fc::make_scoped_exit([&](){
+                     eosvmoc->exec_pool.release(exec);
+                     eosvmoc->mem_pools.release_mem(context.sync_call_depth, mem);
+                  });
+                  return exec->execute(*cd, *mem, context);
+               } else {
+                  return eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
+               }
             }
          }
 #endif
@@ -183,7 +208,7 @@ struct eosvmoc_tier {
          if (allow_oc_interrupt)
             executing_code_hash.store(code_hash);
          try {
-            get_instantiated_module(code_hash, vm_type, vm_version, context)->apply(context);
+               return get_instantiated_module(code_hash, vm_type, vm_version, context)->execute(context);
          } catch (const interrupt_exception& e) {
             if (allow_oc_interrupt && eos_vm_oc_compile_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
@@ -196,10 +221,6 @@ struct eosvmoc_tier {
             }
             throw;
          }
-      }
-
-      sync_call_return_code do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
-         return get_instantiated_module(code_hash, vm_type, vm_version, context)->do_sync_call(context);
       }
 
       // used for testing
@@ -290,7 +311,6 @@ struct eosvmoc_tier {
          if (it != wasm_instantiation_cache.end()) {
             // An instantiated module's module should never be null.
             assert(it->module);
-            context.receiver_supports_sync_call = it->sync_call_supported;
             return it->module;
          }
 
@@ -300,19 +320,14 @@ struct eosvmoc_tier {
             .last_block_num_used = UINT32_MAX,
             .module = nullptr,
             .vm_type = vm_type,
-            .vm_version = vm_version,
-            .sync_call_supported = false
+            .vm_version = vm_version
          } ).first;
          auto timer_pause = fc::make_scoped_exit([&](){
             context.trx_context.resume_billing_timer();
          });
          context.trx_context.pause_billing_timer();
          wasm_instantiation_cache.modify(it, [&](auto& c) {
-            bool sync_call_supported = false;
-
-            c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version, sync_call_supported);  // sets sync_call_supported
-            c.sync_call_supported = sync_call_supported;
-            context.receiver_supports_sync_call = sync_call_supported;
+            c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version);
          });
          return it->module;
       }

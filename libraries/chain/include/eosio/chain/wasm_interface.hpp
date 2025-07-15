@@ -9,18 +9,14 @@ namespace eosio { namespace chain {
 
    struct platform_timer;
    class apply_context;
-   class sync_call_context;
+   class host_context;
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
+   namespace webassembly { namespace eos_vm_runtime { struct validate_result; }}
 
    struct wasm_exit {
       int32_t code = 0;
-   };
-
-   enum class sync_call_return_code : int64_t {
-      receiver_not_support_sync_call = -1,  // no sync_call entry point or its signature is invalid
-      success                        = 0
    };
 
    /**
@@ -60,6 +56,9 @@ namespace eosio { namespace chain {
          // initialize exec per thread
          void init_thread_local_data();
 
+         void set_num_threads_for_call_res_pools(uint32_t num_threads);
+         void set_max_call_depth_for_call_res_pools(uint32_t depth);
+
          // returns true if EOS VM OC is enabled
          bool is_eos_vm_oc_enabled() const;
 
@@ -71,7 +70,10 @@ namespace eosio { namespace chain {
          void indicate_shutting_down();
 
          //validates code -- does a WASM validation pass and checks the wasm against EOSIO specific constraints
-         static void validate(const controller& control, const bytes& code);
+         static webassembly::eos_vm_runtime::validate_result validate(const controller& control, const bytes& code);
+
+         //returns true if the code contains a valid sync_call entry point
+         static bool is_sync_call_supported(const char* code_bytes, size_t code_size);
 
          //indicate that a particular code probably won't be used after given block_num
          void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
@@ -80,10 +82,8 @@ namespace eosio { namespace chain {
          //indicate the current LIB. evicts old cache entries
          void current_lib(const uint32_t lib);
 
-         //Calls apply or error on a given code
-         void apply(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context);
-
-         sync_call_return_code do_sync_call(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context);
+         //Calls apply/sync_call
+         int64_t execute(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context);
 
          //Returns true if the code is cached
          bool is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const;

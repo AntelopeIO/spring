@@ -5,7 +5,6 @@
 #include <eosio/chain/exceptions.hpp>
 #include <utility>
 #include <fc/variant_object.hpp>
-#include <fc/variant_dynamic_bitset.hpp>
 #include <fc/scoped_exit.hpp>
 #include <fc/time.hpp>
 
@@ -17,6 +16,15 @@ using std::function;
 using std::pair;
 using namespace fc;
 
+// ---------------------------
+// 1.1  variants
+//      binary extensions
+// 1.2  action return values
+// 1.3  bitset
+//      sync calls
+// ---------------------------
+inline static const version_t current_abi_support(1, 3);
+
 namespace impl {
    struct abi_from_variant;
    struct abi_to_variant;
@@ -26,6 +34,8 @@ namespace impl {
    struct binary_to_variant_context;
    struct variant_to_binary_context;
    struct action_data_to_variant_context;
+
+   using call_data_to_variant_context = action_data_to_variant_context;
 }
 
 /**
@@ -39,16 +49,12 @@ struct abi_serializer {
 
    abi_serializer(){ configure_built_in_types(); }
    abi_serializer( abi_def abi, const yield_function_t& yield );
-   [[deprecated("use the overload with yield_function_t[=create_yield_function(max_serialization_time)]")]]
-   abi_serializer( const abi_def& abi, const fc::microseconds& max_serialization_time );
    void set_abi( abi_def abi, const yield_function_t& yield );
-   [[deprecated("use the overload with yield_function_t[=create_yield_function(max_serialization_time)]")]]
-   void set_abi(const abi_def& abi, const fc::microseconds& max_serialization_time);
 
    /// @return string_view of `t` or internal string type
    std::string_view resolve_type(const std::string_view& t)const;
    bool      is_array(const std::string_view& type)const;
-   bool      is_szarray(const std::string_view& type)const;
+   std::optional<fc::unsigned_int> is_szarray(const std::string_view& type)const;
    bool      is_optional(const std::string_view& type)const;
    bool      is_type( const std::string_view& type, const yield_function_t& yield )const;
    bool      is_type(const std::string_view& type, const fc::microseconds& max_serialization_time)const;
@@ -65,6 +71,9 @@ struct abi_serializer {
    type_name get_action_type(name action)const;
    type_name get_table_type(name action)const;
    type_name get_action_result_type(name action_result)const;
+   type_name get_call_type(call_name call)const;
+   type_name get_call_result_type(call_name call_result)const;
+   call_name get_call_name(uint64_t id)const;
 
    std::optional<string>  get_error_message( uint64_t error_code )const;
 
@@ -147,6 +156,9 @@ private:
    map<uint64_t, string>                      error_messages;
    map<type_name, variant_def, std::less<>>   variants;
    map<name,type_name>                        action_results;
+   map<call_name, type_name>                  calls;
+   map<uint64_t,  call_name>                  call_ids; // from short id to name
+   map<call_name, type_name>                  call_results;
 
    map<type_name, pair<unpack_function, pack_function>, std::less<>> built_in_types;
    void configure_built_in_types();
@@ -310,7 +322,8 @@ namespace impl {
              std::is_same<T, action_trace>::value ||
              std::is_same<T, signed_transaction>::value ||
              std::is_same<T, signed_block>::value ||
-             std::is_same<T, action>::value;
+             std::is_same<T, action>::value ||
+             std::is_same<T, call_trace>::value;
    }
 
    /**
@@ -351,7 +364,7 @@ namespace impl {
 
    struct abi_to_variant {
       /**
-       * template which overloads add for types which are not relvant to ABI information
+       * template which overloads add for types which are not relevant to ABI information
        * and can be degraded to the normal ::to_variant(...) processing
        */
       template<typename M, typename Resolver, not_require_abi_t<M> = 1>
@@ -577,8 +590,78 @@ namespace impl {
             }
          } catch(...) {}
 
-         mvo("call_traces", act_trace.call_traces);
+         add(mvo, "call_traces", act_trace.call_traces, resolver, ctx);
          mvo("console_markers", act_trace.console_markers);
+
+         out(name, std::move(mvo));
+      }
+
+      /**
+       * overload of to_variant_object for call_trace
+       *
+       * This matches the FC_REFLECT for this type, but this is provided to extract the contents of call_trace.data and call_trace.return_value
+       * @tparam Resolver
+       * @param call_trace
+       * @param resolver
+       * @return
+       */
+      template<typename Resolver>
+      static void add( mutable_variant_object& out, const char* name, const call_trace& cal_trace, const Resolver& resolver, abi_traverse_context& ctx )
+      {
+         static_assert(fc::reflector<call_trace>::total_member_count == 12);
+         auto h = ctx.enter_scope();
+         mutable_variant_object mvo;
+
+         mvo("call_ordinal", cal_trace.call_ordinal);
+         mvo("sender_ordinal", cal_trace.sender_ordinal);
+         mvo("receiver", cal_trace.receiver);
+         mvo("read_only", cal_trace.read_only);
+
+         std::string fname{};
+
+         mvo("hex_data", cal_trace.data);
+         try {
+            call_data_header data_header;
+            fc::datastream<const char*> ds(cal_trace.data.data(), cal_trace.data.size());
+            fc::raw::unpack(ds, data_header);  // now position of ds is after the header
+
+            if (data_header.is_version_valid()) {
+               // header is valid so add it
+               mvo("payload_header", data_header);
+
+               auto abi_optional = resolver(cal_trace.receiver);
+               if (abi_optional) {
+                  const abi_serializer& abi = *abi_optional;
+                  auto id = data_header.func_name; // short ID
+                  fname = abi.get_call_name(id);
+                  auto type = abi.get_call_type(fname);
+                  if (!type.empty()) {
+                     call_data_to_variant_context _ctx(abi, ctx, type);
+                     mvo( "data", abi._binary_to_variant( type, ds, _ctx ));
+                  }
+               }
+            }
+         } catch(...) {}
+
+         mvo("elapsed", cal_trace.elapsed);
+         mvo("console", cal_trace.console);
+         mvo("console_markers", cal_trace.console_markers);
+         mvo("except", cal_trace.except);
+         mvo("error_code", cal_trace.error_code);
+         mvo("error_id", cal_trace.error_id);
+
+         mvo("return_value_hex_data", cal_trace.return_value);
+         try {
+            auto abi_optional = resolver(cal_trace.receiver);
+            if (abi_optional) {
+               const abi_serializer& abi = *abi_optional;
+               auto type = abi.get_call_result_type(fname);
+               if (!type.empty()) {
+                  call_data_to_variant_context _ctx(abi, ctx, type);
+                  mvo( "return_value_data", abi._binary_to_variant( type, cal_trace.return_value, _ctx ));
+               }
+            }
+         } catch(...) {}
 
          out(name, std::move(mvo));
       }
@@ -1057,6 +1140,10 @@ public:
    abi_serializer_cache_builder&& add_serializers(const transaction_trace_ptr& trace_ptr) && {
       for( const auto& trace: trace_ptr->action_traces ) {
          add_to_cache(trace.act);
+
+         for( const auto& call_trace: trace.call_traces ) {
+            add_to_cache(call_trace.receiver);
+         }
       }
       return std::move(*this);
    }
@@ -1067,10 +1154,14 @@ public:
 
 private:
    void add_to_cache(const chain::action& a) {
-      auto it = abi_serializers.find( a.account );
+      add_to_cache(a.account);
+   }
+
+   void add_to_cache(const account_name& account) {
+      auto it = abi_serializers.find( account );
       if( it == abi_serializers.end() ) {
          try {
-            abi_serializers.emplace_hint( it, a.account, resolver_( a.account ) );
+            abi_serializers.emplace_hint( it, account, resolver_( account ) );
          } catch( ... ) {
             // keep behavior of not throwing on invalid abi, will result in hex data
          }

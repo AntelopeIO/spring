@@ -26,7 +26,7 @@
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
-#include <eosio/chain/wasm_alloc_pool.hpp>
+#include <eosio/chain/sync_call_resource_pool.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finalizer.hpp>
@@ -1015,7 +1015,7 @@ struct controller_impl {
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
-   wasm_alloc_pool wasm_allocator_pool;
+   call_resource_pool<vm::wasm_allocator> wasm_allocator_pool;
    wasm_interface  wasmif;
    app_window_type app_window = app_window_type::write;
 
@@ -1307,8 +1307,8 @@ struct controller_impl {
 
          if( trace->except_ptr )
             std::rethrow_exception(trace->except_ptr);
-         if( trace->except)
-            throw *trace->except;
+         if(trace->except)
+            assert(trace->except_ptr); // except/except_ptr always set together
          getpeerkeys_res_t res;
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
@@ -1342,6 +1342,7 @@ struct controller_impl {
     thread_pool(),
     my_finalizers(cfg.finalizers_dir / config::safety_filename),
     main_thread_timer(timer), // assumes constructor is called from main thread
+    wasm_allocator_pool([]() -> vm::wasm_allocator* { return new vm::wasm_allocator; }),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, main_thread_timer, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -1411,7 +1412,7 @@ struct controller_impl {
 
    // When in IRREVERSIBLE mode fork_db blocks are applied and marked valid when they become irreversible
    template<typename ForkDB, typename BSP>
-   controller::apply_blocks_result apply_irreversible_block(ForkDB& fork_db, const BSP& bsp) {
+   controller::apply_blocks_result_t::status_t apply_irreversible_block(ForkDB& fork_db, const BSP& bsp) {
       if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(bsp)>>) {
          // before transition to savanna
          return apply_block(bsp, controller::block_status::complete, trx_meta_cache_lookup{});
@@ -1427,13 +1428,13 @@ struct controller_impl {
             return apply_block(bsp, controller::block_status::complete, trx_meta_cache_lookup{});
          }
          // only called during transition when not a proper savanna block
-         return fork_db_.apply_l<controller::apply_blocks_result>([&](const auto& fork_db_l) {
+         return fork_db_.apply_l<controller::apply_blocks_result_t::status_t>([&](const auto& fork_db_l) {
             block_state_legacy_ptr legacy = fork_db_l.get_block(bsp->id());
             fork_db_.switch_to(fork_database::in_use_t::legacy); // apply block uses to know what types to create
             block_state_ptr prev = fork_db.get_block(legacy->previous(), include_root_t::yes);
             assert(prev);
-            controller::apply_blocks_result r = apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{});
-            if( r == controller::apply_blocks_result::complete) {
+            controller::apply_blocks_result_t::status_t r = apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{});
+            if (r == controller::apply_blocks_result_t::status_t::complete) {
                fc::scoped_exit<std::function<void()>> e([&]{fork_db_.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
@@ -1551,7 +1552,7 @@ struct controller_impl {
       }
    }
 
-   controller::apply_blocks_result log_irreversible() {
+   controller::apply_blocks_result_t log_irreversible() {
       EOS_ASSERT( fork_db_has_root(), fork_database_exception, "fork database not properly initialized" );
 
       const std::optional<block_id_type> log_head_id = blog.head_id();
@@ -1591,13 +1592,13 @@ struct controller_impl {
 
       const block_id_type new_lib_id = pending_lib_id();
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
-      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
 
       if( new_lib_num <= lib_num )
-         return result;
+         return controller::apply_blocks_result_t{};
 
       const fc::time_point start = fc::time_point::now();
 
+      controller::apply_blocks_result_t result;
       auto mark_branch_irreversible = [&, this](auto& fork_db) {
          assert(!irreversible_mode() || fork_db.head());
          const auto& head_id = irreversible_mode() ? fork_db.head()->id() : chain_head.id();
@@ -1622,9 +1623,12 @@ struct controller_impl {
 
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
                if (irreversible_mode()) {
-                  result = apply_irreversible_block(fork_db, *bitr);
-                  if (result != controller::apply_blocks_result::complete)
+                  controller::apply_blocks_result_t::status_t r = apply_irreversible_block(fork_db, *bitr);
+                  if (r != controller::apply_blocks_result_t::status_t::complete) {
+                     result.status = r;
                      break;
+                  }
+                  ++result.num_blocks_applied;
                }
 
                emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
@@ -1644,7 +1648,7 @@ struct controller_impl {
                   // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run
                   const bool more_blocks_to_process = bitr + 1 != branch.rend();
                   if (!replaying && more_blocks_to_process && fc::time_point::now() - start > fc::milliseconds(500)) {
-                     result = controller::apply_blocks_result::incomplete;
+                     result.status = controller::apply_blocks_result_t::status_t::incomplete;
                      break;
                   }
                }
@@ -1725,7 +1729,7 @@ struct controller_impl {
       return should_replay;
    }
 
-   std::exception_ptr replay_block_log() {
+   void replay_block_log() {
       auto blog_head = blog.head();
       assert(blog_head);
 
@@ -1787,7 +1791,8 @@ struct controller_impl {
                ilog( "${n} of ${head}", ("n", next->block_num())("head", blog_head->block_num()) );
             }
          }
-      } catch(  const database_guard_exception& e ) {
+      } catch( const std::exception& e ) {
+         wlog("Exception caught while replaying block log: ${e}", ("e", e.what()));
          except_ptr = std::current_exception();
       }
       transition_legacy_branch.clear(); // not needed after replay
@@ -1800,10 +1805,13 @@ struct controller_impl {
 
       // if the irreverible log is played without undo sessions enabled, we need to sync the
       // revision ordinal to the appropriate expected value here.
-      if( skip_db_sessions( controller::block_status::irreversible ) )
+      if( skip_db_sessions( controller::block_status::irreversible ) ) {
+         ilog( "Setting chainbase revision to ${n}", ("n", chain_head.block_num()) );
          db.set_revision( chain_head.block_num() );
+      }
 
-      return except_ptr;
+      if (except_ptr)
+         std::rethrow_exception(except_ptr);
    }
 
    void replay(startup_t startup) {
@@ -1814,7 +1822,7 @@ struct controller_impl {
       std::exception_ptr except_ptr;
 
       if (replay_block_log_needed)
-         except_ptr = replay_block_log();
+         replay_block_log();
 
       if( check_shutdown() ) {
          ilog( "quitting from replay because of shutdown" );
@@ -1931,7 +1939,7 @@ struct controller_impl {
          if (snapshot_head_block != 0 && !blog.head()) {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
-         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() ) {
+         } else if( !check_shutdown() && !irreversible_mode() ) {
             if (auto fork_db_head = fork_db.head()) {
                ilog("fork database contains ${n} blocks after head from ${ch} to ${fh}",
                     ("n", fork_db_head->block_num() - chain_head.block_num())("ch", chain_head.block_num())("fh", fork_db_head->block_num()));
@@ -1943,10 +1951,6 @@ struct controller_impl {
          }
       };
       fork_db_.apply<void>(replay_fork_db);
-
-      if( except_ptr ) {
-         std::rethrow_exception( except_ptr );
-      }
    }
 
    void startup(std::function<void()> shutdown, std::function<bool()> check_shutdown, const snapshot_reader_ptr& snapshot) {
@@ -2147,13 +2151,18 @@ struct controller_impl {
 
       if (conf.truncate_at_block > 0 && chain_head.is_valid()) {
          if (chain_head.block_num() == conf.truncate_at_block && fork_db_has_root()) {
-            fork_db_.apply<void>([&](auto& fork_db) {
-               if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
-                  ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
-                        ("t", conf.truncate_at_block)("h", head->block_num()));
-                  fork_db.remove(conf.truncate_at_block + 1);
-               }
-            });
+            if (fork_db_.version_in_use() == fork_database::in_use_t::both) {
+               // in savanna transition
+               wlog("In the middle of Savanna transition, truncate-at-block not allowed, ignoring truncate-at-block ${b}", ("b", conf.truncate_at_block));
+            } else {
+               fork_db_.apply<void>([&](auto& fork_db) {
+                  if (auto head = fork_db.head(); head && head->block_num() > conf.truncate_at_block) {
+                     ilog("Removing blocks past truncate-at-block ${t} from fork database with head at ${h}",
+                           ("t", conf.truncate_at_block)("h", head->block_num()));
+                     fork_db.remove(conf.truncate_at_block + 1);
+                  }
+               });
+            }
          }
       }
 
@@ -2804,12 +2813,13 @@ struct controller_impl {
    }
 
    transaction_trace_ptr push_scheduled_transaction( const transaction_id_type& trxid,
-                                                     fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                      uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time = false )
    {
       const auto& idx = db.get_index<generated_transaction_multi_index,by_trx_id>();
       auto itr = idx.find( trxid );
       EOS_ASSERT( itr != idx.end(), unknown_transaction_exception, "unknown transaction" );
+      const fc::time_point block_deadline = fc::time_point::maximum();
+      const fc::microseconds max_transaction_time = fc::microseconds::maximum();
       return push_scheduled_transaction( *itr, block_deadline, max_transaction_time, billed_cpu_time_us, explicit_billed_cpu_time );
    }
 
@@ -3385,7 +3395,8 @@ struct controller_impl {
             if( onblock_trace->except ) {
                if (onblock_trace->except->code() == interrupt_exception::code_value) {
                   ilog("Interrupt of onblock ${bn}", ("bn", chain_head.block_num() + 1));
-                  throw *onblock_trace->except;
+                  assert(onblock_trace->except_ptr); // always set together
+                  std::rethrow_exception(onblock_trace->except_ptr);
                }
                wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
                     ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
@@ -3421,8 +3432,10 @@ struct controller_impl {
    } /// start_block
 
    void update_peer_keys() {
-      // if syncing or replaying old blocks don't bother updating peer keys
-      if (!peer_keys_db.is_active() || fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
+      if (!peer_keys_db.is_active())
+         return;
+      // if syncing or replaying old blocks don't bother updating peer keys.
+      if (fc::time_point::now() - chain_head.timestamp() > fc::minutes(5))
          return;
 
       try {
@@ -3800,16 +3813,16 @@ struct controller_impl {
    }
 
    template<class BSP>
-   controller::apply_blocks_result apply_block( const BSP& bsp, controller::block_status s,
-                                                const trx_meta_cache_lookup& trx_lookup ) {
+   controller::apply_blocks_result_t::status_t apply_block( const BSP& bsp, controller::block_status s,
+                                                            const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
             if (should_terminate()) {
                shutdown();
-               return controller::apply_blocks_result::incomplete;
+               return controller::apply_blocks_result_t::status_t::incomplete;
             }
             if (should_pause()) {
-               return controller::apply_blocks_result::paused;
+               return controller::apply_blocks_result_t::status_t::paused;
             }
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
@@ -3889,8 +3902,7 @@ struct controller_impl {
                                            receipt.cpu_usage_us, true, 0);
                   ++packed_idx;
                } else if( std::holds_alternative<transaction_id_type>(receipt.trx) ) {
-                  trace = push_scheduled_transaction(std::get<transaction_id_type>(receipt.trx), fc::time_point::maximum(),
-                                                     fc::microseconds::maximum(), receipt.cpu_usage_us, true);
+                  trace = push_scheduled_transaction(std::get<transaction_id_type>(receipt.trx), receipt.cpu_usage_us, true);
                } else {
                   EOS_ASSERT( false, block_validate_exception, "encountered unexpected receipt type" );
                }
@@ -3905,7 +3917,8 @@ struct controller_impl {
                   } else {
                      edump((*trace));
                   }
-                  throw *trace->except;
+                  assert(trace->except_ptr); // always set together
+                  std::rethrow_exception(trace->except_ptr);
                }
 
                EOS_ASSERT(trx_receipts.size() > 0, block_validate_exception,
@@ -3934,10 +3947,9 @@ struct controller_impl {
                   actual_finality_mroot = bsp->get_validation_mroot(bsp->core.latest_qc_claim().block_num);
                }
 
-               EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot,
-                  block_validate_exception,
-                  "finality_mroot does not match, received finality_mroot: ${r} != actual_finality_mroot: ${a}",
-                  ("r", bsp->finality_mroot())("a", actual_finality_mroot));
+               EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot, block_validate_exception,
+                  "finality_mroot does not match, received finality_mroot: ${r} != actual_finality_mroot: ${a} for block ${bn} ${id}",
+                  ("r", bsp->finality_mroot())("a", actual_finality_mroot)("bn", bsp->block_num())("id", bsp->id()));
             } else {
                assemble_block(true, {}, nullptr);
                auto& ab = std::get<assembled_block>(pending->_block_stage);
@@ -3967,7 +3979,7 @@ struct controller_impl {
 
             commit_block(s);
 
-            return controller::apply_blocks_result::complete;
+            return controller::apply_blocks_result_t::status_t::complete;
          } catch ( const std::bad_alloc& ) {
             throw;
          } catch ( const boost::interprocess::bad_alloc& ) {
@@ -4456,7 +4468,7 @@ struct controller_impl {
 
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
 
-               if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result::complete) {
+               if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result_t::status_t::complete) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
                   // So emit it explicitly here.
                   emit( irreversible_block, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
@@ -4472,7 +4484,7 @@ struct controller_impl {
       } FC_LOG_AND_RETHROW( )
    }
 
-   controller::apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
+   controller::apply_blocks_result_t apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
       try {
          if( !irreversible_mode() ) {
             return maybe_apply_blocks( cb, trx_lookup );
@@ -4492,13 +4504,13 @@ struct controller_impl {
       }
    }
 
-   controller::apply_blocks_result maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
+   controller::apply_blocks_result_t maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
-      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
-      auto do_apply_blocks = [&](auto& fork_db) {
+      auto do_apply_blocks = [&](auto& fork_db) -> controller::apply_blocks_result_t {
+         controller::apply_blocks_result_t result;
          auto new_head = fork_db.head(); // use best head
          if (!new_head)
-            return;// nothing to do, fork_db at root
+            return result;// nothing to do, fork_db at root
          auto [new_head_branch, old_head_branch] = fork_db.fetch_branch_from( new_head->id(), chain_head.id() );
 
          bool switch_fork = !old_head_branch.empty();
@@ -4546,25 +4558,29 @@ struct controller_impl {
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
             try {
-               result = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
-                                                          : controller::block_status::complete, trx_lookup );
+               controller::apply_blocks_result_t::status_t r =
+                  apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
+                                                    : controller::block_status::complete, trx_lookup );
+               if (r == controller::apply_blocks_result_t::status_t::complete)
+                  ++result.num_blocks_applied;
+
                if (!switch_fork) {
                   if (check_shutdown()) {
                      shutdown();
-                     result = controller::apply_blocks_result::incomplete; // doesn't really matter since we are shutting down
+                     result.status = controller::apply_blocks_result_t::status_t::incomplete; // doesn't really matter since we are shutting down
                      break;
                   }
-                  if (result == controller::apply_blocks_result::complete) {
+                  if (r == controller::apply_blocks_result_t::status_t::complete) {
                      // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
                      // to call apply_blocks again if this returns incomplete.
                      const bool more_blocks_to_process = ritr + 1 != new_head_branch.rend();
                      if (!replaying && more_blocks_to_process && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
-                        result = controller::apply_blocks_result::incomplete;
+                        result.status = controller::apply_blocks_result_t::status_t::incomplete;
                         break;
                      }
                   }
                }
-               if (result != controller::apply_blocks_result::complete) {
+               if (r != controller::apply_blocks_result_t::status_t::complete) {
                   break;
                }
             } catch ( const std::bad_alloc& ) {
@@ -4625,15 +4641,13 @@ struct controller_impl {
          }
 
          // irreversible can change even if block not applied to head, integrated qc can move LIB
-         auto log_result = log_irreversible();
+         log_irreversible();
          transition_to_savanna_if_needed();
-         if (log_result != controller::apply_blocks_result::complete)
-            result = log_result;
+
+         return result;
       };
 
-      fork_db_.apply<void>(do_apply_blocks);
-
-      return result;
+      return fork_db_.apply<controller::apply_blocks_result_t>(do_apply_blocks);
    }
 
    deque<transaction_metadata_ptr> abort_block() {
@@ -4900,6 +4914,18 @@ struct controller_impl {
       return is_trx_transient ? nullptr : deep_mind_logger;
    }
 
+   bool is_head_descendant_of_pending_lib() const {
+      return fork_db_.apply<bool>(
+         [&](const fork_database_legacy_t& fork_db) -> bool {
+            // there is no pending lib in legacy
+            return true;
+         },
+         [&](const fork_database_if_t& fork_db) -> bool {
+            return fork_db.is_descendant_of_pending_savanna_lib(chain_head.id());
+         }
+      );
+   }
+
    void set_savanna_lib_id(const block_id_type& id) {
       fork_db_.apply_s<void>([&](auto& fork_db) {
          fork_db.set_pending_savanna_lib_id(id);
@@ -5016,6 +5042,30 @@ struct controller_impl {
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       if ( is_eos_vm_oc_enabled() ) {
          wasmif.init_thread_local_data();
+      }
+#endif
+   }
+
+   void set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      wasm_allocator_pool.set_num_threads(num_threads, []() -> vm::wasm_allocator* {
+         return new vm::wasm_allocator;
+      });
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+      if ( is_eos_vm_oc_enabled() ) {
+         wasmif.set_num_threads_for_call_res_pools(num_threads);
+      }
+#endif
+   }
+
+   void set_max_call_depth_for_call_res_pools(uint32_t max_call_depth) {
+      wasm_allocator_pool.set_max_call_depth(max_call_depth, []() -> vm::wasm_allocator* {
+         return new vm::wasm_allocator;
+      });
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+      if ( is_eos_vm_oc_enabled() ) {
+         wasmif.set_max_call_depth_for_call_res_pools(max_call_depth);
       }
 #endif
    }
@@ -5423,7 +5473,7 @@ void controller::set_async_aggregation(async_t val) {
    my->async_aggregation = val;
 }
 
-controller::apply_blocks_result controller::apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
+controller::apply_blocks_result_t controller::apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
    validate_db_available_size();
    return my->apply_blocks(cb, trx_lookup);
 }
@@ -5455,11 +5505,10 @@ transaction_trace_ptr controller::push_transaction( const transaction_metadata_p
 }
 
 transaction_trace_ptr controller::push_scheduled_transaction( const transaction_id_type& trxid,
-                                                              fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                               uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time )
 {
    validate_db_available_size();
-   return my->push_scheduled_transaction( trxid, block_deadline, max_transaction_time, billed_cpu_time_us, explicit_billed_cpu_time );
+   return my->push_scheduled_transaction( trxid, billed_cpu_time_us, explicit_billed_cpu_time );
 }
 
 const flat_set<account_name>& controller::get_actor_whitelist() const {
@@ -5512,36 +5561,11 @@ block_handle controller::head()const {
    return my->chain_head;
 }
 
-uint32_t controller::head_block_num()const {
-   return my->chain_head.block_num();
-}
-block_timestamp_type controller::head_block_timestamp()const {
-   return my->chain_head.block_time();
-}
-time_point controller::head_block_time()const {
-   return my->chain_head.block_time();
-}
-block_id_type controller::head_block_id()const {
-   return my->chain_head.id();
-}
-
-account_name  controller::head_block_producer()const {
-   return my->chain_head.producer();
-}
-
-const block_header& controller::head_block_header()const {
-   return my->chain_head.header();
-}
-
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated
    return block_handle_accessor::apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
       return head;
    });
-}
-
-const signed_block_ptr& controller::head_block()const {
-   return my->chain_head.block();
 }
 
 std::optional<finality_data_t> controller::head_finality_data() const {
@@ -5550,14 +5574,6 @@ std::optional<finality_data_t> controller::head_finality_data() const {
 
 block_handle controller::fork_db_head()const {
    return my->fork_db_head();
-}
-
-uint32_t controller::fork_db_head_block_num()const {
-   return my->fork_db_head_block_num();
-}
-
-block_id_type controller::fork_db_head_block_id()const {
-   return my->fork_db_head_block_id();
 }
 
 block_timestamp_type controller::pending_block_timestamp()const {
@@ -5586,6 +5602,11 @@ const block_signing_authority& controller::pending_block_signing_authority() con
 std::optional<block_id_type> controller::pending_producer_block_id()const {
    return my->pending_producer_block_id();
 }
+
+bool controller::is_head_descendant_of_pending_lib() const {
+   return my->is_head_descendant_of_pending_lib();
+}
+
 
 void controller::set_savanna_lib_id(const block_id_type& id) {
    my->set_savanna_lib_id(id);
@@ -5884,7 +5905,7 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
-void controller::set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers) {
+void controller::set_peer_keys_retrieval_active(name_set_t configured_bp_peers) {
    my->peer_keys_db.set_active(std::move(configured_bp_peers));
 }
 
@@ -5893,7 +5914,7 @@ std::optional<peer_info_t> controller::get_peer_info(name n) const {
 }
 
 bool controller::configured_peer_keys_updated() {
-   return my->peer_keys_db.configured_peer_keys_updated();
+   return my->peer_keys_db.is_active() && my->peer_keys_db.configured_peer_keys_updated();
 }
 
 getpeerkeys_res_t controller::get_top_producer_keys() {
@@ -6092,20 +6113,20 @@ vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
 
-std::shared_ptr<vm::wasm_allocator> controller::acquire_sync_call_wasm_allocator() {
+vm::wasm_allocator* controller::acquire_sync_call_wasm_allocator() {
    return my->wasm_allocator_pool.acquire();
 }
 
-void controller::release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc) {
+void controller::release_sync_call_wasm_allocator(vm::wasm_allocator* alloc) {
    my->wasm_allocator_pool.release(alloc);
 }
 
-void controller::set_wasm_alloc_pool_num_threads(uint32_t num_threads) {
-   my->wasm_allocator_pool.set_num_threads(num_threads);
+void controller::set_num_threads_for_call_res_pools(uint32_t num_threads) {
+   my->set_num_threads_for_call_res_pools(num_threads);
 }
 
-void controller::set_wasm_alloc_pool_max_call_depth(uint32_t depth) {
-   my->wasm_allocator_pool.set_max_call_depth(depth);
+void controller::set_max_call_depth_for_call_res_pools(uint32_t depth) {
+   my->set_max_call_depth_for_call_res_pools(depth);
 }
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
@@ -6448,8 +6469,8 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
    } );
 
-   auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
-   wasm_allocator_pool.set_max_call_depth(max_call_depth);
+   const auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
+   set_max_call_depth_for_call_res_pools(max_call_depth);
 }
 
 /// End of protocol feature activation handlers

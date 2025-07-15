@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(double_activation, T, testers) try {
 
    BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
 
    BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(require_preactivation_test, T, testers) try {
 
    BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.finish_block();
 
    BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_link_to_existing_permission_test, T, testers)
       ("requirement", "test" )
    );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // Verify the correct behavior after ONLY_LINK_TO_EXISTING_PERMISSION activation.
@@ -337,7 +337,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    };
    restart_with_new_pfs( make_protocol_feature_set(custom_subjective_restrictions) );
    // It should fail
-   BOOST_CHECK_EXCEPTION(  c.preactivate_protocol_features({only_link_to_existing_permission_digest}),
+   BOOST_CHECK_EXCEPTION(  c.activate_protocol_features({only_link_to_existing_permission_digest}),
                            subjective_block_production_exception,
                            fc_exception_message_starts_with(
                               (c.head().block_time() + fc::milliseconds(config::block_interval_ms)).to_iso_string() +
@@ -351,7 +351,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    };
    restart_with_new_pfs( make_protocol_feature_set(custom_subjective_restrictions) );
    // It should fail but with different exception
-   BOOST_CHECK_EXCEPTION(  c.preactivate_protocol_features({only_link_to_existing_permission_digest}),
+   BOOST_CHECK_EXCEPTION(  c.activate_protocol_features({only_link_to_existing_permission_digest}),
                            subjective_block_production_exception,
                            fc_exception_message_is(
                               std::string("protocol feature with digest '") +
@@ -366,7 +366,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    };
    restart_with_new_pfs( make_protocol_feature_set(custom_subjective_restrictions) );
    // Should be fine now, and activated in the next block
-   BOOST_CHECK_NO_THROW( c.preactivate_protocol_features({only_link_to_existing_permission_digest}) );
+   BOOST_CHECK_NO_THROW( c.activate_protocol_features({only_link_to_existing_permission_digest}) );
    c.produce_block();
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 } FC_LOG_AND_RETHROW()
@@ -374,7 +374,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(replace_deferred_test, T, testers) try {
    T c( setup_policy::preactivate_feature_and_new_bios );
 
-   c.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
+   c.activate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
    c.produce_block();
    c.create_accounts( {"alice"_n, "bob"_n, "test"_n} );
    c.set_code( "test"_n, test_contracts::deferred_test_wasm() );
@@ -471,7 +471,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(replace_deferred_test, T, testers) try {
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::replace_deferred );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage0 );
@@ -531,7 +531,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(no_duplicate_deferred_id_test, T, testers) try {
    T c( setup_policy::preactivate_feature_and_new_bios );
    T c2( setup_policy::none );
 
-   c.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
+   c.activate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
    c.produce_block();
    c.create_accounts( {"alice"_n, "test"_n} );
    c.set_code( "test"_n, test_contracts::deferred_test_wasm() );
@@ -602,7 +602,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(no_duplicate_deferred_id_test, T, testers) try {
    );
    BOOST_REQUIRE_EQUAL(1u, index.size());
 
-   c.preactivate_protocol_features( {*d1, *d2} );
+   c.activate_protocol_features( {*d1, *d2} );
    c.produce_block();
    // The deferred transaction with payload 42 that was scheduled prior to the activation of the protocol features should now be retired.
 
@@ -740,7 +740,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(fix_linkauth_restriction, T, testers) { try {
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::fix_linkauth_restriction );
    BOOST_REQUIRE( d );
 
-   chain.preactivate_protocol_features( {*d} );
+   chain.activate_protocol_features( {*d} );
    chain.produce_block();
 
    auto validate_allowed = [&] (const char *code, const char *type) {
@@ -776,7 +776,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(disallow_empty_producer_schedule_test, T, testers)
    c.set_producers_legacy( {} );
 
    // After activation, it should not be allowed
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
    BOOST_REQUIRE_EXCEPTION( c.set_producers_legacy( {} ),
                             wasm_execution_error,
@@ -827,7 +827,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(restrict_action_to_self_test, T, testers) { try {
                             subjective_block_production_exception,
                             fc_exception_message_starts_with( "Authorization failure with sent deferred transaction" ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // After the protocol feature is preactivated, all the 4 cases will throw an objective unsatisfied_authorization exception
@@ -920,7 +920,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::only_bill_first_authorizer );
    BOOST_REQUIRE( d );
 
-   chain.preactivate_protocol_features( {*d} );
+   chain.activate_protocol_features( {*d} );
    chain.produce_block();
 
    {
@@ -980,7 +980,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(forward_setcode_test, T, testers) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::forward_setcode );
    BOOST_REQUIRE( d );
    c.set_before_producer_authority_bios_contract();
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
    c.set_code( config::system_account_name, test_contracts::reject_all_wasm() );
    c.produce_block();
@@ -1035,7 +1035,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(get_sender_test, T, testers) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::get_sender );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::get_sender_test_wasm() );
@@ -1238,7 +1238,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(ram_restrictions_test, T, testers) { try {
    BOOST_REQUIRE( d );
 
    // Activate RAM_RESTRICTIONS protocol feature (this would also disable the subjective mitigation).
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // Cannot send deferred transaction paid by another account that has not authorized the action.
@@ -1355,7 +1355,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_producer, T, testers) { try {
       eosio::chain::unactivated_key_type
    );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.push_action(config::system_account_name, "setprods"_n, config::system_account_name, fc::mutable_variant_object()("schedule", waprodsched));
@@ -1384,7 +1384,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_create_account, T, testers) { try {
    trx.sign(get_private_key(config::system_account_name, "active"), c.get_chain_id());
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_key_type);
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
    c.push_transaction(trx);
 } FC_LOG_AND_RETHROW() }
@@ -1403,7 +1403,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_update_account_auth, T, testers) { try {
                         authority(public_key_type("PUB_WA_WdCPfafVNxVMiW5ybdNs83oWjenQXvSt1F49fg9mv7qrCiRwHj5b38U3ponCFWxQTkDsMC"s))),
                      eosio::chain::unactivated_key_type);
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_authority("billy"_n, config::active_name, authority(public_key_type("PUB_WA_WdCPfafVNxVMiW5ybdNs83oWjenQXvSt1F49fg9mv7qrCiRwHj5b38U3ponCFWxQTkDsMC"s)));
@@ -1462,7 +1462,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_recover_key, T, testers) { try {
    trx.sign(c.get_private_key( "bob"_n, "active" ), c.get_chain_id());
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_signature_type);
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
    c.push_transaction(trx);
 
@@ -1510,7 +1510,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_assert_recover_key, T, testers) { try {
    trx.sign(c.get_private_key( "bob"_n, "active" ), c.get_chain_id());
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_signature_type);
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
    c.push_transaction(trx);
 
@@ -1549,7 +1549,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_proposed_producers_ex_test, T, testers) { try 
                            wasm_exception,
                            fc_exception_message_is( "env.set_proposed_producers_ex unresolveable" ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // ensure it now resolves
@@ -1587,7 +1587,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
    // aware of the activation.  So the expectation is that if it is activated in the _state_ at block N, block N + 1
    // will bear an extension making header-only validators aware of it, and therefore block N + 2 is the first block
    // where a block may bear a downstream extension.
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    remote.push_block(c.produce_block());
 
    auto last_legacy_block = c.produce_block();
@@ -1688,7 +1688,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(wtmsig_block_signing_inflight_legacy_test, T, test
    c.produce_block();
 
    // activate the feature, and start an in-flight producer schedule change with the legacy format
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    vector<legacy::producer_key> sched = {{"eosio"_n, c.get_public_key("eosio"_n, "bsk")}};
    c.push_action(config::system_account_name, "setprods"_n, config::system_account_name, fc::mutable_variant_object()("schedule", sched));
    c.produce_block();
@@ -1719,7 +1719,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(wtmsig_block_signing_inflight_extension_test, T, t
    c.produce_block();
 
    // activate the feature
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // start an in-flight producer schedule change before the activation is availble to header only validators
@@ -1775,7 +1775,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_action_return_value_test, T, testers) { try {
                            wasm_exception,
                            fc_exception_message_is( "env.set_action_return_value unresolveable" ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // ensure it now resolves
@@ -1817,7 +1817,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(get_parameters_packed_test, T, testers) { try {
                            wasm_exception,
                            fc_exception_message_is( "env.get_parameters_packed unresolveable" ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // ensure it now resolves
@@ -1879,7 +1879,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_parameters_packed_test, T, testers) { try {
                            wasm_exception,
                            fc_exception_message_is( "env.set_parameters_packed unresolveable" ) );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // ensure it now resolves
@@ -1982,7 +1982,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
    const auto& pfm = c.control->get_protocol_feature_manager();
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_1 );
    BOOST_REQUIRE( d );
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // verify send_deferred host function is no-op
@@ -2074,7 +2074,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    const auto& pfm = c.control->get_protocol_feature_manager();
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_1 );
    BOOST_REQUIRE( d );
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // verify generated_transaction_multi_index still has 1 entry
@@ -2089,8 +2089,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    }
 
    // attemp to retire the trx
-   auto deadline = fc::time_point::now() + fc::milliseconds(10); // 10ms more than enough
-   auto trace = c.control->push_scheduled_transaction(trx_id, deadline, fc::microseconds::maximum(), 0, false);
+   auto trace = c.control->push_scheduled_transaction(trx_id, 0, false);
 
    // the trx was retired as "expired" and RAM was refunded even though delay_until not reached
    BOOST_REQUIRE_EQUAL( trace->receipt->status, transaction_receipt::expired );
@@ -2147,7 +2146,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
    const auto& pfm = c.control->get_protocol_feature_manager();
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_1 );
    BOOST_REQUIRE( d );
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
 
    // before disable_deferred_trxs_stage_2 is activated, generated_transaction_multi_index
    // should still have 2 entries
@@ -2156,7 +2155,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
 
    d = pfm.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_2 );
    BOOST_REQUIRE( d );
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    // all scheduled deferred trxs are removed upon activation of disable_deferred_trxs_stage_2
@@ -2177,7 +2176,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_dependency_test ) { try {
    const auto& pfm = c.control->get_protocol_feature_manager();
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_2 );
    BOOST_REQUIRE( d );
-   BOOST_REQUIRE_EXCEPTION( c.preactivate_protocol_features( {*d} ),
+   BOOST_REQUIRE_EXCEPTION( c.activate_protocol_features( {*d} ),
       protocol_feature_exception,
       fc_exception_message_starts_with("not all dependencies of protocol feature with digest"));
 } FC_LOG_AND_RETHROW() } /// disable_deferred_trxs_stage_2_dependency_test
@@ -2211,7 +2210,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    const auto& pfm1 = tester1.control->get_protocol_feature_manager();
    auto d1 = pfm1.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_1 );
    BOOST_REQUIRE( d1 );
-   tester1.preactivate_protocol_features( {*d1} );
+   tester1.activate_protocol_features( {*d1} );
    tester1.produce_block();
 
    // Create a block with valid transaction
@@ -2249,7 +2248,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    const auto& pfm2 = tester2.control->get_protocol_feature_manager();
    auto d2 = pfm2.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_1 );
    BOOST_REQUIRE( d2 );
-   tester2.preactivate_protocol_features( {*d2} );
+   tester2.activate_protocol_features( {*d2} );
    tester2.produce_block();
 
    // Push the block with delayed transaction to the second chain
@@ -2280,8 +2279,8 @@ static const char import_set_finalizers_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
-   T c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE(set_finalizers_test) { try {
+   savanna_tester c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto alice_account = account_name("alice");
    c.create_accounts( {alice_account} );
@@ -2291,7 +2290,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
                            wasm_exception,
                            fc_exception_message_is( "env.set_finalizers unresolveable" ) );
 
-   c.preactivate_savanna_protocol_features();
+   c.activate_builtin_protocol_features({builtin_protocol_feature_t::savanna}); // will activate all preceding features savanna depends on
    c.produce_block();
 
    // ensure it now resolves, forward setcode enabled so will call automatically
@@ -2349,7 +2348,7 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
    // Cannot activate SYNC_CALL because the dependency is not met (it depends on SAVANNA).
    auto d = pfm.get_builtin_digest(builtin_protocol_feature_t::sync_call);
    BOOST_REQUIRE(d);
-   BOOST_CHECK_EXCEPTION(c.preactivate_protocol_features({ *d }),
+   BOOST_CHECK_EXCEPTION(c.activate_protocol_features({ *d }),
                           protocol_feature_exception,
                           fc_exception_message_starts_with("not all dependencies of protocol feature with digest"));
 
@@ -2362,11 +2361,11 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
                          fc_exception_message_contains("unresolveable"));
 
    // Activate the depending Savanna
-   c.preactivate_savanna_protocol_features();
+   c.activate_builtin_protocol_features({builtin_protocol_feature_t::savanna});
    c.produce_block();
 
    // Activate SYNC_CALL after the dependency met
-   c.preactivate_protocol_features({ *d });
+   c.activate_protocol_features({ *d });
    c.produce_block();
 
    // Ensure SYNC_CALL is now activated

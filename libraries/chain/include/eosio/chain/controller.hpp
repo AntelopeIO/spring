@@ -227,7 +227,6 @@ namespace eosio::chain {
           *
           */
          transaction_trace_ptr push_scheduled_transaction( const transaction_id_type& scheduled,
-                                                           fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                            uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time );
 
          void assemble_and_complete_block( const signer_callback_type& signer_callback );
@@ -246,12 +245,16 @@ namespace eosio::chain {
          accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
 
          /// Apply any blocks that are ready from the fork_db
-         enum class apply_blocks_result {
-            complete,   // all ready blocks in forkdb have been applied
-            incomplete, // time limit reached, additional blocks may be available in forkdb to process
-            paused      // apply blocks currently paused
+         struct apply_blocks_result_t {
+            enum class status_t {
+               complete,   // all ready blocks in forkdb have been applied
+               incomplete, // time limit reached, additional blocks may be available in forkdb to process
+               paused      // apply blocks currently paused
+            };
+            status_t status = status_t::complete;
+            size_t   num_blocks_applied = 0;
          };
-         apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
+         apply_blocks_result_t apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          boost::asio::io_context& get_thread_pool();
 
@@ -287,22 +290,11 @@ namespace eosio::chain {
          block_handle         head()const;
          block_handle         fork_db_head()const;
 
-         [[deprecated("Use head().block_num().")]]  uint32_t             head_block_num()const;
-         [[deprecated("Use head().block_time().")]] time_point           head_block_time()const;
-         [[deprecated("Use head().timestamp().")]]  block_timestamp_type head_block_timestamp()const;
-         [[deprecated("Use head().id().")]]         block_id_type        head_block_id()const;
-         [[deprecated("Use head().producer().")]]   account_name         head_block_producer()const;
-         [[deprecated("Use head().header().")]]     const block_header&  head_block_header()const;
-         [[deprecated("Use head().block().")]]      const signed_block_ptr& head_block()const;
-
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
          // returns finality_data associated with chain head for SHiP when in Savanna,
          // std::nullopt in Legacy
          std::optional<finality_data_t> head_finality_data() const;
-
-         [[deprecated("Use fork_db_head().block_num().")]] uint32_t      fork_db_head_block_num()const;
-         [[deprecated("Use fork_db_head().id().")]]        block_id_type fork_db_head_block_id()const;
 
          time_point                     pending_block_time()const;
          block_timestamp_type           pending_block_timestamp()const;
@@ -339,6 +331,10 @@ namespace eosio::chain {
          // thread-safe
          qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
+         // not thread-safe
+         bool is_head_descendant_of_pending_lib() const;
+
+         // thread-safe
          void set_savanna_lib_id(const block_id_type& id);
 
          // thread-safe
@@ -430,7 +426,7 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
-         void set_peer_keys_retrieval_active(peer_name_set_t configured_bp_peers);
+         void set_peer_keys_retrieval_active(name_set_t configured_bp_peers);
          std::optional<peer_info_t> get_peer_info(name n) const;  // thread safe
          bool configured_peer_keys_updated(); // thread safe
          // used for testing, only call with an active pending block from main thread
@@ -456,11 +452,11 @@ namespace eosio::chain {
          void enable_deep_mind( deep_mind_handler* logger );
          uint32_t earliest_available_block_num() const;
 
-         vm::wasm_allocator&                 get_wasm_allocator();
-         std::shared_ptr<vm::wasm_allocator> acquire_sync_call_wasm_allocator();
-         void                                release_sync_call_wasm_allocator(std::shared_ptr<vm::wasm_allocator> alloc);
-         void                                set_wasm_alloc_pool_num_threads(uint32_t num_threads);
-         void                                set_wasm_alloc_pool_max_call_depth(uint32_t depth);
+         vm::wasm_allocator&  get_wasm_allocator();
+         vm::wasm_allocator*  acquire_sync_call_wasm_allocator();
+         void                 release_sync_call_wasm_allocator(vm::wasm_allocator* alloc);
+         void                 set_num_threads_for_call_res_pools(uint32_t num_threads);
+         void                 set_max_call_depth_for_call_res_pools(uint32_t depth);
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          bool is_eos_vm_oc_enabled() const;
 #endif

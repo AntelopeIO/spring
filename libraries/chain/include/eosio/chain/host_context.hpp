@@ -564,10 +564,15 @@ public:
    account_name get_sync_call_sender() const { return receiver; } // current action or sync call's receiver is next call's sender
 
    /// Sync call methods:
-
-   // sync calls can be initiated from actions or other sync calls
-   int64_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
-   uint32_t get_call_return_value(std::span<char> memory) const;
+   enum class call_error_code : int64_t {
+      no_account_or_no_contract = -1, // Account does not exist or no contract is deployed on the account
+      sync_call_not_supported   = -2, // Contract deployed on account does not have necessary sync call entry point function
+      invalid_return_value      = -3  // Contract's sync call entry point function returned an invalid return value: positive or -1 to -9999
+   };
+   static constexpr int64_t sync_call_executed = 0; // Sync call entry point function was executed to completion
+   static constexpr int64_t valid_sync_call_error_return_code_start = -10000; // The first valid error return code from sync call entry point function
+   int64_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data); // Negative return indicates a failure, positive or 0 is the size of return value of the called function
+   uint32_t get_call_return_value(std::span<char> memory) const; // Get the return value and store in `memory`
 
    virtual bool is_action() const { return false; }
    virtual bool is_sync_call() const { return false; }
@@ -598,7 +603,6 @@ public:
    std::vector<char>        last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
    const uint32_t           sync_call_depth = 0; // depth for sync call
    uint32_t                 sync_call_ordinal = 1;  // the order of a sync call
-   bool                     receiver_supports_sync_call = false;  // whether or not the receiver contract has valid sync_call entry point
 
    generic_index<index64_object>                                  idx64;
    generic_index<index128_object>                                 idx128;
@@ -606,9 +610,15 @@ public:
    generic_index<index_double_object>                             idx_double;
    generic_index<index_long_double_object>                        idx_long_double;
 
+   bool is_applying_block() const { return trx_context.explicit_billed_cpu_time; }
+   bool is_eos_vm_oc_whitelisted() const;
+   bool should_use_eos_vm_oc()const;
+
 private:
    // act pointer may be invalidated on call to trx_context.schedule_action
    iterator_cache<key_value_object>    keyval_cache;
 };
 
 } } // namespace eosio::chain
+
+FC_REFLECT_ENUM(eosio::chain::host_context::call_error_code, (no_account_or_no_contract)(sync_call_not_supported)(invalid_return_value));

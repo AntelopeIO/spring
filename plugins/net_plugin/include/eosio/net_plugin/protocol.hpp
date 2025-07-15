@@ -136,21 +136,35 @@ namespace eosio {
       block_id_type id;
    };
 
-   struct gossip_bp_peers_message {
-      struct bp_peer {
-         eosio::name               producer_name;
-         std::string               server_address;
-         // sig over [producer_name, server_address]
-         signature_type            sig;
+   struct transaction_notice_message {
+      transaction_id_type id;
+   };
 
-         digest_type digest() const;
-         bool operator==(const bp_peer&) const = default;
-         bool operator<(const bp_peer& rhs) const {
-            return std::tie(producer_name, server_address) < std::tie(rhs.producer_name, rhs.server_address);
-         }
+   struct gossip_bp_peers_message {
+      struct bp_peer_info_v1 {
+         std::string               server_endpoint;      // externally available address to connect to
+         std::string               outbound_ip_address;  // outbound ip address for firewall
+         block_timestamp_type      expiration;           // head block to remove bp_peer
+      };
+      // bp_peer_info_v2 can derive from bp_peer_info_v1, so old peers can still unpack bp_peer_info_v1 from bp_peer::bp_peer_info
+      struct bp_peer {
+         unsigned_int              version = 1;
+         eosio::name               producer_name;
+         std::vector<char>         bp_peer_info;         // serialized bp_peer_info
+
+         digest_type digest(const chain_id_type& chain_id) const;
+      };
+      struct signed_bp_peer : bp_peer {
+         signature_type  sig; // signature over bp_peer
+
+         std::optional<bp_peer_info_v1> cached_bp_peer_info; // not serialized
+
+         const std::string& server_endpoint() const     { assert(cached_bp_peer_info); return cached_bp_peer_info->server_endpoint; }
+         const std::string& outbound_ip_address() const { assert(cached_bp_peer_info); return cached_bp_peer_info->outbound_ip_address; }
+         block_timestamp_type expiration() const        { assert(cached_bp_peer_info); return cached_bp_peer_info->expiration; }
       };
 
-      std::vector<bp_peer> peers;
+      std::vector<signed_bp_peer> peers;
    };
 
    using net_message = std::variant<handshake_message,
@@ -165,7 +179,8 @@ namespace eosio {
                                     vote_message,
                                     block_nack_message,
                                     block_notice_message,
-                                    gossip_bp_peers_message>;
+                                    gossip_bp_peers_message,
+                                    transaction_notice_message>;
 
    // see protocol net_message
    enum class msg_type_t {
@@ -181,7 +196,8 @@ namespace eosio {
       vote_message           = fc::get_index<net_message, vote_message>(),
       block_nack_message     = fc::get_index<net_message, block_nack_message>(),
       block_notice_message   = fc::get_index<net_message, block_notice_message>(),
-      gossip_bp_peers_message= fc::get_index<net_message, gossip_bp_peers_message>(),
+      gossip_bp_peers_message    = fc::get_index<net_message, gossip_bp_peers_message>(),
+      transaction_notice_message = fc::get_index<net_message, transaction_notice_message>(),
       unknown
    };
 
@@ -215,7 +231,10 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
-FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(sig) )
+FC_REFLECT( eosio::transaction_notice_message, (id) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer_info_v1, (server_endpoint)(outbound_ip_address)(expiration) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (version)(producer_name)(bp_peer_info) )
+FC_REFLECT_DERIVED(eosio::gossip_bp_peers_message::signed_bp_peer, (eosio::gossip_bp_peers_message::bp_peer), (sig) )
 FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
 /**

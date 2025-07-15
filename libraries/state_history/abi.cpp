@@ -1,3 +1,6 @@
+#include <eosio/state_history/abi.hpp>
+#include <regex>
+
 extern const char* const state_history_plugin_abi = R"({
     "version": "eosio::abi/1.1",
     "structs": [
@@ -134,22 +137,6 @@ extern const char* const state_history_plugin_abi = R"({
             ]
         },
         {
-            "name": "call_trace_v0", "fields": [
-                { "name": "call_ordinal", "type": "varuint32" },
-                { "name": "sender_ordinal", "type": "varuint32" },
-                { "name": "receiver", "type": "name" },
-                { "name": "read_only", "type": "bool" },
-                { "name": "data", "type": "bytes" },
-                { "name": "elapsed", "type": "int64" },
-                { "name": "console", "type": "string" },
-                { "name": "console_markers", "type": "varuint32[]" },
-                { "name": "except", "type": "string?" },
-                { "name": "error_code", "type": "uint64?" },
-                { "name": "error_id", "type": "int64?" },
-                { "name": "return_value", "type": "bytes" }
-            ]
-        },
-        {
             "name": "action_trace_v0", "fields": [
                 { "name": "action_ordinal", "type": "varuint32" },
                 { "name": "creator_action_ordinal", "type": "varuint32" },
@@ -178,24 +165,6 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "except", "type": "string?" },
                 { "name": "error_code", "type": "uint64?" },
                 { "name": "return_value", "type": "bytes"}
-            ]
-        },
-        {
-            "name": "action_trace_v2", "fields": [
-                { "name": "action_ordinal", "type": "varuint32" },
-                { "name": "creator_action_ordinal", "type": "varuint32" },
-                { "name": "receipt", "type": "action_receipt?" },
-                { "name": "receiver", "type": "name" },
-                { "name": "act", "type": "action" },
-                { "name": "context_free", "type": "bool" },
-                { "name": "elapsed", "type": "int64" },
-                { "name": "console", "type": "string" },
-                { "name": "account_ram_deltas", "type": "account_delta[]" },
-                { "name": "except", "type": "string?" },
-                { "name": "error_code", "type": "uint64?" },
-                { "name": "return_value", "type": "bytes"},
-                { "name": "call_traces", "type": "call_trace[]"},
-                { "name": "console_markers", "type": "varuint32[]"}
             ]
         },
         {
@@ -740,8 +709,7 @@ extern const char* const state_history_plugin_abi = R"({
         { "name": "result", "types": ["get_status_result_v0", "get_blocks_result_v0", "get_blocks_result_v1", "get_status_result_v1"] },
 
         { "name": "action_receipt", "types": ["action_receipt_v0"] },
-        { "name": "call_trace", "types": ["call_trace_v0"] },
-        { "name": "action_trace", "types": ["action_trace_v0", "action_trace_v1", "action_trace_v2"] },
+        { "name": "action_trace", "types": ["action_trace_v0", "action_trace_v1"] },
         { "name": "partial_transaction", "types": ["partial_transaction_v0"] },
         { "name": "transaction_trace", "types": ["transaction_trace_v0"] },
         { "name": "transaction_variant", "types": ["transaction_id", "packed_transaction"] },
@@ -797,3 +765,10 @@ extern const char* const state_history_plugin_abi = R"({
         { "name": "resource_limits_config", "type": "resource_limits_config", "key_names": [] }
     ]
 })";
+
+namespace eosio::state_history {
+std::string ship_abi_without_tables() {
+    std::regex scrub_all_tables(R"(\{ "name": "[^"]+", "type": "[^"]+", "key_names": \[[^\]]*\] \},?)");
+    return std::regex_replace(state_history_plugin_abi, scrub_all_tables, "");
+}
+}

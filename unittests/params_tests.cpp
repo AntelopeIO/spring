@@ -15,7 +15,7 @@ using mvo = mutable_variant_object;
 class params_tester : public tester {
 public:
    params_tester() : tester(){}
-   params_tester(setup_policy policy) : tester(policy){}
+   params_tester(const setup_policy& policy) : tester(policy){}
 
    void setup(){
       //set parameters intrinsics are priviledged so we need system account here
@@ -40,7 +40,7 @@ public:
       const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters);
       BOOST_REQUIRE(d);
       
-      preactivate_protocol_features( {*d} );
+      activate_protocol_features( {*d} );
       produce_block();
    }
 

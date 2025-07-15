@@ -47,15 +47,32 @@ namespace eosio { namespace chain {
          my->runtime_interface->init_thread_local_data();
       }
    }
+
+   void wasm_interface::set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      // OC tierup and OC runtime are mutually exclusive
+      if (my->eosvmoc) {
+         my->eosvmoc->set_num_threads_for_call_res_pools(num_threads);
+      } else if (my->wasm_runtime_time == wasm_interface::vm_type::eos_vm_oc && my->runtime_interface) {
+         my->runtime_interface->set_num_threads_for_call_res_pools(num_threads);
+      }
+   }
+
+   void wasm_interface::set_max_call_depth_for_call_res_pools(uint32_t depth) {
+      // OC tierup and OC runtime are mutually exclusive
+      if (my->eosvmoc) {
+         my->eosvmoc->set_max_call_depth_for_call_res_pools(depth);
+      } else if (my->wasm_runtime_time == wasm_interface::vm_type::eos_vm_oc && my->runtime_interface) {
+         my->runtime_interface->set_max_call_depth_for_call_res_pools(depth);
+      }
+   }
 #endif
 
-   void wasm_interface::validate(const controller& control, const bytes& code) {
+   webassembly::eos_vm_runtime::validate_result wasm_interface::validate(const controller& control, const bytes& code) {
       const auto& pso = control.db().get<protocol_state_object>();
 
       if (control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
          const auto& gpo = control.get_global_properties();
-         webassembly::eos_vm_runtime::validate( control, code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
-         return;
+         return webassembly::eos_vm_runtime::validate( control, code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
       }
       Module module;
       try {
@@ -70,11 +87,15 @@ namespace eosio { namespace chain {
       wasm_validations::wasm_binary_validation validator(control, module);
       validator.validate();
 
-      webassembly::eos_vm_runtime::validate( code, pso.whitelisted_intrinsics );
+      return webassembly::eos_vm_runtime::validate( code, pso.whitelisted_intrinsics );
 
       //there are a couple opportunties for improvement here--
       //Easy: Cache the Module created here so it can be reused for instantiaion
       //Hard: Kick off instantiation in a separate thread at this location
+   }
+
+   bool wasm_interface::is_sync_call_supported(const char* code_bytes, size_t code_size) {
+      return webassembly::eos_vm_runtime::is_sync_call_supported(code_bytes, code_size);
    }
 
    void wasm_interface::code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version,
@@ -87,14 +108,8 @@ namespace eosio { namespace chain {
       my->current_lib(lib);
    }
 
-   void wasm_interface::apply( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
-      if (substitute_apply && substitute_apply(code_hash, vm_type, vm_version, context))
-         return;
-      my->apply( code_hash, vm_type, vm_version, context );
-   }
-
-   sync_call_return_code wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
-      return my->do_sync_call( code_hash, vm_type, vm_version, context );
+   int64_t wasm_interface::execute( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, host_context& context ) {
+      return my->execute( code_hash, vm_type, vm_version, context );
    }
 
    bool wasm_interface::is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const {

@@ -149,6 +149,7 @@ struct compile_monitor_session {
                      (uintptr_t)code_ptr - (uintptr_t)_code_mapping,
                      result.start,
                      result.apply_offset,
+                     result.call_offset,
                      result.starting_memory_pages,
                      (uintptr_t)mem_ptr - (uintptr_t)_code_mapping,
                      (unsigned)get_size_of_fd(fds[1]),

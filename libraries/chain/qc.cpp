@@ -5,23 +5,6 @@
 
 namespace eosio::chain {
 
-inline std::string bitset_to_string(const vote_bitset_t& bs) {
-   std::string r;
-   boost::to_string(bs, r);
-   return r;
-}
-
-inline vote_bitset_t vector_to_bitset(const std::vector<uint32_t>& v) {
-   return {v.cbegin(), v.cend()};
-}
-
-inline std::vector<uint32_t> bitset_to_vector(const vote_bitset_t& bs) {
-   std::vector<uint32_t> r;
-   r.resize(bs.num_blocks());
-   boost::to_block_range(bs, r.begin());
-   return r;
-}
-
 // A dual finalizer votes on both active and pending finalizer policies.
 inline void verify_dual_finalizers_votes(const finalizer_policies_t& policies,
                                          const qc_sig_t& active_policy_sig,

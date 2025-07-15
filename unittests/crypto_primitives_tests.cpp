@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE( alt_bn128_add_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -156,7 +156,7 @@ BOOST_AUTO_TEST_CASE( alt_bn128_mul_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -283,7 +283,7 @@ BOOST_AUTO_TEST_CASE( alt_bn128_pair_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -423,7 +423,7 @@ BOOST_AUTO_TEST_CASE( modexp_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -513,7 +513,7 @@ BOOST_AUTO_TEST_CASE( modexp_subjective_limit_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -587,7 +587,7 @@ BOOST_AUTO_TEST_CASE( blake2f_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -714,7 +714,7 @@ BOOST_AUTO_TEST_CASE( keccak256_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -765,7 +765,7 @@ BOOST_AUTO_TEST_CASE( sha3_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );
@@ -816,7 +816,7 @@ BOOST_AUTO_TEST_CASE( k1_recover_test ) { try {
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::crypto_primitives );
    BOOST_REQUIRE( d );
 
-   c.preactivate_protocol_features( {*d} );
+   c.activate_protocol_features( {*d} );
    c.produce_block();
 
    c.set_code( tester1_account, test_contracts::crypto_primitives_test_wasm() );

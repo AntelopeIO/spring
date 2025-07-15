@@ -130,17 +130,18 @@
        TYPE( const std::string& what_value, const fc::log_messages& m ) \
        :BASE( m, CODE, BOOST_PP_STRINGIZE(TYPE), what_value ){} \
        TYPE( fc::log_message&& m ) \
-       :BASE( fc::move(m), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ){}\
+       :BASE( std::move(m), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ){}\
        TYPE( fc::log_messages msgs ) \
-       :BASE( fc::move( msgs ), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ) {} \
+       :BASE( std::move( msgs ), CODE, BOOST_PP_STRINGIZE(TYPE), WHAT ) {} \
        TYPE( const TYPE& c ) \
        :BASE(c),error_code(c.error_code) {} \
        TYPE( const BASE& c ) \
        :BASE(c){} \
        TYPE():BASE(CODE, BOOST_PP_STRINGIZE(TYPE), WHAT){}\
        \
-       virtual std::shared_ptr<fc::exception> dynamic_copy_exception()const\
+       std::shared_ptr<fc::exception> dynamic_copy_exception()const override\
        { return std::make_shared<TYPE>( *this ); } \
+       void rethrow() const override { throw *this; } \
        std::optional<uint64_t> error_code; \
    };
 
@@ -549,6 +550,10 @@ namespace eosio { namespace chain {
                                     3015016, "ABI has an unsupported version" )
       FC_DECLARE_DERIVED_EXCEPTION( duplicate_abi_action_results_def_exception,  abi_exception,
                                     3015017, "Duplicate action results definition in the ABI" )
+      FC_DECLARE_DERIVED_EXCEPTION( duplicate_abi_call_def_exception, abi_exception,
+                                    3015018, "Duplicate call definition in the ABI" )
+      FC_DECLARE_DERIVED_EXCEPTION( duplicate_abi_call_results_def_exception, abi_exception,
+                                    3015019, "Duplicate call results definition in the ABI" )
 
    FC_DECLARE_DERIVED_EXCEPTION( contract_exception,           chain_exception,
                                  3160000, "Contract exception" )
@@ -690,4 +695,6 @@ namespace eosio { namespace chain {
                                     3270003, "Sync call data size is too large" )
       FC_DECLARE_DERIVED_EXCEPTION( sync_call_depth_exception, sync_call_exception,
                                     3270004, "max allowed sync call depth reached" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_invalid_status_exception, sync_call_exception,
+                                    3270005, "Status of sync call is invalid" )
 } } // eosio::chain

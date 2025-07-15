@@ -103,7 +103,7 @@ namespace eosio {
 
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
-         fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
+         fc_dlog( p2p_blk_log, "sending block ${bn}", ("bn", sb->block_num()) );
          return buffer_factory::create_send_buffer( signed_block_which, *sb );
       }
 
@@ -120,6 +120,15 @@ namespace eosio {
       const send_buffer_type& get_send_buffer( const packed_transaction_ptr& trx ) {
          if( !send_buffer ) {
             send_buffer = create_send_buffer( trx );
+         }
+         return send_buffer;
+      }
+
+      /// caches result for subsequent calls, only provide same packed_transaction_ptr instance for each invocation.
+      /// Do not use get_send_buffer() with get_notice_send_buffer(), only one valid per trx_buffer_factory instance.
+      const send_buffer_type& get_notice_send_buffer( const packed_transaction_ptr& trx ) {
+         if( !send_buffer ) {
+            send_buffer = buffer_factory::create_send_buffer( transaction_notice_message{trx->id()} );
          }
          return send_buffer;
       }
@@ -156,7 +165,7 @@ namespace eosio {
          const uint32_t which_size = fc::raw::pack_size( unsigned_int( which ) );
          // content size
          size_t s = fc::raw::pack_size( unsigned_int((uint32_t)gossip_bp_peers.index.size()) ); // match vector pack
-         for (const auto& peer : gossip_bp_peers.index.get<by_producer>()) {
+         for (const gossip_bp_peers_message::signed_bp_peer& peer : gossip_bp_peers.index.get<by_producer>()) {
             s += fc::raw::pack_size( peer );
          }
          const uint32_t payload_size = which_size + s;
@@ -169,7 +178,7 @@ namespace eosio {
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
          fc::raw::pack( ds, unsigned_int((uint32_t)gossip_bp_peers.index.size()) );
-         for (const auto& peer : gossip_bp_peers.index.get<by_producer>()) {
+         for (const gossip_bp_peers_message::signed_bp_peer& peer : gossip_bp_peers.index.get<by_producer>()) {
             fc::raw::pack( ds, peer );
          }
 
@@ -180,7 +189,7 @@ namespace eosio {
    struct gossip_buffer_initial_factory : public buffer_factory {
 
       // called on startup
-      void set_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
+      void set_initial_send_buffer(const gossip_bp_peers_message::signed_bp_peer& signed_empty) {
          send_buffer = create_initial_send_buffer(signed_empty);
       }
 
@@ -191,7 +200,7 @@ namespace eosio {
 
    private:
 
-      static send_buffer_type create_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
+      static send_buffer_type create_initial_send_buffer(const gossip_bp_peers_message::signed_bp_peer& signed_empty) {
          constexpr uint32_t which = to_index(msg_type_t::gossip_bp_peers_message);
 
          // match net_message static_variant pack

@@ -15,6 +15,7 @@
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/contract_types.hpp>
 
+#include <eosio/chain/webassembly/eos-vm.hpp>
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/abi_serializer.hpp>
 
@@ -138,11 +139,13 @@ void apply_eosio_setcode(apply_context& context) {
 
    fc::sha256 code_hash; /// default is the all zeros hash
 
+   bool sync_call_supported = false;
    int64_t code_size = (int64_t)act.code.size();
 
    if( code_size > 0 ) {
      code_hash = fc::sha256::hash( act.code.data(), (uint32_t)act.code.size() );
-     wasm_interface::validate(context.control, act.code);
+     auto result = wasm_interface::validate(context.control, act.code);
+     sync_call_supported = result.sync_call_supported;
    }
 
    const auto& account = db.get<account_metadata_object,by_name>(act.account);
@@ -184,6 +187,7 @@ void apply_eosio_setcode(apply_context& context) {
             o.first_block_used = context.control.head().block_num() + 1;
             o.vm_type = act.vmtype;
             o.vm_version = act.vmversion;
+            o.sync_call_supported = sync_call_supported;
          });
       }
    }

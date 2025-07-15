@@ -12,38 +12,41 @@ namespace fc
       class exception_impl
       {
          public:
+            exception_impl(std::string_view name_value,
+                        std::string_view what_value,
+                        int64_t code,
+                        log_messages msgs)
+            : _name(name_value)
+            , _what(what_value)
+            , _code(code)
+            , _elog(std::move(msgs))
+            {}
+
             std::string     _name;
             std::string     _what;
             int64_t         _code;
             log_messages    _elog;
       };
    }
-   exception::exception( log_messages&& msgs, int64_t code,
-                                    const std::string& name_value,
-                                    const std::string& what_value )
-   :my( new detail::exception_impl() )
+   exception::exception( log_messages&& msgs,
+                         int64_t code,
+                         std::string_view name_value,
+                         std::string_view what_value )
+   :my( new detail::exception_impl{name_value, what_value, code, std::move(msgs)} )
    {
-      my->_code = code;
-      my->_what = what_value;
-      my->_name = name_value;
-      my->_elog = fc::move(msgs);
    }
 
    exception::exception(
       const log_messages& msgs,
       int64_t code,
-      const std::string& name_value,
-      const std::string& what_value )
-   :my( new detail::exception_impl() )
+      std::string_view name_value,
+      std::string_view what_value )
+   :my( new detail::exception_impl{name_value, what_value, code, msgs} )
    {
-      my->_code = code;
-      my->_what = what_value;
-      my->_name = name_value;
-      my->_elog = msgs;
    }
 
    unhandled_exception::unhandled_exception( log_message&& m, std::exception_ptr e )
-   :exception( fc::move(m) )
+   :exception( std::move(m) )
    {
       _inner = e;
    }
@@ -53,7 +56,7 @@ namespace fc
    }
    unhandled_exception::unhandled_exception( log_messages m )
    :exception()
-   { my->_elog = fc::move(m); }
+   { my->_elog = std::move(m); }
 
    std::exception_ptr unhandled_exception::get_inner_exception()const { return _inner; }
 
@@ -65,31 +68,23 @@ namespace fc
    }
 
    exception::exception( int64_t code,
-                         const std::string& name_value,
-                         const std::string& what_value )
-   :my( new detail::exception_impl() )
+                         std::string_view name_value,
+                         std::string_view what_value )
+   :my( new detail::exception_impl{name_value, what_value, code, {}} )
    {
-      my->_code = code;
-      my->_what = what_value;
-      my->_name = name_value;
    }
 
    exception::exception( log_message&& msg,
                          int64_t code,
-                         const std::string& name_value,
-                         const std::string& what_value )
-   :my( new detail::exception_impl() )
+                         std::string_view name_value,
+                         std::string_view what_value )
+   :my( new detail::exception_impl{name_value, what_value, code, {std::move(msg)}} )
    {
-      my->_code = code;
-      my->_what = what_value;
-      my->_name = name_value;
-      my->_elog.push_back( fc::move( msg ) );
    }
    exception::exception( const exception& c )
    :my( new detail::exception_impl(*c.my) )
    { }
-   exception::exception( exception&& c )
-   :my( fc::move(c.my) ){}
+   exception::exception( exception&& c ) noexcept = default;
 
    const char*  exception::name()const throw() { return my->_name.c_str(); }
    const char*  exception::what()const noexcept { return my->_what.c_str(); }
@@ -121,7 +116,7 @@ namespace fc
    const log_messages&   exception::get_log()const { return my->_elog; }
    void                  exception::append_log( log_message m )
    {
-      my->_elog.emplace_back( fc::move(m) );
+      my->_elog.emplace_back( std::move(m) );
    }
 
    /**
@@ -284,7 +279,7 @@ namespace fc
    std_exception_wrapper::std_exception_wrapper( log_message&& m, std::exception_ptr e,
                                                  const std::string& name_value,
                                                  const std::string& what_value)
-   :exception( fc::move(m), exception_code::std_exception_code, name_value, what_value )
+   :exception( std::move(m), exception_code::std_exception_code, name_value, what_value )
    {
       _inner = {std::move(e)};
    }

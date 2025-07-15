@@ -1,14 +1,13 @@
+#include <sync_call_tester.hpp>
 #include <eosio/chain/config.hpp>
-#include <eosio/testing/tester.hpp>
 
 using namespace eosio::chain;
 using namespace eosio::testing;
 
 using mvo = fc::mutable_variant_object;
 
-
 // Generic ABI
-static const char* doit_abi = R"=====(
+static std::string doit_abi = R"=====(
 {
    "version": "eosio::abi/1.2",
    "types": [],
@@ -28,26 +27,7 @@ static const char* doit_abi = R"=====(
 }
 )=====";
 
-struct acct_code {
-   const        account_name name;
-   const char*  wast;
-};
-
-// The first account in accounts vector must be the caller initiating a sync call
-struct call_tester: validating_tester {
-   call_tester(const std::vector<acct_code>& accounts) {
-      for (auto i = 0u; i < accounts.size(); ++i) {
-         create_account(accounts[i].name);
-         set_code(accounts[i].name, accounts[i].wast);
-
-         if (i == 0) {
-            set_abi(accounts[i].name, doit_abi);
-         }
-      }
-   }
-};
-
-BOOST_AUTO_TEST_SUITE(sync_call_tests)
+BOOST_AUTO_TEST_SUITE(sync_call_wasm_tests)
 
 // A common helper function
 void create_accounts_and_set_code(const char* caller_wat, const char* callee_wat, validating_tester& t) {
@@ -74,8 +54,9 @@ static const char sync_call_in_same_account_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -90,11 +71,6 @@ static const char sync_call_in_same_account_wast[] = R"=====(
 // Verify sync call to a function in the same account works
 BOOST_AUTO_TEST_CASE(same_account) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& acct = account_name("synccall");
    t.create_account(acct);
@@ -134,8 +110,9 @@ static const char callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -148,11 +125,6 @@ static const char callee_wast[] = R"=====(
 // Verify sync call works for called function in a different account
 BOOST_AUTO_TEST_CASE(different_account) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -197,8 +169,9 @@ static const char callee1_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -219,8 +192,9 @@ static const char callee2_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee) 
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -233,11 +207,6 @@ static const char callee2_wast[] = R"=====(
 // Verify multiple levels sync calls work
 BOOST_AUTO_TEST_CASE(multi_level_call_depth) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -280,7 +249,8 @@ static const char seq_callee1_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)(result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
@@ -295,8 +265,9 @@ static const char seq_callee2_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    ;; not used but needed for set_code validation
@@ -310,11 +281,6 @@ static const char seq_callee2_wast[] = R"=====(
 // Verify sequential sync calls work
 BOOST_AUTO_TEST_CASE(seq_sync_calls) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -371,8 +337,9 @@ static const char loop_callee_wast[] = R"=====(
    (func $callee)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $callee)
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -384,11 +351,6 @@ static const char loop_callee_wast[] = R"=====(
 // are not exhausted (like wasm allocators)
 BOOST_AUTO_TEST_CASE(large_number_of_sequential_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -444,8 +406,9 @@ static const char different_actions_callee1_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -463,8 +426,9 @@ static const char different_actions_callee2_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -477,11 +441,6 @@ static const char different_actions_callee2_wast[] = R"=====(
 // Verify calls from different actions work
 BOOST_AUTO_TEST_CASE(calls_from_different_actions) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -532,8 +491,9 @@ static const char recursive_caller_wast[] = R"=====(
 
    ;; called recursively from callee
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $doit (i32.const 0)) ;; argument 0 to request doit to exit
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -554,8 +514,8 @@ static const char recursive_callee_wast[] = R"=====(
 
    ;; called from caller and calls caller again
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
-      (drop (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8)))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8))
    )
 
    (export "apply" (func $apply))
@@ -566,11 +526,6 @@ static const char recursive_callee_wast[] = R"=====(
 // Verify recursive calls abort
 BOOST_AUTO_TEST_CASE(recursive_calls) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -589,24 +544,39 @@ BOOST_AUTO_TEST_CASE(recursive_calls) { try {
                          fc_exception_message_contains("recursively called"));
 } FC_LOG_AND_RETHROW() }
 
-// Verify sync call fails if receiver account does not exist
-BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
-   validating_tester t;
+// Verify sync call returns -1 if receiver account is not deployed
+static const char receiver_account_not_deployed_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
-   const auto& caller = account_name("caller");
-   t.create_account(caller);
-   t.set_code(caller, caller_wast);
-   t.set_abi(caller, doit_abi);
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
 
-   // The caller intends to call a function in "callee"_n account, which is not created. 
-   BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
-                         sync_call_validate_exception,
-                         fc_exception_message_contains("does not exist"));
+      (i64.const -1)
+      i64.ne
+      if ;; assert if $call did not return -1
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 16) "host function did not return -1")
+)
+)=====";
+
+// Verify sync call returns -1 if receiver account is not deployed
+BOOST_AUTO_TEST_CASE(receiver_account_not_deployed_caller_test)  { try {
+   // receiver_account_not_deployed_caller_wast calls "callee"_n account,
+   // which is not deployed in the test (we only deployed the caller contract).
+   call_tester t(std::vector<account_and_wast_code>{ {"caller"_n, receiver_account_not_deployed_caller_wast, doit_abi} });
+
+   // receiver_account_not_deployed_caller_wast will throw if the return
+   // status is not -1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
 // 1. reads input from action
@@ -659,7 +629,7 @@ static const char basic_params_return_value_callee_wast[] = R"=====(
 
    ;; use get_call_data and set_call_return_value to get argument and store return value
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))
 
       i32.const 16      ;; address to store return value
@@ -669,6 +639,7 @@ static const char basic_params_return_value_callee_wast[] = R"=====(
       i32.store         ;; save the return value at address 16
 
       (call $set_call_return_value (i32.const 16)(i32.const 4)) ;; store the return value on host
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -680,11 +651,6 @@ static const char basic_params_return_value_callee_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, basic_params_return_value_caller_wast);
@@ -693,6 +659,8 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    const auto& callee = account_name("callee");
    t.create_account(callee);
    t.set_code(callee, basic_params_return_value_callee_wast);
+
+   t.produce_block();
 
    // double 0
    auto trx_trace = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "0"));
@@ -718,7 +686,7 @@ static const char get_call_data_less_memory_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $get_call_data (i32.const 0)(i32.const 0)) ;; destination memory size is 0
       (i32.const 8)  ;; caller passes in 8 bytes. get_call_data should always return 8
       i32.ne
@@ -732,6 +700,7 @@ static const char get_call_data_less_memory_wast[] = R"=====(
       if             ;; assert if get_call_data did not return 8
          (call $assert (i32.const 0) (i32.const 0))
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -745,11 +714,6 @@ static const char get_call_data_less_memory_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, caller_wast);
@@ -758,6 +722,8 @@ BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
    const auto& callee = account_name("callee");
    t.create_account(callee);
    t.set_code(callee, get_call_data_less_memory_wast);
+
+   t.produce_block();
 
    BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
 } FC_LOG_AND_RETHROW() }
@@ -783,13 +749,14 @@ static const char no_parameters_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $get_call_data (i32.const 160)(i32.const 100)) ;; store call data in memory[160], with size 100
       (i32.const 0)  ;; caller did not pass in data. get_call_data should return 0
       i32.ne
       if             ;; assert if get_call_data did not return 0
          (call $assert (i32.const 0) (i32.const 0))
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -802,11 +769,6 @@ static const char no_parameters_callee_wast[] = R"=====(
 // Verify get_call_data returns 0 if the function does not have any parameters
 BOOST_AUTO_TEST_CASE(no_parameters_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(no_parameters_caller_wast, no_parameters_callee_wast, t);
 
@@ -839,7 +801,8 @@ static const char no_return_value_caller_wast[] = R"=====(
 static const char no_return_value_callee_wast[] = R"=====(
 (module
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
@@ -849,11 +812,6 @@ static const char no_return_value_callee_wast[] = R"=====(
 // Verify `call()` host function returns 0 if called function does not return a value, ie, `void func()`
 BOOST_AUTO_TEST_CASE(no_return_value_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(no_return_value_caller_wast, no_return_value_callee_wast, t);
 
@@ -867,7 +825,8 @@ static const char zero_return_value_size_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -880,11 +839,6 @@ static const char zero_return_value_size_callee_wast[] = R"=====(
 // like `std::string get()` returning an empty string
 BOOST_AUTO_TEST_CASE(zero_return_value_size_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    // callee returns 0 sized value
    create_accounts_and_set_code(no_return_value_caller_wast, zero_return_value_size_callee_wast, t);
@@ -922,9 +876,10 @@ static const char return_value_before_eosio_exit_callee_wast[] = R"=====(
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $set_call_return_value (i32.const 0)(i32.const 4)) ;; store the return value 1000 (length is 4) before calling eosio_exit
       (call $eosio_exit (i32.const 0))  ;; 0 is the exit code
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -937,13 +892,9 @@ static const char return_value_before_eosio_exit_callee_wast[] = R"=====(
 
 // Verify return value is kept if it is set before eosio_exit
 BOOST_AUTO_TEST_CASE(return_value_before_eosio_exit_test) { try {
-   call_tester t({ {"caller"_n, return_value_before_eosio_exit_caller_wast},
-                   {"callee"_n, return_value_before_eosio_exit_callee_wast} });
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, return_value_before_eosio_exit_caller_wast, doit_abi},
+                    {"callee"_n, return_value_before_eosio_exit_callee_wast, {}}});
 
    auto trx_trace = t.push_action("caller"_n, "doit"_n, "caller"_n, {});
    auto &atrace   = trx_trace->action_traces;
@@ -967,11 +918,6 @@ static const char get_call_data_in_apply_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(get_call_data_in_apply_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, get_call_data_in_apply_wast);
@@ -990,8 +936,9 @@ static const char set_call_return_value_invalid_size_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $set_call_return_value (i32.const 16)(i32.const 524289)) ;; max allowed return value size is 512 KB (524288)
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1002,11 +949,6 @@ static const char set_call_return_value_invalid_size_wast[] = R"=====(
 // Verify exception is raised if return value is greater than max allowed size
 BOOST_AUTO_TEST_CASE(set_call_return_value_invalid_size_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -1038,11 +980,6 @@ static const char set_call_return_value_not_in_sync_call_wast[] = R"=====(
 // Verify set_call_return_value can be only called in sync calls
 BOOST_AUTO_TEST_CASE(set_call_return_value_not_in_sync_call_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -1090,11 +1027,6 @@ static const char get_call_return_value_less_memory_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(get_call_return_value_less_memory_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, get_call_return_value_less_memory_wast);
@@ -1133,11 +1065,6 @@ static const char get_call_return_value_not_called_sync_call_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE(get_call_return_value_not_called_sync_call_test) { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    const auto& caller = account_name("caller");
    t.create_account(caller);
    t.set_code(caller, get_call_return_value_not_called_sync_call_wast);
@@ -1165,14 +1092,14 @@ static const char entry_point_validation_caller_wast[] = R"=====(
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
       (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
 
-      (i64.const -1)  ;; callee does not export `sync_call`, $call should return -1
+      (i64.const -2)  ;; callee does not export `sync_call`, $call should return -2
       i64.ne
-      if             ;; assert if $call did not return -1
+      if             ;; assert if $call did not return -2
          (call $assert (i32.const 0) (i32.const 16))
       end
    )
 
-   (data (i32.const 16) "call host function did not return -1")
+   (data (i32.const 16) "call host function did not return -2")
 )
 )=====";
 
@@ -1183,18 +1110,13 @@ static const char no_sync_call_entry_point_wast[] = R"=====(
 )
 )=====";
 
-// Verify sync call return -1 if sync call entry point does not exist
+// Verify sync call return -2 if sync call entry point does not exist
 BOOST_AUTO_TEST_CASE(no_sync_call_entry_point_test)  { try {
    validating_tester t;
 
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_accounts_and_set_code(entry_point_validation_caller_wast, no_sync_call_entry_point_wast, t);
 
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -2
 } FC_LOG_AND_RETHROW() }
 
 
@@ -1209,18 +1131,33 @@ static const char invalid_entry_point_wast[] = R"=====(
 )
 )=====";
 
-// Verify sync call return -1 if sync call entry point signature is invalid
+// Verify sync call return -2 if sync call entry point signature is invalid
 BOOST_AUTO_TEST_CASE(invalid_sync_call_entry_point_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(entry_point_validation_caller_wast, invalid_entry_point_wast, t);
 
    BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -1
+} FC_LOG_AND_RETHROW() }
+
+// Number of parameters are mismatched
+static const char entry_point_num_parms_mismatched_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64)) ;; data_size is missing
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify sync call return -2 if sync call entry point signature is invalid
+BOOST_AUTO_TEST_CASE(entry_point_num_parms_mismatched_test)  { try {
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, entry_point_validation_caller_wast, doit_abi},
+                    {"callee"_n, entry_point_num_parms_mismatched_wast, {}}});
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {})); // entry_point_validation_caller_wast will throw if `call` does not return -2
 } FC_LOG_AND_RETHROW() }
 
 // The last LSB is set
@@ -1230,7 +1167,8 @@ static const char valid_flags_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -1243,11 +1181,6 @@ BOOST_AUTO_TEST_CASE(valid_flags_test) { try {
    validating_tester t;
    account_name      acct;
 
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_one_account_and_set_code(valid_flags_wast, acct, t);
    BOOST_REQUIRE_NO_THROW(t.push_action(acct, "doit"_n, acct, {}));
 } FC_LOG_AND_RETHROW() }
@@ -1259,7 +1192,8 @@ static const char invalid_flags_wast1[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -1271,11 +1205,6 @@ static const char invalid_flags_wast1[] = R"=====(
 BOOST_AUTO_TEST_CASE(invalid_flags_test1) { try {
    validating_tester t;
    account_name      acct;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_one_account_and_set_code(invalid_flags_wast1, acct, t);
    BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
@@ -1290,7 +1219,8 @@ static const char invalid_flags_wast2[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const 0))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
@@ -1303,15 +1233,104 @@ BOOST_AUTO_TEST_CASE(invalid_flags_test2) { try {
    validating_tester t;
    account_name      acct;
 
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_one_account_and_set_code(invalid_flags_wast2, acct, t);
    BOOST_CHECK_EXCEPTION(t.push_action(acct, "doit"_n, acct, {}),
                          sync_call_validate_exception,
                          fc_exception_message_contains("least significant bits of sync call"));
+} FC_LOG_AND_RETHROW() }
+
+// Checks an valid error code (less or equal to -10000) of entry point function is
+// passed as is to host function
+static const char check_entry_point_valid_error_code_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i64.const -10000)  ;; callee entry point returns -10000
+      i64.ne
+      if             ;; assert if $call did not return -10000
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 16) "host function did not return -10000")
+)
+)=====";
+
+static const char check_entry_point_valid_error_code_callee_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const -10000)   ;; return -10000
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Verify valid return value from sync call entry point is passed to host function call()
+BOOST_AUTO_TEST_CASE(check_entry_point_valid_error_code_callee_test)  { try {
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, check_entry_point_valid_error_code_caller_wast, doit_abi},
+                    {"callee"_n, check_entry_point_valid_error_code_callee_wast, {}}});
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
+// Checks invalid error code (not 0 or not <= -10000) of entry point function is converted to -3
+static const char check_entry_point_invalid_error_code_caller_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64))) ;; receiver, flags, data span
+
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+      (i64.const -3)  ;; should convert to -3
+      i64.ne
+      if             ;; assert if $call did not return -3
+         (call $assert (i32.const 0) (i32.const 16))
+      end
+   )
+
+   (memory (export "memory") 1)
+   (data (i32.const 16) "host function did not return -3")
+)
+)=====";
+
+// Return an invalid error code (-2)
+static const char check_entry_point_invalid_error_code_callee_wast[] = R"=====(
+(module
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
+      (i64.const -2)   ;; -2 is an invalid return code
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+   (memory (export "memory") 1)
+)
+)=====";
+
+// Verify invalid return value from sync call entry point is converted to -3
+BOOST_AUTO_TEST_CASE(check_entry_point_invalid_error_code_callee_test)  { try {
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, check_entry_point_invalid_error_code_caller_wast, doit_abi},
+                    {"callee"_n, check_entry_point_invalid_error_code_callee_wast, {}} });
+
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "doit"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
 // 1. reads an i32 value as an input from action
@@ -1340,7 +1359,7 @@ static const char direct_recursive_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (local $n i32)
 
       (drop (call $get_call_data (i32.const 0)(get_local $data_size))) ;; read function parameter into address 0
@@ -1362,6 +1381,7 @@ static const char direct_recursive_wast[] = R"=====(
                         (i32.const 4)          ;; size
          )) ;; recursive call to itself with `n - 1 `
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1371,11 +1391,6 @@ static const char direct_recursive_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(one_input_caller_wast, direct_recursive_wast, t);
 
@@ -1404,7 +1419,7 @@ static const char indirect_recursive_caller_wast[] = R"=====(
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (local $n i32)
 
       (drop (call $get_call_data (i32.const 4)(get_local $data_size))) ;; read function parameter into memory[4]
@@ -1420,6 +1435,7 @@ static const char indirect_recursive_caller_wast[] = R"=====(
                (i32.const 4)          ;; size
          )
       ) ;; recursive call to to the sender with `n`
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1438,7 +1454,7 @@ static const char indirect_recursive_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (local $n i32)
 
       (drop (call $get_call_data (i32.const 0)(get_local $data_size))) ;; read function parameter into address 0
@@ -1461,6 +1477,7 @@ static const char indirect_recursive_callee_wast[] = R"=====(
                   (i32.const 4)          ;; size
          )) ;; recursive call to itself with `n - 1 `
       end
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1470,11 +1487,6 @@ static const char indirect_recursive_callee_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(indirect_recursive_caller_wast, indirect_recursive_callee_wast, t);
 
@@ -1618,11 +1630,12 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read the argument: index
       i32.const 0       ;; address of index (stored by get_call_data)
       i32.load          ;; load index
       call $callee
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1632,11 +1645,6 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(constrains_enforcement_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(constrains_enforcement_caller_wast, constrains_enforcement_callee_wast, t);
 
@@ -1714,8 +1722,9 @@ static const char privilege_call_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_wasm_parameters_packed (i32.const 0) (i32.const 0) (i32.const 0))) ;; get_wasm_parameters_packed requires privilege
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -1725,11 +1734,6 @@ static const char privilege_call_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(privilege_call_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(caller_wast, privilege_call_wast, t);
 
@@ -1795,11 +1799,6 @@ static const char max_call_depth_update_caller_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(max_call_depth_update_test)  { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(max_call_depth_update_caller_wast, direct_recursive_wast, t);
 
@@ -2013,11 +2012,12 @@ static const char read_only_general_callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read the argument: index
       i32.const 0       ;; address of index (stored by get_call_data)
       i32.load          ;; load index
       call $callee
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2030,13 +2030,9 @@ static const char read_only_general_callee_wast[] = R"=====(
 // Verify when `read_only` flag is set in the flags parameter of a sync call,
 // an EOS_ASSERT is raised for each state modified host function
 BOOST_AUTO_TEST_CASE(read_only_general_test)  { try {
-   call_tester t({{"caller"_n, read_only_general_caller_wast},
-                  {"callee"_n, read_only_general_callee_wast}});
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n, read_only_general_caller_wast, doit_abi},
+                    {"callee"_n, read_only_general_callee_wast, {}}});
 
    // Add privilege to callee account so we can test read-only check on privileged api
    t.push_action(config::system_account_name, "setpriv"_n, config::system_account_name,
@@ -2076,8 +2072,9 @@ static const char read_only_pass_along_callee_wast[] = R"=====(
    (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 1)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2094,8 +2091,9 @@ static const char read_only_pass_along_callee1_wast[] = R"=====(
    (global $callee2 i64 (i64.const 4729647296285769728))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 1)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2110,8 +2108,9 @@ static const char read_only_pass_along_callee2_wast[] = R"=====(
    (import "env" "db_store_i64" (func $db_store_i64 (param i64 i64 i64 i64 i32 i32) (result i32)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $db_store_i64 (i64.const 0)(i64.const 0)(i64.const 0)(i64.const 0)(i32.const 0)(i32.const 0)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2126,15 +2125,11 @@ static const char read_only_pass_along_callee2_wast[] = R"=====(
 // In this test, first call has read_only flag set, the second and third do not.
 // But the call traces shoud show all the calls are read only.
 BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
-   call_tester t({ {"caller"_n,  read_only_pass_along_caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast},
-                   {"callee2"_n, read_only_pass_along_callee2_wast} });
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n,  read_only_pass_along_caller_wast,  doit_abi},
+                    {"callee"_n,  read_only_pass_along_callee_wast,  {}},
+                    {"callee1"_n, read_only_pass_along_callee1_wast, {}},
+                    {"callee2"_n, read_only_pass_along_callee2_wast, {}} });
 
    // First verify db_store_i64 is disaalowed
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "doit"_n, "caller"_n, {}),
@@ -2175,15 +2170,11 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
 // call flags do not have read_only set.
 // Also verify the read_only value in the call trace is true.
 BOOST_AUTO_TEST_CASE(read_only_from_transaction_test)  { try {
-   call_tester t({ {"caller"_n,  caller_wast},
-                   {"callee"_n,  read_only_pass_along_callee_wast},
-                   {"callee1"_n, read_only_pass_along_callee1_wast},
-                   {"callee2"_n, read_only_pass_along_callee2_wast} });
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
+   call_tester t(std::vector<account_and_wast_code>{
+                    {"caller"_n,  caller_wast, doit_abi},
+                    {"callee"_n,  read_only_pass_along_callee_wast,  {}},
+                    {"callee1"_n, read_only_pass_along_callee1_wast, {}},
+                    {"callee2"_n, read_only_pass_along_callee2_wast, {}} });
 
    // Construct a read_only transaction
    action act;
@@ -2232,11 +2223,6 @@ BOOST_AUTO_TEST_CASE(trace_without_sync_call_test) { try {
    validating_tester t;
    account_name      acct;
 
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
-
    create_one_account_and_set_code(no_sync_call_entry_point_wast, acct, t);
    auto  trx_trace = t.push_action(acct, "doit"_n, acct, {});
    auto& atrace    = trx_trace->action_traces;
@@ -2267,10 +2253,11 @@ static const char basic_trace_callee_wast[] = R"=====(
    (memory (export "memory") 1)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read parameter into memory[0]
 
       (call $set_call_return_value (i32.const 0)(get_local $data_size)) ;; returns the value of the parameter
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2281,11 +2268,6 @@ static const char basic_trace_callee_wast[] = R"=====(
 // Verify call trace for a single sync call. Every field is validated
 BOOST_AUTO_TEST_CASE(basic_trace_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_accounts_and_set_code(basic_trace_caller_wast, basic_trace_callee_wast, t);
 
@@ -2343,10 +2325,11 @@ static const char trace_callee1_wast[] = R"=====(
    (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 12))
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
       (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee1" 12
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2365,9 +2348,10 @@ static const char trace_callee11_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 13))
       (call $set_call_return_value (i32.const 0)(i32.const 13)) ;; size of "I am callee11" 13
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2386,9 +2370,10 @@ static const char trace_callee2_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 12))
       (call $set_call_return_value (i32.const 0)(i32.const 12)) ;; size of "I am callee2" 12
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2401,11 +2386,6 @@ static const char trace_callee2_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -2449,11 +2429,6 @@ BOOST_AUTO_TEST_CASE(trace_nested_and_sequential_test) { try {
 BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_one_level_test) { try {
    validating_tester t;
    account_name      acct;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    create_one_account_and_set_code(invalid_flags_wast1, acct, t);
 
@@ -2504,8 +2479,9 @@ static const char trace_except_callee1_wast[] = R"=====(
    (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 8)))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2522,8 +2498,9 @@ static const char trace_except_callee11_wast[] = R"=====(
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i64)))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $assert (i32.const 0) (i32.const 0))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2536,11 +2513,6 @@ static const char trace_except_callee11_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
    validating_tester t;
-
-   if (t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);
@@ -2640,10 +2612,11 @@ static const char console_callee1_wast[] = R"=====(
    (global $callee11 i64 (i64.const 4729647295765676032)) ;; "calllee11"_n uint64 value
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 26))
       (drop (call $call (get_global $callee11) (i64.const 0)(i32.const 0)(i32.const 0)))
       (call $prints_l (i32.const 26)(i32.const 23))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2662,8 +2635,9 @@ static const char console_callee11_wast[] = R"=====(
    (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 16))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2681,8 +2655,9 @@ static const char console_callee2_wast[] = R"=====(
    (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 15))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2697,11 +2672,6 @@ static const char console_callee2_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE(console_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    account_name caller;
    create_one_account_and_set_code(console_caller_wast, caller, t);
@@ -2765,8 +2735,9 @@ static const char no_prints_before_synccall_callee_wast[] = R"=====(
    (import "env" "prints_l" (func $prints_l (param i32 i32)))  ;; prints a string
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32) (result i64)
       (call $prints_l (i32.const 0)(i32.const 12))
+      (i64.const 0)
    )
 
    (export "apply" (func $apply))
@@ -2780,11 +2751,6 @@ static const char no_prints_before_synccall_callee_wast[] = R"=====(
 // Verify the value of marker should be 0 it there are no prints before the sync call.
 BOOST_AUTO_TEST_CASE(no_prints_before_synccall_test) { try {
    validating_tester t;
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    account_name caller;
    create_one_account_and_set_code(no_prints_before_synccall_caller_wast, caller, t);
@@ -2819,11 +2785,6 @@ BOOST_AUTO_TEST_CASE(contract_console_not_enabled_test) { try {
 
    t.execute_setup_policy( setup_policy::full );
    t.produce_block();
-
-   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
-      // skip eos_vm_oc for now.
-      return;
-   }
 
    const auto& caller = account_name("caller");
    t.create_account(caller);

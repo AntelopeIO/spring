@@ -22,6 +22,7 @@ if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
    set(CHAIN_EOSVMOC_SOURCES webassembly/runtimes/eos-vm-oc/code_cache.cpp
                              webassembly/runtimes/eos-vm-oc/executor.cpp
                              webassembly/runtimes/eos-vm-oc/memory.cpp
+                             webassembly/runtimes/eos-vm-oc/memory_pools.cpp
                              webassembly/runtimes/eos-vm-oc/intrinsic.cpp
                              webassembly/runtimes/eos-vm-oc/LLVMJIT.cpp
                              webassembly/runtimes/eos-vm-oc/LLVMEmitIR.cpp
@@ -99,6 +100,7 @@ add_library( eosio_chain
              chain_config.cpp
              chain_id_type.cpp
              genesis_state.cpp
+             code_object.cpp
              ${CMAKE_CURRENT_BINARY_DIR}/genesis_state_root_key.cpp
 
               wast_to_wasm.cpp
@@ -106,7 +108,6 @@ add_library( eosio_chain
               wasm_eosio_validation.cpp
               wasm_eosio_injection.cpp
               wasm_config.cpp
-              wasm_alloc_pool.cpp
               host_context.cpp
               apply_context.cpp
               abi_serializer.cpp

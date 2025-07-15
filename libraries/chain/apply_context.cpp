@@ -14,28 +14,35 @@ using boost::container::flat_set;
 namespace eosio::chain {
 
 static inline void print_debug(account_name receiver, const action_trace& ar) {
-   if (!ar.console.empty()) {
-      if (fc::logger::get(DEFAULT_LOGGER).is_enabled( fc::log_level::debug )) {
-         std::string prefix;
-         prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
-         prefix += "\n[(";
-         prefix += ar.act.account.to_string();
-         prefix += ",";
-         prefix += ar.act.name.to_string();
-         prefix += ")->";
-         prefix += receiver.to_string();
-         prefix += "]";
-
-         std::string output;
-         output.reserve(512);
-         output += prefix;
-         output += ": CONSOLE OUTPUT BEGIN =====================\n";
-         output += ar.console;
-         output += prefix;
-         output += ": CONSOLE OUTPUT END   =====================";
-         dlog( std::move(output) );
-      }
+   if (!fc::logger::get(DEFAULT_LOGGER).is_enabled( fc::log_level::debug )) {
+      return;
    }
+
+   // If no action console and no sync calls, just return
+   if (ar.console.empty() && ar.console_markers.empty()) {
+     return;
+   }
+
+   std::string prefix;
+   prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
+   prefix += "\n[(";
+   prefix += ar.act.account.to_string();
+   prefix += ",";
+   prefix += ar.act.name.to_string();
+   prefix += ")->";
+   prefix += receiver.to_string();
+   prefix += "]";
+
+   std::string header = prefix;
+   header  += ": CONSOLE OUTPUT BEGIN =====================";
+   std::string trailer = prefix;
+   trailer += ": CONSOLE OUTPUT END   =====================";
+
+   fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
+   size_t call_trace_idx = 0;  // starting from the first one
+   // action's receiver is the sender of the next sync call
+   auto output = expand_console(header, trailer, ar.call_traces, call_trace_idx, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
+   dlog(std::move(output));
 }
 
 apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth)
@@ -94,7 +101,7 @@ void apply_context::exec_one()
                   control.check_action_list( act->account, act->name );
                }
                try {
-                  control.get_wasm_interface().apply( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
+                  control.get_wasm_interface().execute( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
                } catch( const wasm_exit& ) {}
             }
 
@@ -745,25 +752,6 @@ action_name apply_context::get_sender() const {
       return creator_trace.receiver;
    }
    return action_name();
-}
-
-bool apply_context::is_eos_vm_oc_whitelisted() const {
-   return receiver.prefix() == config::system_account_name || // "eosio"_n
-          control.is_eos_vm_oc_whitelisted(receiver);
-}
-
-// Context             |    OC?
-//-------------------------------------------------------------------------------
-// Building block      | baseline, OC for whitelisted
-// Applying block      | OC unless a producer, OC for whitelisted including producers
-// Speculative API trx | baseline, OC for whitelisted
-// Speculative P2P trx | baseline, OC for whitelisted
-// Compute trx         | baseline, OC for whitelisted
-// Read only trx       | OC
-bool apply_context::should_use_eos_vm_oc()const {
-   return is_eos_vm_oc_whitelisted() // all whitelisted accounts use OC always
-          || (is_applying_block() && !control.is_producer_node()) // validating/applying block
-          || trx_context.is_read_only();
 }
 
 } /// eosio::chain
