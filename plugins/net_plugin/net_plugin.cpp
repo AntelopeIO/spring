@@ -445,7 +445,6 @@ namespace eosio {
 
       void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
 
-      void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
       void start_monitors();
 
@@ -1571,7 +1570,7 @@ namespace eosio {
       if( latest_msg_time > std::chrono::steady_clock::time_point::min() ) {
          if( current_time > latest_msg_time + hb_timeout ) {
             no_retry = go_away_reason::benign_other;
-            if( !peer_address().empty() ) {
+            if( !incoming() ) {
                peer_wlog(this, "heartbeat timed out for peer address");
                close(true);
             } else {
@@ -2398,6 +2397,14 @@ namespace eosio {
    // called from connection strand
    void sync_manager::rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode ) {
       c->block_status_monitor_.rejected();
+      {
+         // reset sync on rejected block
+         fc::lock_guard g( sync_mtx );
+         if (sync_last_requested_num != 0 && blk_num <= sync_next_expected_num-1) { // no need to reset if we already reset and are syncing again
+            sync_last_requested_num = 0;
+            sync_next_expected_num = my_impl->get_fork_db_root_num() + 1;
+         }
+      }
       if( mode == closing_mode::immediately || c->block_status_monitor_.max_events_violated()) {
          peer_wlog(c, "block ${bn} not accepted, closing connection ${d}",
                    ("d", mode == closing_mode::immediately ? "immediately" : "max violations reached")("bn", blk_num));
@@ -2781,7 +2788,7 @@ namespace eosio {
          string                    paddr_desc = paddr_str + ":" + std::to_string(paddr_port);
          connections.for_each_connection([&visitors, &from_addr, &paddr_str](const connection_ptr& conn) {
             if (conn->socket_is_open()) {
-               if (conn->peer_address().empty()) {
+               if (conn->incoming()) {
                   ++visitors;
                   fc::lock_guard g_conn(conn->conn_mtx);
                   if (paddr_str == conn->remote_endpoint_ip) {
