@@ -75,6 +75,8 @@ public:
    void on_activate_feature(const protocol_feature& feature);
    void on_input_action();
    void on_end_action();
+   void on_start_call();
+   void on_end_call();
    void on_require_recipient();
    void on_send_inline();
    void on_send_context_free_inline();
@@ -100,7 +102,7 @@ public:
    void on_modify_permission(const permission_object& old_permission, const permission_object& new_permission);
    void on_remove_permission(const permission_object& permission);
 private:
-   uint32_t         _action_id = 0;
+   uint32_t         _execution_id = 0;
    ram_trace        _ram_trace;
    deep_mind_config _config;
    fc::logger       _logger;

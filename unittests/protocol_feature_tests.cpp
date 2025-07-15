@@ -2315,4 +2315,69 @@ BOOST_AUTO_TEST_CASE(set_finalizers_test) { try {
                        c.error("alice does not have permission to call this API"));
 } FC_LOG_AND_RETHROW() }
 
+// A basic contract to show new host functions can be called.
+static const char basic_sync_call_host_funcs_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32)(result i64)))
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32)(result i32)))
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (memory $0 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param  $action_name i64)
+      (drop (call $call (get_local $receiver) (i64.const 0) (i32.const 8) (i32.const 16)))
+   )
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
+   tester c(setup_policy::preactivate_feature_and_new_bios);
+   const auto& pfm = c.control->get_protocol_feature_manager();
+
+   if( c.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   // Ensure SYNC_CALL not yet activated
+   BOOST_CHECK(!c.control->is_builtin_activated(builtin_protocol_feature_t::sync_call));
+
+   // Cannot activate SYNC_CALL because the dependency is not met (it depends on SAVANNA).
+   auto d = pfm.get_builtin_digest(builtin_protocol_feature_t::sync_call);
+   BOOST_REQUIRE(d);
+   BOOST_CHECK_EXCEPTION(c.activate_protocol_features({ *d }),
+                          protocol_feature_exception,
+                          fc_exception_message_starts_with("not all dependencies of protocol feature with digest"));
+
+   const auto& test_acct = account_name("synccall");
+   c.create_account(test_acct);
+
+   // Cannot deploy the contract because it calls host functions which have not yet been whitelisted.
+   BOOST_CHECK_EXCEPTION(c.set_code(test_acct, basic_sync_call_host_funcs_wast),
+                         wasm_exception,
+                         fc_exception_message_contains("unresolveable"));
+
+   // Activate the depending Savanna
+   c.activate_builtin_protocol_features({builtin_protocol_feature_t::savanna});
+   c.produce_block();
+
+   // Activate SYNC_CALL after the dependency met
+   c.activate_protocol_features({ *d });
+   c.produce_block();
+
+   // Ensure SYNC_CALL is now activated
+   BOOST_CHECK(c.control->is_builtin_activated(builtin_protocol_feature_t::sync_call));
+
+   // Deploy the contract again. It should work now
+   c.set_code(test_acct, basic_sync_call_host_funcs_wast);
+
+   // Ensure new host functions can be called
+   BOOST_REQUIRE_EQUAL(c.push_action(action({{ test_acct, permission_name("active") }}, test_acct, action_name(), {}),
+                                     test_acct.to_uint64_t()),
+                       c.success());
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()

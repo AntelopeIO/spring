@@ -2,6 +2,7 @@
 #include <eosio/chain/webassembly/interface.hpp>
 #include <eosio/chain/account_object.hpp>
 #include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/wasm_eosio_constraints.hpp>
@@ -23,12 +24,12 @@ namespace wasm_constraints = eosio::chain::wasm_constraints;
 namespace {
 
   struct checktime_watchdog {
-     checktime_watchdog(transaction_checktime_timer& timer) : _timer(timer) {}
+     checktime_watchdog(transaction_checktime_timer& timer, bool appending) : _timer(timer), _appending(appending) {}
      template<typename F>
      struct guard {
-        guard(transaction_checktime_timer& timer, F&& func)
+        guard(transaction_checktime_timer& timer, F&& func, bool appending)
            : _timer(timer), _func(std::forward<F>(func)) {
-           _timer.set_expiration_callback(&callback, this);
+           _timer.set_expiration_callback(&callback, this, appending);
            platform_timer::state_t expired = _timer.timer_state();
            if(expired == platform_timer::state_t::timed_out || expired == platform_timer::state_t::interrupted) {
               _func(); // it's harmless if _func is invoked twice
@@ -46,9 +47,10 @@ namespace {
      };
      template<typename F>
      guard<F> scoped_run(F&& func) {
-        return guard{_timer, std::forward<F>(func)};
+        return guard{_timer, std::forward<F>(func), _appending};
      }
      transaction_checktime_timer& _timer;
+     bool _appending = false;
   };
 }
 
@@ -63,7 +65,20 @@ struct setcode_options {
    static constexpr bool allow_zero_blocktype = true;
 };
 
-void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) {
+static bool module_has_valid_sync_call(module& mod) {
+   bool supported = false;
+   const uint32_t i = mod.get_exported_function("sync_call");
+   if (i < std::numeric_limits<uint32_t>::max()) {
+      const vm::func_type& function_type = mod.get_function_type(i);
+      if (function_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {vm::i64}}) {
+         supported = true;
+      }
+   }
+   return supported;
+}
+
+validate_result validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) {
+   bool sync_call_supported = false;
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code.size(), nullptr);
@@ -78,13 +93,20 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
                     ("module", std::string((char*)imports[i].module_str.raw(), imports[i].module_str.size()))
                     ("fn", std::string((char*)imports[i].field_str.raw(), imports[i].field_str.size())));
       }
+
+      sync_call_supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return validate_result {
+      .sync_call_supported = sync_call_supported
+   };
 }
 
-void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
+validate_result validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
    EOS_ASSERT(code.size() <= cfg.max_module_bytes, wasm_serialization_error, "Code too large");
+   bool sync_call_supported = false;
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
       eos_vm_null_backend_t<wasm_config> bkend(code_ptr, code.size(), nullptr, cfg);
@@ -104,9 +126,33 @@ void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intr
       EOS_ASSERT(apply_idx < std::numeric_limits<uint32_t>::max(), wasm_serialization_error, "apply not exported");
       const vm::func_type& apply_type = bkend.get_module().get_function_type(apply_idx);
       EOS_ASSERT((apply_type == vm::host_function{{vm::i64, vm::i64, vm::i64}, {}}), wasm_serialization_error, "apply has wrong type");
+
+      sync_call_supported = module_has_valid_sync_call(bkend.get_module());
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
+
+   return validate_result {
+      .sync_call_supported = sync_call_supported
+   };
+}
+
+bool is_sync_call_supported(const char* code_bytes, size_t code_size) {
+   wasm_code_ptr code_ptr((uint8_t*)code_bytes, code_size);
+   bool supported = false;
+   try {
+      // NOTE: if we ever relax WASM validation via some protocol feature in the future,
+      // we cannot simply create a backend using the default `setcode_options`.
+      // The caller of `is_sync_call_supported()` (`code_object::reflector_init()`)
+      // needs to pass in `controller` so we know what protocol features are enabled
+      // to decide what kind of backend to create. Or `code_object::sync_call_supported`
+      // needs to be populated explicitly when snapshot is read.
+      eos_vm_null_backend_t<setcode_options> bkend(code_ptr, code_size, nullptr);
+      supported = module_has_valid_sync_call(bkend.get_module());
+   } catch(vm::exception& e) {
+      EOS_THROW(wasm_serialization_error, e.detail());
+   }
+   return supported;
 }
 
 // Be permissive on apply.
@@ -129,39 +175,80 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      void apply(apply_context& context) override {
-         // set up backend to share the compiled mod in the instantiated
-         // module of the contract
-         _runtime->_bkend.share(*_instantiated_module);
-         // set exec ctx's mod to instantiated module's mod
-         _runtime->_exec_ctx.set_module(&(_instantiated_module->get_module()));
-         // link exe ctx to backend
-         _runtime->_bkend.set_context(&_runtime->_exec_ctx);
-         // set max_call_depth and max_pages to original values
-         _runtime->_bkend.reset_max_call_depth();
-         _runtime->_bkend.reset_max_pages();
-         // set wasm allocator per apply data
-         _runtime->_bkend.set_wasm_allocator(&context.control.get_wasm_allocator());
-
-         apply_options opts;
-         if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
-            const wasm_config& config = context.control.get_global_properties().wasm_configuration;
-            opts = {config.max_pages, config.max_call_depth};
+      int64_t execute(host_context& context) override {
+         if (context.is_action()) {
+            return apply(static_cast<apply_context&>(context));
+         } else {
+            return do_sync_call(static_cast<sync_call_context&>(context));
          }
+      }
+
+   private:
+      int64_t do_sync_call(sync_call_context& context) {
+         backend_t                                bkend;
+         typename eos_vm_runtime<Impl>::context_t exec_ctx;
+         vm::wasm_allocator*                      wasm_alloc = context.control.acquire_sync_call_wasm_allocator();
+
+         // always return the wasm_allocator obtainded back to the pool when exiting
+         auto ensure = fc::make_scoped_exit([&]() {
+            context.control.release_sync_call_wasm_allocator(wasm_alloc);
+         });
+
+         apply_options opts = get_apply_options(context);
+
+         auto fn = [&]() -> int64_t {
+            eosio::chain::webassembly::interface iface(context);
+            bkend.initialize(&iface, opts);
+            return bkend.call_with_return(
+               iface, "env", "sync_call",
+               context.sender.to_uint64_t(),
+               context.receiver.to_uint64_t(),
+               static_cast<uint32_t>(context.data.size()))->to_i64();
+         };
+
+         return exe(context, bkend, exec_ctx, *wasm_alloc, fn, true);
+      }
+
+      int64_t apply(apply_context& context) {
+         auto& bkend      = _runtime->_bkend;
+         auto& exec_ctx   = _runtime->_exec_ctx;
+         auto& wasm_alloc = context.control.get_wasm_allocator();
+
+         apply_options opts = get_apply_options(context);
          auto fn = [&]() {
             eosio::chain::webassembly::interface iface(context);
-            _runtime->_bkend.initialize(&iface, opts);
-            _runtime->_bkend.call(
+            bkend.initialize(&iface, opts);
+            bkend.call(
                 iface, "env", "apply",
                 context.get_receiver().to_uint64_t(),
                 context.get_action().account.to_uint64_t(),
                 context.get_action().name.to_uint64_t());
          };
+
+         exe(context, bkend, exec_ctx, wasm_alloc, fn, false);
+         return 0;  // status of `apply` is not used
+      }
+
+      template<typename F>
+      auto exe(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, F&& fn, bool multi_expr_callbacks_allowed) {
+         // set up backend to share the compiled mod in the instantiated
+         // module of the contract
+         bkend.share(*_instantiated_module);
+         // set exec ctx's mod to instantiated module's mod
+         exec_ctx.set_module(&(_instantiated_module->get_module()));
+         // link exe ctx to backend
+         bkend.set_context(&exec_ctx);
+         // set max_call_depth and max_pages to original values
+         bkend.reset_max_call_depth();
+         bkend.reset_max_pages();
+         // set wasm allocator per apply data
+         bkend.set_wasm_allocator(&wasm_alloc);
+
          try {
-            checktime_watchdog wd(context.trx_context.transaction_timer);
-            _runtime->_bkend.timed_run(std::move(wd), std::move(fn));
+            checktime_watchdog wd(context.trx_context.transaction_timer, multi_expr_callbacks_allowed);
+            return bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
-            context.trx_context.checktime();
+            context.trx_context.checktime_must_throw();
          } catch(eosio::vm::wasm_memory_exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "access violation: ${d}", ("d", e.detail()));
          } catch(eosio::vm::exception& e) {
@@ -169,8 +256,16 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          }
       }
 
-   private:
-      eos_vm_runtime<Impl>*            _runtime;
+      apply_options get_apply_options(const host_context& context) const {
+         apply_options opts;
+         if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
+            const wasm_config& config = context.control.get_global_properties().wasm_configuration;
+            opts = {config.max_pages, config.max_call_depth};
+         }
+         return opts;
+      }
+
+      eos_vm_runtime<Impl>*      _runtime;
       std::unique_ptr<backend_t> _instantiated_module;
 };
 
@@ -183,7 +278,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          _original_code(code, code + code_size) {}
 
 
-      void apply(apply_context& context) override {
+      int64_t execute(host_context& context) override {
          _instantiated_module->set_wasm_allocator(&context.control.get_wasm_allocator());
          apply_options opts;
          if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
@@ -199,10 +294,10 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
                 context.get_action().account.to_uint64_t(),
                 context.get_action().name.to_uint64_t());
          };
-         profile_data* prof = start(context);
+         profile_data* prof = start(static_cast<apply_context&>(context));
          try {
             scoped_profile profile_runner(prof);
-            checktime_watchdog wd(context.trx_context.transaction_timer);
+            checktime_watchdog wd(context.trx_context.transaction_timer, false);
             _instantiated_module->timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
@@ -211,6 +306,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          } catch(eosio::vm::exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure");
          }
+         return 0;
       }
 
       profile_data* start(apply_context& context) {
@@ -257,7 +353,9 @@ std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instan
       else
 #endif
          bkend = std::make_unique<backend_t>(code, code_size, nullptr, options, false, false); // false, false <--> 2-passes parsing, backend does not own execution context (execution context is reused per thread)
+
       eos_vm_host_functions_t::resolve(bkend->get_module());
+
       return std::make_unique<eos_vm_instantiated_module<Impl>>(this, std::move(bkend));
    } catch(eosio::vm::exception& e) {
       FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: ${e}", ("e", e.what()));
@@ -352,21 +450,21 @@ REGISTER_LEGACY_CF_ONLY_HOST_FUNCTION(get_context_free_data)
 
 // privileged api
 REGISTER_HOST_FUNCTION(is_feature_active, privileged_check);
-REGISTER_HOST_FUNCTION(activate_feature, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(preactivate_feature, privileged_check);
-REGISTER_HOST_FUNCTION(set_resource_limits, privileged_check);
+REGISTER_HOST_FUNCTION(activate_feature, privileged_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(preactivate_feature, privileged_check, read_only_check);
+REGISTER_HOST_FUNCTION(set_resource_limits, privileged_check, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(get_resource_limits, privileged_check);
 REGISTER_HOST_FUNCTION(get_parameters_packed, privileged_check);
-REGISTER_HOST_FUNCTION(set_parameters_packed, privileged_check);
+REGISTER_HOST_FUNCTION(set_parameters_packed, privileged_check, read_only_check);
 REGISTER_HOST_FUNCTION(get_wasm_parameters_packed, privileged_check);
-REGISTER_HOST_FUNCTION(set_wasm_parameters_packed, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers_ex, privileged_check);
+REGISTER_HOST_FUNCTION(set_wasm_parameters_packed, privileged_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers, privileged_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(set_proposed_producers_ex, privileged_check, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(get_blockchain_parameters_packed, privileged_check);
-REGISTER_LEGACY_HOST_FUNCTION(set_blockchain_parameters_packed, privileged_check);
+REGISTER_LEGACY_HOST_FUNCTION(set_blockchain_parameters_packed, privileged_check, read_only_check);
 REGISTER_HOST_FUNCTION(is_privileged, privileged_check);
-REGISTER_HOST_FUNCTION(set_privileged, privileged_check);
-REGISTER_HOST_FUNCTION(set_finalizers, privileged_check);
+REGISTER_HOST_FUNCTION(set_privileged, privileged_check, read_only_check);
+REGISTER_HOST_FUNCTION(set_finalizers, privileged_check, read_only_check);
 
 // softfloat api
 REGISTER_INJECTED_HOST_FUNCTION(_eosio_f32_add);
@@ -450,10 +548,10 @@ REGISTER_HOST_FUNCTION(get_permission_last_used);
 REGISTER_HOST_FUNCTION(get_account_creation_time);
 
 // authorization api
-REGISTER_HOST_FUNCTION(require_auth);
-REGISTER_HOST_FUNCTION(require_auth2);
-REGISTER_HOST_FUNCTION(has_auth);
-REGISTER_HOST_FUNCTION(require_recipient);
+REGISTER_HOST_FUNCTION(require_auth, action_check);
+REGISTER_HOST_FUNCTION(require_auth2, action_check);
+REGISTER_HOST_FUNCTION(has_auth, action_check);
+REGISTER_HOST_FUNCTION(require_recipient, action_check);
 REGISTER_HOST_FUNCTION(is_account);
 REGISTER_HOST_FUNCTION(get_code_hash);
 
@@ -471,10 +569,16 @@ REGISTER_CF_HOST_FUNCTION(eosio_assert_code)
 REGISTER_CF_HOST_FUNCTION(eosio_exit)
 
 // action api
-REGISTER_LEGACY_CF_HOST_FUNCTION(read_action_data);
-REGISTER_CF_HOST_FUNCTION(action_data_size);
+REGISTER_LEGACY_CF_HOST_FUNCTION(read_action_data, action_check);
+REGISTER_CF_HOST_FUNCTION(action_data_size, action_check);
 REGISTER_CF_HOST_FUNCTION(current_receiver);
-REGISTER_HOST_FUNCTION(set_action_return_value);
+REGISTER_HOST_FUNCTION(set_action_return_value, action_check);
+
+// sync call api. sync calls are not allowed in context-free actions
+REGISTER_HOST_FUNCTION(call);
+REGISTER_HOST_FUNCTION(get_call_return_value);
+REGISTER_HOST_FUNCTION(get_call_data, sync_call_check);
+REGISTER_HOST_FUNCTION(set_call_return_value, sync_call_check);
 
 // console api
 REGISTER_LEGACY_CF_HOST_FUNCTION(prints);
@@ -491,9 +595,9 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(printhex);
 
 // database api
 // primary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_store_i64);
-REGISTER_LEGACY_HOST_FUNCTION(db_update_i64);
-REGISTER_HOST_FUNCTION(db_remove_i64);
+REGISTER_LEGACY_HOST_FUNCTION(db_store_i64, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_update_i64, read_only_check);
+REGISTER_HOST_FUNCTION(db_remove_i64, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_get_i64);
 REGISTER_LEGACY_HOST_FUNCTION(db_next_i64);
 REGISTER_LEGACY_HOST_FUNCTION(db_previous_i64);
@@ -503,9 +607,9 @@ REGISTER_HOST_FUNCTION(db_upperbound_i64);
 REGISTER_HOST_FUNCTION(db_end_i64);
 
 // uint64_t secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx64_store);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx64_update);
-REGISTER_HOST_FUNCTION(db_idx64_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx64_store, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx64_update, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx64_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_find_secondary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_lowerbound);
@@ -515,9 +619,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx64_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx64_previous);
 
 // uint128_t secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx128_store);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx128_update);
-REGISTER_HOST_FUNCTION(db_idx128_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx128_store, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx128_update, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx128_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_find_secondary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_lowerbound);
@@ -527,9 +631,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx128_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx128_previous);
 
 // 256-bit secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx256_store);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx256_update);
-REGISTER_HOST_FUNCTION(db_idx256_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx256_store, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx256_update, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx256_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_find_secondary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_lowerbound);
@@ -539,9 +643,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx256_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx256_previous);
 
 // double secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_store, is_nan_check);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_update, is_nan_check);
-REGISTER_HOST_FUNCTION(db_idx_double_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_store, is_nan_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_update, is_nan_check, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx_double_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_find_secondary, is_nan_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_lowerbound, is_nan_check);
@@ -551,9 +655,9 @@ REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_next);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_double_previous);
 
 // long double secondary index api
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_store, is_nan_check);
-REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_update, is_nan_check);
-REGISTER_HOST_FUNCTION(db_idx_long_double_remove);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_store, is_nan_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_update, is_nan_check, read_only_check);
+REGISTER_HOST_FUNCTION(db_idx_long_double_remove, read_only_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_find_secondary, is_nan_check);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_find_primary);
 REGISTER_LEGACY_HOST_FUNCTION(db_idx_long_double_lowerbound, is_nan_check);
@@ -569,10 +673,10 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(memcmp);
 REGISTER_LEGACY_CF_HOST_FUNCTION(memset);
 
 // transaction api
-REGISTER_LEGACY_HOST_FUNCTION(send_inline);
-REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline);
-REGISTER_LEGACY_HOST_FUNCTION(send_deferred);
-REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred);
+REGISTER_LEGACY_HOST_FUNCTION(send_inline, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_deferred, action_check, read_only_check);
+REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred, action_check, read_only_check);
 
 // context-free transaction api
 REGISTER_LEGACY_CF_HOST_FUNCTION(read_transaction);
@@ -580,7 +684,7 @@ REGISTER_CF_HOST_FUNCTION(transaction_size);
 REGISTER_CF_HOST_FUNCTION(expiration);
 REGISTER_CF_HOST_FUNCTION(tapos_block_num);
 REGISTER_CF_HOST_FUNCTION(tapos_block_prefix);
-REGISTER_LEGACY_CF_HOST_FUNCTION(get_action);
+REGISTER_LEGACY_CF_HOST_FUNCTION(get_action, action_check);
 
 // compiler builtins api
 REGISTER_LEGACY_CF_HOST_FUNCTION(__ashlti3);

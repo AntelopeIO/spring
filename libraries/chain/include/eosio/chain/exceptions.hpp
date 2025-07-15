@@ -550,6 +550,10 @@ namespace eosio { namespace chain {
                                     3015016, "ABI has an unsupported version" )
       FC_DECLARE_DERIVED_EXCEPTION( duplicate_abi_action_results_def_exception,  abi_exception,
                                     3015017, "Duplicate action results definition in the ABI" )
+      FC_DECLARE_DERIVED_EXCEPTION( duplicate_abi_call_def_exception, abi_exception,
+                                    3015018, "Duplicate call definition in the ABI" )
+      FC_DECLARE_DERIVED_EXCEPTION( duplicate_abi_call_results_def_exception, abi_exception,
+                                    3015019, "Duplicate call results definition in the ABI" )
 
    FC_DECLARE_DERIVED_EXCEPTION( contract_exception,           chain_exception,
                                  3160000, "Contract exception" )
@@ -680,4 +684,17 @@ namespace eosio { namespace chain {
                                  3260000, "Finalizer exception" )
       FC_DECLARE_DERIVED_EXCEPTION( finalizer_safety_exception, finalizer_exception,
                                     3260001, "Finalizer safety file exception" )
+
+   FC_DECLARE_DERIVED_EXCEPTION( sync_call_exception,    chain_exception,
+                                 3270000, "Sync call exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_validate_exception, sync_call_exception,
+                                    3270001, "Sync call validation exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_return_value_exception, sync_call_exception,
+                                    3270002, "Sync call return value size is too large" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_call_data_exception, sync_call_exception,
+                                    3270003, "Sync call data size is too large" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_depth_exception, sync_call_exception,
+                                    3270004, "max allowed sync call depth reached" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_invalid_status_exception, sync_call_exception,
+                                    3270005, "Status of sync call is invalid" )
 } } // eosio::chain

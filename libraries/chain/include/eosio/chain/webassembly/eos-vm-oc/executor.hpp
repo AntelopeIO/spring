@@ -13,7 +13,7 @@
 
 namespace eosio { namespace chain {
 
-class apply_context;
+class host_context;
 
 namespace eosvmoc {
 
@@ -26,7 +26,7 @@ class executor {
       executor(const code_cache_base& cc);
       ~executor();
 
-      void execute(const code_descriptor& code, memory& mem, apply_context& context);
+      int64_t execute(const code_descriptor& code, memory& mem, host_context& context);
 
    private:
       uint8_t* code_mapping;

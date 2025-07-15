@@ -1,0 +1,50 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.3",
+    "types": [],
+    "structs": [
+        {
+            "name": "div",
+            "base": "",
+            "fields": [
+                {
+                    "name": "x",
+                    "type": "uint32"
+                },
+                {
+                    "name": "y",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "recursive",
+            "base": "",
+            "fields": [
+                {
+                    "name": "n",
+                    "type": "uint32"
+                }
+            ]
+        }
+    ],
+    "actions": [],
+    "tables": [],
+    "ricardian_clauses": [],
+    "variants": [],
+    "action_results": [],
+    "calls": [
+        {
+            "name": "div",
+            "type": "div",
+            "id": 193489480,
+            "result_type": "uint32"
+        },
+        {
+            "name": "recursive",
+            "type": "recursive",
+            "id": 249904965185745245,
+            "result_type": "uint32"
+        }
+    ]
+}

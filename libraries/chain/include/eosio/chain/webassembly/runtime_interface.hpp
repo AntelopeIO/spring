@@ -8,12 +8,11 @@ namespace IR {
 
 namespace eosio { namespace chain {
 
-class apply_context;
+class host_context;
 
 class wasm_instantiated_module_interface {
    public:
-      virtual void apply(apply_context& context) = 0;
-
+      virtual int64_t execute(host_context& context) = 0;
       virtual ~wasm_instantiated_module_interface();
 };
 
@@ -26,6 +25,9 @@ class wasm_runtime_interface {
 
       // eosvmoc_runtime needs this
       virtual void init_thread_local_data() {};
+
+      virtual void set_num_threads_for_call_res_pools(uint32_t num_threads) {};
+      virtual void set_max_call_depth_for_call_res_pools(uint32_t depth) {};
 };
 
 }}

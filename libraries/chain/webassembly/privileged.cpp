@@ -22,12 +22,10 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    void interface::preactivate_feature( legacy_ptr<const digest_type> feature_digest ) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "preactivate_feature not allowed in a readonly transaction");
       context.control.preactivate_feature( *feature_digest, context.trx_context.is_transient() );
    }
 
    void interface::set_resource_limits( account_name account, int64_t ram_bytes, int64_t net_weight, int64_t cpu_weight ) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_resource_limits not allowed in a readonly transaction");
       EOS_ASSERT(ram_bytes >= -1, wasm_execution_error, "invalid value for ram resource limit expected [-1,INT64_MAX]");
       EOS_ASSERT(net_weight >= -1, wasm_execution_error, "invalid value for net resource weight expected [-1,INT64_MAX]");
       EOS_ASSERT(cpu_weight >= -1, wasm_execution_error, "invalid value for cpu resource weight expected [-1,INT64_MAX]");
@@ -43,7 +41,7 @@ namespace eosio { namespace chain { namespace webassembly {
       (void)legacy_ptr<int64_t>(std::move(cpu_weight));
    }
 
-   int64_t set_proposed_producers_common( apply_context& context, vector<producer_authority> && producers, bool validate_keys ) {
+   int64_t set_proposed_producers_common( host_context& context, vector<producer_authority> && producers, bool validate_keys ) {
       EOS_ASSERT( producers.size() > 0
                   || !context.control.is_builtin_activated( builtin_protocol_feature_t::disallow_empty_producer_schedule ),
                   wasm_execution_error,
@@ -105,7 +103,6 @@ namespace eosio { namespace chain { namespace webassembly {
       return s;
    }
    void interface::set_wasm_parameters_packed( span<const char> packed_parameters ) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_wasm_parameters_packed not allowed in a readonly transaction");
       fc::datastream<const char*> ds( packed_parameters.data(), packed_parameters.size() );
       uint32_t version;
       chain::wasm_config cfg;
@@ -120,7 +117,6 @@ namespace eosio { namespace chain { namespace webassembly {
       );
    }
    int64_t interface::set_proposed_producers( legacy_span<const char> packed_producer_schedule) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_proposed_producers not allowed in a readonly transaction");
       fc::datastream<const char*> ds( packed_producer_schedule.data(), packed_producer_schedule.size() );
       std::vector<producer_authority> producers;
       std::vector<legacy::producer_key> old_version;
@@ -137,7 +133,6 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    int64_t interface::set_proposed_producers_ex( uint64_t packed_producer_format, legacy_span<const char> packed_producer_schedule) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_proposed_producers_ex not allowed in a readonly transaction");
       if (packed_producer_format == 0) {
          return set_proposed_producers(std::move(packed_producer_schedule));
       } else if (packed_producer_format == 1) {
@@ -163,8 +158,6 @@ namespace eosio { namespace chain { namespace webassembly {
    };
 
    void interface::set_finalizers(uint64_t packed_finalizer_format, span<const char> packed_finalizer_policy) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error,
-                 "set_finalizers not allowed in a readonly transaction");
       if (packed_finalizer_format != 0) {
          EOS_THROW(wasm_execution_error, "Finalizer policy is in an unknown format!");
       }
@@ -223,14 +216,13 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    void interface::set_blockchain_parameters_packed( legacy_span<const char> packed_blockchain_parameters ) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_blockchain_parameters_packed not allowed in a readonly transaction");
       fc::datastream<const char*> ds( packed_blockchain_parameters.data(), packed_blockchain_parameters.size() );
       chain::chain_config_v0 cfg;
       fc::raw::unpack(ds, cfg);
       cfg.validate();
       context.db.modify( context.control.get_global_properties(),
          [&]( auto& gprops ) {
-              gprops.configuration = cfg;
+              gprops.configuration.copy_from_v0(cfg);
       });
    }
    
@@ -255,7 +247,6 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    void interface::set_parameters_packed( span<const char> packed_parameters ){
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_parameters_packed not allowed in a readonly transaction");
       fc::datastream<const char*> ds( packed_parameters.data(), packed_parameters.size() );
 
       chain::chain_config cfg = context.control.get_global_properties().configuration;
@@ -268,6 +259,8 @@ namespace eosio { namespace chain { namespace webassembly {
          [&]( auto& gprops ) {
               gprops.configuration = config_range.config;
       });
+
+      context.control.set_max_call_depth_for_call_res_pools(config_range.config.max_sync_call_depth);
    }
 
    bool interface::is_privileged( account_name n ) const {
@@ -275,7 +268,6 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    void interface::set_privileged( account_name n, bool is_priv ) {
-      EOS_ASSERT(!context.trx_context.is_read_only(), wasm_execution_error, "set_privileged not allowed in a readonly transaction");
       const auto& a = context.db.get<account_metadata_object, by_name>( n );
       context.db.modify( a, [&]( auto& ma ){
          ma.set_privileged( is_priv );

@@ -1495,11 +1495,16 @@ namespace eosio::testing {
       for( const auto& f : get_all_builtin_protocol_features() ) {
          // Before deferred trxs feature is fully disabled, existing tests involving
          // deferred trxs need to be exercised to make sure existing behaviors are
-         // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2
-         // from full protocol feature list such that existing tests can run.
-         if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
-            || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
-            || f == builtin_protocol_feature_t::savanna ) { // savanna depends on disable_deferred_trxs_stage_1 & 2
+         // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2,
+         // and any future protocol features from full protocol feature list such that
+         // existing tests can run.
+         //
+         // Note: We use `f >= builtin_protocol_feature_t::disable_deferred_trxs_stage_1`
+         // instead of earlier version of comparing with exact features to make code less
+         // fragile when new protocol features are added. Protocol features order can never change.
+         // Future protocol features' ID is guaranteed by the protocol to be greater than
+         // DISABLE_DEFERRED_TRXS_STAGE_1.
+         if( f >= builtin_protocol_feature_t::disable_deferred_trxs_stage_1 ) {
             continue;
          }
 
