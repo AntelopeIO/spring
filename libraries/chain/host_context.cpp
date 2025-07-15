@@ -78,6 +78,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
       trx_context.checktime();
       if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
          dm_logger->on_end_call();
+      }
       return error_id;
    };
 
