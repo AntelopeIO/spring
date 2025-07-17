@@ -33,6 +33,10 @@
 #include <boost/multi_index/key.hpp>
 #include <boost/unordered/unordered_flat_set.hpp>
 
+#if __has_include(<sys/ioctl.h>)
+#include <sys/ioctl.h>
+#endif
+
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -1009,6 +1013,7 @@ namespace eosio {
                        const send_buffer_type& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback);
       void do_queue_write(std::optional<block_num_type> block_num);
+      void log_send_buffer_stats() const;
 
       bool is_valid( const handshake_message& msg ) const;
 
@@ -1638,6 +1643,35 @@ namespace eosio {
    }
 
    // called from connection strand
+   void connection::log_send_buffer_stats() const {
+#if __has_include(<sys/ioctl.h>)
+      if (!p2p_conn_log.is_enabled(fc::log_level::debug))
+         return;
+
+      auto sockfd = socket->native_handle();
+      // Assuming 'sockfd' is an active socket file descriptor
+      int bytes_in_send_buffer;
+      if (ioctl(sockfd, TIOCOUTQ, &bytes_in_send_buffer) == -1) {
+         // Handle error, e.g., print errno
+         peer_dlog(p2p_conn_log, this, "Error getting bytes in send buffer: ${e}", ("e", strerror(errno)));
+      } else {
+         // bytes_in_send_buffer now holds the number of bytes currently in the send buffer
+         // To get available space, subtract this from the SO_SNDBUF value
+         int max_send_buffer_size;
+         socklen_t optlen = sizeof(max_send_buffer_size);
+         if (getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &max_send_buffer_size, &optlen) == -1) {
+            peer_dlog(p2p_conn_log, this, "Error getting SO_SNDBUF:  ${e}", ("e", strerror(errno)));
+         } else {
+            auto available_send_buffer_space = max_send_buffer_size - bytes_in_send_buffer;
+            peer_dlog(p2p_conn_log, this, "send buffer: ${b} bytes, max send buffer: ${m} bytes, available: ${a} bytes",
+                     ("b", bytes_in_send_buffer)("m", max_send_buffer_size)("a", available_send_buffer_space));
+         }
+      }
+
+#endif
+   }
+
+   // called from connection strand
    void connection::queue_write(msg_type_t net_msg,
                                 std::optional<block_num_type> block_num,
                                 queued_buffer::queue_t queue,
@@ -1666,6 +1700,8 @@ namespace eosio {
 
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
+
+      log_send_buffer_stats();
 
       boost::asio::async_write( *socket, bufs,
          boost::asio::bind_executor( strand, [c=shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t w ) {
