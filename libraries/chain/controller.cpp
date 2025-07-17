@@ -370,8 +370,7 @@ struct assembled_block {
       return std::visit(overloaded{[&](assembled_block_legacy& ab) {
                                       auto bsp = std::make_shared<block_state_legacy>(
                                          std::move(ab.pending_block_header_state), std::move(ab.unsigned_block),
-                                         std::move(ab.trx_metas), ab.action_receipt_digests_savanna, pfs, validator,
-                                         signer);
+                                         std::move(ab.trx_metas), ab.action_receipt_digests_savanna, pfs, validator, signer);
                                       return completed_block{block_handle{std::move(bsp)}};
                                    },
                                    [&](assembled_block_if& ab) {
@@ -1035,14 +1034,6 @@ struct controller_impl {
    std::function<void(produced_block_metrics)> _update_produced_block_metrics;
    std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
-
-   // returns whether `allow_non_canonical_signatures` was activated according to current head or pending block
-   // call only from main thread
-   fc::check_canonical_t check_canonical() const {
-      return is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)
-                ? fc::check_canonical_t::no
-                : fc::check_canonical_t::yes;
-   }
 
    vote_processor_t vote_processor{[this](const vote_signal_params& p) {
                                       emit(aggregated_vote, p, __FILE__, __LINE__);
@@ -4513,9 +4504,8 @@ struct controller_impl {
                }
 
 
-               BSP bsp =
-                  std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),
-                                                               validator, skip_validate_signee);
+               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),
+                                                                      validator, skip_validate_signee);
 
                if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result_t::status_t::complete) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
@@ -5497,7 +5487,8 @@ void controller::assemble_and_complete_block( const signer_callback_type& signer
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
-      signer_callback, valid_block_signing_authority);
+      signer_callback,
+      valid_block_signing_authority);
 }
 
 void controller::commit_block() {

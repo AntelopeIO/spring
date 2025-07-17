@@ -59,8 +59,7 @@ namespace eosio::chain {
                                            const validator_t& validator,
                                            bool skip_validate_signee
                            )
-      :block_header_state_legacy( prev.next( *b, detail::extract_additional_signatures(b), pfs, validator,
-                                             skip_validate_signee ) )
+      :block_header_state_legacy( prev.next( *b, detail::extract_additional_signatures(b), pfs, validator, skip_validate_signee ) )
       ,block( std::move(b) )
    {}
 

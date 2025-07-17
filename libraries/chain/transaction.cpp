@@ -58,8 +58,7 @@ digest_type transaction::sig_digest( const chain_id_type& chain_id, const vector
 
 fc::microseconds transaction::get_signature_keys( const vector<signature_type>& signatures,
       const chain_id_type& chain_id, fc::time_point deadline, const vector<bytes>& cfd,
-                                                  flat_set<public_key_type>& recovered_pub_keys,
-                                                  bool allow_duplicate_keys)const
+      flat_set<public_key_type>& recovered_pub_keys, bool allow_duplicate_keys)const
 { try {
    auto start = fc::time_point::now();
    recovered_pub_keys.clear();
@@ -134,8 +133,7 @@ signed_transaction::get_signature_keys( const chain_id_type& chain_id, fc::time_
                                         flat_set<public_key_type>& recovered_pub_keys,
                                         bool allow_duplicate_keys)const
 {
-   return transaction::get_signature_keys(signatures, chain_id, deadline, context_free_data, recovered_pub_keys,
-                                          allow_duplicate_keys);
+   return transaction::get_signature_keys(signatures, chain_id, deadline, context_free_data, recovered_pub_keys, allow_duplicate_keys);
 }
 
 uint32_t packed_transaction::get_unprunable_size()const {

@@ -124,7 +124,7 @@ namespace eosio { namespace chain {
       signature_type            sign(const private_key_type& key, const chain_id_type& chain_id)const;
       fc::microseconds          get_signature_keys( const chain_id_type& chain_id, fc::time_point deadline,
                                                     flat_set<public_key_type>& recovered_pub_keys,
-                                                    bool allow_duplicate_keys = false)const;
+                                                    bool allow_duplicate_keys = false )const;
    };
 
    struct packed_transaction : fc::reflect_init {

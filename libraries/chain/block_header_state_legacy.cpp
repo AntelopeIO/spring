@@ -354,7 +354,7 @@ namespace eosio::chain {
 
       // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
       if( !skip_validate_signee ) {
-        result.verify_signee();
+        result.verify_signee( );
       }
 
       return result;
@@ -396,8 +396,7 @@ namespace eosio::chain {
                         validator_t& validator,
                         bool skip_validate_signee )const
    {
-      return next(h.timestamp, h.confirmed)
-         .finish_next(h, std::move(additional_signatures), pfs, validator, skip_validate_signee);
+      return next(h.timestamp, h.confirmed).finish_next(h, std::move(additional_signatures), pfs, validator, skip_validate_signee);
    }
 
    digest_type   block_header_state_legacy::sig_digest()const {
@@ -405,7 +404,7 @@ namespace eosio::chain {
       return digest_type::hash( std::make_pair(header_bmroot, pending_schedule.schedule_hash) );
    }
 
-void block_header_state_legacy::sign( const signer_callback_type& signer ) {
+   void block_header_state_legacy::sign( const signer_callback_type& signer ) {
       auto d = sig_digest();
       auto sigs = signer( d );
 
@@ -433,7 +432,7 @@ void block_header_state_legacy::sign( const signer_callback_type& signer ) {
       keys.emplace(fc::crypto::public_key( header.producer_signature, digest, fc::check_canonical_t::no ));
 
       for (const auto& s: additional_signatures) {
-         auto res = keys.emplace(s, digest, fc::check_canonical_t::yes);
+         auto res = keys.emplace(s, digest, fc::check_canonical_t::no);
          EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice", ("key", *res.first));
       }
 

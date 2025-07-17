@@ -201,8 +201,7 @@ block_state_ptr block_state::create_transition_block(
                    bool                              skip_validate_signee,
                    const std::optional<digest_type>& action_mroot_savanna) {
    dlog("Create transition block ${bn}", ("bn", prev.block_num()+1));
-   auto result_ptr =
-      std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
+   auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
 
    result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
    // action_mroot_savanna can be empty in IRREVERSIBLE mode. Do not create valid structure
