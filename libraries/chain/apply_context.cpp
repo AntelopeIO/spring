@@ -1,7 +1,5 @@
 #include <algorithm>
 #include <eosio/chain/apply_context.hpp>
-#include <eosio/chain/controller.hpp>
-#include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/generated_transaction_object.hpp>
 #include <eosio/chain/authorization_manager.hpp>
@@ -9,7 +7,6 @@
 #include <eosio/chain/account_object.hpp>
 #include <eosio/chain/code_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
-#include <eosio/chain/deep_mind.hpp>
 #include <boost/container/flat_set.hpp>
 
 using boost::container::flat_set;
@@ -17,44 +14,44 @@ using boost::container::flat_set;
 namespace eosio::chain {
 
 static inline void print_debug(account_name receiver, const action_trace& ar) {
-   if (!ar.console.empty()) {
-      if (fc::logger::get(DEFAULT_LOGGER).is_enabled( fc::log_level::debug )) {
-         std::string prefix;
-         prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
-         prefix += "\n[(";
-         prefix += ar.act.account.to_string();
-         prefix += ",";
-         prefix += ar.act.name.to_string();
-         prefix += ")->";
-         prefix += receiver.to_string();
-         prefix += "]";
-
-         std::string output;
-         output.reserve(512);
-         output += prefix;
-         output += ": CONSOLE OUTPUT BEGIN =====================\n";
-         output += ar.console;
-         output += prefix;
-         output += ": CONSOLE OUTPUT END   =====================";
-         dlog( std::move(output) );
-      }
+   if (!fc::logger::get(DEFAULT_LOGGER).is_enabled( fc::log_level::debug )) {
+      return;
    }
+
+   // If no action console and no sync calls, just return
+   if (ar.console.empty() && ar.console_markers.empty()) {
+     return;
+   }
+
+   std::string prefix;
+   prefix.reserve(3 + 13 + 1 + 13 + 3 + 13 + 1);
+   prefix += "\n[(";
+   prefix += ar.act.account.to_string();
+   prefix += ",";
+   prefix += ar.act.name.to_string();
+   prefix += ")->";
+   prefix += receiver.to_string();
+   prefix += "]";
+
+   std::string header = prefix;
+   header  += ": CONSOLE OUTPUT BEGIN =====================";
+   std::string trailer = prefix;
+   trailer += ": CONSOLE OUTPUT END   =====================";
+
+   fc::unsigned_int sender_ordinal = 0; // sender_ordinal is 0 for sync calls initiated by an action
+   size_t call_trace_idx = 0;  // starting from the first one
+   // action's receiver is the sender of the next sync call
+   auto output = expand_console(header, trailer, ar.call_traces, call_trace_idx, sender_ordinal, receiver.to_string(), ar.console, ar.console_markers);
+   dlog(std::move(output));
 }
 
 apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth)
-:control(con)
-,db(con.mutable_db())
-,trx_context(trx_ctx)
+:host_context(con, trx_ctx)
 ,recurse_depth(depth)
 ,first_receiver_action_ordinal(action_ordinal)
 ,action_ordinal(action_ordinal)
-,idx64(*this)
-,idx128(*this)
-,idx256(*this)
-,idx_double(*this)
-,idx_long_double(*this)
 {
-   action_trace& trace = trx_ctx.get_action_trace(action_ordinal);
+   action_trace& trace = get_current_action_trace();
    act = &trace.act;
    receiver = trace.receiver;
    context_free = trace.context_free;
@@ -70,7 +67,7 @@ void apply_context::exec_one()
 
    auto handle_exception = [&](const auto& e)
    {
-      action_trace& trace = trx_context.get_action_trace( action_ordinal );
+      action_trace& trace = get_current_action_trace();
       trace.error_code = controller::convert_exception_to_error_code( e );
       trace.except = e;
       finalize_trace( trace, start );
@@ -104,7 +101,7 @@ void apply_context::exec_one()
                   control.check_action_list( act->account, act->name );
                }
                try {
-                  control.get_wasm_interface().apply( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
+                  control.get_wasm_interface().execute( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
                } catch( const wasm_exit& ) {}
             }
 
@@ -131,7 +128,7 @@ void apply_context::exec_one()
                }
             }
          }
-      } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} pending console output: ${console}", ("console", _pending_console_output)("account", act->account)("action", act->name)("receiver", receiver) )
+      } FC_RETHROW_EXCEPTIONS( warn, "${receiver} <= ${account}::${action} console output: ${console}", ("console", get_current_action_trace().console)("account", act->account)("action", act->name)("receiver", receiver) )
 
       if( control.is_builtin_activated( builtin_protocol_feature_t::action_return_value ) ) {
          act_digest = generate_action_digest(*act, action_return_value);
@@ -154,7 +151,7 @@ void apply_context::exec_one()
    //    * a pointer to an object in a chainbase index is not invalidated if the fields of that object are modified;
    //    * and, the *receiver_account object itself cannot be removed because accounts cannot be deleted in EOSIO.
 
-   action_trace& trace = trx_context.get_action_trace( action_ordinal );
+   action_trace& trace = get_current_action_trace();
    trace.return_value  = std::move(action_return_value);
    trace.receipt.emplace();
 
@@ -197,10 +194,25 @@ void apply_context::finalize_trace( action_trace& trace, const fc::time_point& s
    trace.account_ram_deltas = std::move( _account_ram_deltas );
    _account_ram_deltas.clear();
 
-   trace.console = std::move( _pending_console_output );
-   _pending_console_output.clear();
-
    trace.elapsed = fc::time_point::now() - start;
+}
+
+void apply_context::console_append(std::string_view val) {
+   action_trace& trace = get_current_action_trace();
+   trace.console += val;
+}
+
+void apply_context::store_console_marker() {
+   // Only do this when console log is enabled; otherwise we will end up with  a non-empty
+   // console markers vector with an empty console string.
+   if (!control.contracts_console()) {
+      return;
+   }
+
+   action_trace& trace = get_current_action_trace();
+   // Mark the starting point of upcoming sync call's console log
+   // when constructing console log hierarchy in pretty printing
+   trace.console_markers.emplace_back(trace.console.size());
 }
 
 void apply_context::exec()
@@ -226,30 +238,6 @@ void apply_context::exec()
    }
 
 } /// exec()
-
-bool apply_context::is_account( const account_name& account )const {
-   return nullptr != db.find<account_object,by_name>( account );
-}
-
-void apply_context::get_code_hash(
-   account_name account, uint64_t& code_sequence, fc::sha256& code_hash, uint8_t& vm_type, uint8_t& vm_version) const {
-
-   auto obj = db.find<account_metadata_object,by_name>(account);
-   if(!obj || obj->code_hash == fc::sha256{}) {
-      if(obj)
-         code_sequence = obj->code_sequence;
-      else
-         code_sequence = 0;
-      code_hash = {};
-      vm_type = 0;
-      vm_version = 0;
-   } else {
-      code_sequence = obj->code_sequence;
-      code_hash = obj->code_hash;
-      vm_type = obj->vm_type;
-      vm_version = obj->vm_version;
-   }
-}
 
 void apply_context::require_authorization( const account_name& account ) {
    for( uint32_t i=0; i < act->authorization.size(); i++ ) {
@@ -422,7 +410,6 @@ void apply_context::schedule_deferred_transaction( const uint128_t& sender_id, a
       return;
    }
 
-   EOS_ASSERT( !trx_context.is_read_only(), transaction_exception, "cannot schedule a deferred transaction from within a readonly transaction" );
    EOS_ASSERT( trx.context_free_actions.size() == 0, cfa_inside_generated_tx, "context free actions are not currently allowed in generated transactions" );
 
    bool enforce_actor_whitelist_blacklist = trx_context.enforce_whiteblacklist && control.is_speculative_block()
@@ -628,7 +615,6 @@ bool apply_context::cancel_deferred_transaction( const uint128_t& sender_id, acc
       return false;
    }
 
-   EOS_ASSERT( !trx_context.is_read_only(), transaction_exception, "cannot cancel a deferred transaction from within a readonly transaction" );
    auto& generated_transaction_idx = db.get_mutable_index<generated_transaction_multi_index>();
    const auto* gto = db.find<generated_transaction_object,by_sender_id>(boost::make_tuple(sender, sender_id));
    if ( gto ) {
@@ -649,7 +635,7 @@ uint32_t apply_context::schedule_action( uint32_t ordinal_of_action_to_schedule,
                                                                     receiver, context_free,
                                                                     action_ordinal, first_receiver_action_ordinal );
 
-   act = &trx_context.get_action_trace( action_ordinal ).act;
+   act = &get_current_action_trace().act;
    return scheduled_action_ordinal;
 }
 
@@ -659,70 +645,8 @@ uint32_t apply_context::schedule_action( action&& act_to_schedule, account_name 
                                                                     receiver, context_free,
                                                                     action_ordinal, first_receiver_action_ordinal );
 
-   act = &trx_context.get_action_trace( action_ordinal ).act;
+   act = &get_current_action_trace().act;
    return scheduled_action_ordinal;
-}
-
-const table_id_object* apply_context::find_table( name code, name scope, name table ) {
-   return db.find<table_id_object, by_code_scope_table>(boost::make_tuple(code, scope, table));
-}
-
-const table_id_object& apply_context::find_or_create_table( name code, name scope, name table, const account_name &payer ) {
-   const auto* existing_tid =  db.find<table_id_object, by_code_scope_table>(boost::make_tuple(code, scope, table));
-   if (existing_tid != nullptr) {
-      return *existing_tid;
-   }
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      std::string event_id = RAM_EVENT_ID("${code}:${scope}:${table}",
-         ("code", code)
-         ("scope", scope)
-         ("table", table)
-      );
-      dm_logger->on_ram_trace(std::move(event_id), "table", "add", "create_table");
-   }
-
-   update_db_usage(payer, config::billable_size_v<table_id_object>);
-
-   return db.create<table_id_object>([&](table_id_object &t_id){
-      t_id.code = code;
-      t_id.scope = scope;
-      t_id.table = table;
-      t_id.payer = payer;
-
-      if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-         dm_logger->on_create_table(t_id);
-      }
-   });
-}
-
-void apply_context::remove_table( const table_id_object& tid ) {
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      std::string event_id = RAM_EVENT_ID("${code}:${scope}:${table}",
-         ("code", tid.code)
-         ("scope", tid.scope)
-         ("table", tid.table)
-      );
-      dm_logger->on_ram_trace(std::move(event_id), "table", "remove", "remove_table");
-   }
-
-   update_db_usage(tid.payer, - config::billable_size_v<table_id_object>);
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      dm_logger->on_remove_table(tid);
-   }
-
-   db.remove(tid);
-}
-
-vector<account_name> apply_context::get_active_producers() const {
-   const auto& ap = control.active_producers();
-   vector<account_name> accounts; accounts.reserve( ap.producers.size() );
-
-   for(const auto& producer : ap.producers )
-      accounts.push_back(producer.producer_name);
-
-   return accounts;
 }
 
 void apply_context::update_db_usage( const account_name& payer, int64_t delta ) {
@@ -780,260 +704,6 @@ int apply_context::get_context_free_data( uint32_t index, char* buffer, size_t b
    return copy_size;
 }
 
-int apply_context::db_store_i64( name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
-   return db_store_i64( receiver, scope, table, payer, id, buffer, buffer_size);
-}
-
-int apply_context::db_store_i64( name code, name scope, name table, const account_name& payer, uint64_t id, const char* buffer, size_t buffer_size ) {
-//   require_write_lock( scope );
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot store a db record when executing a readonly transaction" );
-   const auto& tab = find_or_create_table( code, scope, table, payer );
-   auto tableid = tab.id;
-
-   EOS_ASSERT( payer != account_name(), invalid_table_payer, "must specify a valid account to pay for new record" );
-
-   const auto& obj = db.create<key_value_object>( [&]( auto& o ) {
-      o.t_id        = tableid;
-      o.primary_key = id;
-      o.value.assign( buffer, buffer_size );
-      o.payer       = payer;
-   });
-
-   db.modify( tab, [&]( auto& t ) {
-     ++t.count;
-   });
-
-   int64_t billable_size = (int64_t)(buffer_size + config::billable_size_v<key_value_object>);
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      std::string event_id = RAM_EVENT_ID("${table_code}:${scope}:${table_name}:${primkey}",
-         ("table_code", tab.code)
-         ("scope", tab.scope)
-         ("table_name", tab.table)
-         ("primkey", name(obj.primary_key))
-      );
-      dm_logger->on_ram_trace(std::move(event_id), "table_row", "add", "primary_index_add");
-   }
-
-   update_db_usage( payer, billable_size);
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      dm_logger->on_db_store_i64(tab, obj);
-   }
-
-   keyval_cache.cache_table( tab );
-   return keyval_cache.add( obj );
-}
-
-void apply_context::db_update_i64( int iterator, account_name payer, const char* buffer, size_t buffer_size ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot update a db record when executing a readonly transaction" );
-   const key_value_object& obj = keyval_cache.get( iterator );
-
-   const auto& table_obj = keyval_cache.get_table( obj.t_id );
-   EOS_ASSERT( table_obj.code == receiver, table_access_violation, "db access violation" );
-
-//   require_write_lock( table_obj.scope );
-
-   const int64_t overhead = config::billable_size_v<key_value_object>;
-   int64_t old_size = (int64_t)(obj.value.size() + overhead);
-   int64_t new_size = (int64_t)(buffer_size + overhead);
-
-   if( payer == account_name() ) payer = obj.payer;
-
-   std::string event_id;
-   if (control.get_deep_mind_logger(trx_context.is_transient()) != nullptr) {
-      event_id = RAM_EVENT_ID("${table_code}:${scope}:${table_name}:${primkey}",
-         ("table_code", table_obj.code)
-         ("scope", table_obj.scope)
-         ("table_name", table_obj.table)
-         ("primkey", name(obj.primary_key))
-      );
-   }
-
-   if( account_name(obj.payer) != payer ) {
-      // refund the existing payer
-      if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient()))
-      {
-         dm_logger->on_ram_trace(std::string(event_id), "table_row", "remove", "primary_index_update_remove_old_payer");
-      }
-      update_db_usage( obj.payer,  -(old_size) );
-      // charge the new payer
-      if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient()))
-      {
-         dm_logger->on_ram_trace(std::move(event_id), "table_row", "add", "primary_index_update_add_new_payer");
-      }
-      update_db_usage( payer,  (new_size));
-   } else if(old_size != new_size) {
-      // charge/refund the existing payer the difference
-      if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient()))
-      {
-         dm_logger->on_ram_trace(std::move(event_id) , "table_row", "update", "primary_index_update");
-      }
-      update_db_usage( obj.payer, new_size - old_size);
-   }
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      dm_logger->on_db_update_i64(table_obj, obj, payer, buffer, buffer_size);
-   }
-
-   db.modify( obj, [&]( auto& o ) {
-     o.value.assign( buffer, buffer_size );
-     o.payer = payer;
-   });
-}
-
-void apply_context::db_remove_i64( int iterator ) {
-   EOS_ASSERT( !trx_context.is_read_only(), table_operation_not_permitted, "cannot remove a db record when executing a readonly transaction" );
-   const key_value_object& obj = keyval_cache.get( iterator );
-
-   const auto& table_obj = keyval_cache.get_table( obj.t_id );
-   EOS_ASSERT( table_obj.code == receiver, table_access_violation, "db access violation" );
-
-//   require_write_lock( table_obj.scope );
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      std::string event_id = RAM_EVENT_ID("${table_code}:${scope}:${table_name}:${primkey}",
-         ("table_code", table_obj.code)
-         ("scope", table_obj.scope)
-         ("table_name", table_obj.table)
-         ("primkey", name(obj.primary_key))
-      );
-      dm_logger->on_ram_trace(std::move(event_id), "table_row", "remove", "primary_index_remove");
-   }
-
-   update_db_usage( obj.payer,  -(obj.value.size() + config::billable_size_v<key_value_object>) );
-
-   if (auto dm_logger = control.get_deep_mind_logger(trx_context.is_transient())) {
-      dm_logger->on_db_remove_i64(table_obj, obj);
-   }
-
-   db.modify( table_obj, [&]( auto& t ) {
-      --t.count;
-   });
-   db.remove( obj );
-
-   if (table_obj.count == 0) {
-      remove_table(table_obj);
-   }
-
-   keyval_cache.remove( iterator );
-}
-
-int apply_context::db_get_i64( int iterator, char* buffer, size_t buffer_size ) {
-   const key_value_object& obj = keyval_cache.get( iterator );
-
-   auto s = obj.value.size();
-   if( buffer_size == 0 ) return s;
-
-   auto copy_size = std::min( buffer_size, s );
-   memcpy( buffer, obj.value.data(), copy_size );
-
-   return copy_size;
-}
-
-int apply_context::db_next_i64( int iterator, uint64_t& primary ) {
-   if( iterator < -1 ) return -1; // cannot increment past end iterator of table
-
-   const auto& obj = keyval_cache.get( iterator ); // Check for iterator != -1 happens in this call
-   const auto& idx = db.get_index<key_value_index, by_scope_primary>();
-
-   auto itr = idx.iterator_to( obj );
-   ++itr;
-
-   if( itr == idx.end() || itr->t_id != obj.t_id ) return keyval_cache.get_end_iterator_by_table_id(obj.t_id);
-
-   primary = itr->primary_key;
-   return keyval_cache.add( *itr );
-}
-
-int apply_context::db_previous_i64( int iterator, uint64_t& primary ) {
-   const auto& idx = db.get_index<key_value_index, by_scope_primary>();
-
-   if( iterator < -1 ) // is end iterator
-   {
-      auto tab = keyval_cache.find_table_by_end_iterator(iterator);
-      EOS_ASSERT( tab, invalid_table_iterator, "not a valid end iterator" );
-
-      auto itr = idx.upper_bound(tab->id);
-      if( idx.begin() == idx.end() || itr == idx.begin() ) return -1; // Empty table
-
-      --itr;
-
-      if( itr->t_id != tab->id ) return -1; // Empty table
-
-      primary = itr->primary_key;
-      return keyval_cache.add(*itr);
-   }
-
-   const auto& obj = keyval_cache.get(iterator); // Check for iterator != -1 happens in this call
-
-   auto itr = idx.iterator_to(obj);
-   if( itr == idx.begin() ) return -1; // cannot decrement past beginning iterator of table
-
-   --itr;
-
-   if( itr->t_id != obj.t_id ) return -1; // cannot decrement past beginning iterator of table
-
-   primary = itr->primary_key;
-   return keyval_cache.add(*itr);
-}
-
-int apply_context::db_find_i64( name code, name scope, name table, uint64_t id ) {
-   //require_read_lock( code, scope ); // redundant?
-
-   const auto* tab = find_table( code, scope, table );
-   if( !tab ) return -1;
-
-   auto table_end_itr = keyval_cache.cache_table( *tab );
-
-   const key_value_object* obj = db.find<key_value_object, by_scope_primary>( boost::make_tuple( tab->id, id ) );
-   if( !obj ) return table_end_itr;
-
-   return keyval_cache.add( *obj );
-}
-
-int apply_context::db_lowerbound_i64( name code, name scope, name table, uint64_t id ) {
-   //require_read_lock( code, scope ); // redundant?
-
-   const auto* tab = find_table( code, scope, table );
-   if( !tab ) return -1;
-
-   auto table_end_itr = keyval_cache.cache_table( *tab );
-
-   const auto& idx = db.get_index<key_value_index, by_scope_primary>();
-   auto itr = idx.lower_bound( boost::make_tuple( tab->id, id ) );
-   if( itr == idx.end() ) return table_end_itr;
-   if( itr->t_id != tab->id ) return table_end_itr;
-
-   return keyval_cache.add( *itr );
-}
-
-int apply_context::db_upperbound_i64( name code, name scope, name table, uint64_t id ) {
-   //require_read_lock( code, scope ); // redundant?
-
-   const auto* tab = find_table( code, scope, table );
-   if( !tab ) return -1;
-
-   auto table_end_itr = keyval_cache.cache_table( *tab );
-
-   const auto& idx = db.get_index<key_value_index, by_scope_primary>();
-   auto itr = idx.upper_bound( boost::make_tuple( tab->id, id ) );
-   if( itr == idx.end() ) return table_end_itr;
-   if( itr->t_id != tab->id ) return table_end_itr;
-
-   return keyval_cache.add( *itr );
-}
-
-int apply_context::db_end_i64( name code, name scope, name table ) {
-   //require_read_lock( code, scope ); // redundant?
-
-   const auto* tab = find_table( code, scope, table );
-   if( !tab ) return -1;
-
-   return keyval_cache.cache_table( *tab );
-}
-
 uint64_t apply_context::next_global_sequence() {
    const auto& p = control.get_dynamic_global_properties();
    if ( trx_context.is_read_only() ) {
@@ -1076,32 +746,12 @@ void apply_context::add_ram_usage( account_name account, int64_t ram_delta ) {
 }
 
 action_name apply_context::get_sender() const {
-   const action_trace& trace = trx_context.get_action_trace( action_ordinal );
+   const action_trace& trace = get_current_action_trace();
    if (trace.creator_action_ordinal > 0) {
       const action_trace& creator_trace = trx_context.get_action_trace( trace.creator_action_ordinal );
       return creator_trace.receiver;
    }
    return action_name();
 }
-
-bool apply_context::is_eos_vm_oc_whitelisted() const {
-   return receiver.prefix() == config::system_account_name || // "eosio"_n
-          control.is_eos_vm_oc_whitelisted(receiver);
-}
-
-// Context             |    OC?
-//-------------------------------------------------------------------------------
-// Building block      | baseline, OC for whitelisted
-// Applying block      | OC unless a producer, OC for whitelisted including producers
-// Speculative API trx | baseline, OC for whitelisted
-// Speculative P2P trx | baseline, OC for whitelisted
-// Compute trx         | baseline, OC for whitelisted
-// Read only trx       | OC
-bool apply_context::should_use_eos_vm_oc()const {
-   return is_eos_vm_oc_whitelisted() // all whitelisted accounts use OC always
-          || (is_applying_block() && !control.is_producer_node()) // validating/applying block
-          || trx_context.is_read_only();
-}
-
 
 } /// eosio::chain

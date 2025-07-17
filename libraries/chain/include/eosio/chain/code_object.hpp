@@ -6,7 +6,7 @@
 
 namespace eosio { namespace chain {
 
-   class code_object : public chainbase::object<code_object_type, code_object> {
+   class code_object : public chainbase::object<code_object_type, code_object>, fc::reflect_init {
       OBJECT_CTOR(code_object, (code))
 
       id_type      id;
@@ -16,6 +16,9 @@ namespace eosio { namespace chain {
       uint32_t     first_block_used;
       uint8_t      vm_type = 0; //< vm_type should not be changed within a chainbase modifier lambda
       uint8_t      vm_version = 0; //< vm_version should not be changed within a chainbase modifier lambda
+      bool         sync_call_supported = false; //< true if code contains a valid sync_call entry point
+
+      void reflector_init();
    };
 
    struct by_code_hash;

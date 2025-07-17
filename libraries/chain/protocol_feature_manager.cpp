@@ -363,6 +363,17 @@ host function call will trigger a transition to the Savanna consensus algorithm.
               builtin_protocol_feature_t::disable_deferred_trxs_stage_2
             }
          } )
+         (  builtin_protocol_feature_t::sync_call, builtin_protocol_feature_spec{
+            "SYNC_CALL",
+            fc::variant("49f6fbc4fee045bc5c8b09a96b2b5c096afdc320ac29b54e0f3805c660b88483").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
+/*
+Builtin protocol feature: SYNC_CALL
+
+Enables synchronous calls to functions in other and own contracts.
+*/
+            {builtin_protocol_feature_t::savanna}
+         } )
          (  builtin_protocol_feature_t::allow_non_canonical_signatures, builtin_protocol_feature_spec{
             "ALLOW_NON_CANONICAL_SIGNATURES",
             fc::variant("f8e30509ba72dedbaf810114193c802aae73ae173e83b07bd08ba214d0f95312").as<digest_type>(),

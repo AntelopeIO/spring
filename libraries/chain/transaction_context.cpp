@@ -25,8 +25,8 @@ namespace eosio::chain {
       _timer.stop();
    }
 
-   void transaction_checktime_timer::set_expiration_callback(void(*func)(void*), void* user) {
-      _timer.set_expiration_callback(func, user);
+   void transaction_checktime_timer::set_expiration_callback(void(*func)(void*), void* user, bool appending) {
+      _timer.set_expiration_callback(func, user, appending);
    }
 
    transaction_checktime_timer::~transaction_checktime_timer() {
@@ -537,6 +537,17 @@ namespace eosio::chain {
                      ("now", now)("deadline", _deadline)("start", start)("billing_timer", now - pseudo_start) );
       }
       EOS_ASSERT( false,  transaction_exception, "unexpected deadline exception code ${code}", ("code", deadline_exception_code) );
+   }
+
+   // This is used where eosio::vm::timeout_exception or EOSVMOC_EXIT_CHECKTIME_FAIL is caught,
+   // checktime() must throw. Otherwise we would have interrupted contract execution
+   // at some unknown time but still considered it completed successfully.
+   [[noreturn]]
+   void transaction_context::checktime_must_throw()const {
+      checktime();
+
+      assert(false);
+      __builtin_unreachable();
    }
 
    void transaction_context::pause_billing_timer() {

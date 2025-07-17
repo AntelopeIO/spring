@@ -26,17 +26,25 @@ struct platform_timer {
       callback still execute if the timer expires and stop() is called nearly simultaneously.
       However, set_expiration_callback() is synchronized with the callback.
    */
-   void set_expiration_callback(void(*func)(void*), void* user) {
+   void set_expiration_callback(void(*func)(void*), void* user, bool appending = false) {
       bool expect_false = false;
       while(!atomic_compare_exchange_strong(&_callback_variables_busy, &expect_false, true))
          expect_false = false;
       auto reset_busy = fc::make_scoped_exit([this]() {
          _callback_variables_busy.store(false, std::memory_order_release);
       });
-      EOS_ASSERT(!(func && _expiration_callback), misc_exception, "Setting a platform_timer callback when one already exists");
+      EOS_ASSERT(!(!appending && func && !_expiration_callbacks.empty()), misc_exception, "Setting a platform_timer callback when one already exists");
 
-      _expiration_callback = func;
-      _expiration_callback_data = user;
+      if (!func) {
+         if (!_expiration_callbacks.empty()) {
+            _expiration_callbacks.pop_back();
+         }
+
+         // Never push a callback into _expiration_callbacks if it is null.
+         return;
+      }
+
+      _expiration_callbacks.push_back({func, user});
    }
 
    enum class state_t : uint8_t {
@@ -64,18 +72,18 @@ private:
    void call_expiration_callback() {
       bool expect_false = false;
       if(atomic_compare_exchange_strong(&_callback_variables_busy, &expect_false, true)) {
-         void(*cb)(void*) = _expiration_callback;
-         void* cb_data = _expiration_callback_data;
-         if(cb) {
-            cb(cb_data);
+         for (auto it = _expiration_callbacks.rbegin(); it != _expiration_callbacks.rend(); ++it) {
+            if (it->first) {
+               it->first(it->second);
+            }
          }
+
          _callback_variables_busy.store(false, std::memory_order_release);
       }
    }
 
    std::atomic_bool _callback_variables_busy = false;
-   void(*_expiration_callback)(void*) = nullptr;
-   void* _expiration_callback_data = nullptr;
+   std::vector<std::pair<void(*)(void*), void*>> _expiration_callbacks;
 };
 
 }}

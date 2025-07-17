@@ -6,6 +6,7 @@
 #include <eosio/chain/webassembly/eos-vm-oc/eos-vm-oc.h>
 #include <eosio/chain/wasm_eosio_constraints.hpp>
 #include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/types.hpp>
@@ -164,7 +165,7 @@ executor::executor(const code_cache_base& cc) {
    mapping_is_executable = true;
 }
 
-void executor::execute(const code_descriptor& code, memory& mem, apply_context& context) {
+int64_t executor::execute(const code_descriptor& code, memory& mem, host_context& context) {
    if(mapping_is_executable == false) {
       mprotect(code_mapping, code_mapping_size, PROT_EXEC|PROT_READ);
       mapping_is_executable = true;
@@ -179,6 +180,8 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
    }
    stack.reset(max_call_depth);
    EOS_ASSERT(code.starting_memory_pages <= (int)max_pages, wasm_execution_error, "Initial memory out of range");
+
+   const uint64_t prior_gs = eos_vm_oc_getgs();
 
    //prepare initial memory, mutable globals, and table data
    if(code.starting_memory_pages > 0 ) {
@@ -226,16 +229,18 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
    cb->is_running = true;
    cb->globals = globals;
 
+   bool append_callback = context.is_sync_call() ? true : false; // for sync calls, callbacks are appended to the timer's callback queue
    context.trx_context.transaction_timer.set_expiration_callback([](void* user) {
       executor* self = (executor*)user;
       syscall(SYS_mprotect, self->code_mapping, self->code_mapping_size, PROT_NONE);
       self->mapping_is_executable = false;
-   }, this);
+   }, this, append_callback);
 
-   auto cleanup = fc::make_scoped_exit([cb, &tt=context.trx_context.transaction_timer, &mem=mem](){
+   auto cleanup = fc::make_scoped_exit([cb, &tt=context.trx_context.transaction_timer, &mem=mem, &prior_gs](){
       cb->is_running = false;
       cb->bounce_buffers->clear();
       tt.set_expiration_callback(nullptr, nullptr);
+      eos_vm_oc_setgs(prior_gs);
 
       int64_t base_pages = mem.size_of_memory_slice_mapping()/memory::stride - 1;
       if(cb->current_linear_memory_pages > base_pages) {
@@ -246,7 +251,7 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
 
    context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
-   void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
+   int64_t ret_val = 0; // This is explicitly set in apply_func and call_func below. "default" case of the following switch is considered OK
 
    switch(sigsetjmp(*cb->jmp, 0)) {
       case 0:
@@ -262,12 +267,23 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
                   start_func();
                }
             }, code.start);
-            apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
+
+            if (context.is_action()) {
+               void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
+               apply_func(context.get_receiver().to_uint64_t(), context.get_action().account.to_uint64_t(), context.get_action().name.to_uint64_t());
+               ret_val = 0;
+            } else if (code.call_offset) {
+               const auto& ctx = static_cast<eosio::chain::sync_call_context&>(context);
+               int64_t(*call_func)(uint64_t, uint64_t, uint32_t) = (int64_t(*)(uint64_t, uint64_t, uint32_t))(cb->running_code_base + *code.call_offset);
+               ret_val = call_func(ctx.sender.to_uint64_t(), ctx.receiver.to_uint64_t(), static_cast<uint32_t>(ctx.data.size()));
+            } else {
+               assert(false);
+            }
          });
          break;
       //case 1: clean eosio_exit
       case EOSVMOC_EXIT_CHECKTIME_FAIL:
-         context.trx_context.checktime();
+         context.trx_context.checktime_must_throw();
          break;
       case EOSVMOC_EXIT_SEGV:
          EOS_ASSERT(false, wasm_execution_error, "access violation");
@@ -276,6 +292,8 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
          std::rethrow_exception(*cb->eptr);
          break;
    }
+
+   return ret_val;
 }
 
 executor::~executor() {

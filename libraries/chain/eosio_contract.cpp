@@ -15,6 +15,7 @@
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/contract_types.hpp>
 
+#include <eosio/chain/webassembly/eos-vm.hpp>
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/abi_serializer.hpp>
 
@@ -65,7 +66,7 @@ void validate_authority_precondition( const apply_context& context, const author
  *  This method is called assuming precondition_system_newaccount succeeds a
  */
 void apply_eosio_newaccount(apply_context& context) {
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "newaccount not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "newaccount not allowed in read-only transaction" );
    auto create = context.get_action().data_as<newaccount>();
    try {
    context.require_authorization(create.creator);
@@ -128,7 +129,7 @@ void apply_eosio_newaccount(apply_context& context) {
 } FC_CAPTURE_AND_RETHROW( (create) ) }
 
 void apply_eosio_setcode(apply_context& context) {
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "setcode not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "setcode not allowed in read-only transaction" );
    auto& db = context.db;
    auto  act = context.get_action().data_as<setcode>();
    context.require_authorization(act.account);
@@ -138,11 +139,13 @@ void apply_eosio_setcode(apply_context& context) {
 
    fc::sha256 code_hash; /// default is the all zeros hash
 
+   bool sync_call_supported = false;
    int64_t code_size = (int64_t)act.code.size();
 
    if( code_size > 0 ) {
      code_hash = fc::sha256::hash( act.code.data(), (uint32_t)act.code.size() );
-     wasm_interface::validate(context.control, act.code);
+     auto result = wasm_interface::validate(context.control, act.code);
+     sync_call_supported = result.sync_call_supported;
    }
 
    const auto& account = db.get<account_metadata_object,by_name>(act.account);
@@ -184,6 +187,7 @@ void apply_eosio_setcode(apply_context& context) {
             o.first_block_used = context.control.head().block_num() + 1;
             o.vm_type = act.vmtype;
             o.vm_version = act.vmversion;
+            o.sync_call_supported = sync_call_supported;
          });
       }
    }
@@ -213,7 +217,7 @@ void apply_eosio_setcode(apply_context& context) {
 }
 
 void apply_eosio_setabi(apply_context& context) {
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "setabi ot allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "setabi ot allowed in read-only transaction" );
    auto& db  = context.db;
    auto  act = context.get_action().data_as<setabi>();
 
@@ -252,7 +256,7 @@ void apply_eosio_setabi(apply_context& context) {
 }
 
 void apply_eosio_updateauth(apply_context& context) {
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "updateauth not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "updateauth not allowed in read-only transaction" );
 
    auto update = context.get_action().data_as<updateauth>();
    context.require_authorization(update.account); // only here to mark the single authority on this action as used
@@ -327,7 +331,7 @@ void apply_eosio_updateauth(apply_context& context) {
 void apply_eosio_deleteauth(apply_context& context) {
 //   context.require_write_lock( config::eosio_auth_scope );
 
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "deleteauth not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "deleteauth not allowed in read-only transaction" );
 
    auto remove = context.get_action().data_as<deleteauth>();
    context.require_authorization(remove.account); // only here to mark the single authority on this action as used
@@ -364,7 +368,7 @@ void apply_eosio_deleteauth(apply_context& context) {
 void apply_eosio_linkauth(apply_context& context) {
 //   context.require_write_lock( config::eosio_auth_scope );
 
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "linkauth not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "linkauth not allowed in read-only transaction" );
 
    auto requirement = context.get_action().data_as<linkauth>();
    try {
@@ -426,7 +430,7 @@ void apply_eosio_linkauth(apply_context& context) {
 void apply_eosio_unlinkauth(apply_context& context) {
 //   context.require_write_lock( config::eosio_auth_scope );
 
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "unlinkauth not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "unlinkauth not allowed in read-only transaction" );
 
    auto& db = context.db;
    auto unlink = context.get_action().data_as<unlinkauth>();
@@ -450,7 +454,7 @@ void apply_eosio_unlinkauth(apply_context& context) {
 }
 
 void apply_eosio_canceldelay(apply_context& context) {
-   EOS_ASSERT( !context.trx_context.is_read_only(), action_validate_exception, "canceldelay not allowed in read-only transaction" );
+   EOS_ASSERT( !context.is_read_only(), action_validate_exception, "canceldelay not allowed in read-only transaction" );
    auto cancel = context.get_action().data_as<canceldelay>();
    context.require_authorization(cancel.canceling_auth.actor); // only here to mark the single authority on this action as used
 

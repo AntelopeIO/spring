@@ -289,7 +289,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_global_property_history, T, table_delt
    auto &it_global_property = result.second;
    BOOST_REQUIRE_EQUAL(it_global_property->rows.obj.size(), 1u);
    const variants global_properties = chain.deserialize_data(it_global_property, "global_property_v1", "global_property");
-   BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][0ul].get_string(), "chain_config_v1");
+   BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][0ul].get_string(), "chain_config_v2");
    BOOST_REQUIRE_EQUAL(global_properties[0]["configuration"][1ul]["max_transaction_delay"].as_uint64(), 60u);
 }
 
