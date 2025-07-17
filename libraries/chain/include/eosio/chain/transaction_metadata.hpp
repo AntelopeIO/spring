@@ -82,14 +82,14 @@ class transaction_metadata {
       static recover_keys_future
       start_recover_keys( packed_transaction_ptr trx, boost::asio::io_context& thread_pool,
                           const chain_id_type& chain_id, fc::microseconds time_limit,
-                          trx_type t, fc::check_canonical_t check_canonical,
+                          trx_type t,
                           uint32_t max_variable_sig_size = UINT32_MAX );
       /// Thread safe.
       /// @returns transaction_metadata_ptr or throws
       static transaction_metadata_ptr
       recover_keys( packed_transaction_ptr trx,
                     const chain_id_type& chain_id, fc::microseconds time_limit,
-                    trx_type t, fc::check_canonical_t check_canonical,
+                    trx_type t,
                     uint32_t max_variable_sig_size = UINT32_MAX );
 
       /// @returns constructed transaction_metadata with no key recovery (sig_cpu_usage=0, recovered_pub_keys=empty)

@@ -366,19 +366,18 @@ struct assembled_block {
    }
 
    completed_block complete_block(const protocol_feature_set& pfs, validator_t validator,
-                                  const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority,
-                                  fc::check_canonical_t check_canonical) {
+                                  const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority) {
       return std::visit(overloaded{[&](assembled_block_legacy& ab) {
                                       auto bsp = std::make_shared<block_state_legacy>(
                                          std::move(ab.pending_block_header_state), std::move(ab.unsigned_block),
                                          std::move(ab.trx_metas), ab.action_receipt_digests_savanna, pfs, validator,
-                                         signer, check_canonical);
+                                         signer);
                                       return completed_block{block_handle{std::move(bsp)}};
                                    },
                                    [&](assembled_block_if& ab) {
                                       auto bsp = std::make_shared<block_state>(
                                          ab.bhs, std::move(ab.trx_metas), std::move(ab.trx_receipts), ab.valid, ab.qc,
-                                         signer, valid_block_signing_authority, ab.action_mroot, check_canonical);
+                                         signer, valid_block_signing_authority, ab.action_mroot);
                                       return completed_block{block_handle{std::move(bsp)}};
                                    }},
                         v);
@@ -2133,7 +2132,7 @@ struct controller_impl {
          // see https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
          // -------------------------------------------------------------------------------------------
          if (in_use  == fork_database::in_use_t::both) {
-            // fork_db_legacy is present as well, which means that we have std::not completed the transition
+            // fork_db_legacy is present as well, which means that we have not completed the transition
             auto set_finalizer_defaults = [&](auto& fork_db) -> void {
                auto lib = fork_db.root();
                my_finalizers.set_default_safety_information(
@@ -3919,7 +3918,7 @@ struct controller_impl {
                         packed_transaction_ptr ptrx( b, &pt ); // alias signed_block_ptr
                         auto fut = transaction_metadata::start_recover_keys(
                            std::move( ptrx ), thread_pool.get_executor(), chain_id, fc::microseconds::maximum(),
-                           transaction_metadata::trx_type::input, check_canonical()  );
+                           transaction_metadata::trx_type::input  );
                         trx_metas.emplace_back( transaction_metadata_ptr{}, std::move( fut ) );
                      }
                   }
@@ -4369,8 +4368,7 @@ struct controller_impl {
                     const flat_set<digest_type>& cur_features,
                     const vector<digest_type>& new_features )
             { check_protocol_features( timestamp, cur_features, new_features ); },
-            skip_validate_signee,
-            check_canonical()
+            skip_validate_signee
       );
 
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
@@ -4517,7 +4515,7 @@ struct controller_impl {
 
                BSP bsp =
                   std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),
-                                                               validator, skip_validate_signee, check_canonical());
+                                                               validator, skip_validate_signee);
 
                if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result_t::status_t::complete) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
@@ -5499,7 +5497,7 @@ void controller::assemble_and_complete_block( const signer_callback_type& signer
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
-      signer_callback, valid_block_signing_authority, my->check_canonical());
+      signer_callback, valid_block_signing_authority);
 }
 
 void controller::commit_block() {

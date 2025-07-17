@@ -67,14 +67,12 @@ struct pending_block_header_state_legacy : public detail::block_header_state_leg
                                            vector<signature_type>&& additional_signatures,
                                            const protocol_feature_set& pfs,
                                            validator_t& validator,
-                                           fc::check_canonical_t check_canonical,
                                            bool skip_validate_signee = false )&&;
 
    block_header_state_legacy  finish_next( signed_block_header& h,
                                            const protocol_feature_set& pfs,
                                            validator_t& validator,
-                                           const signer_callback_type& signer,
-                                           fc::check_canonical_t check_canonical )&&;
+                                           const signer_callback_type& signer )&&;
 
 protected:
    block_header_state_legacy  _finish_next( const signed_block_header& h,
@@ -140,7 +138,6 @@ struct block_header_state_legacy : public detail::block_header_state_legacy_comm
                                     vector<signature_type>&& additional_signatures,
                                     const protocol_feature_set& pfs,
                                     validator_t& validator,
-                                    fc::check_canonical_t check_canonical,
                                     bool skip_validate_signee = false )const;
 
    uint32_t             calc_dpos_last_irreversible( account_name producer_of_next_block )const;
@@ -149,8 +146,8 @@ struct block_header_state_legacy : public detail::block_header_state_legacy_comm
    const producer_authority& get_scheduled_producer( block_timestamp_type t )const;
    const block_id_type&   previous()const { return header.previous; }
    digest_type            sig_digest()const;
-   void                   sign( const signer_callback_type& signer, fc::check_canonical_t check_canonical );
-   void                   verify_signee(fc::check_canonical_t check_canonical)const;
+   void                   sign( const signer_callback_type& signer );
+   void                   verify_signee()const;
 
    const vector<digest_type>& get_new_protocol_feature_activations()const;
 

@@ -337,7 +337,6 @@ namespace eosio::chain {
                                  vector<signature_type>&& additional_signatures,
                                  const protocol_feature_set& pfs,
                                  validator_t& validator,
-                                 fc::check_canonical_t check_canonical,
                                  bool skip_validate_signee
    )&&
    {
@@ -355,7 +354,7 @@ namespace eosio::chain {
 
       // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
       if( !skip_validate_signee ) {
-        result.verify_signee(check_canonical);
+        result.verify_signee();
       }
 
       return result;
@@ -365,14 +364,13 @@ namespace eosio::chain {
                                  signed_block_header& h,
                                  const protocol_feature_set& pfs,
                                  validator_t& validator,
-                                 const signer_callback_type& signer,
-                                 fc::check_canonical_t check_canonical
+                                 const signer_callback_type& signer
    )&&
    {
       auto pfa = prev_activated_protocol_features;
 
       auto result = std::move(*this)._finish_next( h, pfs, validator );
-      result.sign( signer, check_canonical );
+      result.sign( signer );
       h.producer_signature = result.header.producer_signature;
 
       if( !result.additional_signatures.empty() ) {
@@ -396,11 +394,10 @@ namespace eosio::chain {
                         vector<signature_type>&& additional_signatures,
                         const protocol_feature_set& pfs,
                         validator_t& validator,
-                        fc::check_canonical_t check_canonical,
                         bool skip_validate_signee )const
    {
       return next(h.timestamp, h.confirmed)
-         .finish_next(h, std::move(additional_signatures), pfs, validator, check_canonical, skip_validate_signee);
+         .finish_next(h, std::move(additional_signatures), pfs, validator, skip_validate_signee);
    }
 
    digest_type   block_header_state_legacy::sig_digest()const {
@@ -408,7 +405,7 @@ namespace eosio::chain {
       return digest_type::hash( std::make_pair(header_bmroot, pending_schedule.schedule_hash) );
    }
 
-void block_header_state_legacy::sign( const signer_callback_type& signer, fc::check_canonical_t check_canonical ) {
+void block_header_state_legacy::sign( const signer_callback_type& signer ) {
       auto d = sig_digest();
       auto sigs = signer( d );
 
@@ -418,10 +415,10 @@ void block_header_state_legacy::sign( const signer_callback_type& signer, fc::ch
 
       additional_signatures = std::move(sigs);
 
-      verify_signee(check_canonical);
+      verify_signee();
    }
 
-   void block_header_state_legacy::verify_signee(fc::check_canonical_t check_canonical)const {
+   void block_header_state_legacy::verify_signee()const {
 
       auto num_keys_in_authority = std::visit([](const auto &a){ return a.keys.size(); }, valid_block_signing_authority);
       EOS_ASSERT(1 + additional_signatures.size() <= num_keys_in_authority, wrong_signing_key,
@@ -433,7 +430,7 @@ void block_header_state_legacy::sign( const signer_callback_type& signer, fc::ch
 
       std::set<public_key_type> keys;
       auto digest = sig_digest();
-      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, check_canonical ));
+      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, fc::check_canonical_t::no ));
 
       for (const auto& s: additional_signatures) {
          auto res = keys.emplace(s, digest, fc::check_canonical_t::yes);

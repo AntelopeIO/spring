@@ -3346,7 +3346,7 @@ int main( int argc, char** argv ) {
       }
 
       flat_set<public_key_type> recovered_pub_keys;
-      trx.get_signature_keys( *chain_id, fc::time_point::maximum(), recovered_pub_keys, fc::check_canonical_t::no );
+      trx.get_signature_keys( *chain_id, fc::time_point::maximum(), recovered_pub_keys );
 
       std::cout << fc::json::to_pretty_string(recovered_pub_keys) << std::endl;
    });

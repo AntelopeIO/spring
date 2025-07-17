@@ -57,11 +57,10 @@ namespace eosio::chain {
                                            signed_block_ptr b,
                                            const protocol_feature_set& pfs,
                                            const validator_t& validator,
-                                           bool skip_validate_signee,
-                                           fc::check_canonical_t check_canonical
+                                           bool skip_validate_signee
                            )
       :block_header_state_legacy( prev.next( *b, detail::extract_additional_signatures(b), pfs, validator,
-                                             check_canonical, skip_validate_signee ) )
+                                             skip_validate_signee ) )
       ,block( std::move(b) )
    {}
 
@@ -71,10 +70,9 @@ namespace eosio::chain {
                                            const std::optional<digests_t>& action_receipt_digests_savanna,
                                            const protocol_feature_set& pfs,
                                            const validator_t& validator,
-                                           const signer_callback_type& signer,
-                                           fc::check_canonical_t check_canonical
+                                           const signer_callback_type& signer
                            )
-   :block_header_state_legacy( inject_additional_signatures( std::move(cur), *b, pfs, validator, signer, check_canonical ) )
+   :block_header_state_legacy( inject_additional_signatures( std::move(cur), *b, pfs, validator, signer ) )
    ,block( signed_block::create_signed_block(std::move(b)) )
    ,_pub_keys_recovered( true ) // called by produce_block so signature recovery of trxs must have been done
    ,_cached_trxs( std::move(trx_metas) )

@@ -1012,7 +1012,6 @@ public:
                  transaction_metadata_ptr trx_meta;
                  try {
                     trx_meta = transaction_metadata::recover_keys(trx, chain.get_chain_id(), time_limit, trx_type,
-                                                                  fc::check_canonical_t::no, // will be checked when tx added to block
                                                                   chain.configured_subjective_signature_length_limit());
                  } catch (...) {
                     // use read_write when read is likely fine; maintains previous behavior of next() always being called from the main thread
