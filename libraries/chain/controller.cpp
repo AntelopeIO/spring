@@ -3807,6 +3807,35 @@ struct controller_impl {
       return {};
    }
 
+   void validate_canonical_signatures(const signed_block_ptr& b) {
+      // validate that transaction signatures are canonical
+      // --------------------------------------------------
+      for (const auto& receipt : b->transactions) {
+         std::visit(overloaded{[](const packed_transaction& trx) {
+                                  const vector<signature_type>& sigs = trx.get_signatures();
+                                  for (const auto& sig : sigs) {
+                                     EOS_ASSERT(sig.is_canonical(), transaction_exception,
+                                                "signature of transaction ${id} is not canonical", ("id", trx.id()));
+                                  }
+                               },
+                               [](const transaction_id_type&) {}},
+                    receipt.trx);
+      }
+
+      // validate that block signatures are canonical
+      // --------------------------------------------
+      EOS_ASSERT(b->producer_signature.is_canonical(), block_validate_exception,
+                 "signature of block ${id} is not canonical", ("id", b->calculate_id()));
+
+      // check additional signatures
+      // ---------------------------
+      auto sigs = detail::extract_additional_signatures(b);
+      for (const auto& sig : sigs) {
+         EOS_ASSERT(sig.is_canonical(), block_validate_exception, "signature of block ${id} is not canonical",
+                    ("id", b->calculate_id()));
+      }
+   }
+
    template<class BSP>
    controller::apply_blocks_result_t::status_t apply_block( const BSP& bsp, controller::block_status s,
                                                             const trx_meta_cache_lookup& trx_lookup ) {
@@ -3956,13 +3985,21 @@ struct controller_impl {
             }
             auto& ab = std::get<assembled_block>(pending->_block_stage);
 
+            if (!is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)) {
+               // prior to `allow_non_canonical_signatures` being activated, we need to verify that
+               // block & transactions signatures are canonical.
+               // ---------------------------------------------------------------------------------
+               validate_canonical_signatures(b);
+            }
+
             if( producer_block_id != ab.id() ) {
                elog( "Validation block id does not match producer block id" );
 
                report_block_header_diff(*b, ab.header());
 
                // this implicitly asserts that all header fields (less the signature) are identical
-               EOS_ASSERT(producer_block_id == ab.id(), block_validate_exception, "Block ID does not match, ${producer_block_id} != ${validator_block_id}",
+               EOS_ASSERT(producer_block_id == ab.id(), block_validate_exception,
+                          "Block ID does not match, ${producer_block_id} != ${validator_block_id}",
                           ("producer_block_id", producer_block_id)("validator_block_id", ab.id()));
             }
 
