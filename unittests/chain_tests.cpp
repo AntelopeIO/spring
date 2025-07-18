@@ -240,7 +240,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_applied_transaction, T, testers ) try {
       BOOST_TEST(create_account_trace->id == last_trace->id);
       BOOST_TEST(create_account_trace->elapsed.count() == last_trace->elapsed.count());
       BOOST_TEST(create_account_trace->block_num == last_trace->block_num);
-      signed_block_ptr empty_block = chain.produce_empty_block(); // aborts block
+      signed_block_ptr empty_block = chain.produce_empty_block(); // aborts block, places in unapplied trx queue
+      auto trx_meta = chain.get_unapplied_transaction_queue().get_trx(create_account_trace->id);
+      BOOST_REQUIRE(trx_meta);
       BOOST_REQUIRE(empty_block);
       BOOST_TEST(empty_block->transactions.empty());
       last_trace = nullptr;
@@ -249,6 +251,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_applied_transaction, T, testers ) try {
       BOOST_REQUIRE(last_trace);
       BOOST_TEST(create_account_trace->id == last_trace->id);
       BOOST_TEST(create_account_trace->block_num < last_trace->block_num); // different block
+      BOOST_TEST(trx_meta->elapsed_time_us == std::max(last_trace->elapsed.count(), create_account_trace->elapsed.count())); // verify trx_meta updated
       BOOST_TEST(block->block_num() == last_trace->block_num);
       bool found = false;
       for (auto& r : block->transactions) {
@@ -261,8 +264,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_applied_transaction, T, testers ) try {
       }
       BOOST_TEST(found);
    }
-
-
 
 } FC_LOG_AND_RETHROW()
 
