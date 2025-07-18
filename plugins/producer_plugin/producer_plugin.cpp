@@ -2577,13 +2577,32 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
    if (!disable_subjective_enforcement)
       sub_bill = subjective_bill.get_subjective_bill(first_auth, fc::time_point::now());
 
-   auto prev_billed_cpu_time_us = trx->billed_cpu_time_us;
-   if (in_producing_mode() && prev_billed_cpu_time_us > 0) {
+   const auto prev_elapsed_time_us = trx->elapsed_time_us;
+   const auto prev_billed_cpu_time_us = trx->billed_cpu_time_us;
+   if (in_producing_mode() && prev_elapsed_time_us > 0) {
       const auto& rl = chain.get_resource_limits_manager();
-      if (!subjective_bill.is_account_disabled(first_auth) && !rl.is_unlimited_cpu(first_auth)) {
-         int64_t prev_billed_plus100_us = prev_billed_cpu_time_us + EOS_PERCENT(prev_billed_cpu_time_us, 100 * config::percent_1);
-         if (prev_billed_plus100_us < max_trx_time.count())
-            max_trx_time = fc::microseconds(prev_billed_plus100_us);
+      const uint64_t block_cpu_limit = rl.get_block_cpu_limit();
+      const fc::microseconds block_deadline_limit = block_deadline - start;
+      const uint64_t block_limit_us = std::min<uint64_t>(block_cpu_limit, block_deadline_limit.count());
+
+      fc_tlog(_log, "prev elapsed ${p}us, prev cpu ${pc}us, cpu left ${c}us, time left ${t}us, tx: ${txid}",
+              ("p", prev_elapsed_time_us)("pc", prev_billed_cpu_time_us)("c", block_cpu_limit)("t", block_deadline_limit)("txid", trx->id()));
+      // no use attempting to execute if not enough time left in block for what it took prev to execute
+      if (block_limit_us < prev_elapsed_time_us) {
+         push_result pr;
+         if (!trx->is_read_only())
+            pr.block_exhausted = block_is_exhausted(); // smaller trx might fit
+         pr.trx_exhausted = true;
+         fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
+                 "[TRX_TRACE] Block ${bn} for producer ${prod} COULD NOT FIT, prev elapsed ${e}us, block cpu limit ${bl}, tx: ${txid} RETRYING ",
+                 ("bn", chain.head().block_num() + 1)("prod", get_pending_block_producer())("e", prev_elapsed_time_us)("bl", block_cpu_limit)("txid", trx->id()));
+         return pr;
+      }
+      if (prev_billed_cpu_time_us > 0 && !subjective_bill.is_account_disabled(first_auth) && !rl.is_unlimited_cpu(first_auth)) {
+         int64_t prev_time_us = std::max<int64_t>(prev_billed_cpu_time_us, prev_elapsed_time_us);
+         int64_t prev_time_plus100_us = prev_time_us + EOS_PERCENT(prev_time_us, 100 * config::percent_1);
+         if (prev_time_plus100_us < max_trx_time.count())
+            max_trx_time = fc::microseconds(prev_time_plus100_us);
       }
    }
 
