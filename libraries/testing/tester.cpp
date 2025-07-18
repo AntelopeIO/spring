@@ -64,6 +64,16 @@ namespace eosio::testing {
       {}
    };
 
+   const setup_policy setup_policy::savanna {
+      {setup_action::preactivate_protocol_feature,
+       setup_action::set_before_producer_authority_bios_contract,
+       setup_action::activate_features_up_to,
+       setup_action::set_bios_contract
+      },
+      {builtin_protocol_feature_t::savanna          // all features up to `savanna` are activated
+      }
+   };
+
    const setup_policy setup_policy::full {
       {setup_action::preactivate_protocol_feature,
        setup_action::set_before_producer_authority_bios_contract,
@@ -699,7 +709,10 @@ namespace eosio::testing {
    }
 
 
-   transaction_trace_ptr base_tester::create_account( account_name a, account_name creator, bool multisig, bool include_code ) {
+   transaction_trace_ptr base_tester::create_account( account_name a,
+                                                      account_name creator /* = config::system_account_name */,
+                                                      bool multisig        /* = false */,
+                                                      bool include_code    /* = true */) {
       signed_transaction trx;
       set_transaction_headers(trx);
 
@@ -912,7 +925,8 @@ namespace eosio::testing {
     }
 
 
-   transaction_trace_ptr base_tester::push_dummy(account_name from, const string& v, uint32_t billed_cpu_time_us) {
+   transaction_trace_ptr base_tester::push_dummy(account_name from, const string& v,
+                                                 uint32_t billed_cpu_time_us /* = DEFAULT_BILLED_CPU_TIME_US */) {
       // use reqauth for a normal action, this could be anything
       fc::variant pretty_trx = fc::mutable_variant_object()
          ("actions", fc::variants({

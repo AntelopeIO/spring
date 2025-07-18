@@ -87,8 +87,9 @@ namespace eosio::testing {
       static const setup_policy preactivate_feature_and_new_bios;
       static const setup_policy old_wasm_parser;
       static const setup_policy before_disable_deferred_trx;
-      static const setup_policy full_except_do_not_transition_to_savanna;
-      static const setup_policy full;
+      static const setup_policy full_except_do_not_transition_to_savanna;  // all features up to savanna, savanna *not* transitioned to
+      static const setup_policy savanna;                                   // all features up to savanna, savanna transitioned to (setfinalizers)
+      static const setup_policy full;                                      // all features activated, savanna transitioned to (setfinalizers)
    };
 
    enum class call_startup_t {
