@@ -9,6 +9,7 @@ using namespace eosio;
 
 [[eosio::call]]
 uint32_t sync_callee::basictest(uint32_t input) {
+   check(get_sender() == "caller"_n, "get_sender() returned an incorrect value");
    eosio::print("I am basictest from sync_callee");
 
    return input;
