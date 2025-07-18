@@ -19,7 +19,7 @@ namespace fc { namespace crypto {
    }
 
    struct sign_visitor : visitor<signature::storage_type> {
-      sign_visitor( const sha256& digest, bool require_canonical )
+      sign_visitor( const sha256& digest, require_canonical_t require_canonical )
       :_digest(digest)
       ,_require_canonical(require_canonical)
       {}
@@ -30,11 +30,11 @@ namespace fc { namespace crypto {
          return signature::storage_type(key.sign(_digest, _require_canonical));
       }
 
-      const sha256&  _digest;
-      bool           _require_canonical;
+      const sha256&       _digest;
+      require_canonical_t _require_canonical;
    };
 
-   signature private_key::sign( const sha256& digest, bool require_canonical ) const
+   signature private_key::sign( const sha256& digest, require_canonical_t require_canonical ) const
    {
       return signature(std::visit(sign_visitor(digest, require_canonical), _storage));
    }

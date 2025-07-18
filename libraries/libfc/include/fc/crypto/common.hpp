@@ -6,7 +6,10 @@
 #include <fc/utility.hpp>
 #include <fc/static_variant.hpp>
 
-namespace fc { namespace crypto {
+namespace fc {
+  enum class require_canonical_t : uint8_t { no, yes };
+
+namespace crypto {
    template<typename DataType>
    struct checksummed_data {
       checksummed_data() {}

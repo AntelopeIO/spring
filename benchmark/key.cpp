@@ -18,7 +18,7 @@ void k1_sign_benchmarking() {
    auto key = private_key(private_key_string);
 
    auto sign_non_canonical_f = [&]() {
-      key.sign(digest, false);
+      key.sign(digest, require_canonical_t::no);
    };
    benchmarking("k1_sign_non_canonical", sign_non_canonical_f);
 }
