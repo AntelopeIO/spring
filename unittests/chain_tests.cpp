@@ -198,4 +198,72 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_validated_blocks, T, testers ) try {
 
 } FC_LOG_AND_RETHROW()
 
+// verify applied_transaction signals trx in blocks
+BOOST_AUTO_TEST_CASE_TEMPLATE( signal_applied_transaction, T, testers ) try {
+   T chain;
+
+   chain.produce_block();
+
+   transaction_trace_ptr last_trace;
+   auto c = chain.control->applied_transaction().connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
+      auto& t = std::get<0>(x);
+      if (std::get<1>(x)->get_transaction().actions.at(0).name != "onblock"_n)
+         last_trace = t;
+   } );
+
+   {
+      transaction_trace_ptr create_account_trace = chain.create_account("hello"_n);
+      BOOST_REQUIRE(last_trace);
+      BOOST_REQUIRE(create_account_trace);
+      BOOST_TEST(create_account_trace->id == last_trace->id);
+      BOOST_TEST(create_account_trace->elapsed.count() == last_trace->elapsed.count());
+      BOOST_TEST(create_account_trace->block_num == last_trace->block_num);
+      signed_block_ptr block = chain.produce_block();
+      BOOST_REQUIRE(block);
+      bool found = false;
+      for (auto& r : block->transactions) {
+         std::visit(overloaded{
+            [](const transaction_id_type& id) {},
+            [&](const packed_transaction& x) {
+            found = true;
+            BOOST_TEST(x.get_transaction().actions.at(0).name == "newaccount"_n);
+         }}, r.trx);
+      }
+      BOOST_TEST(found);
+   }
+   // abort block with create account
+   {
+      last_trace = nullptr;
+      transaction_trace_ptr create_account_trace = chain.create_account("hello2"_n);
+      BOOST_REQUIRE(last_trace);
+      BOOST_REQUIRE(create_account_trace);
+      BOOST_TEST(create_account_trace->id == last_trace->id);
+      BOOST_TEST(create_account_trace->elapsed.count() == last_trace->elapsed.count());
+      BOOST_TEST(create_account_trace->block_num == last_trace->block_num);
+      signed_block_ptr empty_block = chain.produce_empty_block(); // aborts block
+      BOOST_REQUIRE(empty_block);
+      BOOST_TEST(empty_block->transactions.empty());
+      last_trace = nullptr;
+      signed_block_ptr block = chain.produce_block();
+      BOOST_REQUIRE(block);
+      BOOST_REQUIRE(last_trace);
+      BOOST_TEST(create_account_trace->id == last_trace->id);
+      BOOST_TEST(create_account_trace->block_num < last_trace->block_num); // different block
+      BOOST_TEST(block->block_num() == last_trace->block_num);
+      bool found = false;
+      for (auto& r : block->transactions) {
+         std::visit(overloaded{
+            [](const transaction_id_type& id) {},
+            [&](const packed_transaction& x) {
+            found = true;
+            BOOST_TEST(x.get_transaction().actions.at(0).name == "newaccount"_n);
+         }}, r.trx);
+      }
+      BOOST_TEST(found);
+   }
+
+
+
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()
