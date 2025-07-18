@@ -2315,6 +2315,60 @@ BOOST_AUTO_TEST_CASE(set_finalizers_test) { try {
                        c.error("alice does not have permission to call this API"));
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE(validate_canonical_signature_check) { try {
+   // make sure canonical signature check is done prior to `allow_non_canonical_signatures` activation
+   // ------------------------------------------------------------------------------------------------
+   tester c(setup_policy::savanna);
+   tester t(setup_policy::savanna);
+
+   const auto alice = account_name("alice");
+   c.create_accounts( {alice} );
+   auto b1 = c.produce_block();\
+   t.push_block(b1);
+
+   signed_transaction trx;
+   for (size_t i=0; i<10; ++i) {
+      trx = c.create_dummy_transaction(alice, std::to_string(i));
+      auto sig = trx.sign(get_private_key(alice, "active"), c.control->get_chain_id(), fc::require_canonical_t::no);
+      if (!sig.is_canonical()) {
+         std::cout << "Found non-canonical signature after " << i << " iterations\n";
+         break; // we're done searching for a non-canonical signature
+      }
+   }
+
+   c.push_transaction(trx);
+   auto b2 = c.produce_block();
+   BOOST_REQUIRE_EXCEPTION(t.push_block(b2), transaction_exception, fc_exception_message_contains("is not canonical"));
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(validate_non_canonical_signature_allowed) { try {
+   // make sure non-canonical signatures are allowed after `allow_non_canonical_signatures` activation
+   // ------------------------------------------------------------------------------------------------
+   tester c(setup_policy::savanna);
+   c.activate_builtin_protocol_features({builtin_protocol_feature_t::allow_non_canonical_signatures});
+
+   tester t(setup_policy::savanna);
+
+   const auto alice = account_name("alice");
+   c.create_accounts( {alice} );
+   auto b1 = c.produce_block();
+   t.push_block(b1);
+
+   signed_transaction trx;
+   for (size_t i=0; i<10; ++i) {
+      trx = c.create_dummy_transaction(alice, std::to_string(i));
+      auto sig = trx.sign(get_private_key(alice, "active"), c.control->get_chain_id(), fc::require_canonical_t::no);
+      if (!sig.is_canonical()) {
+         std::cout << "Found non-canonical signature after " << i << " iterations\n";
+         break; // we're done searching for a non-canonical signature
+      }
+   }
+
+   c.push_transaction(trx);
+   auto b2 = c.produce_block();
+   t.push_block(b2);
+} FC_LOG_AND_RETHROW() }
+
 // A basic contract to show new host functions can be called.
 static const char basic_sync_call_host_funcs_wast[] = R"=====(
 (module

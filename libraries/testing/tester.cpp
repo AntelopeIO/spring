@@ -924,9 +924,8 @@ namespace eosio::testing {
         }
     }
 
-
-   transaction_trace_ptr base_tester::push_dummy(account_name from, const string& v,
-                                                 uint32_t billed_cpu_time_us /* = DEFAULT_BILLED_CPU_TIME_US */) {
+    // warning: returned transaction is *not* signed yet
+    signed_transaction base_tester::create_dummy_transaction(account_name from, const std::string& v) {
       // use reqauth for a normal action, this could be anything
       fc::variant pretty_trx = fc::mutable_variant_object()
          ("actions", fc::variants({
@@ -955,11 +954,15 @@ namespace eosio::testing {
       signed_transaction trx;
       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function( abi_serializer_max_time ));
       set_transaction_headers(trx);
+      return trx;
+   }
 
+   transaction_trace_ptr base_tester::push_dummy(account_name from, const string& v,
+                                                 uint32_t billed_cpu_time_us /* = DEFAULT_BILLED_CPU_TIME_US */) {
+      signed_transaction trx = create_dummy_transaction(from, v);
       trx.sign( get_private_key( from, "active" ), control->get_chain_id() );
       return push_transaction( trx, fc::time_point::maximum(), billed_cpu_time_us );
    }
-
 
    transaction_trace_ptr base_tester::transfer( account_name from, account_name to, string amount, string memo, account_name currency ) {
       return transfer( from, to, asset::from_string(amount), memo, currency );
