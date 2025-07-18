@@ -3178,6 +3178,7 @@ struct controller_impl {
                pending->_block_report.total_elapsed_time += trace->elapsed;
             }
 
+            trx->elapsed_time_us = std::max<decltype(trx->elapsed_time_us)>(trx->elapsed_time_us, trace->elapsed.count());
             return trace;
          } catch( const disallowed_transaction_extensions_bad_block_exception& ) {
             throw;
@@ -3208,6 +3209,7 @@ struct controller_impl {
             pending->_block_report.total_elapsed_time += trace->elapsed;
          }
 
+         trx->elapsed_time_us = std::max<decltype(trx->elapsed_time_us)>(trx->elapsed_time_us, trace->elapsed.count());
          return trace;
       } FC_CAPTURE_AND_RETHROW((trace))
    } /// push_transaction
