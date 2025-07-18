@@ -35,7 +35,6 @@ class transaction_metadata {
       const trx_type                                             _trx_type;
 
    public:
-      bool                                                       accepted = false;       // not thread safe
       uint32_t                                                   billed_cpu_time_us = 0; // not thread safe
 
    private:
