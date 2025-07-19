@@ -56,7 +56,7 @@ struct dry_run_trx_tester : T {
       T::set_transaction_headers( trx );
       trx.delay_sec = delay_sec;
       if ( type == transaction_metadata::trx_type::input ) {
-         trx.sign(T::get_private_key("alice"_n, "active"), T::get_chain_id());
+         T::sign(trx, "alice"_n);
       }
 
       return T::push_transaction( trx, fc::time_point::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, false, type );
@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( require_authorization, T, dry_run_trx_testers ) {
    signed_transaction trx;
    trx.actions.push_back( act );
    chain.set_transaction_headers( trx );
-   trx.sign(chain.get_private_key("alice"_n, "active"), chain.get_chain_id());
+   chain.sign(trx, "alice"_n);
    BOOST_REQUIRE_THROW(chain.push_transaction( trx, fc::time_point::maximum(), chain.DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run ), tx_no_auths);
 } FC_LOG_AND_RETHROW() }
 

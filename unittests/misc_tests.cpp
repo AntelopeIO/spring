@@ -748,7 +748,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_test, T, validating_testers ) { try {
    BOOST_CHECK_EQUAL(0u, trx.signatures.size());
    auto private_key = test.get_private_key( config::system_account_name, "active" );
    auto public_key = private_key.get_public_key();
-   trx.sign( private_key, test.get_chain_id()  );
+   test.sign(trx, private_key);
    BOOST_CHECK_EQUAL(1u, trx.signatures.size());
    trx.validate();
 
@@ -910,7 +910,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_metadata_test, T, validating_testers 
 
       auto private_key = test.get_private_key( config::system_account_name, "active" );
       auto public_key = private_key.get_public_key();
-      trx.sign( private_key, test.get_chain_id()  );
+      test.sign(trx, private_key);
       BOOST_CHECK_EQUAL(1u, trx.signatures.size());
 
       packed_transaction pkt(trx, packed_transaction::compression_type::none);

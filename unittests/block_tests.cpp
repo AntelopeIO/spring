@@ -113,7 +113,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, acco
    auto signed_tx = packed_trx.get_signed_transaction();
    // Corrupt one signature
    signed_tx.signatures.clear();
-   signed_tx.sign(main.get_private_key(act_name, "active"), main.get_chain_id());
+   main.sign(signed_tx, act_name);
 
    // Replace the valid transaction with the invalid transaction
    auto invalid_packed_tx = packed_transaction(signed_tx, packed_trx.get_compression());
@@ -275,7 +275,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions, validating_tester) { try {
                                       .active   = authority( get_public_key( a, "active" ) )
                                 });
       set_transaction_headers(trx);
-      trx.sign( get_private_key( creator, "active" ), get_chain_id()  );
+      sign(trx, creator);
       auto trace = push_transaction( trx );
 
       get_account( a ); // throws if it does not exist
@@ -322,7 +322,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions_tester, validating_tester) { t
                                       .active   = authority( get_public_key( a, "active" ) )
                                 });
       set_transaction_headers(trx);
-      trx.sign( get_private_key( creator, "active" ), get_chain_id()  );
+      sign(trx, creator);
       auto trace = push_transaction( trx );
 
       get_account( a ); // throws if it does not exist

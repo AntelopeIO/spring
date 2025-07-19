@@ -891,8 +891,8 @@ BOOST_AUTO_TEST_CASE(only_bill_to_first_authorizer) { try {
       trx.actions.emplace_back(std::move(act));
       chain.set_transaction_headers(trx);
 
-      trx.sign(get_private_key(tester_account, "active"), chain.get_chain_id());
-      trx.sign(get_private_key(tester_account2, "active"), chain.get_chain_id());
+      chain.sign(trx, tester_account);
+      chain.sign(trx, tester_account2);
 
 
       auto tester_cpu_limit0  = mgr.get_account_cpu_limit_ex(tester_account).first;
@@ -936,8 +936,8 @@ BOOST_AUTO_TEST_CASE(only_bill_to_first_authorizer) { try {
       trx.actions.emplace_back(std::move(act));
       chain.set_transaction_headers(trx);
 
-      trx.sign(get_private_key(tester_account, "active"), chain.get_chain_id());
-      trx.sign(get_private_key(tester_account2, "active"), chain.get_chain_id());
+      chain.sign(trx, tester_account);
+      chain.sign(trx, tester_account2);
 
       auto tester_cpu_limit0  = mgr.get_account_cpu_limit_ex(tester_account).first;
       auto tester2_cpu_limit0 = mgr.get_account_cpu_limit_ex(tester_account2).first;
@@ -1381,7 +1381,7 @@ BOOST_AUTO_TEST_CASE(webauthn_create_account) { try {
                               });
 
    c.set_transaction_headers(trx);
-   trx.sign(get_private_key(config::system_account_name, "active"), c.get_chain_id());
+   c.sign(trx, config::system_account_name);
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_key_type);
 
    c.activate_protocol_features( {*d} );
@@ -1459,7 +1459,7 @@ BOOST_AUTO_TEST_CASE(webauthn_recover_key) { try {
    trx.actions.push_back(act);
 
    c.set_transaction_headers(trx);
-   trx.sign(c.get_private_key( "bob"_n, "active" ), c.get_chain_id());
+   c.sign(trx, "bob"_n);
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_signature_type);
 
    c.activate_protocol_features( {*d} );
@@ -1507,7 +1507,7 @@ BOOST_AUTO_TEST_CASE(webauthn_assert_recover_key) { try {
    trx.actions.push_back(act);
 
    c.set_transaction_headers(trx);
-   trx.sign(c.get_private_key( "bob"_n, "active" ), c.get_chain_id());
+   c.sign(trx,"bob"_n);
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_signature_type);
 
    c.activate_protocol_features( {*d} );
@@ -2022,7 +2022,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
       canceldelay{{"payloadless"_n, config::active_name}, payloadless_trx_id}
    );
    c.set_transaction_headers(trx);
-   trx.sign(c.get_private_key("payloadless"_n, "active"), c.get_chain_id());
+   c.sign(trx, "payloadless"_n);
    c.push_transaction(trx);
    c.produce_block();
 
@@ -2225,7 +2225,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    signed_tx.delay_sec = 120;
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(tester1.get_private_key(config::system_account_name, "active"), tester1.get_chain_id());
+   tester1.sign(signed_tx, config::system_account_name);
    // Replace the original transaction with the delayed  transaction
    auto delayed_tx = packed_transaction(signed_tx);
    copy_b->transactions.back().trx = std::move(delayed_tx);

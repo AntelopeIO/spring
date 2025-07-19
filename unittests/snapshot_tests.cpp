@@ -679,7 +679,7 @@ void jumbo_row_test()
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
-   trx.sign(tester::get_private_key("jumbo"_n, "active"), chain.get_chain_id());
+   chain.sign(trx, "jumbo"_n);
    chain.push_transaction(trx);
    chain.produce_block();
 

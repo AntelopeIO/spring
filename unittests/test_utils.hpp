@@ -84,7 +84,7 @@ void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu
    trx.actions.push_back(act);
    test.set_transaction_headers(trx);
    if ( trx_type != transaction_metadata::trx_type::read_only ) {
-      auto sigs = trx.sign(test.get_private_key(account, "active"), test.get_chain_id());
+      auto sigs = test.sign(trx, account);
    }
    flat_set<public_key_type> keys;
    trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys);
@@ -123,7 +123,7 @@ transaction_trace_ptr CallAction(testing::validating_tester& test, T ac, const v
    trx.actions.push_back(act);
 
    test.set_transaction_headers(trx);
-   auto sigs = trx.sign(test.get_private_key(scope[0], "active"), test.get_chain_id());
+   auto sigs = test.sign(trx, scope[0]);
    flat_set<public_key_type> keys;
    trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys);
    auto res = test.push_transaction(trx);
@@ -148,7 +148,7 @@ std::pair<transaction_trace_ptr, signed_block_ptr> _CallFunction(Tester& test, T
       trx.actions.push_back(act);
 
       test.set_transaction_headers(trx, test.DEFAULT_EXPIRATION_DELTA);
-      auto sigs = trx.sign(test.get_private_key(scope[0], "active"), test.get_chain_id());
+      auto sigs = test.sign(trx, scope[0]);
 
       flat_set<public_key_type> keys;
       trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys);

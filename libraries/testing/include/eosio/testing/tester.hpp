@@ -491,11 +491,13 @@ namespace eosio::testing {
             return cfg;
          }
 
+         enum activate_flags_t { allow_non_canonical_signatures_activated = 1<<0 };
+
          void schedule_protocol_features_wo_preactivation(const vector<digest_type>& feature_digests);
          void activate_protocol_features(const vector<digest_type>& feature_digests);
-         void activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
-         void activate_builtin_protocol_features_up_to(const std::vector<builtin_protocol_feature_t>& features);
-         void activate_all_builtin_protocol_features();
+         uint32_t activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
+         uint32_t activate_builtin_protocol_features_up_to(const std::vector<builtin_protocol_feature_t>& features);
+         uint32_t activate_all_builtin_protocol_features();
 
          static genesis_state default_genesis() {
             genesis_state genesis;
@@ -596,6 +598,13 @@ namespace eosio::testing {
          void set_open_callback(std::function<void()> cb) { _open_callback = std::move(cb); }
          void do_check_for_votes(bool val) { _expect_votes = val; }
 
+         auto sign(signed_transaction& trx, const private_key_type& priv_key) const {
+            return trx.sign(priv_key, get_chain_id(), require_canonical);
+         }
+         auto sign(signed_transaction& trx, account_name signer) const {
+            return sign(trx, get_private_key(signer, "active"));
+         }
+
       protected:
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
          produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
@@ -632,7 +641,8 @@ namespace eosio::testing {
          uint32_t                                      lib_number {0}; // updated via irreversible_block signal
 
       private:
-         std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
+         std::vector<builtin_protocol_feature_t>       get_all_builtin_protocol_features();
+         fc::require_canonical_t                       require_canonical {fc::require_canonical_t::yes};
    };
 
    class tester : public base_tester {

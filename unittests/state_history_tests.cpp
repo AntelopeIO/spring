@@ -434,7 +434,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_deltas_resources_history, T, table_deltas_tes
                                                       ("transfer", 0 )));
 
    chain.set_transaction_headers(trx);
-   trx.sign( chain.get_private_key( config::system_account_name, "active" ), chain.get_chain_id()  );
+   chain.sign(trx, config::system_account_name);
    chain.push_transaction( trx );
 }
 

@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_abi_serializer, T, payloadless_testers ) {
    abi_serializer::from_variant(pretty_trx, trx, chain.get_resolver(), abi_serializer::create_yield_function( chain.abi_serializer_max_time ));
    chain.set_transaction_headers(trx);
 
-   trx.sign( chain.get_private_key( "payloadless"_n, "active" ), chain.control->get_chain_id() );
+   chain.sign(trx, "payloadless"_n);
    auto trace = chain.push_transaction( trx );
    auto msg = trace->action_traces.front().console;
    BOOST_CHECK_EQUAL(msg == "Im a payloadless action", true);
