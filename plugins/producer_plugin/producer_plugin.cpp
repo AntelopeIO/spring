@@ -2583,12 +2583,11 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
       const auto& rl = chain.get_resource_limits_manager();
       const uint64_t block_cpu_limit = rl.get_block_cpu_limit();
       const fc::microseconds block_deadline_limit = block_deadline - start;
-      const uint64_t block_limit_us = std::min<uint64_t>(block_cpu_limit, block_deadline_limit.count());
 
-      fc_tlog(_log, "prev elapsed ${p}us, prev cpu ${pc}us, cpu left ${c}us, time left ${t}us, tx: ${txid}",
-              ("p", prev_elapsed_time_us)("pc", prev_billed_cpu_time_us)("c", block_cpu_limit)("t", block_deadline_limit)("txid", trx->id()));
-      // no use attempting to execute if not enough time left in block for what it took prev to execute
-      if (block_limit_us < prev_elapsed_time_us) {
+      fc_tlog(_log, "prev cpu ${pc}us, prev elapsed ${p}us, cpu left ${c}us, time left ${t}us, tx: ${txid}",
+              ("pc", prev_billed_cpu_time_us)("p", prev_elapsed_time_us)("c", block_cpu_limit)("t", block_deadline_limit)("txid", trx->id()));
+      // no use attempting to execute if not enough time left in block for what it took previously
+      if (block_deadline_limit.count() < prev_elapsed_time_us || block_cpu_limit < prev_billed_cpu_time_us ) {
          push_result pr;
          if (!trx->is_read_only())
             pr.block_exhausted = block_is_exhausted(); // smaller trx might fit
