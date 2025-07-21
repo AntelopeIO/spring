@@ -395,7 +395,7 @@ namespace eosio::testing {
          }
 
          template< typename KeyType = fc::ecc::private_key_shim >
-         static auto get_private_key( name keyname, string role = "owner" ) {
+         static auto get_private_key( name keyname, const string& role = "owner" ) {
             auto secret = fc::sha256::hash(keyname.to_string() + role);
             if constexpr (std::is_same_v<KeyType, mock::webauthn_private_key>) {
                return mock::webauthn_private_key::regenerate(secret);
@@ -405,7 +405,7 @@ namespace eosio::testing {
          }
 
          template< typename KeyType = fc::ecc::private_key_shim >
-         static auto get_public_key( name keyname, string role = "owner" ) {
+         static auto get_public_key( name keyname, const string& role = "owner" ) {
             return get_private_key<KeyType>( keyname, role ).get_public_key();
          }
 
@@ -601,8 +601,12 @@ namespace eosio::testing {
          auto sign(signed_transaction& trx, const private_key_type& priv_key) const {
             return trx.sign(priv_key, get_chain_id(), require_canonical);
          }
+         auto sign(signed_transaction& trx, account_name signer, const std::string& role) const {
+            return sign(trx, get_private_key(signer, role));
+         }
          auto sign(signed_transaction& trx, account_name signer) const {
-            return sign(trx, get_private_key(signer, "active"));
+            static constexpr const std::string active_role = "active";
+            return sign(trx, signer, active_role);
          }
 
       protected:

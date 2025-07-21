@@ -772,7 +772,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( greylist_limit_tests, T, testers ) { try {
                                               std::vector<permission_level>{{acnt, perm}},
                                               fc::mutable_variant_object()("from", acnt) ) );
       c.set_transaction_headers( trx, 6, 0 );
-      trx.sign( c.get_private_key( acnt, perm.to_string() ), c.get_chain_id() );
+      c.sign(trx, acnt,  perm.to_string());
       // This transaction is charged 104 bytes of NET.
 
       return c.push_transaction( trx, fc::time_point::maximum(), billed_cpu_time_us );
