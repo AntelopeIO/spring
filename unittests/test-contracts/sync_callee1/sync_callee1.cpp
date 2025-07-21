@@ -3,6 +3,7 @@
 
 [[eosio::call]]
 uint32_t sync_callee1::div(uint32_t x, uint32_t y) {
+   check(get_sender() == "callee"_n, "get_sender() returned an incorrect value"); // this is only called from sync_callee
    return x / y;
 }
 
