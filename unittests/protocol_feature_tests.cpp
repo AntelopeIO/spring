@@ -2331,7 +2331,7 @@ BOOST_AUTO_TEST_CASE(validate_canonical_signature_check) { try {
       trx = c.create_dummy_transaction(alice, std::to_string(i));
       auto sig = trx.sign(get_private_key(alice, "active"), c.control->get_chain_id(), fc::require_canonical_t::no);
       if (!sig.is_ecc_canonical()) {
-         std::cout << "Found non-canonical signature after " << i << " iterations\n";
+         dlog("Found non-canonical signature after ${i} iterations", ("i",i));
          break; // we're done searching for a non-canonical signature
       }
    }
@@ -2359,7 +2359,7 @@ BOOST_AUTO_TEST_CASE(validate_non_canonical_signature_allowed) { try {
       trx = c.create_dummy_transaction(alice, std::to_string(i));
       auto sig = trx.sign(get_private_key(alice, "active"), c.control->get_chain_id(), fc::require_canonical_t::no);
       if (!sig.is_ecc_canonical()) {
-         std::cout << "Found non-canonical signature after " << i << " iterations\n";
+         dlog("Found non-canonical signature after ${i} iterations", ("i",i));
          break; // we're done searching for a non-canonical signature
       }
    }
