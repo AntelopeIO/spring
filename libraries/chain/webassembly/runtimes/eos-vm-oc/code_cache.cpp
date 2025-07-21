@@ -18,7 +18,7 @@ namespace eosio { namespace chain { namespace eosvmoc {
 static constexpr size_t header_offset = 512u;
 static constexpr size_t header_size = 512u;
 static constexpr size_t total_header_size = header_offset + header_size;
-static constexpr uint64_t header_id = 0x32434f4d56534f45ULL; //"EOSVMOC2" little endian
+static constexpr uint64_t header_id = 0x33434f4d56534f45ULL; //"EOSVMOC3" little endian
 
 struct code_cache_header {
    uint64_t id = header_id;

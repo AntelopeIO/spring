@@ -61,7 +61,6 @@ namespace boost::test_tools::tt_detail {
 }
 
 namespace eosio::testing {
-
    using builtin_protocol_feature_t = chain::builtin_protocol_feature_t;
 
    enum class setup_action {

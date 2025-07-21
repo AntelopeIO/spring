@@ -7,15 +7,15 @@
 #include <boost/hana/string.hpp>
 
 namespace eosio { namespace chain {
-class apply_context;
+class host_context;
 namespace webassembly {
 
    class interface {
       public:
-         interface(apply_context& ctx) : context(ctx) {}
+         interface(host_context& ctx) : context(ctx) {}
 
-         inline apply_context& get_context() { return context; }
-         inline const apply_context& get_context() const { return context; }
+         inline host_context& get_context() { return context; }
+         inline const host_context& get_context() const { return context; }
 
          /**
           * Retrieve the signed_transaction.context_free_data[index].
@@ -683,6 +683,52 @@ namespace webassembly {
           * @param packed_blob - the packed blob
          */
          void set_action_return_value(span<const char> packed_blob);
+
+         /**
+          * Makes a sync call in the context of the parent action or parent sync call
+          * of this operation.
+          *
+          * @ingroup sync call
+          * @param receiver - the name of the account that the sync call is made to.
+          * @param flags - flags (bits) representing blockchain level requirements about
+          *                the sync call. LSB bit indicates read-only. All other bits
+          *                are reserved to be 0.
+          * @param data - the data of the sync call, which may include function name, arguments and other information.
+          * @return -1 if sync_call entry point does not exist or has invalid signature
+          * @return the number of bytes of the return value of the call (to be used by next get_call_return_value) if succeeded
+          *
+         */
+         int64_t call(name receiver, uint64_t flags, span<const char> data);
+
+         /**
+          * Copies the last sync call return value to `memory` up to the length of `memory`.
+          * This should be called by the caller right after `call` host function.
+          * Otherwise the return value will be overwritten by future sync calls in the same action or function
+          *
+          * @ingroup sync call
+          * @param memory - a pointer where up to the size of memory will be copied
+          *
+          * @return the number of bytes of the return value that can be retrieved (the number of total bytes).
+         */
+         uint32_t get_call_return_value(span<char> memory) const;
+
+         /**
+          * Copies the current sync call data to `memory` up to the length of `memory`.
+          *
+          * @ingroup sync call
+          * @param memory - a pointer where up to the size of memory will be copied
+          *
+          * @return the number of bytes of the data that can be retrieved (the number of total bytes).
+         */
+         uint32_t get_call_data(span<char> memory) const;
+
+         /**
+          * Sets the return value to be used by the caller and to be included in sync call trace.
+          *
+          * @ingroup sync call
+          * @param value - a pointer to the packed return value
+         */
+         void set_call_return_value(span<const char> value);
 
          /**
           * Print a string.
@@ -1628,6 +1674,7 @@ namespace webassembly {
          int32_t memcmp(memcmp_params) const;
          void* memset(memset_params) const;
 
+
          /**
           * Send an inline action in the context of the parent transaction of this operation.
           *
@@ -1967,7 +2014,7 @@ namespace webassembly {
          int32_t __unordtf2(uint64_t, uint64_t, uint64_t, uint64_t) const;
 
       private:
-         apply_context& context;
+         host_context& context;
    };
 
 }}} // ns eosio::chain::webassembly

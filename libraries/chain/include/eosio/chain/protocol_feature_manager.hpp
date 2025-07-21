@@ -39,7 +39,8 @@ enum class builtin_protocol_feature_t : uint32_t {
    disable_deferred_trxs_stage_1 = 22,
    disable_deferred_trxs_stage_2 = 23,
    savanna = 24,
-   packed_transaction_restrictions = 25,
+   sync_call = 25,
+   packed_transaction_restrictions = 26,
    reserved_private_fork_protocol_features = 500000,
 };
 

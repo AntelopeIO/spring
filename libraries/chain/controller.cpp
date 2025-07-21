@@ -26,6 +26,7 @@
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
+#include <eosio/chain/sync_call_resource_pool.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finalizer.hpp>
@@ -1013,10 +1014,9 @@ struct controller_impl {
    peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
-#endif
-   wasm_interface wasmif;
+   call_resource_pool<vm::wasm_allocator> wasm_allocator_pool;
+   wasm_interface  wasmif;
    app_window_type app_window = app_window_type::write;
 
    typedef pair<scope_name,action_name>                   handler_key;
@@ -1342,6 +1342,7 @@ struct controller_impl {
     thread_pool(),
     my_finalizers(cfg.finalizers_dir / config::safety_filename),
     main_thread_timer(timer), // assumes constructor is called from main thread
+    wasm_allocator_pool([]() -> vm::wasm_allocator* { return new vm::wasm_allocator; }),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, main_thread_timer, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -1368,6 +1369,7 @@ struct controller_impl {
       set_activation_handler<builtin_protocol_feature_t::bls_primitives>();
       set_activation_handler<builtin_protocol_feature_t::disable_deferred_trxs_stage_2>();
       set_activation_handler<builtin_protocol_feature_t::savanna>();
+      set_activation_handler<builtin_protocol_feature_t::sync_call>();
 
       irreversible_block.connect([this](const block_signal_params& t) {
          const auto& [ block, id] = t;
@@ -2457,6 +2459,7 @@ struct controller_impl {
             using v3 = legacy::snapshot_global_property_object_v3;
             using v4 = legacy::snapshot_global_property_object_v4;
             using v5 = legacy::snapshot_global_property_object_v5;
+            using v6 = legacy::snapshot_global_property_object_v6;
 
             if (std::clamp(header.version, v2::minimum_version, v2::maximum_version) == header.version ) {
                std::optional<genesis_state> genesis = extract_legacy_genesis_state(*snapshot, header.version);
@@ -2501,6 +2504,18 @@ struct controller_impl {
             if (std::clamp(header.version, v5::minimum_version, v5::maximum_version) == header.version) {
                snapshot->read_section<global_property_object>([&db = this->db](auto& section) {
                   v5 legacy_global_properties;
+                  section.read_row(legacy_global_properties, db);
+
+                  db.create<global_property_object>([&legacy_global_properties](auto& gpo) {
+                     gpo.initialize_from(legacy_global_properties);
+                  });
+               });
+               return; // early out to avoid default processing
+            }
+
+            if (std::clamp(header.version, v6::minimum_version, v6::maximum_version) == header.version) {
+               snapshot->read_section<global_property_object>([&db = this->db](auto& section) {
+                  v6 legacy_global_properties;
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo) {
@@ -2628,7 +2643,7 @@ struct controller_impl {
 
       genesis.initial_configuration.validate();
       db.create<global_property_object>([&genesis,&chain_id=this->chain_id](auto& gpo ){
-         gpo.configuration = genesis.initial_configuration;
+         gpo.configuration.copy_from_v0(genesis.initial_configuration);
          // TODO: Update this when genesis protocol features are enabled.
          gpo.wasm_configuration = genesis_state::default_initial_wasm_configuration;
          gpo.chain_id = chain_id;
@@ -5022,11 +5037,35 @@ struct controller_impl {
 #endif
 
    // Only called from read-only trx execution threads when producer_plugin
-   // starts them. Only OC requires initialize thread specific data.
+   // starts them.
    void init_thread_local_data() {
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       if ( is_eos_vm_oc_enabled() ) {
          wasmif.init_thread_local_data();
+      }
+#endif
+   }
+
+   void set_num_threads_for_call_res_pools(uint32_t num_threads) {
+      wasm_allocator_pool.set_num_threads(num_threads, []() -> vm::wasm_allocator* {
+         return new vm::wasm_allocator;
+      });
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+      if ( is_eos_vm_oc_enabled() ) {
+         wasmif.set_num_threads_for_call_res_pools(num_threads);
+      }
+#endif
+   }
+
+   void set_max_call_depth_for_call_res_pools(uint32_t max_call_depth) {
+      wasm_allocator_pool.set_max_call_depth(max_call_depth, []() -> vm::wasm_allocator* {
+         return new vm::wasm_allocator;
+      });
+
+#ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
+      if ( is_eos_vm_oc_enabled() ) {
+         wasmif.set_max_call_depth_for_call_res_pools(max_call_depth);
       }
 #endif
    }
@@ -5179,9 +5218,7 @@ struct controller_impl {
 }; /// controller_impl
 
 thread_local platform_timer controller_impl::timer;
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 thread_local eosio::vm::wasm_allocator controller_impl::wasm_alloc;
-#endif
 
 const resource_limits_manager&   controller::get_resource_limits_manager()const
 {
@@ -6071,11 +6108,27 @@ void controller::enable_deep_mind(deep_mind_handler* logger) {
 uint32_t controller::earliest_available_block_num() const{
    return my->earliest_available_block_num();
 }
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+
 vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
 }
-#endif
+
+vm::wasm_allocator* controller::acquire_sync_call_wasm_allocator() {
+   return my->wasm_allocator_pool.acquire();
+}
+
+void controller::release_sync_call_wasm_allocator(vm::wasm_allocator* alloc) {
+   my->wasm_allocator_pool.release(alloc);
+}
+
+void controller::set_num_threads_for_call_res_pools(uint32_t num_threads) {
+   my->set_num_threads_for_call_res_pools(num_threads);
+}
+
+void controller::set_max_call_depth_for_call_res_pools(uint32_t depth) {
+   my->set_max_call_depth_for_call_res_pools(depth);
+}
+
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
 bool controller::is_eos_vm_oc_enabled() const {
    return my->is_eos_vm_oc_enabled();
@@ -6117,6 +6170,7 @@ chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
 
    using v4 = legacy::snapshot_global_property_object_v4;
    using v5 = legacy::snapshot_global_property_object_v5;
+   using v6 = legacy::snapshot_global_property_object_v6;
    if (header.version <= v4::maximum_version) {
       snapshot.read_section<global_property_object>([&chain_id]( auto &section ){
          v4 global_properties;
@@ -6127,6 +6181,13 @@ chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    else if (header.version <= v5::maximum_version) {
       snapshot.read_section<global_property_object>([&chain_id]( auto &section ){
          v5 global_properties;
+         section.read_row(global_properties);
+         chain_id = global_properties.chain_id;
+      });
+   }
+   else if (header.version <= v6::maximum_version) {
+      snapshot.read_section<global_property_object>([&chain_id]( auto &section ){
+         v6 global_properties;
          section.read_row(global_properties);
          chain_id = global_properties.chain_id;
       });
@@ -6397,6 +6458,19 @@ void controller_impl::on_activation<builtin_protocol_feature_t::savanna>() {
    db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_finalizers" );
    } );
+}
+
+template<>
+void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
+   db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
+      add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "call" );
+      add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_return_value" );
+      add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_data" );
+      add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
+   } );
+
+   const auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
+   set_max_call_depth_for_call_res_pools(max_call_depth);
 }
 
 /// End of protocol feature activation handlers

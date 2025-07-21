@@ -41,6 +41,7 @@ struct version_t {
 
 using type_name      = string;
 using field_name     = string;
+using call_name      = string;
 
 struct type_def {
    type_def() = default;
@@ -140,6 +141,27 @@ struct action_result_def {
    type_name   result_type;
 };
 
+struct call_data_header {  // match with CDT definition
+   static constexpr uint32_t current_version = 0;  // sync call
+
+   uint32_t version   = 0;
+   uint64_t func_name = 0;
+
+   bool is_version_valid() { return version <= current_version; }
+};
+
+struct call_def {
+   call_def() = default;
+   call_def(const call_name& name, const type_name& type, uint64_t id)
+   :name(name), type(type), id(id)
+   {}
+
+   call_name name;
+   type_name type;
+   uint64_t  id = 0;
+   type_name result_type;
+};
+
 template<typename T>
 struct may_not_exist {
    T value{};
@@ -166,6 +188,7 @@ struct abi_def {
    extensions_type                           abi_extensions;
    may_not_exist<vector<variant_def>>        variants;
    may_not_exist<vector<action_result_def>>  action_results;
+   may_not_exist<vector<call_def>>           calls;
 
    version_t get_version() const {
       static const std::string version_header = "eosio::abi/";
@@ -219,5 +242,8 @@ FC_REFLECT( eosio::chain::clause_pair                      , (id)(body) )
 FC_REFLECT( eosio::chain::error_message                    , (error_code)(error_msg) )
 FC_REFLECT( eosio::chain::variant_def                      , (name)(types) )
 FC_REFLECT( eosio::chain::action_result_def                , (name)(result_type) )
+FC_REFLECT( eosio::chain::call_data_header                 , (version)(func_name) )
+FC_REFLECT( eosio::chain::call_def                         , (name)(type)(id)(result_type) )
 FC_REFLECT( eosio::chain::abi_def                          , (version)(types)(structs)(actions)(tables)
-                                                             (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results) )
+                                                             (ricardian_clauses)(error_messages)(abi_extensions)(variants)(action_results)
+                                                             (calls) )

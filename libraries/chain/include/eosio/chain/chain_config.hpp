@@ -184,6 +184,55 @@ protected:
    }
 };
 
+/**
+ * @brief v2 Producer-voted blockchain configuration parameters
+ *
+ * If Adding new parameters create chain_config_v[n] class instead of adding
+ * new parameters to v2, v1 or v0. This is needed for snapshots backward compatibility
+ */
+struct chain_config_v2 : chain_config_v1 {
+   using Base = chain_config_v1;
+
+   uint32_t   max_sync_call_depth = config::default_max_sync_call_depth;            ///< size limit for sync call depth
+   uint32_t   max_sync_call_data_size = config::default_max_sync_call_data_size;    ///< size limit for sync call data: input and return value respectively
+
+   //order must match parameters as ids are used in serialization
+   enum {
+     max_sync_call_depth_id = Base::PARAMS_COUNT,
+     max_sync_call_data_size_id,
+     PARAMS_COUNT
+   };
+
+   inline const Base& base() const {
+      return static_cast<const Base&>(*this);
+   }
+
+   void validate() const;
+
+   template<typename Stream>
+   friend Stream& operator << ( Stream& out, const chain_config_v2& c ) {
+      return c.log(out) << "\n";
+   }
+
+   // no need to define !=
+   bool operator == (const chain_config_v2&) const = default;
+
+   inline void copy_from_v0(const chain_config_v0& b) {
+      // copy v0 fields
+      chain_config_v0::operator= (b);
+
+      // leave v1 and v2 fields alone as changing them might break consensus
+      // if the intention is to only set v0 fields.
+   }
+
+protected:
+   template<typename Stream>
+   Stream& log(Stream& out) const{
+      return base().log(out) << ", Max Sync Call Depth: " << max_sync_call_depth
+                             << ", Max Sync Call Data Size: " << max_sync_call_data_size;
+   }
+};
+
 class controller;
 
 struct config_entry_validator{
@@ -192,8 +241,8 @@ struct config_entry_validator{
    bool operator()(uint32_t id) const;
 };
 
-//after adding 1st value to chain_config_v1 change this using to point to v1
-using chain_config = chain_config_v1;
+//after adding 1st value to chain_config_v2 change this using to point to v2
+using chain_config = chain_config_v2;
 using config_range = data_range<chain_config, config_entry_validator>;
 
 } } // namespace eosio::chain
@@ -215,6 +264,10 @@ FC_REFLECT_DERIVED(eosio::chain::chain_config_v1, (eosio::chain::chain_config_v0
            (max_action_return_value_size)
 )
 
+FC_REFLECT_DERIVED(eosio::chain::chain_config_v2, (eosio::chain::chain_config_v1),
+           (max_sync_call_depth)(max_sync_call_data_size)
+)
+
 namespace fc {
 
 /**
@@ -230,7 +283,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
 
    //initial requirements were to skip packing field if it is not activated.
    //this approach allows to spam this function with big buffer so changing this behavior
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
    
    switch (entry.id){
       case chain_config_v0::max_block_net_usage_id:
@@ -308,7 +361,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
    //When the protocol feature is not activated, the old version of nodeos that doesn't know about 
    //the entry MUST behave the same as the new version of nodeos that does.
    //Skipping known but unactivated entries violates this.
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
    
    switch (entry.id){
       case chain_config_v1::max_action_return_value_size_id:
@@ -316,6 +369,41 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
       break;
       default:
       data_entry<chain_config_v0, config_entry_validator> base_entry(entry);
+      fc::raw::pack(s, base_entry);
+   }
+
+   return s;
+}
+
+/**
+ * @brief This is for packing data_entry<chain_config_v2, ...>
+ * that is used as part of packing data_range<chain_config_v2, ...>
+ * @param s datastream
+ * @param entry contains config reference and particular id
+ * @throws unsupported_feature if protocol feature for particular id is not activated
+ */
+template <typename DataStream>
+inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosio::chain::chain_config_v2, eosio::chain::config_entry_validator> &entry){
+   using namespace eosio::chain;
+
+   //initial requirements were to skip packing field if it is not activated.
+   //this approach allows to spam this function with big buffer so changing this behavior
+   //moreover:
+   //The contract has no way to know that the value was skipped and is likely to behave incorrectly.
+   //When the protocol feature is not activated, the old version of nodeos that doesn't know about
+   //the entry MUST behave the same as the new version of nodeos that does.
+   //Skipping known but unactivated entries violates this.
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
+
+   switch (entry.id){
+      case chain_config_v2::max_sync_call_depth_id:
+      fc::raw::pack(s, entry.config.max_sync_call_depth);
+      break;
+      case chain_config_v2::max_sync_call_data_size_id:
+      fc::raw::pack(s, entry.config.max_sync_call_data_size);
+      break;
+      default:
+      data_entry<chain_config_v1, config_entry_validator> base_entry(entry);
       fc::raw::pack(s, base_entry);
    }
 
@@ -333,7 +421,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v0, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), eosio::chain::unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), eosio::chain::unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v0::max_block_net_usage_id:
@@ -405,7 +493,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v1, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v1::max_action_return_value_size_id:
@@ -413,6 +501,34 @@ inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::cha
       break;
       default:
       eosio::chain::data_entry<chain_config_v0, config_entry_validator> base_entry(entry);
+      fc::raw::unpack(s, base_entry);
+   }
+
+   return s;
+}
+
+/**
+ * @brief This is for unpacking data_entry<chain_config_v2, ...>
+ * that is used as part of unpacking data_range<chain_config_v2, ...>
+ * @param s datastream
+ * @param entry contains config reference and particular id
+ * @throws unsupported_feature if protocol feature for particular id is not activated
+ */
+template <typename DataStream>
+inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v2, eosio::chain::config_entry_validator> &entry){
+   using namespace eosio::chain;
+
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
+
+   switch (entry.id){
+      case chain_config_v2::max_sync_call_depth_id:
+      fc::raw::unpack(s, entry.config.max_sync_call_depth);
+      break;
+      case chain_config_v2::max_sync_call_data_size_id:
+      fc::raw::unpack(s, entry.config.max_sync_call_data_size);
+      break;
+      default:
+      eosio::chain::data_entry<chain_config_v1, config_entry_validator> base_entry(entry);
       fc::raw::unpack(s, base_entry);
    }
 

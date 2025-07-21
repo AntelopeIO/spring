@@ -452,9 +452,11 @@ namespace eosio::chain {
          void enable_deep_mind( deep_mind_handler* logger );
          uint32_t earliest_available_block_num() const;
 
-#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
          vm::wasm_allocator&  get_wasm_allocator();
-#endif
+         vm::wasm_allocator*  acquire_sync_call_wasm_allocator();
+         void                 release_sync_call_wasm_allocator(vm::wasm_allocator* alloc);
+         void                 set_num_threads_for_call_res_pools(uint32_t num_threads);
+         void                 set_max_call_depth_for_call_res_pools(uint32_t depth);
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          bool is_eos_vm_oc_enabled() const;
 #endif
@@ -511,6 +513,7 @@ namespace eosio::chain {
       private:
          const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).
 
+         friend class host_context;
          friend class apply_context;
          friend class transaction_context;
          friend class savanna_cluster::node_t;

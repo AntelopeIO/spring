@@ -620,11 +620,18 @@ fc::variant snapshot_info(snapshot_reader& snapshot) {
          chain_id = legacy_global_properties.chain_id;
       });
    }
-   else {
+   else if(header.version <= 8) {
       snapshot.read_section<global_property_object>([&]( auto &section ) {
-         legacy::snapshot_global_property_object_v5 legacy_global_properties; //layout is same up to chain_id for v5+
+         legacy::snapshot_global_property_object_v5 legacy_global_properties; //layout is same up to chain_id for v5, v6, and v8
          section.read_row(legacy_global_properties);
          chain_id = legacy_global_properties.chain_id;
+      });
+   }
+   else {
+      snapshot.read_section<global_property_object>([&]( auto &section ) {
+         snapshot_global_property_object global_properties;
+         section.read_row(global_properties);
+         chain_id = global_properties.chain_id;
       });
    }
 
