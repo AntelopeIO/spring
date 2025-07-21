@@ -605,7 +605,7 @@ namespace eosio::testing {
             return sign(trx, get_private_key(signer, role));
          }
          auto sign(signed_transaction& trx, account_name signer) const {
-            static constexpr const std::string active_role = "active";
+            static constexpr const std::string active_role = std::string{"active"};
             return sign(trx, signer, active_role);
          }
 
