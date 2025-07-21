@@ -53,7 +53,7 @@ namespace fc { namespace crypto {
       }, _storage);
    }
 
-   bool signature::is_canonical() const {
+   bool signature::is_ecc_canonical() const {
       return std::visit(overloaded {
          [&](const ecc::signature_shim& s) {
             return ecc::public_key::is_canonical(s._data);

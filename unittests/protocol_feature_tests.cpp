@@ -2330,7 +2330,7 @@ BOOST_AUTO_TEST_CASE(validate_canonical_signature_check) { try {
    for (size_t i=0; i<10; ++i) {
       trx = c.create_dummy_transaction(alice, std::to_string(i));
       auto sig = trx.sign(get_private_key(alice, "active"), c.control->get_chain_id(), fc::require_canonical_t::no);
-      if (!sig.is_canonical()) {
+      if (!sig.is_ecc_canonical()) {
          std::cout << "Found non-canonical signature after " << i << " iterations\n";
          break; // we're done searching for a non-canonical signature
       }
@@ -2358,7 +2358,7 @@ BOOST_AUTO_TEST_CASE(validate_non_canonical_signature_allowed) { try {
    for (size_t i=0; i<10; ++i) {
       trx = c.create_dummy_transaction(alice, std::to_string(i));
       auto sig = trx.sign(get_private_key(alice, "active"), c.control->get_chain_id(), fc::require_canonical_t::no);
-      if (!sig.is_canonical()) {
+      if (!sig.is_ecc_canonical()) {
          std::cout << "Found non-canonical signature after " << i << " iterations\n";
          break; // we're done searching for a non-canonical signature
       }
