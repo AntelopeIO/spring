@@ -2584,7 +2584,7 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
       const uint64_t block_cpu_limit = rl.get_block_cpu_limit();
       const fc::microseconds block_time_remaining_us = block_deadline - start;
 
-      fc_tlog(_log, "prev cpu ${pc}us, prev elapsed ${p}us, cpu left ${c}us, time left ${t}us, tx: ${txid}",
+      fc_tlog(_log, "prev cpu ${pc}us, prev elapsed ${p}us, block cpu limit ${c}us, time left ${t}us, tx: ${txid}",
               ("pc", prev_billed_cpu_time_us)("p", prev_elapsed_time_us)("c", block_cpu_limit)("t", block_time_remaining_us)("txid", trx->id()));
       // no use attempting to execute if not enough time left in block for what it took previously
       if (block_time_remaining_us.count() < prev_elapsed_time_us || block_cpu_limit < prev_billed_cpu_time_us ) {
@@ -2598,10 +2598,10 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
          return pr;
       }
       if (prev_billed_cpu_time_us > 0 && !subjective_bill.is_account_disabled(first_auth) && !rl.is_unlimited_cpu(first_auth)) {
-         int64_t prev_time_us = std::max<int64_t>(prev_billed_cpu_time_us, prev_elapsed_time_us);
-         int64_t prev_time_plus100_us = prev_time_us + EOS_PERCENT(prev_time_us, 100 * config::percent_1);
-         if (prev_time_plus100_us < max_trx_time.count())
-            max_trx_time = fc::microseconds(prev_time_plus100_us);
+         // elapsed time can be set on failure, but if prev_billed_cpu_time_us > 0 indicates it succeeded
+         // allow to execute only up to 2x previous successful execution
+         int64_t prev_time_plus100_us = prev_elapsed_time_us + EOS_PERCENT(prev_elapsed_time_us, 100 * config::percent_1);
+         max_trx_time = fc::microseconds{std::min(prev_time_plus100_us, max_trx_time.count())};
       }
    }
 
