@@ -99,12 +99,10 @@ namespace eosio {
    private:
 
       static send_buffer_type create_send_buffer( const signed_block_ptr& sb ) {
-         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
-
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
          fc_dlog( p2p_blk_log, "sending block ${bn}", ("bn", sb->block_num()) );
-         return buffer_factory::create_send_buffer( signed_block_which, *sb );
+         return buffer_factory::create_send_buffer_from_serialized_block(sb->packed_signed_block());
       }
 
       static send_buffer_type create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
