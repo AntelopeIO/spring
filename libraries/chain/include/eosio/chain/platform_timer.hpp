@@ -54,7 +54,7 @@ private:
       state_t state = state_t::stopped;
       bool callback_in_flight = false;
    };
-   std::atomic<timer_state_t> _state;
+   std::atomic<timer_state_t> _state{timer_state_t{}};
    bool timer_running_forever = false;
 
    struct impl;
