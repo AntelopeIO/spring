@@ -4110,7 +4110,6 @@ namespace eosio {
          fc_dlog( p2p_blk_log, "validated block header, forkdb add ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
                   ("bt", fork_db_add_result)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
-         my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
          c->block_status_monitor_.accepted();
 
          if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
@@ -4129,6 +4128,7 @@ namespace eosio {
             fc_dlog(p2p_blk_log, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
             my_impl->producer_plug->process_blocks();
          }
+         my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
       });
    }
 
