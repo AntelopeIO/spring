@@ -2844,8 +2844,6 @@ struct controller_impl {
       transaction_metadata_ptr trx =
             transaction_metadata::create_no_recover_keys( std::make_shared<packed_transaction>( std::move(dtrx)  ),
                                                           transaction_metadata::trx_type::scheduled );
-      trx->accepted = true;
-
       // After disable_deferred_trxs_stage_1 is activated, a deferred transaction
       // can only be retired as expired, and it can be retired as expired
       // regardless of whether its delay_util or expiration times have been reached.
@@ -3154,11 +3152,6 @@ struct controller_impl {
                bb.action_receipt_digests().append(std::move(trx_context.executed_action_receipts));
 
                if ( !trx->is_dry_run() ) {
-                  // call the accept signal but only once for this transaction
-                  if (!trx->accepted) {
-                     trx->accepted = true;
-                  }
-
                   dmlog_applied_transaction(trace, &trn);
                   emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
                }
@@ -3185,6 +3178,7 @@ struct controller_impl {
                pending->_block_report.total_elapsed_time += trace->elapsed;
             }
 
+            trx->elapsed_time_us = std::max<decltype(trx->elapsed_time_us)>(trx->elapsed_time_us, trace->elapsed.count());
             return trace;
          } catch( const disallowed_transaction_extensions_bad_block_exception& ) {
             throw;
@@ -3215,6 +3209,7 @@ struct controller_impl {
             pending->_block_report.total_elapsed_time += trace->elapsed;
          }
 
+         trx->elapsed_time_us = std::max<decltype(trx->elapsed_time_us)>(trx->elapsed_time_us, trace->elapsed.count());
          return trace;
       } FC_CAPTURE_AND_RETHROW((trace))
    } /// push_transaction
