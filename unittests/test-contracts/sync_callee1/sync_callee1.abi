@@ -18,6 +18,11 @@
             ]
         },
         {
+            "name": "get_sender_test",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "recursive",
             "base": "",
             "fields": [
@@ -39,6 +44,12 @@
             "type": "div",
             "id": 193489480,
             "result_type": "uint32"
+        },
+        {
+            "name": "get_sender_test",
+            "type": "get_sender_test",
+            "id": 12042755361048359460,
+            "result_type": ""
         },
         {
             "name": "recursive",
