@@ -504,10 +504,14 @@ namespace fc::crypto::r1 {
         my->_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
 
         if (check_canonical == check_canonical_t::yes) {
-           const EC_GROUP* group = EC_KEY_get0_group(my->_key);
-           ssl_bignum      order, halforder;
-           EC_GROUP_get_order(group, order, nullptr);
-           BN_rshift1(halforder, order);
+           static ssl_bignum halforder = [](EC_KEY* key) {
+              const EC_GROUP* group = EC_KEY_get0_group(key);
+              ssl_bignum      order, halforder;
+              EC_GROUP_get_order(group, order, nullptr);
+              BN_rshift1(halforder, order);
+              return halforder;
+           }(my->_key);
+
            if (BN_cmp(s, halforder) > 0)
               FC_THROW_EXCEPTION(exception, "invalid high s-value encountered in r1 signature");
         }
@@ -532,15 +536,13 @@ namespace fc::crypto::r1 {
         BIGNUM *s = BN_new();
         BN_bin2bn(&c.data[33],32,s);
 
-        static ssl_bignum halforder = []() {
-           EC_KEY* key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-
+        static ssl_bignum halforder = [](EC_KEY* key) {
            const EC_GROUP* group = EC_KEY_get0_group(key);
            ssl_bignum      order, halforder;
            EC_GROUP_get_order(group, order, nullptr);
            BN_rshift1(halforder, order);
            return halforder;
-        }();
+        }(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
         return BN_cmp(s, halforder) <= 0;
     }
 
