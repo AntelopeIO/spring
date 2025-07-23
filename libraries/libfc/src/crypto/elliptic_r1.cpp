@@ -541,6 +541,7 @@ namespace fc::crypto::r1 {
            ssl_bignum      order, halforder;
            EC_GROUP_get_order(group, order, nullptr);
            BN_rshift1(halforder, order);
+           EC_KEY_free(key);
            return halforder;
         }(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
 
