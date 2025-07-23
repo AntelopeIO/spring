@@ -31,6 +31,7 @@ namespace crypto {
          public_key& operator= (const public_key& ) = default;
 
          public_key( const signature& c, const sha256& digest );
+         public_key( const signature& c, const sha256& digest, bool check_r1_canonical ); // potential canonical check only for r1 sigs
 
          public_key( storage_type&& other_storage )
             :_storage(std::move(other_storage))

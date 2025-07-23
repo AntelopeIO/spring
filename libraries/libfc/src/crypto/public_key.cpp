@@ -24,6 +24,22 @@ namespace fc::crypto {
    {
    }
 
+   // ----------------------------------------------------------------------------------------------------------------------------
+   // This constructor is used only in `interface::assert_recover_key()` and `interface::recover_key()`
+   //
+   // we only do the canonical check for r1 keys because r1 keys always checked for low-s no matter
+   // if the `check_canonical parameter` was true or false (see
+   // https://github.com/AntelopeIO/spring/blob/f436b748dac8da5d355178b63842f8ae33973606/libraries/libfc/src/crypto/elliptic_r1.cpp#L509-L51)  // so despite the fact that these apis used to be called with `check_canonical == false`, the r1 sigs would assert if non-canonical,
+   // and we need to preserve this behavior prior to the `allow_non_canonical_signatures` feature being activated.
+   // ----------------------------------------------------------------------------------------------------------------------------
+   public_key::public_key(const signature& c, const sha256& digest, bool check_r1_canonical)
+      : _storage(std::visit(
+           recovery_visitor(digest, (check_r1_canonical && std::holds_alternative<r1::signature_shim>(c._storage))
+                                       ? check_canonical_t::yes
+                                       : check_canonical_t::no),
+           c._storage)) {
+   }
+
    size_t public_key::which() const {
       return _storage.index();
    }
