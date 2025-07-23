@@ -411,7 +411,7 @@ struct building_block {
          return (std::find(new_protocol_feature_activations.begin(), end, digest) != end);
       }
 
-      std::function<void()> make_block_restore_point() {
+      auto make_block_restore_point() {
          auto orig_trx_receipts_size           = pending_trx_receipts.size();
          auto orig_trx_metas_size              = pending_trx_metas.size();
          auto orig_trx_receipt_digests_size    = std::holds_alternative<digests_t>(trx_mroot_or_receipt_digests) ?
@@ -1433,7 +1433,7 @@ struct controller_impl {
             assert(prev);
             controller::apply_blocks_result_t::status_t r = apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{});
             if (r == controller::apply_blocks_result_t::status_t::complete) {
-               fc::scoped_exit<std::function<void()>> e([&]{fork_db_.switch_to(fork_database::in_use_t::both);});
+               auto e = fc::make_scoped_exit([&]{fork_db_.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
                transition_add_to_savanna_fork_db(fork_db, legacy, bsp, prev);
@@ -2672,7 +2672,7 @@ struct controller_impl {
    }
 
    // The returned scoped_exit should not exceed the lifetime of the pending which existed when make_block_restore_point was called.
-   fc::scoped_exit<std::function<void()>> make_block_restore_point( bool is_read_only = false ) {
+   auto make_block_restore_point( bool is_read_only = false ) {
       if ( is_read_only ) {
          std::function<void()> callback = []() { };
          return fc::make_scoped_exit( std::move(callback) );
@@ -5698,9 +5698,9 @@ fc::sha256 controller::calculate_integrity_hash() { try {
 void controller::write_snapshot( const snapshot_writer_ptr& snapshot ) {
    EOS_ASSERT( !my->pending, block_validate_exception, "cannot take a consistent snapshot with a pending block" );
    my->writing_snapshot.store(true, std::memory_order_release);
-   fc::scoped_exit<std::function<void()>> e = [&] {
+   auto e = fc::make_scoped_exit([&] {
       my->writing_snapshot.store(false, std::memory_order_release);
-   };
+   });
    my->add_to_snapshot(snapshot);
 }
 
