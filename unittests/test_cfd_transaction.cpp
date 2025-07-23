@@ -27,6 +27,6 @@ eosio::chain::transaction_trace_ptr push_test_cfd_transaction(eosio::testing::te
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
    // run normal passing case
-   auto sigs = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.control->get_chain_id());
+   chain.sign(trx, "testapi"_n);
    return chain.push_transaction(trx);
 }

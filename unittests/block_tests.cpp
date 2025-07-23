@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    act.data = fc::raw::pack(act_data);
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.get_chain_id());
+   main.sign(signed_tx, config::system_account_name);
    // Replace the valid transaction with the invalid transaction
    auto invalid_packed_tx = packed_transaction(signed_tx);
    copy_b->transactions.back().trx = std::move(invalid_packed_tx);
@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    signed_tx.actions[0].name = "something"_n;
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.get_chain_id());
+   main.sign(signed_tx, config::system_account_name);
    // Replace the valid transaction with the invalid transaction
    auto invalid_packed_tx = packed_transaction(std::move(signed_tx), packed_trx.get_compression());
    copy_b->transactions.back().trx = std::move(invalid_packed_tx);

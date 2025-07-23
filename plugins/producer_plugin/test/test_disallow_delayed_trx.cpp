@@ -33,7 +33,7 @@ auto make_delayed_trx( const chain_id_type& chain_id ) {
    trx.actions.emplace_back( vector<permission_level>{{creator, config::active_name}}, testit{0} );
    trx.delay_sec = 10;
    auto priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("nathan")));
-   trx.sign( priv_key, chain_id );
+   trx.sign( priv_key, chain_id, fc::require_canonical_t::yes );
 
    return std::make_shared<packed_transaction>( std::move(trx) );
 }

@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
    signed_transaction trx;
    trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n,   "forevertest"_n, bytes{});
    t.set_transaction_headers(trx);
-   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
+   t.sign(trx, "caller"_n);
 
    BOOST_CHECK_EXCEPTION(t.push_transaction(trx, fc::time_point::now() + fc::microseconds(config::default_max_block_cpu_usage)),
                          deadline_exception,

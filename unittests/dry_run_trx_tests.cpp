@@ -37,7 +37,7 @@ struct dry_run_trx_tester : T {
       trx.actions.push_back( act );
       T::set_transaction_headers( trx );
       if (sign) // dry-run can contain signature, but not required
-         trx.sign(T::get_private_key(act.authorization.at(0).actor, act.authorization.at(0).permission.to_string()), T::get_chain_id());
+         T::sign(trx, act.authorization.at(0).actor, act.authorization.at(0).permission.to_string());
 
       T::push_transaction( trx, fc::time_point::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run );
    }

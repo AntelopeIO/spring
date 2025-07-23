@@ -120,13 +120,13 @@ flat_multimap<uint16_t, transaction_extension> transaction::validate_and_extract
 }
 
 const signature_type& signed_transaction::sign(const private_key_type& key, const chain_id_type& chain_id,
-                                               fc::require_canonical_t require_canonical /* = fc::require_canonical_t::yes */) {
+                                               fc::require_canonical_t require_canonical) {
    signatures.push_back(key.sign(sig_digest(chain_id, context_free_data), require_canonical));
    return signatures.back();
 }
 
 signature_type signed_transaction::sign(const private_key_type& key, const chain_id_type& chain_id,
-                                        fc::require_canonical_t require_canonical /* = fc::require_canonical_t::yes */)const {
+                                        fc::require_canonical_t require_canonical)const {
    return key.sign(sig_digest(chain_id, context_free_data), require_canonical);
 }
 

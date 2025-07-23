@@ -591,7 +591,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
+      _nodes[0].sign(trx, config::system_account_name);
       trace1 = _nodes[0].push_transaction( trx );
    }
    _nodes[0].produce_block();
@@ -608,7 +608,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
+      _nodes[0].sign(trx, config::system_account_name);
       trace2 = _nodes[0].push_transaction( trx );
    }
    {
@@ -624,7 +624,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
+      _nodes[0].sign(trx, config::system_account_name);
       trace3 = _nodes[0].push_transaction( trx );
    }
    {
@@ -640,7 +640,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( b->calculate_id() ); // tapos to dan's block should be rejected on fork switch
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
+      _nodes[0].sign(trx, config::system_account_name);
       trace4 = _nodes[0].push_transaction( trx );
       BOOST_CHECK( trace4->receipt->status == transaction_receipt_header::executed );
    }

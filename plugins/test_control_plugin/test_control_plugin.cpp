@@ -142,7 +142,7 @@ void test_control_plugin_impl::swap_action_in_block(const chain::signed_block_pt
                              act.name = _swap_on_options.to;
                              // Re-sign the transaction
                              signed_tx.signatures.clear();
-                             signed_tx.sign(_swap_on_options.trx_priv_key, _chain.get_chain_id());
+                             signed_tx.sign(_swap_on_options.trx_priv_key, _chain.get_chain_id(), fc::require_canonical_t::yes);
                              // Replace the transaction
                              auto new_packed_tx = packed_transaction(signed_tx);
                              const_cast<packed_transaction&>(pt) = std::move(new_packed_tx);
