@@ -529,18 +529,18 @@ namespace fc::crypto::r1 {
         if (nV<27 || nV>=35)
             FC_THROW_EXCEPTION( exception, "unable to reconstruct public key from signature" );
 
-        ecdsa_sig sig = ECDSA_SIG_new();
-        BIGNUM *r = BN_new(), *s = BN_new();
-        BN_bin2bn(&c.data[1],32,r);
+        BIGNUM *s = BN_new();
         BN_bin2bn(&c.data[33],32,s);
-        ECDSA_SIG_set0(sig, r, s);
 
-        EC_KEY* key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+        static ssl_bignum halforder = []() {
+           EC_KEY* key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
 
-        const EC_GROUP* group = EC_KEY_get0_group(key);
-        ssl_bignum      order, halforder;
-        EC_GROUP_get_order(group, order, nullptr);
-        BN_rshift1(halforder, order);
+           const EC_GROUP* group = EC_KEY_get0_group(key);
+           ssl_bignum      order, halforder;
+           EC_GROUP_get_order(group, order, nullptr);
+           BN_rshift1(halforder, order);
+           return halforder;
+        }();
         return BN_cmp(s, halforder) <= 0;
     }
 
