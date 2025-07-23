@@ -533,8 +533,8 @@ namespace fc::crypto::r1 {
         if (nV<27 || nV>=35)
             FC_THROW_EXCEPTION( exception, "unable to reconstruct public key from signature" );
 
-        BIGNUM *s = BN_new();
-        BN_bin2bn(&c.data[33],32,s);
+        BIGNUM s;
+        BN_bin2bn(&c.data[33],32,&s);
 
         static ssl_bignum halforder = [](EC_KEY* key) {
            const EC_GROUP* group = EC_KEY_get0_group(key);
@@ -545,8 +545,7 @@ namespace fc::crypto::r1 {
            return halforder;
         }(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
 
-        bool res = BN_cmp(s, halforder) <= 0;
-        BN_free(s);
+        bool res = BN_cmp(&s, halforder) <= 0;
         return res;
     }
 
