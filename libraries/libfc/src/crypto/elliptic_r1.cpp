@@ -543,7 +543,10 @@ namespace fc::crypto::r1 {
            BN_rshift1(halforder, order);
            return halforder;
         }(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
-        return BN_cmp(s, halforder) <= 0;
+
+        bool res = BN_cmp(s, halforder) <= 0;
+        BN_free(s);
+        return res;
     }
 
     compact_signature private_key::sign_compact( const fc::sha256& digest )const
