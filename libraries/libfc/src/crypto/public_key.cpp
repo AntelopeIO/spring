@@ -19,8 +19,8 @@ namespace fc::crypto {
       check_canonical_t _check_canonical;
    };
 
-   public_key::public_key( const signature& c, const sha256& digest, check_canonical_t check_canonical )
-   :_storage(std::visit(recovery_visitor(digest, check_canonical), c._storage))
+   public_key::public_key( const signature& c, const sha256& digest )
+      :_storage(std::visit(recovery_visitor(digest, check_canonical_t::no), c._storage))
    {
    }
 

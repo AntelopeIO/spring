@@ -70,7 +70,7 @@ fc::microseconds transaction::get_signature_keys( const vector<signature_type>& 
          auto now = fc::time_point::now();
          EOS_ASSERT( now < deadline, tx_cpu_usage_exceeded, "transaction signature verification executed for too long ${time}us",
                      ("time", now - start)("now", now)("deadline", deadline)("start", start) );
-         auto[ itr, successful_insertion ] = recovered_pub_keys.emplace( sig, digest, fc::check_canonical_t::no );
+         auto[ itr, successful_insertion ] = recovered_pub_keys.emplace( sig, digest );
          EOS_ASSERT( allow_duplicate_keys || successful_insertion, tx_duplicate_sig,
                      "transaction includes more than one signature signed using the same key associated with public key: ${key}",
                      ("key", *itr ) );

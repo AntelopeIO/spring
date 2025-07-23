@@ -30,7 +30,7 @@ namespace crypto {
          public_key( const public_key& ) = default;
          public_key& operator= (const public_key& ) = default;
 
-         public_key( const signature& c, const sha256& digest, check_canonical_t check_canonical );
+         public_key( const signature& c, const sha256& digest );
 
          public_key( storage_type&& other_storage )
             :_storage(std::move(other_storage))

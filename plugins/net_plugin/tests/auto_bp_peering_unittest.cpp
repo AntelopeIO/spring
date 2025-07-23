@@ -314,7 +314,7 @@ BOOST_AUTO_TEST_CASE(test_bp_peer_info_v2) {
    auto& peer = msg.peers[0];
 
    // verify v1 can process data
-   fc::crypto::public_key v1k(peer.sig, peer.digest(chain_id), fc::check_canonical_t::no);
+   fc::crypto::public_key v1k(peer.sig, peer.digest(chain_id));
    BOOST_TEST(v1k == public_key);
    BOOST_TEST(peer.version.value == 2u);
    BOOST_TEST(peer.producer_name == eosio::name("producer"));
@@ -326,7 +326,7 @@ BOOST_AUTO_TEST_CASE(test_bp_peer_info_v2) {
    BOOST_TEST(v1.expiration == eosio::block_timestamp_type{7});
 
    // verify v2 can process data
-   fc::crypto::public_key v2k(peer.sig, peer.digest(chain_id), fc::check_canonical_t::no);
+   fc::crypto::public_key v2k(peer.sig, peer.digest(chain_id));
    BOOST_TEST(v2k == public_key);
 
    bp_peer_info_v2 v2b = fc::raw::unpack<bp_peer_info_v2>(peer.bp_peer_info);

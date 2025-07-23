@@ -24,10 +24,10 @@ namespace detail {
                  ("authority", valid_block_signing_authority));
 
       std::set<public_key_type> keys;
-      keys.emplace(fc::crypto::public_key(producer_signature, block_id, fc::check_canonical_t::no));
+      keys.emplace(fc::crypto::public_key(producer_signature, block_id));
 
       for (const auto& s : additional_signatures) {
-         auto res = keys.emplace(s, block_id, fc::check_canonical_t::no);
+         auto res = keys.emplace(s, block_id);
          EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice: ${key}", ("key", *res.first));
       }
 
