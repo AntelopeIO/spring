@@ -12,7 +12,7 @@ namespace fc::crypto {
 
       template<typename SignatureType>
       public_key::storage_type operator()(const SignatureType& s) const {
-         return public_key::storage_type(s.recover(_digest, _check_canonical == check_canonical_t::yes));
+         return public_key::storage_type(s.recover(_digest, _check_canonical));
       }
 
       const sha256& _digest;

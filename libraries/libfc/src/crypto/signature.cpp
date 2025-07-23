@@ -59,7 +59,7 @@ namespace fc { namespace crypto {
             return ecc::public_key::is_canonical(s._data);
          },
          [&](const r1::signature_shim& s) {
-            return true;
+            return r1::public_key::is_canonical(s._data);
          },
          [&](const webauthn::signature& wa) {
             return true;

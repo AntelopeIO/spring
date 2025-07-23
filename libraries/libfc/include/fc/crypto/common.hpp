@@ -8,6 +8,7 @@
 
 namespace fc {
   enum class require_canonical_t : uint8_t { no, yes };
+  enum class check_canonical_t   : uint8_t { no, yes };
 
 namespace crypto {
    template<typename DataType>

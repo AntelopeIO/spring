@@ -95,7 +95,7 @@ void wa_benchmarking() {
 
    auto sig = make_webauthn_sig(priv, auth_data, json);
    auto recover= [&]() {
-      sig.recover(d, true);
+      sig.recover(d, check_canonical_t::yes);
    };
    benchmarking("webauthn_recover", recover);
 }

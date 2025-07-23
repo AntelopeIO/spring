@@ -33,7 +33,8 @@ class public_key {
          public_key_data(p), user_verification_type(t), rpid(s) {
             post_init();
          }
-      public_key(const signature& c, const fc::sha256& digest, bool check_canonical = true);
+      public_key(const signature& c, const fc::sha256& digest,
+                 check_canonical_t check_canonical = check_canonical_t::yes);
 
       bool operator==(const public_key& o) const {
          return        public_key_data == o.public_key_data        &&
@@ -81,7 +82,7 @@ class signature {
       signature(const fc::crypto::r1::compact_signature& s, const std::vector<uint8_t>& a, const std::string& j) :
          compact_signature(s), auth_data(a), client_json(j) {}
 
-      public_key recover(const sha256& digest, bool check_canonical) const {
+      public_key recover(const sha256& digest, check_canonical_t check_canonical) const {
          return public_key(*this, digest, check_canonical);
       }
 
