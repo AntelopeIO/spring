@@ -60,6 +60,11 @@
             ]
         },
         {
+            "name": "get_sender_test",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "getperson",
             "base": "",
             "fields": [
@@ -262,6 +267,12 @@
             "name": "forever",
             "type": "forever",
             "id": 229466054377278,
+            "result_type": ""
+        },
+        {
+            "name": "get_sender_test",
+            "type": "get_sender_test",
+            "id": 12042755361048359460,
             "result_type": ""
         },
         {
