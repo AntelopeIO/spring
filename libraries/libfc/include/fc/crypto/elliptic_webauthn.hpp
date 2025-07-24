@@ -81,7 +81,7 @@ class signature {
       signature(const fc::crypto::r1::compact_signature& s, const std::vector<uint8_t>& a, const std::string& j) :
          compact_signature(s), auth_data(a), client_json(j) {}
 
-      public_key recover(const sha256& digest, check_canonical_t = check_canonical_t::no) const {
+      public_key recover(const sha256& digest) const {
          return public_key(*this, digest);
       }
 

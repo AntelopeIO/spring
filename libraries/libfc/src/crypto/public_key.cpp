@@ -4,25 +4,8 @@
 
 namespace fc::crypto {
 
-   struct recovery_visitor : fc::visitor<public_key::storage_type> {
-      recovery_visitor(const sha256& digest, check_canonical_t check_canonical)
-      :_digest(digest)
-      ,_check_canonical(check_canonical)
-      {}
-
-      template<typename SignatureType>
-      public_key::storage_type operator()(const SignatureType& s) const {
-         return public_key::storage_type(s.recover(_digest, _check_canonical));
-      }
-
-      const sha256& _digest;
-      check_canonical_t _check_canonical;
-   };
-
-   public_key::public_key( const signature& c, const sha256& digest )
-      :_storage(std::visit(recovery_visitor(digest, check_canonical_t::no), c._storage))
-   {
-   }
+   public_key::public_key(const signature& c, const sha256& digest)
+      : _storage(std::visit([&](const auto& s) { return public_key::storage_type(s.recover(digest)); }, c._storage)) {}
 
    size_t public_key::which() const {
       return _storage.index();
