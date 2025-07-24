@@ -3813,20 +3813,6 @@ struct controller_impl {
    }
 
    void validate_canonical_signatures(const signed_block_ptr& b) {
-      // validate that transaction signatures are canonical
-      // --------------------------------------------------
-      for (const auto& receipt : b->transactions) {
-         std::visit(overloaded{[](const packed_transaction& trx) {
-                                  const vector<signature_type>& sigs = trx.get_signatures();
-                                  for (const auto& sig : sigs) {
-                                     EOS_ASSERT(sig.is_ecc_canonical(), transaction_exception,
-                                                "signature of transaction ${id} is not canonical", ("id", trx.id()));
-                                  }
-                               },
-                               [](const transaction_id_type&) {}},
-                    receipt.trx);
-      }
-
       // validate that block signatures are canonical
       // --------------------------------------------
       EOS_ASSERT(b->producer_signature.is_ecc_canonical(), block_validate_exception,

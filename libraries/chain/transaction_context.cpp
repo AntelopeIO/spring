@@ -286,6 +286,15 @@ namespace eosio::chain {
       if( control.is_builtin_activated(builtin_protocol_feature_t::disable_deferred_trxs_stage_1) || is_transient() ) {
          EOS_ASSERT( trx.delay_sec.value == 0, transaction_exception, "transaction cannot be delayed" );
       }
+
+      if (!control.is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)) {
+         // until the protocol feature is activated, we need to validate that signatures are canonical
+         const vector<signature_type>& sigs = packed_trx.get_signatures();
+         for (const auto& sig : sigs) {
+            EOS_ASSERT(sig.is_ecc_canonical(), transaction_exception, "signature of transaction ${id} is not canonical", ("id", trx.id()));
+         }
+      }
+
       if( trx.transaction_extensions.size() > 0 ) {
          disallow_transaction_extensions( "no transaction extensions supported yet for input transactions" );
       }
