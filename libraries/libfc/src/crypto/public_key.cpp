@@ -43,16 +43,9 @@ namespace fc::crypto {
    :_storage(parse_base58(base58str))
    {}
 
-   struct is_valid_visitor : public fc::visitor<bool> {
-      template< typename KeyType >
-      bool operator()( const KeyType& key )const {
-         return key.valid();
-      }
-   };
-
    bool public_key::valid()const
    {
-      return std::visit(is_valid_visitor(), _storage);
+      return std::visit([](const auto& key) { return key.valid(); }, _storage);
    }
 
    // output in pre Spring-2.0 format: EOS, PUB_R1, PUB_WA

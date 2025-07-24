@@ -5,17 +5,9 @@
 namespace fc { namespace crypto {
    using namespace std;
 
-   struct public_key_visitor : visitor<public_key::storage_type> {
-      template<typename KeyType>
-      public_key::storage_type operator()(const KeyType& key) const
-      {
-         return public_key::storage_type(key.get_public_key());
-      }
-   };
-
    public_key private_key::get_public_key() const
    {
-      return public_key(std::visit(public_key_visitor(), _storage));
+      return public_key(std::visit([](const auto& key) { return public_key::storage_type(key.get_public_key()); }, _storage));
    }
 
    signature private_key::sign( const sha256& digest, require_canonical_t require_canonical ) const
@@ -24,24 +16,14 @@ namespace fc { namespace crypto {
          [&](const auto& key) { return signature::storage_type(key.sign(digest, require_canonical)); }, _storage));
    }
 
-   struct generate_shared_secret_visitor : visitor<sha512> {
-      generate_shared_secret_visitor( const public_key::storage_type& pub_storage )
-      :_pub_storage(pub_storage)
-      {}
-
-      template<typename KeyType>
-      sha512 operator()(const KeyType& key) const
-      {
-         using PublicKeyType = typename KeyType::public_key_type;
-         return key.generate_shared_secret(std::template get<PublicKeyType>(_pub_storage));
-      }
-
-      const public_key::storage_type&  _pub_storage;
-   };
-
    sha512 private_key::generate_shared_secret( const public_key& pub ) const
    {
-      return std::visit(generate_shared_secret_visitor(pub._storage), _storage);
+      return std::visit(
+         [&]<typename KeyType>(const KeyType& key) -> sha512 {
+            using PublicKeyType = typename KeyType::public_key_type;
+            return key.generate_shared_secret(std::template get<PublicKeyType>(pub._storage));
+         },
+         _storage);
    }
 
    template<typename Data>
