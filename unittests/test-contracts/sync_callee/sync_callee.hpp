@@ -96,6 +96,11 @@ public:
    person_info getperson(eosio::name user);
    using get_person_func = eosio::call_wrapper<"getperson"_i, &sync_callee::getperson>;
 
+   // Test get_sender in a chain of action and sync call
+   [[eosio::call]]
+   void get_sender_test();
+   using get_sender_test_func = eosio::call_wrapper<"get_sender_test"_i, &sync_callee::get_sender_test>;
+
 private:
    struct [[eosio::table]] person {
       eosio::name key;

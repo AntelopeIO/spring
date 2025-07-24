@@ -1,6 +1,6 @@
 {
     "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
-    "version": "eosio::abi/1.3",
+    "version": "eosio::abi/1.2",
     "types": [],
     "structs": [
         {
@@ -49,6 +49,11 @@
         },
         {
             "name": "getperson",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "getsendertst",
             "base": "",
             "fields": []
         },
@@ -160,6 +165,11 @@
             "ricardian_contract": ""
         },
         {
+            "name": "getsendertst",
+            "type": "getsendertst",
+            "ricardian_contract": ""
+        },
+        {
             "name": "insertperson",
             "type": "insertperson",
             "ricardian_contract": ""
@@ -228,6 +238,5 @@
     "tables": [],
     "ricardian_clauses": [],
     "variants": [],
-    "action_results": [],
-    "calls": []
+    "action_results": []
 }

@@ -1,9 +1,11 @@
 #include "../sync_callee/sync_callee.hpp"
 #include "sync_callee1.hpp"
+#include <eosio/system.hpp>
+
+using namespace eosio;
 
 [[eosio::call]]
 uint32_t sync_callee1::div(uint32_t x, uint32_t y) {
-   check(get_sender() == "callee"_n, "get_sender() returned an incorrect value"); // this is only called from sync_callee
    return x / y;
 }
 
@@ -16,4 +18,9 @@ uint32_t sync_callee1::recursive(uint32_t n) {
 
       return n + recur(n - 1);;
    }
+}
+
+void sync_callee1::get_sender_test() {
+   // This method is only called by "callee"_n
+   check(get_sender() == "callee"_n, "get_sender() in sync_callee1::get_sender_test() got an incorrect value");
 }
