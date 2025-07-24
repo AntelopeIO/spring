@@ -2336,9 +2336,7 @@ BOOST_AUTO_TEST_CASE(validate_canonical_signature_check) { try {
       }
    }
 
-   c.push_transaction(trx);
-   auto b2 = c.produce_block();
-   BOOST_REQUIRE_EXCEPTION(t.push_block(b2), transaction_exception, fc_exception_message_contains("is not canonical"));
+   BOOST_REQUIRE_EXCEPTION(c.push_transaction(trx), transaction_exception, fc_exception_message_contains("is not canonical"));
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE(validate_non_canonical_signature_allowed) { try {
