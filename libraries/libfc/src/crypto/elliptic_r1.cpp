@@ -488,8 +488,7 @@ namespace fc::crypto::r1 {
     {
     }
 
-    public_key::public_key( const compact_signature& c, const fc::sha256& digest,
-                            check_canonical_t check_canonical /* = check_canonical_t::yes */ )
+    public_key::public_key( const compact_signature& c, const fc::sha256& digest )
     {
         int nV = c.data[0];
         if (nV<27 || nV>=35)
@@ -502,19 +501,6 @@ namespace fc::crypto::r1 {
         ECDSA_SIG_set0(sig, r, s);
 
         my->_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-
-        if (check_canonical == check_canonical_t::yes) {
-           static ssl_bignum halforder = [](EC_KEY* key) {
-              const EC_GROUP* group = EC_KEY_get0_group(key);
-              ssl_bignum      order, halforder;
-              EC_GROUP_get_order(group, order, nullptr);
-              BN_rshift1(halforder, order);
-              return halforder;
-           }(my->_key);
-
-           if (BN_cmp(s, halforder) > 0)
-              FC_THROW_EXCEPTION(exception, "invalid high s-value encountered in r1 signature");
-        }
 
         if (nV >= 31)
         {

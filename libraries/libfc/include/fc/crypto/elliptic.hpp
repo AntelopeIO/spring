@@ -47,8 +47,7 @@ namespace fc {
 
            public_key( const public_key_data& v );
            public_key( const public_key_point_data& v );
-           public_key( const compact_signature& c, const fc::sha256& digest,
-                       check_canonical_t check_canonical = check_canonical_t::yes );
+           public_key( const compact_signature& c, const fc::sha256& digest );
 
            bool valid()const;
 
@@ -151,7 +150,7 @@ namespace fc {
          using crypto::shim<compact_signature>::shim;
 
          public_key_type recover(const sha256& digest) const {
-            return public_key_type(public_key(_data, digest, check_canonical_t::no).serialize());
+            return public_key_type(public_key(_data, digest).serialize());
          }
       };
 

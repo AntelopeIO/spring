@@ -8,7 +8,7 @@
 #include <fc/array.hpp>
 #include <fc/io/raw_fwd.hpp>
 
-namespace fc { namespace crypto { namespace webauthn {
+namespace fc::crypto { namespace webauthn {
 
 class signature;
 
@@ -142,7 +142,7 @@ struct less_comparator<webauthn::public_key> {
    }
 };
 
-}}
+}
 #include <fc/reflect/reflect.hpp>
 
 FC_REFLECT(fc::crypto::webauthn::signature, (compact_signature)(auth_data)(client_json))
