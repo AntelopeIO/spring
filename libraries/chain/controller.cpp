@@ -3815,14 +3815,14 @@ struct controller_impl {
    void validate_canonical_signatures(const signed_block_ptr& b) {
       // validate that block signatures are canonical
       // --------------------------------------------
-      EOS_ASSERT(b->producer_signature.is_ecc_canonical(), block_validate_exception,
+      EOS_ASSERT(b->producer_signature.is_canonical(), block_validate_exception,
                  "signature of block ${id} is not canonical", ("id", b->calculate_id()));
 
       // check additional signatures
       // ---------------------------
       auto sigs = detail::extract_additional_signatures(b);
       for (const auto& sig : sigs) {
-         EOS_ASSERT(sig.is_ecc_canonical(), block_validate_exception, "signature of block ${id} is not canonical",
+         EOS_ASSERT(sig.is_canonical(), block_validate_exception, "signature of block ${id} is not canonical",
                     ("id", b->calculate_id()));
       }
    }

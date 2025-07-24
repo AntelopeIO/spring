@@ -291,7 +291,7 @@ namespace eosio::chain {
          // until the protocol feature is activated, we need to validate that signatures are canonical
          const vector<signature_type>& sigs = packed_trx.get_signatures();
          for (const auto& sig : sigs) {
-            EOS_ASSERT(sig.is_ecc_canonical(), transaction_exception, "signature of transaction ${id} is not canonical", ("id", trx.id()));
+            EOS_ASSERT(sig.is_canonical(), transaction_exception, "signature of transaction ${id} is not canonical", ("id", trx.id()));
          }
       }
 
