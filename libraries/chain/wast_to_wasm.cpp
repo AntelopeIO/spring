@@ -7,7 +7,6 @@
 #include <sstream>
 #include <iomanip>
 #include <fc/exception/exception.hpp>
-#include <fc/scoped_exit.hpp>
 #include <eosio/chain/exceptions.hpp>
 
 namespace eosio { namespace chain {

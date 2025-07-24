@@ -9,7 +9,6 @@
 
 #include <boost/asio/basic_stream_socket.hpp>
 #include <boost/asio/local/stream_protocol.hpp>
-#include <fc/scoped_exit.hpp>
 #include <fc/crypto/rand.hpp>
 
 #define BOOST_TEST_MODULE http_plugin unit tests

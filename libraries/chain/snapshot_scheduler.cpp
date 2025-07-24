@@ -2,7 +2,6 @@
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/pending_snapshot.hpp>
 #include <eosio/chain/snapshot_scheduler.hpp>
-#include <fc/scoped_exit.hpp>
 
 namespace eosio::chain {
 
