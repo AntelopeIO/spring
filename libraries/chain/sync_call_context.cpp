@@ -49,9 +49,13 @@ void sync_call_context::set_call_return_value(std::span<const char> rv) {
 
 // Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
 action_name sync_call_context::get_sender() const {
-   // The sync call is initiated by this apply_context or its sync_call_ctx.
-   // That's why the context's receiver is the sender of the sync call.
-   return receiver;
+   // This is only a temporary fix for dev-testnet1.
+   // It will never be merged back to any release branches.
+   if (control.is_builtin_activated(builtin_protocol_feature_t::get_sender_fix)) {
+      return sender;
+   } else {
+      return receiver;
+   }
 }
 
 void sync_call_context::console_append(std::string_view val) {
