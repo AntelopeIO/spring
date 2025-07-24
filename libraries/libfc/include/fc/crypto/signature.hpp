@@ -30,7 +30,8 @@ namespace fc { namespace crypto {
          explicit signature(const std::string& base58str);
          std::string to_string(const fc::yield_function_t& yield = fc::yield_function_t()) const;
 
-         constexpr bool is_webauthn() const { return _storage.index() == fc::get_index<storage_type, webauthn::signature>(); }
+         constexpr bool is_webauthn() const { return std::holds_alternative<webauthn::signature>(_storage); }
+         constexpr bool is_r1() const { return std::holds_alternative<r1::signature_shim>(_storage); }
 
          size_t which() const;
 
