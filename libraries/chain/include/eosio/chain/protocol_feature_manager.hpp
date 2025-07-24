@@ -40,6 +40,7 @@ enum class builtin_protocol_feature_t : uint32_t {
    disable_deferred_trxs_stage_2 = 23,
    savanna = 24,
    sync_call = 25,
+   get_sender_fix = 26,
    reserved_private_fork_protocol_features = 500000,
 };
 

@@ -374,6 +374,17 @@ Enables synchronous calls to functions in other and own contracts.
 */
             {builtin_protocol_feature_t::savanna}
          } )
+         (  builtin_protocol_feature_t::get_sender_fix, builtin_protocol_feature_spec{
+            "GET_SENDER_FIX",
+            fc::variant("0b464eee7952bf848ff8e3d33b8800b6aae22ad4e08e9195bc0a9528532ca4a4").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
+/*
+Builtin protocol feature: GET_SENDER_FIX
+
+Enables get_sender() fix only for dev-testnet1 during 2.0.0-dev1 testing phase. This will never be merged back to 2.0.
+*/
+            {builtin_protocol_feature_t::sync_call}
+         } )
    ;
 
 
