@@ -18,25 +18,10 @@ namespace fc { namespace crypto {
       return public_key(std::visit(public_key_visitor(), _storage));
    }
 
-   struct sign_visitor : visitor<signature::storage_type> {
-      sign_visitor( const sha256& digest, require_canonical_t require_canonical )
-      :_digest(digest)
-      ,_require_canonical(require_canonical)
-      {}
-
-      template<typename KeyType>
-      signature::storage_type operator()(const KeyType& key) const
-      {
-         return signature::storage_type(key.sign(_digest, _require_canonical));
-      }
-
-      const sha256&       _digest;
-      require_canonical_t _require_canonical;
-   };
-
    signature private_key::sign( const sha256& digest, require_canonical_t require_canonical ) const
    {
-      return signature(std::visit(sign_visitor(digest, require_canonical), _storage));
+      return signature(std::visit(
+         [&](const auto& key) { return signature::storage_type(key.sign(digest, require_canonical)); }, _storage));
    }
 
    struct generate_shared_secret_visitor : visitor<sha512> {
