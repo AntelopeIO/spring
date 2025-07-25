@@ -2,6 +2,7 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
+#include <fc/crypto/packhash.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <boost/functional/hash.hpp>
 
@@ -32,12 +33,20 @@ public:
 	static sha3 hash(const std::string& s, bool is_nist=true) { return hash(s.c_str(), s.size(), is_nist); }
 	static sha3 hash(const sha3& s, bool is_nist=true) { return hash(s.data(), sizeof(s._hash), is_nist); }
 
-	template <typename T>
-	static sha3 hash(const T &t, bool is_nist=true)
-	{
-		sha3::encoder e;
-		fc::raw::pack(e, t);
-		return e.result(is_nist);
+	struct keccak {};
+	struct nist {};
+
+	template <typename SHA3Algo, typename T>
+	requires (std::is_same_v<SHA3Algo, keccak> || std::is_same_v<SHA3Algo, nist>)
+	static sha3 hash(SHA3Algo, const T &t) {
+		return packhash(SHA3Algo{}, t);
+	}
+
+	template <typename SHA3Algo, typename... T>
+	requires ((std::is_same_v<SHA3Algo, keccak> || std::is_same_v<SHA3Algo, nist>) && sizeof...(T) > 0)
+	static sha3 packhash(SHA3Algo, const T&... t) {
+		using encoder_type = std::conditional_t<std::is_same_v<SHA3Algo, keccak>, keccak_encoder, nist_encoder>;
+		return packhash<encoder_type>(t...);
 	}
 
 	class encoder
@@ -54,6 +63,13 @@ public:
 	private:
 		struct impl;
 		fc::fwd<impl, 1016> my;
+	};
+
+	struct nist_encoder : public encoder {
+		sha3 result() { return encoder::result(true); }
+	};
+	struct keccak_encoder : public encoder {
+		sha3 result() { return encoder::result(false); }
 	};
 
 	template <typename T>
