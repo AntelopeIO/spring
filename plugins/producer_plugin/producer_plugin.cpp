@@ -2988,6 +2988,8 @@ void producer_plugin::process_blocks() {
       try {
          auto r = on_incoming_block();
          if (r.status == controller::apply_blocks_result_t::status_t::incomplete) {
+            if (app().is_quiting())
+               return;
             app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
                self(self);
             });
