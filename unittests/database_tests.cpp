@@ -1,8 +1,6 @@
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/testing/tester.hpp>
 
-#include <fc/crypto/digest.hpp>
-
 #include <boost/test/unit_test.hpp>
 
 using namespace eosio::chain;
