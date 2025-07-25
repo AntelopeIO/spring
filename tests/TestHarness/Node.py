@@ -136,7 +136,7 @@ class Node(Transactions):
                 Utils.Print("account validation failed. account: %s" % (account.name))
                 raise
 
-    def waitForTransactionInBlock(self, transId, timeout=None, exitOnError=True):
+    def waitForTransactionInBlock(self, transId, timeout=None, exitOnError=False):
         """Wait for trans id to appear in a block."""
         assert(isinstance(transId, str))
         lam = lambda: self.isTransInAnyBlock(transId, exitOnError=exitOnError)

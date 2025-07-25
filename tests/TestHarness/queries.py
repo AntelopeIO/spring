@@ -256,14 +256,14 @@ class NodeosQueries:
         # either it is there or the transaction has timed out
         return self.processCleosCmd(cmd, cmdDesc, silentErrors=silentErrors, exitOnError=exitOnError, exitMsg=msg)
 
-    def isTransInBlock(self, transId, blockId):
+    def isTransInBlock(self, transId, blockId, exitOnError=False):
         """Check if transId is within block identified by blockId"""
         assert(transId)
         assert(isinstance(transId, str))
         assert(blockId)
         assert(isinstance(blockId, int))
 
-        block=self.getBlock(blockId, exitOnError=True)
+        block=self.getBlock(blockId, exitOnError=exitOnError)
 
         transactions=None
         key=""
@@ -271,8 +271,9 @@ class NodeosQueries:
             key="[transactions]"
             transactions=block["transactions"]
         except (AssertionError, TypeError, KeyError) as _:
-            Utils.Print("block%s not found. Block: %s" % (key,block))
-            raise
+            if exitOnError:
+                Utils.Print("block%s not found. Block: %s" % (key,block))
+                raise
 
         if transactions is not None:
             for trans in transactions:
@@ -313,7 +314,7 @@ class NodeosQueries:
         if Utils.Debug: Utils.Print("Reference block num %d, Head block num: %d" % (refBlockNum, headBlockNum))
         for blockNum in range(refBlockNum, headBlockNum + blocksAhead):
             self.waitForBlock(blockNum)
-            if self.isTransInBlock(transId, blockNum):
+            if self.isTransInBlock(transId, blockNum, exitOnError=exitOnError):
                 if Utils.Debug: Utils.Print("Found transaction %s in block %d" % (transId, blockNum))
                 return blockNum
 
