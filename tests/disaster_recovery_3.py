@@ -97,11 +97,11 @@ try:
     for node in [node0, node1]:
         assert not node.verifyAlive(), "Node did not shutdown"
 
-    Print("Resume production on Node2 and Node3")
+    Print("Resume production on Node2 and Node3, after shutdown of Node0 and Node1, LIB can no longer advance")
     for node in [node2, node3]:
         node.processUrllibRequest("producer", "resume", exitOnError=True)
 
-    Print("Wait for lib to advance to LIB N on other 2 nodes")
+    Print("Wait for lib to advance to LIB N on other 2 nodes, LIB should not advance any further since Node0 and Node1 shutdown")
     for node in [node2, node3]:
         assert node.waitForBlock(n_LIB, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
         currentLIB = node.getIrreversibleBlockNum()
