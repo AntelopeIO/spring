@@ -4312,12 +4312,17 @@ struct controller_impl {
          if (qc) {
             verify_qc_future.get();
          }
-         boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
-            try {
-               integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
-               consider_voting(bsp, use_thread_pool_t::no);
-            } FC_LOG_AND_DROP()
-         });
+         if (async_voting == async_t::yes) {
+            boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
+               try {
+                  integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
+                  consider_voting(bsp, use_thread_pool_t::no);
+               } FC_LOG_AND_DROP()
+            });
+         } else {
+            integrate_received_qc_to_block(bsp);
+            consider_voting(bsp, use_thread_pool_t::no);
+         }
       } else {
          assert(!verify_qc_future.valid());
       }
