@@ -33,15 +33,6 @@ namespace fc {
       reset();
     }
 
-    sha224 sha224::hash( const char* d, uint32_t dlen ) {
-      encoder e;
-      e.write(d,dlen);
-      return e.result();
-    }
-    sha224 sha224::hash( const std::string& s ) {
-      return hash( s.c_str(), s.size() );
-    }
-
     void sha224::encoder::write( const char* d, uint32_t dlen ) {
       SHA224_Update( &my->ctx, d, dlen);
     }

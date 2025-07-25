@@ -67,7 +67,7 @@ namespace fc { namespace crypto {
       char data[size_of_data_to_hash + size_of_hash_bytes];
       data[0] = (char)0x80; // this is the Bitcoin MainNet code
       memcpy(&data[1], (const char*)&secret.serialize(), sizeof(typename Data::data_type));
-      sha256 digest = sha256::hash(data, size_of_data_to_hash);
+      sha256 digest = sha256::hash_raw(std::span(data, size_of_data_to_hash));
       digest = sha256::hash(digest);
       memcpy(data + size_of_data_to_hash, (char*)&digest, size_of_hash_bytes);
       return to_base58(data, sizeof(data), yield);
@@ -79,7 +79,7 @@ namespace fc { namespace crypto {
       auto wif_bytes = from_base58(wif_key);
       FC_ASSERT(wif_bytes.size() >= 5);
       auto key_bytes = vector<char>(wif_bytes.begin() + 1, wif_bytes.end() - 4);
-      fc::sha256 check = fc::sha256::hash(wif_bytes.data(), wif_bytes.size() - 4);
+      fc::sha256 check = fc::sha256::hash_raw(std::span(wif_bytes.data(), wif_bytes.size() - 4));
       fc::sha256 check2 = fc::sha256::hash(check);
 
       FC_ASSERT(memcmp( (char*)&check, wif_bytes.data() + wif_bytes.size() - 4, 4 ) == 0 ||

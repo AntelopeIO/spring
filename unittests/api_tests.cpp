@@ -2710,7 +2710,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_test, T, validating_testers) { try 
          buf2.resize(fc::raw::pack_size(*act_base));
          datastream<char*> ds2(buf2.data(), buf2.size());
          fc::raw::pack(ds2, *act_base);
-         fc::raw::pack(ds, sha256::hash(buf2.data(), buf2.size()));
+         fc::raw::pack(ds, sha256::hash_raw(buf2));
       }
 
       {
@@ -2719,10 +2719,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_test, T, validating_testers) { try 
          datastream<char*> ds2(buf2.data(), buf2.size());
          fc::raw::pack(ds2, act.data);
          fc::raw::pack(ds2, act_output);
-         fc::raw::pack(ds, sha256::hash(buf2.data(), buf2.size()));
+         fc::raw::pack(ds, sha256::hash_raw(buf2));
       }
 
-      digest_type computed_act_digest = sha256::hash(buf1.data(), ds.tellp());
+      digest_type computed_act_digest = sha256::hash_raw(std::span(buf1.data(), ds.tellp()));
 
       return expected_act_digest == computed_act_digest;
    };

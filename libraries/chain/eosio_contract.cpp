@@ -141,7 +141,7 @@ void apply_eosio_setcode(apply_context& context) {
    int64_t code_size = (int64_t)act.code.size();
 
    if( code_size > 0 ) {
-     code_hash = fc::sha256::hash( act.code.data(), (uint32_t)act.code.size() );
+     code_hash = fc::sha256::hash_raw( act.code );
      wasm_interface::validate(context.control, act.code);
    }
 

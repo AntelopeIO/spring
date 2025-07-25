@@ -622,7 +622,7 @@ BOOST_FIXTURE_TEST_CASE( get_table_next_key_test, validating_tester ) try {
    params.lower_bound = "2652d68fbbf6000c703b35fdc607b09cd8218cbeea1d108b5c9e84842cdd5ea5"; // This is hash of "thirdinput"
 
    auto res_6 = get_table_rows_full(plugin, params, fc::time_point::maximum());
-   checksum256_type sec256_expected_value = checksum256_type::hash(std::string("thirdinput"));
+   checksum256_type sec256_expected_value = checksum256_type::hash_raw(std::string("thirdinput"));
    BOOST_REQUIRE(res_6.rows.size() > 0u);
    checksum256_type sec256_res_value = res_6.rows[0].get_object()["sec256"].as<checksum256_type>();
    BOOST_TEST(sec256_res_value == sec256_expected_value);
@@ -630,7 +630,7 @@ BOOST_FIXTURE_TEST_CASE( get_table_next_key_test, validating_tester ) try {
    BOOST_TEST(res_6.next_key == "3cb93a80b47b9d70c5296be3817d34b48568893b31468e3a76337bb7d3d0c264");
    params.lower_bound = res_6.next_key;
    auto more2_res_6 = get_table_rows_full(plugin, params, fc::time_point::maximum());
-   checksum256_type more2_sec256_expected_value = checksum256_type::hash(std::string("secondinput"));
+   checksum256_type more2_sec256_expected_value = checksum256_type::hash_raw(std::string("secondinput"));
    BOOST_REQUIRE(more2_res_6.rows.size() > 0u);
    checksum256_type more2_sec256_res_value = more2_res_6.rows[0].get_object()["sec256"].as<checksum256_type>();
    BOOST_TEST(more2_sec256_res_value == more2_sec256_expected_value);
@@ -642,7 +642,7 @@ BOOST_FIXTURE_TEST_CASE( get_table_next_key_test, validating_tester ) try {
    params.lower_bound = "0x2652d68fbbf6000c703b35fdc607b09cd8218cbeea1d108b5c9e84842cdd5ea5"; // This is sha256 hash of "thirdinput" as number
 
    auto res_7 = get_table_rows_full(plugin, params, fc::time_point::maximum());
-   checksum256_type i256_expected_value = checksum256_type::hash(std::string("thirdinput"));
+   checksum256_type i256_expected_value = checksum256_type::hash_raw(std::string("thirdinput"));
    BOOST_REQUIRE(res_7.rows.size() > 0u);
    checksum256_type i256_res_value = res_7.rows[0].get_object()["sec256"].as<checksum256_type>();
    BOOST_TEST(i256_res_value == i256_expected_value);
@@ -650,7 +650,7 @@ BOOST_FIXTURE_TEST_CASE( get_table_next_key_test, validating_tester ) try {
    BOOST_TEST(res_7.next_key == "0x3cb93a80b47b9d70c5296be3817d34b48568893b31468e3a76337bb7d3d0c264");
    params.lower_bound = res_7.next_key;
    auto more2_res_7 = get_table_rows_full(plugin, params, fc::time_point::maximum());
-   checksum256_type more2_i256_expected_value = checksum256_type::hash(std::string("secondinput"));
+   checksum256_type more2_i256_expected_value = checksum256_type::hash_raw(std::string("secondinput"));
    BOOST_REQUIRE(more2_res_7.rows.size() > 0u);
    checksum256_type more2_i256_res_value = more2_res_7.rows[0].get_object()["sec256"].as<checksum256_type>();
    BOOST_TEST(more2_i256_res_value == more2_i256_expected_value);
@@ -662,7 +662,7 @@ BOOST_FIXTURE_TEST_CASE( get_table_next_key_test, validating_tester ) try {
    params.lower_bound = "ab4314638b573fdc39e5a7b107938ad1b5a16414"; // This is ripemd160 hash of "thirdinput"
 
    auto res_8 = get_table_rows_full(plugin, params, fc::time_point::maximum());
-   ripemd160 sec160_expected_value = ripemd160::hash(std::string("thirdinput"));
+   ripemd160 sec160_expected_value = ripemd160::hash_raw(std::string("thirdinput"));
    BOOST_REQUIRE(res_8.rows.size() > 0u);
    ripemd160 sec160_res_value = res_8.rows[0].get_object()["sec160"].as<ripemd160>();
    BOOST_TEST(sec160_res_value == sec160_expected_value);
@@ -670,7 +670,7 @@ BOOST_FIXTURE_TEST_CASE( get_table_next_key_test, validating_tester ) try {
    BOOST_TEST(res_8.next_key == "fb9d03d3012dc2a6c7b319f914542e3423550c2a");
    params.lower_bound = res_8.next_key;
    auto more2_res_8 = get_table_rows_full(plugin, params, fc::time_point::maximum());
-   ripemd160 more2_sec160_expected_value = ripemd160::hash(std::string("secondinput"));
+   ripemd160 more2_sec160_expected_value = ripemd160::hash_raw(std::string("secondinput"));
    BOOST_REQUIRE(more2_res_8.rows.size() > 0u);
    ripemd160 more2_sec160_res_value = more2_res_8.rows[0].get_object()["sec160"].as<ripemd160>();
    BOOST_TEST(more2_sec160_res_value == more2_sec160_expected_value);

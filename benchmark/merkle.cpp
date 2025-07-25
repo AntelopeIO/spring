@@ -11,7 +11,7 @@ std::vector<digest_type> create_test_digests(size_t n) {
    std::vector<digest_type> v;
    v.reserve(n);
    for (size_t i=0; i<n; ++i)
-      v.push_back(fc::sha256::hash(std::string{"Node"} + std::to_string(i)));
+      v.push_back(fc::sha256::hash_raw(std::string{"Node"} + std::to_string(i)));
    return v;
 }
 
