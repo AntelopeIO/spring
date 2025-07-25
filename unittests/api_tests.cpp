@@ -994,7 +994,9 @@ void transaction_tests(T& chain) {
 
       string sha_expect = ptrx->id();
       auto packed = fc::raw::pack( static_cast<const transaction&>(ptrx->get_transaction()) );
-      packed.push_back('7'); packed.push_back('7'); // extra ignored
+      if (!chain.control->is_builtin_activated(builtin_protocol_feature_t::packed_transaction_restrictions)) {
+         packed.push_back('7'); packed.push_back('7'); // extra ignored
+      }
       auto packed_copy = packed;
       vector<signature_type> psigs = ptrx->get_signatures();
       vector<bytes> pcfd = ptrx->get_context_free_data();
