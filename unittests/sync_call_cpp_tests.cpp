@@ -257,4 +257,10 @@ Test END   ==================)=====";
    BOOST_REQUIRE_EQUAL(actual, expected);
 } FC_LOG_AND_RETHROW() }
 
+// Verify get_sender() works
+BOOST_AUTO_TEST_CASE(get_sender_test) { try {
+   call_tester_cpp t;
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "getsendertst"_n, "caller"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()

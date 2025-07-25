@@ -1,6 +1,7 @@
 #include "sync_callee.hpp"
 #include "../sync_callee1/sync_callee1.hpp"
 #include <eosio/print.hpp>
+#include <eosio/system.hpp>
 
 #include <vector>
 #include <limits>
@@ -9,7 +10,6 @@ using namespace eosio;
 
 [[eosio::call]]
 uint32_t sync_callee::basictest(uint32_t input) {
-   check(get_sender() == "caller"_n, "get_sender() returned an incorrect value");
    eosio::print("I am basictest from sync_callee");
 
    return input;
@@ -132,4 +132,13 @@ sync_callee::person_info sync_callee::getperson(name user) {
 
    return person_info{ .first_name = iterator->first_name,
                        .street     = iterator->street };
+}
+
+void sync_callee::get_sender_test() {
+   // This method is only called by "caller"_n
+   check(get_sender() == "caller"_n, "get_sender() in sync_callee::get_sender_test() got an incorrect value");
+
+   // Now call get_sender_test in "callee1"_n, which checks its sender
+   // and will throw if it is not correct
+   sync_callee1::get_sender_test_func{"callee1"_n}();
 }

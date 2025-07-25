@@ -14,4 +14,8 @@ public:
    [[eosio::call]]
    uint32_t recursive(uint32_t n);
    using recursive_func = eosio::call_wrapper<"recursive"_i, &sync_callee1::recursive>;
+
+   [[eosio::call]]
+   void get_sender_test();
+   using get_sender_test_func = eosio::call_wrapper<"get_sender_test"_i, &sync_callee1::get_sender_test>;
 };
