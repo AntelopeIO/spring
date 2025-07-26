@@ -450,9 +450,9 @@ try {
                                 });
 
       chain.set_transaction_headers(trx);
-      trx.sign( chain.get_private_key( acc1, "active" ), chain.get_chain_id()  );
-      trx.sign( chain.get_private_key( acc1, "owner" ), chain.get_chain_id()  );
-      trx.sign( chain.get_private_key( acc1a, "owner" ), chain.get_chain_id()  );
+      chain.sign(trx, acc1);
+      chain.sign(trx, acc1, "owner");
+      chain.sign(trx, acc1a, "owner");
       return chain.push_transaction( trx );
    };
 
@@ -502,7 +502,7 @@ try {
                                 });
 
       chain.set_transaction_headers(trx);
-      trx.sign( chain.get_private_key( creator, "active" ), chain.get_chain_id()  );
+      chain.sign(trx, creator);
       return chain.push_transaction( trx );
    };
 

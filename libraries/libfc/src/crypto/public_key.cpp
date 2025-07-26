@@ -2,27 +2,10 @@
 #include <fc/crypto/common.hpp>
 #include <fc/exception/exception.hpp>
 
-namespace fc { namespace crypto {
+namespace fc::crypto {
 
-   struct recovery_visitor : fc::visitor<public_key::storage_type> {
-      recovery_visitor(const sha256& digest, bool check_canonical)
-      :_digest(digest)
-      ,_check_canonical(check_canonical)
-      {}
-
-      template<typename SignatureType>
-      public_key::storage_type operator()(const SignatureType& s) const {
-         return public_key::storage_type(s.recover(_digest, _check_canonical));
-      }
-
-      const sha256& _digest;
-      bool _check_canonical;
-   };
-
-   public_key::public_key( const signature& c, const sha256& digest, bool check_canonical )
-   :_storage(std::visit(recovery_visitor(digest, check_canonical), c._storage))
-   {
-   }
+   public_key::public_key(const signature& c, const sha256& digest)
+      : _storage(std::visit([&](const auto& s) { return public_key::storage_type(s.recover(digest)); }, c._storage)) {}
 
    size_t public_key::which() const {
       return _storage.index();
@@ -60,16 +43,9 @@ namespace fc { namespace crypto {
    :_storage(parse_base58(base58str))
    {}
 
-   struct is_valid_visitor : public fc::visitor<bool> {
-      template< typename KeyType >
-      bool operator()( const KeyType& key )const {
-         return key.valid();
-      }
-   };
-
    bool public_key::valid()const
    {
-      return std::visit(is_valid_visitor(), _storage);
+      return std::visit([](const auto& key) { return key.valid(); }, _storage);
    }
 
    // output in pre Spring-2.0 format: EOS, PUB_R1, PUB_WA
@@ -110,7 +86,7 @@ namespace fc { namespace crypto {
    {
       return less_comparator<public_key::storage_type>::apply(p1._storage, p2._storage);
    }
-} } // fc::crypto
+} // fc::crypto
 
 namespace fc
 {

@@ -42,45 +42,16 @@ namespace eosio::testing {
    const setup_policy setup_policy::old_wasm_parser{
       {setup_action::preactivate_protocol_feature,
        setup_action::set_before_producer_authority_bios_contract,
-       setup_action::activate_features},
-      {builtin_protocol_feature_t::only_link_to_existing_permission,
-       builtin_protocol_feature_t::replace_deferred,
-       builtin_protocol_feature_t::no_duplicate_deferred_id,
-       builtin_protocol_feature_t::fix_linkauth_restriction,
-       builtin_protocol_feature_t::disallow_empty_producer_schedule,
-       builtin_protocol_feature_t::restrict_action_to_self,
-       builtin_protocol_feature_t::only_bill_first_authorizer,
-       builtin_protocol_feature_t::forward_setcode,
-       builtin_protocol_feature_t::get_sender,
-       builtin_protocol_feature_t::ram_restrictions,
-       builtin_protocol_feature_t::webauthn_key,
-       builtin_protocol_feature_t::wtmsig_block_signatures,
-       builtin_protocol_feature_t::bls_primitives}
+       setup_action::activate_features_up_to},
+      {builtin_protocol_feature_t::wtmsig_block_signatures, // all features up to `wtmsig_block_signatures` are activated
+       builtin_protocol_feature_t::bls_primitives}          // `bls_primitives` is activated as well
    };
 
    const setup_policy setup_policy::before_disable_deferred_trx {
       {setup_action::preactivate_protocol_feature,
        setup_action::set_before_producer_authority_bios_contract,
-       setup_action::activate_features},
-      {builtin_protocol_feature_t::only_link_to_existing_permission,
-       builtin_protocol_feature_t::replace_deferred,
-       builtin_protocol_feature_t::no_duplicate_deferred_id,
-       builtin_protocol_feature_t::fix_linkauth_restriction,
-       builtin_protocol_feature_t::disallow_empty_producer_schedule,
-       builtin_protocol_feature_t::restrict_action_to_self,
-       builtin_protocol_feature_t::only_bill_first_authorizer,
-       builtin_protocol_feature_t::forward_setcode,
-       builtin_protocol_feature_t::get_sender,
-       builtin_protocol_feature_t::ram_restrictions,
-       builtin_protocol_feature_t::webauthn_key,
-       builtin_protocol_feature_t::wtmsig_block_signatures,
-       builtin_protocol_feature_t::action_return_value,
-       builtin_protocol_feature_t::blockchain_parameters,
-       builtin_protocol_feature_t::get_code_hash,
-       builtin_protocol_feature_t::configurable_wasm_limits,
-       builtin_protocol_feature_t::crypto_primitives,
-       builtin_protocol_feature_t::get_block_num,
-       builtin_protocol_feature_t::bls_primitives
+       setup_action::activate_features_up_to},
+      {builtin_protocol_feature_t::bls_primitives          // all features up to `bls_primitives` are activated
       }
    };
 
@@ -91,6 +62,16 @@ namespace eosio::testing {
        setup_action::set_bios_contract
       },
       {}
+   };
+
+   const setup_policy setup_policy::savanna {
+      {setup_action::preactivate_protocol_feature,
+       setup_action::set_before_producer_authority_bios_contract,
+       setup_action::activate_features_up_to,
+       setup_action::set_bios_contract
+      },
+      {builtin_protocol_feature_t::savanna          // all features up to `savanna` are activated
+      }
    };
 
    const setup_policy setup_policy::full {
@@ -305,6 +286,8 @@ namespace eosio::testing {
          schedule_protocol_features_wo_preactivation( { *preactivate_feature_digest } );
       };
 
+      uint32_t activate_flags = 0;
+
       for (auto action : policy.actions) {
          switch(action) {
          case setup_action::preactivate_protocol_feature: {
@@ -319,13 +302,19 @@ namespace eosio::testing {
          }
 
          case setup_action::activate_features: {
-            activate_builtin_protocol_features(policy.features);
+            activate_flags |= activate_builtin_protocol_features(policy.features);
+            produce_block();
+            break;
+         }
+
+         case setup_action::activate_features_up_to: {
+            activate_flags |= activate_builtin_protocol_features_up_to(policy.features);
             produce_block();
             break;
          }
 
          case setup_action::activate_all_features: {
-            activate_all_builtin_protocol_features();
+            activate_flags |= activate_all_builtin_protocol_features();
             produce_block();
             break;
          }
@@ -346,6 +335,9 @@ namespace eosio::testing {
             assert(0);
             break;
          }
+
+         if (activate_flags & allow_non_canonical_signatures_activated)
+            require_canonical = fc::require_canonical_t::no; // must be set after `produce_block()` activated the feature
       }
    }
 
@@ -722,7 +714,10 @@ namespace eosio::testing {
    }
 
 
-   transaction_trace_ptr base_tester::create_account( account_name a, account_name creator, bool multisig, bool include_code ) {
+   transaction_trace_ptr base_tester::create_account( account_name a,
+                                                      account_name creator /* = config::system_account_name */,
+                                                      bool multisig        /* = false */,
+                                                      bool include_code    /* = true */) {
       signed_transaction trx;
       set_transaction_headers(trx);
 
@@ -764,7 +759,7 @@ namespace eosio::testing {
                                 });
 
       set_transaction_headers(trx);
-      trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+      sign(trx, creator);
       return push_transaction( trx );
    }
 
@@ -822,7 +817,7 @@ namespace eosio::testing {
       trx.actions.emplace_back(std::move(act));
       set_transaction_headers(trx);
       if (authorizer) {
-         trx.sign(get_private_key(account_name(authorizer), "active"), control->get_chain_id());
+         sign(trx, account_name(authorizer));
       }
       try {
          push_transaction(trx);
@@ -879,7 +874,7 @@ namespace eosio::testing {
       trx.actions.emplace_back( get_action( code, acttype, auths, data ) );
       set_transaction_headers( trx, expiration, delay_sec );
       for (const auto& auth : auths) {
-         trx.sign( get_private_key( auth.actor, auth.permission.to_string() ), control->get_chain_id() );
+         sign(trx, get_private_key(auth.actor, auth.permission.to_string()));
       }
 
       return push_transaction( trx );
@@ -919,7 +914,7 @@ namespace eosio::testing {
       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function( abi_serializer_max_time ));
       set_transaction_headers(trx);
       for(auto iter = keys.begin(); iter != keys.end(); iter++)
-         trx.sign( *iter, control->get_chain_id() );
+         sign(trx, *iter);
       return push_transaction( trx );
    }
 
@@ -934,8 +929,8 @@ namespace eosio::testing {
         }
     }
 
-
-   transaction_trace_ptr base_tester::push_dummy(account_name from, const string& v, uint32_t billed_cpu_time_us) {
+    // warning: returned transaction is *not* signed yet
+    signed_transaction base_tester::create_dummy_transaction(account_name from, const std::string& v) {
       // use reqauth for a normal action, this could be anything
       fc::variant pretty_trx = fc::mutable_variant_object()
          ("actions", fc::variants({
@@ -964,11 +959,15 @@ namespace eosio::testing {
       signed_transaction trx;
       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function( abi_serializer_max_time ));
       set_transaction_headers(trx);
-
-      trx.sign( get_private_key( from, "active" ), control->get_chain_id() );
-      return push_transaction( trx, fc::time_point::maximum(), billed_cpu_time_us );
+      return trx;
    }
 
+   transaction_trace_ptr base_tester::push_dummy(account_name from, const string& v,
+                                                 uint32_t billed_cpu_time_us /* = DEFAULT_BILLED_CPU_TIME_US */) {
+      signed_transaction trx = create_dummy_transaction(from, v);
+      sign(trx, from);
+      return push_transaction( trx, fc::time_point::maximum(), billed_cpu_time_us );
+   }
 
    transaction_trace_ptr base_tester::transfer( account_name from, account_name to, string amount, string memo, account_name currency ) {
       return transfer( from, to, asset::from_string(amount), memo, currency );
@@ -999,7 +998,7 @@ namespace eosio::testing {
       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function( abi_serializer_max_time ));
       set_transaction_headers(trx);
 
-      trx.sign( get_private_key( from, name(config::active_name).to_string() ), control->get_chain_id()  );
+      sign(trx, from);
       return push_transaction( trx );
    }
 
@@ -1027,7 +1026,7 @@ namespace eosio::testing {
       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function( abi_serializer_max_time ));
       set_transaction_headers(trx);
 
-      trx.sign( get_private_key( currency, name(config::active_name).to_string() ), control->get_chain_id()  );
+      sign(trx, currency);
       return push_transaction( trx );
    }
 
@@ -1038,7 +1037,7 @@ namespace eosio::testing {
       trx.actions.emplace_back( vector<permission_level>{{account, config::active_name}},
                                 linkauth(account, code, type, req));
       set_transaction_headers(trx);
-      trx.sign( get_private_key( account, "active" ), control->get_chain_id()  );
+      sign(trx, account);
 
       push_transaction( trx );
    }
@@ -1050,7 +1049,7 @@ namespace eosio::testing {
       trx.actions.emplace_back( vector<permission_level>{{account, config::active_name}},
                                 unlinkauth(account, code, type ));
       set_transaction_headers(trx);
-      trx.sign( get_private_key( account, "active" ), control->get_chain_id()  );
+      sign(trx, account);
 
       push_transaction( trx );
    }
@@ -1074,7 +1073,7 @@ namespace eosio::testing {
 
          set_transaction_headers(trx);
       for (const auto& key: keys) {
-         trx.sign( key, control->get_chain_id()  );
+         sign(trx, key);
       }
 
       push_transaction( trx );
@@ -1100,7 +1099,7 @@ namespace eosio::testing {
 
          set_transaction_headers(trx);
          for (const auto& key: keys) {
-            trx.sign( key, control->get_chain_id()  );
+            sign(trx, key);
          }
 
          push_transaction( trx );
@@ -1130,9 +1129,9 @@ namespace eosio::testing {
 
       set_transaction_headers(trx);
       if( signer ) {
-         trx.sign( *signer, control->get_chain_id()  );
+         sign(trx, *signer);
       } else {
-         trx.sign( get_private_key( account, "active" ), control->get_chain_id()  );
+         sign(trx, account);
       }
       push_transaction( trx );
    } FC_CAPTURE_AND_RETHROW( (account) )
@@ -1149,9 +1148,9 @@ namespace eosio::testing {
 
       set_transaction_headers(trx);
       if( signer ) {
-         trx.sign( *signer, control->get_chain_id()  );
+         sign(trx, *signer);
       } else {
-         trx.sign( get_private_key( account, "active" ), control->get_chain_id()  );
+         sign(trx, account);
       }
       push_transaction( trx );
    }
@@ -1432,7 +1431,8 @@ namespace eosio::testing {
                       fc::mutable_variant_object()("feature_digest", feature_digest) );
       }
    }
-   void base_tester::activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& builtins) {
+   uint32_t base_tester::activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& builtins) {
+      uint32_t activate_flags {0};
       const auto& pfm = control->get_protocol_feature_manager();
       const auto& pfs = pfm.get_protocol_feature_set();
       const auto current_block_num  =  control->head().block_num() + (control->is_building_block() ? 1 : 0);
@@ -1458,7 +1458,6 @@ namespace eosio::testing {
          for( const auto& dependency : pf.dependencies ) {
             add_digests( dependency );
          }
-
          activations.emplace_back( feature_digest );
       };
 
@@ -1466,9 +1465,25 @@ namespace eosio::testing {
          auto digest = pfs.get_builtin_digest( f);
          if( !digest ) continue;
          add_digests( *digest );
+
+         if (f == builtin_protocol_feature_t::allow_non_canonical_signatures )
+            activate_flags |= allow_non_canonical_signatures_activated;
       }
 
       activate_protocol_features( activations );
+      return activate_flags;
+   }
+
+   uint32_t base_tester::activate_builtin_protocol_features_up_to(const std::vector<builtin_protocol_feature_t>& builtins) {
+      assert(builtins.size() >= 1);
+      auto upto = builtins[0];
+      std::vector<builtin_protocol_feature_t> full_list;
+      for( const auto& f : builtin_protocol_feature_codenames ) {
+         if (f.first <= upto && f.first != builtin_protocol_feature_t::preactivate_feature)
+            full_list.push_back(f.first);
+      }
+      full_list.insert(full_list.end(), ++builtins.begin(), builtins.end());
+      return activate_builtin_protocol_features(full_list);
    }
 
    std::vector<builtin_protocol_feature_t> base_tester::get_all_builtin_protocol_features() {
@@ -1486,32 +1501,8 @@ namespace eosio::testing {
       return builtins;
    }
 
-   void base_tester::activate_all_builtin_protocol_features() {
-      activate_builtin_protocol_features( get_all_builtin_protocol_features() );
-   }
-
-   void base_tester::activate_all_but_disable_deferred_trx() {
-      std::vector<builtin_protocol_feature_t> builtins;
-      for( const auto& f : get_all_builtin_protocol_features() ) {
-         // Before deferred trxs feature is fully disabled, existing tests involving
-         // deferred trxs need to be exercised to make sure existing behaviors are
-         // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2,
-         // and any future protocol features from full protocol feature list such that
-         // existing tests can run.
-         //
-         // Note: We use `f >= builtin_protocol_feature_t::disable_deferred_trxs_stage_1`
-         // instead of earlier version of comparing with exact features to make code less
-         // fragile when new protocol features are added. Protocol features order can never change.
-         // Future protocol features' ID is guaranteed by the protocol to be greater than
-         // DISABLE_DEFERRED_TRXS_STAGE_1.
-         if( f >= builtin_protocol_feature_t::disable_deferred_trxs_stage_1 ) {
-            continue;
-         }
-
-         builtins.push_back( f );
-      }
-
-      activate_builtin_protocol_features( builtins );
+   uint32_t base_tester::activate_all_builtin_protocol_features() {
+      return activate_builtin_protocol_features( get_all_builtin_protocol_features() );
    }
 
    tester::tester(const std::function<void(controller&)>& control_setup, const setup_policy& policy, db_read_mode read_mode) {

@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( decompressed_size_over_limit, T, testers ) try {
        std::vector<eosio::chain::permission_level>{{"testapi"_n, eosio::chain::config::active_name}}, da);
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
-   auto sig = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.get_chain_id());
+   auto sig = chain.sign(trx, "testapi"_n);
 
    // pack
    packed_transaction pt(trx, packed_transaction::compression_type::zlib);
@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( decompressed_size_under_limit, T, testers ) try {
        std::vector<eosio::chain::permission_level>{{"testapi"_n, eosio::chain::config::active_name}}, da);
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
-   auto sig = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.get_chain_id());
+   auto sig = chain.sign(trx, "testapi"_n);
 
    // pack
    packed_transaction pt(trx, packed_transaction::compression_type::zlib);

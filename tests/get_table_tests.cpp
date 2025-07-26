@@ -59,7 +59,7 @@ issue_tokens( validating_tester& t, account_name issuer, account_name to, const 
    ) );
 
    t.set_transaction_headers(trx);
-   trx.sign( t.get_private_key( issuer, "active" ), t.control->get_chain_id()  );
+   t.sign(trx, issuer);
    return t.push_transaction( trx );
 }
 

@@ -35,7 +35,7 @@ class currency_tester : public T {
          trx.actions.emplace_back(std::move(act));
 
          T::set_transaction_headers(trx);
-         trx.sign(T::get_private_key(signer, "active"), T::get_chain_id());
+         T::sign(trx, signer);
          return T::push_transaction(trx);
       }
 
@@ -434,7 +434,7 @@ BOOST_FIXTURE_TEST_CASE( test_proxy_deferred, pre_disable_deferred_trx_currency_
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key("proxy"_n, "active"), get_chain_id());
+      sign(trx, "proxy"_n);
       push_transaction(trx);
       produce_block();
       BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trx.id()));
@@ -490,7 +490,7 @@ BOOST_FIXTURE_TEST_CASE( test_deferred_failure, pre_disable_deferred_trx_currenc
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key("proxy"_n, "active"), get_chain_id());
+      sign(trx, "proxy"_n);
       push_transaction(trx);
       produce_block();
       BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trx.id()));
@@ -541,7 +541,7 @@ BOOST_FIXTURE_TEST_CASE( test_deferred_failure, pre_disable_deferred_trx_currenc
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key("bob"_n, "active"), get_chain_id());
+      sign(trx, "bob"_n);
       push_transaction(trx);
       produce_block();
       BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trx.id()));

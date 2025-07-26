@@ -140,16 +140,11 @@ namespace fc { namespace ecc {
         my->_key = dat;
     }
 
-    public_key::public_key( const compact_signature& c, const fc::sha256& digest, bool check_canonical )
+    public_key::public_key( const compact_signature& c, const fc::sha256& digest )
     {
         int nV = c.data[0];
         if (nV<27 || nV>=35)
             FC_THROW_EXCEPTION( exception, "unable to reconstruct public key from signature" );
-
-        if( check_canonical )
-        {
-            FC_ASSERT( is_canonical( c ), "signature is not canonical" );
-        }
 
         secp256k1_pubkey secp_pub;
         secp256k1_ecdsa_recoverable_signature secp_sig;

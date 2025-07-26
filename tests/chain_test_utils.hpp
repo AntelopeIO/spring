@@ -77,7 +77,7 @@ inline auto make_bios_ro_trx(eosio::chain::controller& control) {
 inline auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, signed_transaction& trx) {
    trx.expiration = fc::time_point_sec{fc::time_point::now() + fc::seconds(30)};
    trx.set_reference_block( control.head().id() );
-   trx.sign(get_private_key(account, "active"), control.get_chain_id());
+   trx.sign(get_private_key(account, "active"), control.get_chain_id(), fc::require_canonical_t::yes);
    auto ptrx = std::make_shared<packed_transaction>( trx, packed_transaction::compression_type::zlib );
 
    auto trx_promise = std::make_shared<std::promise<transaction_trace_ptr>>();

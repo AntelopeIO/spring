@@ -13,8 +13,8 @@ class signature_provider_plugin_impl {
 
       signature_provider_plugin::signature_provider_type
       make_key_signature_provider(const chain::private_key_type& key) const {
-         return [key]( const chain::digest_type& digest ) {
-            return key.sign(digest);
+         return [key]( const chain::digest_type& digest, fc::require_canonical_t require_canonical ) {
+            return key.sign(digest, require_canonical);
          };
       }
 
@@ -28,7 +28,7 @@ class signature_provider_plugin_impl {
          else
             keosd_url = fc::url(url_str);
 
-         return [to=_keosd_provider_timeout_us, keosd_url, pubkey](const chain::digest_type& digest) {
+         return [to=_keosd_provider_timeout_us, keosd_url, pubkey](const chain::digest_type& digest, fc::require_canonical_t) {
             fc::variant params;
             fc::to_variant(std::make_pair(digest, pubkey), params);
             auto deadline = to.count() >= 0 ? fc::time_point::now() + to : fc::time_point::maximum();

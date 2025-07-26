@@ -69,7 +69,7 @@ struct interface_in_benchmark {
       trx = std::make_unique<signed_transaction>();
       abi_serializer::from_variant(pretty_trx, *trx, chain->get_resolver(), abi_serializer::create_yield_function( chain->abi_serializer_max_time ));
       chain->set_transaction_headers(*trx);
-      trx->sign( chain->get_private_key( "payloadless"_n, "active" ), chain->control.get()->get_chain_id() );
+      chain->sign(*trx, "payloadless"_n);
 
       // construct a packed transaction
       ptrx = std::make_unique<packed_transaction>(*trx, eosio::chain::packed_transaction::compression_type::zlib);

@@ -3,7 +3,7 @@
 #include <eosio/chain/action.hpp>
 #include <numeric>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
    struct deferred_transaction_generation_context : fc::reflect_init {
       static constexpr uint16_t extension_id() { return 0; }
@@ -120,8 +120,10 @@ namespace eosio { namespace chain {
       vector<signature_type>    signatures;
       vector<bytes>             context_free_data; ///< for each context-free action, there is an entry here
 
-      const signature_type&     sign(const private_key_type& key, const chain_id_type& chain_id);
-      signature_type            sign(const private_key_type& key, const chain_id_type& chain_id)const;
+      const signature_type&     sign(const private_key_type& key, const chain_id_type& chain_id,
+                                     fc::require_canonical_t require_canonical = fc::require_canonical_t::yes);
+      [[nodiscard]] signature_type sign(const private_key_type& key, const chain_id_type& chain_id,
+                                        fc::require_canonical_t require_canonical = fc::require_canonical_t::yes)const;
       fc::microseconds          get_signature_keys( const chain_id_type& chain_id, fc::time_point deadline,
                                                     flat_set<public_key_type>& recovered_pub_keys,
                                                     bool allow_duplicate_keys = false )const;
@@ -209,7 +211,7 @@ namespace eosio { namespace chain {
 
    uint128_t transaction_id_to_sender_id( const transaction_id_type& tid );
 
-} } /// namespace eosio::chain
+} /// namespace eosio::chain
 
 FC_REFLECT(eosio::chain::deferred_transaction_generation_context, (sender_trx_id)(sender_id)(sender) )
 FC_REFLECT( eosio::chain::transaction_header, (expiration)(ref_block_num)(ref_block_prefix)

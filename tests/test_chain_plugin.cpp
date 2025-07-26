@@ -103,7 +103,7 @@ public:
         );
 
         set_transaction_headers(trx);
-        trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+        trx.sign( get_private_key( creator, "active" ), control->get_chain_id(), fc::require_canonical_t::yes  );
         return push_transaction( trx );
     }
 
@@ -168,7 +168,7 @@ public:
                                 );
 
       set_transaction_headers(trx);
-      trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+      trx.sign( get_private_key( creator, "active" ), control->get_chain_id(), fc::require_canonical_t::yes  );
       return push_transaction( trx );
     }
 
@@ -269,7 +269,7 @@ public:
         }
 
         set_transaction_headers(trx);
-        trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+        trx.sign( get_private_key( creator, "active" ), control->get_chain_id(), fc::require_canonical_t::yes  );
         return push_transaction( trx );
     }
 
@@ -457,8 +457,8 @@ BOOST_FIXTURE_TEST_CASE(account_results_refund_request_test, chain_plugin_tester
         );
 
         set_transaction_headers(trx);
-        trx.sign( get_private_key( config::system_account_name, "active" ), control->get_chain_id()  );
-        trx.sign( get_private_key( "producer1111"_n, "active" ), control->get_chain_id()  );
+        trx.sign( get_private_key( config::system_account_name, "active" ), control->get_chain_id(), fc::require_canonical_t::yes  );
+        trx.sign( get_private_key( "producer1111"_n, "active" ), control->get_chain_id(), fc::require_canonical_t::yes  );
         push_transaction( trx );
     }
 

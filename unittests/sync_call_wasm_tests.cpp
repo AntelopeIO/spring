@@ -2142,7 +2142,7 @@ BOOST_AUTO_TEST_CASE(read_only_pass_along_test)  { try {
    signed_transaction trx;
    trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
    t.set_transaction_headers(trx);
-   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
+   t.sign(trx, "caller"_n);
    auto trx_trace = t.push_transaction(trx,
                                        fc::time_point::maximum(),
                                        validating_tester::DEFAULT_BILLED_CPU_TIME_US,
@@ -2435,7 +2435,7 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_one_level_test) { try {
    signed_transaction trx;
    trx.actions.emplace_back( vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
    t.set_transaction_headers(trx);
-   trx.sign(t.get_private_key( "caller"_n, "active" ), t.get_chain_id());
+   t.sign(trx, "caller"_n);
 
    // Invalid call flags trigger sync_call_validate_exception
    auto trx_trace = t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, true); // set no_throw to true so that tester can return trace without throwing
@@ -2530,7 +2530,7 @@ BOOST_AUTO_TEST_CASE(trace_exception_propagate_thru_two_levels_test) { try {
    signed_transaction trx;
    trx.actions.emplace_back( vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n, "doit"_n, bytes{});
    t.set_transaction_headers(trx);
-   trx.sign(t.get_private_key( "caller"_n, "active" ), t.get_chain_id());
+   t.sign(trx, "caller"_n);
 
    // "callee11"_n calls eosio_assert
    auto trx_trace = t.push_transaction(trx, fc::time_point::maximum(), validating_tester::DEFAULT_BILLED_CPU_TIME_US, true); // set no_throw to true so that tester can return trace without throwing

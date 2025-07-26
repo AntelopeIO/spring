@@ -18,7 +18,7 @@ void k1_sign_benchmarking() {
    auto key = private_key(private_key_string);
 
    auto sign_non_canonical_f = [&]() {
-      key.sign(digest, false);
+      key.sign(digest, require_canonical_t::no);
    };
    benchmarking("k1_sign_non_canonical", sign_non_canonical_f);
 }
@@ -50,7 +50,7 @@ void r1_benchmarking() {
 
    auto sig = key.sign(digest);
    auto recover_f = [&]() {
-      public_key(sig, digest);;
+      public_key(sig, digest);
    };
    benchmarking("r1_recover", recover_f);
 }
@@ -95,7 +95,7 @@ void wa_benchmarking() {
 
    auto sig = make_webauthn_sig(priv, auth_data, json);
    auto recover= [&]() {
-      sig.recover(d, true);
+      sig.recover(d);
    };
    benchmarking("webauthn_recover", recover);
 }

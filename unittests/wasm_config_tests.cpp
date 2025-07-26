@@ -35,7 +35,7 @@ struct wasm_config_tester : T {
                                                               abi_serializer::create_yield_function( T::abi_serializer_max_time )));
       trx.actions[0].authorization = vector<permission_level>{{"eosio"_n,config::active_name}};
       T::set_transaction_headers(trx);
-      trx.sign(T::get_private_key("eosio"_n, "active"), T::get_chain_id());
+      T::sign(trx, "eosio"_n);
       T::push_transaction(trx);
    }
    // Pushes an empty action
@@ -43,7 +43,7 @@ struct wasm_config_tester : T {
        signed_transaction trx;
        trx.actions.push_back({{{account,config::active_name}}, account, name(), {}});
        T::set_transaction_headers(trx);
-       trx.sign(T::get_private_key( account, "active" ), T::get_chain_id());
+       T::sign(trx, account);
        T::push_transaction(trx);
    }
    chain::abi_serializer bios_abi_ser;
@@ -278,7 +278,7 @@ void test_max_func_local_bytes(T& chain, int32_t n_params, int32_t n_locals, int
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key( "stackz"_n, "active" ), chain.get_chain_id());
+      chain.sign(trx, "stackz"_n);
       chain.push_transaction(trx);
    };
 
@@ -471,7 +471,7 @@ BOOST_DATA_TEST_CASE_F(old_wasm_tester, max_func_local_bytes_old, data::make({0,
       trx.actions.push_back(act);
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key( "stackz"_n, "active" ), get_chain_id());
+      sign(trx, "stackz"_n);
       push_transaction(trx);
    };
 
@@ -531,7 +531,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_stack, T, wasm_config_testers ) {
       signed_transaction trx;
       trx.actions.push_back({{{"stackz"_n,config::active_name}}, "stackz"_n, name(params.max_call_depth - 2), {}});
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key( "stackz"_n, "active" ), chain.get_chain_id());
+      chain.sign(trx, "stackz"_n);
       chain.push_transaction(trx);
    };
    pushit();
@@ -570,7 +570,7 @@ BOOST_FIXTURE_TEST_CASE(max_stack_old, old_wasm_tester) {
       signed_transaction trx;
       trx.actions.push_back({{{"stackz"_n,config::active_name}}, "stackz"_n, name(), {}});
       set_transaction_headers(trx);
-      trx.sign(get_private_key( "stackz"_n, "active" ), get_chain_id());
+      sign(trx, "stackz"_n);
       push_transaction(trx);
    };
    pushit();
@@ -621,7 +621,7 @@ void test_max_table_elements(T& chain, int32_t max_table_elements, int32_t overs
       signed_transaction trx;
       trx.actions.push_back({{{"table"_n,config::active_name}}, "table"_n, name(), {}});
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key( "table"_n, "active" ), chain.get_chain_id());
+      chain.sign(trx, "table"_n);
       chain.push_transaction(trx);
    };
 
@@ -921,7 +921,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
          trx.actions.push_back(act);
 
          chain.set_transaction_headers(trx);
-         trx.sign(chain.get_private_key( "bigmem"_n, "active" ), chain.get_chain_id());
+         chain.sign(trx, "bigmem"_n);
          //but should not be able to grow beyond largest page
          chain.push_transaction(trx);
       };
@@ -936,7 +936,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
          trx.actions.push_back(act);
 
          chain.set_transaction_headers(trx);
-         trx.sign(chain.get_private_key( "accessmem"_n, "active" ), chain.get_chain_id());
+         chain.sign(trx, "accessmem"_n);
          BOOST_CHECK_THROW(chain.push_transaction(trx), eosio::chain::wasm_exception);
       };
 
@@ -951,7 +951,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
          trx.actions.push_back(act);
 
          chain.set_transaction_headers(trx);
-         trx.sign(chain.get_private_key( "intrinsicmem"_n, "active" ), chain.get_chain_id());
+         chain.sign(trx, "intrinsicmem"_n);
          BOOST_CHECK_THROW(chain.push_transaction(trx), eosio::chain::wasm_exception);
       };
 
@@ -1030,7 +1030,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( call_depth, T, wasm_config_testers ) try {
       chain.produce_block();
       trx.signatures.clear();
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key("depth"_n, "active"), chain.get_chain_id());
+      chain.sign(trx, "depth"_n);
       chain.push_transaction(trx);
    };
 
@@ -1144,7 +1144,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( reset_chain_tests, T, wasm_config_testers ) {
       trx.actions.push_back({ { { "eosio"_n, config::active_name} }, "eosio"_n, ""_n, fc::raw::pack(genesis_state::default_initial_wasm_configuration) });
       trx.actions.push_back({ { { "eosio"_n, config::active_name} }, make_setcode(contracts::eosio_bios_wasm()) });
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key("eosio"_n, "active"), chain.get_chain_id());
+      chain.sign(trx, "eosio"_n);
       chain.push_transaction(trx);
    }
    chain.produce_block();
@@ -1210,7 +1210,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_wasm_parameters_test, T, validating_testers )
       trx.actions.emplace_back(vector<permission_level>{{"test"_n,config::active_name}}, "test"_n, ""_n,
                                params);
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key("test"_n, "active"), chain.get_chain_id());
+      chain.sign(trx, "test"_n);
       chain.push_transaction(trx);
    };
 
@@ -1266,7 +1266,7 @@ BOOST_FIXTURE_TEST_CASE(large_custom_section, old_wasm_tester)
    signed_transaction trx;
    trx.actions.emplace_back(vector<permission_level>{{"hugecustom"_n,config::active_name}}, "hugecustom"_n, ""_n, std::vector<char>{});
    set_transaction_headers(trx);
-   trx.sign(get_private_key("hugecustom"_n, "active"), get_chain_id());
+   sign(trx, "hugecustom"_n);
    push_transaction(trx);
 }
 

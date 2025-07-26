@@ -28,7 +28,7 @@ public:
    static std::tuple<std::string, std::string, std::string> parse_signature_provider_spec(const std::string& spec);
 
 
-   using signature_provider_type = std::function<chain::signature_type(chain::digest_type)>;
+   using signature_provider_type = std::function<chain::signature_type(chain::digest_type, fc::require_canonical_t)>;
 
    // @return empty optional for BLS specs
    std::optional<std::pair<chain::public_key_type,signature_provider_type>> signature_provider_for_specification(const std::string& spec) const;

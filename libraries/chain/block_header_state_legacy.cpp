@@ -396,7 +396,7 @@ namespace eosio::chain {
                         validator_t& validator,
                         bool skip_validate_signee )const
    {
-      return next( h.timestamp, h.confirmed ).finish_next( h, std::move(additional_signatures), pfs, validator, skip_validate_signee );
+      return next(h.timestamp, h.confirmed).finish_next(h, std::move(additional_signatures), pfs, validator, skip_validate_signee);
    }
 
    digest_type   block_header_state_legacy::sig_digest()const {
@@ -417,7 +417,7 @@ namespace eosio::chain {
       verify_signee();
    }
 
-   void block_header_state_legacy::verify_signee( )const {
+   void block_header_state_legacy::verify_signee()const {
 
       auto num_keys_in_authority = std::visit([](const auto &a){ return a.keys.size(); }, valid_block_signing_authority);
       EOS_ASSERT(1 + additional_signatures.size() <= num_keys_in_authority, wrong_signing_key,
@@ -429,10 +429,10 @@ namespace eosio::chain {
 
       std::set<public_key_type> keys;
       auto digest = sig_digest();
-      keys.emplace(fc::crypto::public_key( header.producer_signature, digest, true ));
+      keys.emplace(fc::crypto::public_key( header.producer_signature, digest ));
 
       for (const auto& s: additional_signatures) {
-         auto res = keys.emplace(s, digest, true);
+         auto res = keys.emplace(s, digest);
          EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice", ("key", *res.first));
       }
 

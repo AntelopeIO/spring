@@ -43,7 +43,7 @@ namespace fc {
 
            public_key( const public_key_data& v );
            public_key( const public_key_point_data& v );
-           public_key( const compact_signature& c, const fc::sha256& digest, bool check_canonical = true );
+           public_key(const compact_signature& c, const fc::sha256& digest);
 
            bool valid()const;
            public_key mult( const fc::sha256& offset );
@@ -61,6 +61,8 @@ namespace fc {
            {
             return a.serialize() != b.serialize();
            }
+
+           static bool is_canonical( const compact_signature& c );
 
         private:
           friend class private_key;
@@ -136,8 +138,8 @@ namespace fc {
         using public_key_type = public_key_shim;
         using crypto::shim<compact_signature>::shim;
 
-        public_key_type recover(const sha256& digest, bool check_canonical) const {
-           return public_key_type(public_key(_data, digest, check_canonical).serialize());
+        public_key_type recover(const sha256& digest) const {
+           return public_key_type(public_key(_data, digest).serialize());
         }
      };
 
@@ -146,7 +148,7 @@ namespace fc {
         using signature_type = signature_shim;
         using public_key_type = public_key_shim;
 
-        signature_type sign( const sha256& digest, bool require_canonical = true ) const
+        signature_type sign( const sha256& digest, require_canonical_t require_canonical = require_canonical_t::yes ) const
         {
            return signature_type(private_key::regenerate(_data).sign_compact(digest));
         }

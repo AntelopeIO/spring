@@ -112,7 +112,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    act.data = fc::raw::pack(10000000000000000000ULL);
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(t.get_private_key("testapi"_n, "active"), t.get_chain_id());
+   t.sign(signed_tx, "testapi"_n);
    // Replace the transaction
    auto new_packed_tx = packed_transaction(signed_tx);
    copy_b->transactions.back().trx = std::move(new_packed_tx);

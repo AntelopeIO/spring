@@ -50,7 +50,16 @@ namespace eosio::chain::webassembly {
          EOS_ASSERT(s.variable_size() <= context.control.configured_subjective_signature_length_limit(),
                     sig_variable_size_limit_exception, "signature variable length component size greater than subjective maximum");
 
-      auto check = fc::crypto::public_key( s, *digest, false );
+      // The public_key constructor used to be called with `check_canonical == false)`
+      // still, until the protocol feature is activated, we do the canonical check for r1 signatures because r1 always
+      // checked for low-s no matter if the `check_canonical parameter` was true or false (see
+      // https://github.com/AntelopeIO/spring/blob/f436b748dac8da5d355178b63842f8ae33973606/libraries/libfc/src/crypto/elliptic_r1.cpp#L509-L51
+      // ----------------------------------------------------------------------------------------------------------------
+      if (!context.control.is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures) && s.is_r1())
+         EOS_ASSERT(s.is_canonical(), fc::exception, "invalid high s-value encountered in r1 signature");
+
+      auto check = fc::crypto::public_key(s, *digest);
+
       EOS_ASSERT( check == p, crypto_api_exception, "Error expected key different than recovered key" );
    }
 
@@ -69,7 +78,15 @@ namespace eosio::chain::webassembly {
                     sig_variable_size_limit_exception, "signature variable length component size greater than subjective maximum");
 
 
-      auto recovered = fc::crypto::public_key(s, *digest, false);
+      // The public_key constructor used to be called with `check_canonical == false)`
+      // still, until the protocol feature is activated, we do the canonical check for r1 signatures because r1 always
+      // checked for low-s no matter if the `check_canonical parameter` was true or false (see
+      // https://github.com/AntelopeIO/spring/blob/f436b748dac8da5d355178b63842f8ae33973606/libraries/libfc/src/crypto/elliptic_r1.cpp#L509-L51
+      // ----------------------------------------------------------------------------------------------------------------
+      if (!context.control.is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures) && s.is_r1())
+         EOS_ASSERT(s.is_canonical(), fc::exception, "invalid high s-value encountered in r1 signature");
+
+      auto recovered = fc::crypto::public_key(s, *digest);
 
       // the key types newer than the first 2 may be varible in length
       if (s.which() >= config::genesis_num_supported_key_types ) {

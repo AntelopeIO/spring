@@ -374,9 +374,9 @@ struct assembled_block {
                                       return completed_block{block_handle{std::move(bsp)}};
                                    },
                                    [&](assembled_block_if& ab) {
-                                      auto bsp = std::make_shared<block_state>(ab.bhs, std::move(ab.trx_metas),
-                                                                               std::move(ab.trx_receipts), ab.valid, ab.qc, signer,
-                                                                               valid_block_signing_authority, ab.action_mroot);
+                                      auto bsp = std::make_shared<block_state>(
+                                         ab.bhs, std::move(ab.trx_metas), std::move(ab.trx_receipts), ab.valid, ab.qc,
+                                         signer, valid_block_signing_authority, ab.action_mroot);
                                       return completed_block{block_handle{std::move(bsp)}};
                                    }},
                         v);
@@ -3812,6 +3812,21 @@ struct controller_impl {
       return {};
    }
 
+   void validate_canonical_signatures(const signed_block_ptr& b) {
+      // validate that block signatures are canonical
+      // --------------------------------------------
+      EOS_ASSERT(b->producer_signature.is_canonical(), block_validate_exception,
+                 "signature of block ${id} is not canonical", ("id", b->calculate_id()));
+
+      // check additional signatures
+      // ---------------------------
+      auto sigs = detail::extract_additional_signatures(b);
+      for (const auto& sig : sigs) {
+         EOS_ASSERT(sig.is_canonical(), block_validate_exception, "signature of block ${id} is not canonical",
+                    ("id", b->calculate_id()));
+      }
+   }
+
    template<class BSP>
    controller::apply_blocks_result_t::status_t apply_block( const BSP& bsp, controller::block_status s,
                                                             const trx_meta_cache_lookup& trx_lookup ) {
@@ -3961,13 +3976,21 @@ struct controller_impl {
             }
             auto& ab = std::get<assembled_block>(pending->_block_stage);
 
+            if (!is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)) {
+               // prior to `allow_non_canonical_signatures` being activated, we need to verify that
+               // block & transactions signatures are canonical.
+               // ---------------------------------------------------------------------------------
+               validate_canonical_signatures(b);
+            }
+
             if( producer_block_id != ab.id() ) {
                elog( "Validation block id does not match producer block id" );
 
                report_block_header_diff(*b, ab.header());
 
                // this implicitly asserts that all header fields (less the signature) are identical
-               EOS_ASSERT(producer_block_id == ab.id(), block_validate_exception, "Block ID does not match, ${producer_block_id} != ${validator_block_id}",
+               EOS_ASSERT(producer_block_id == ab.id(), block_validate_exception,
+                          "Block ID does not match, ${producer_block_id} != ${validator_block_id}",
                           ("producer_block_id", producer_block_id)("validator_block_id", ab.id()));
             }
 
@@ -4466,7 +4489,9 @@ struct controller_impl {
                   }
                }
 
-               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
+
+               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),
+                                                                      validator, skip_validate_signee);
 
                if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result_t::status_t::complete) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
