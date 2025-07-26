@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fc/fwd.hpp>
+#include <fc/crypto/packhash.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <fc/reflect/typename.hpp>
 
@@ -8,7 +9,7 @@ namespace fc{
 class sha512;
 class sha256;
 
-class ripemd160
+class ripemd160 : public add_packhash_to_hash<ripemd160>
 {
   public:
     ripemd160();
@@ -28,9 +29,7 @@ class ripemd160
     template<typename T>
     static ripemd160 hash( const T& t ) 
     { 
-      ripemd160::encoder e; 
-      fc::raw::pack(e,t);
-      return e.result(); 
+      return packhash(t);
     } 
 
     class encoder 

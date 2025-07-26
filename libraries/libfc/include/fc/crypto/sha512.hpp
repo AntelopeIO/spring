@@ -1,11 +1,12 @@
 #pragma once
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
+#include <fc/crypto/packhash.hpp>
 
 namespace fc
 {
 
-class sha512 
+class sha512 : public add_packhash_to_hash<sha512>
 {
   public:
     sha512();
@@ -24,9 +25,7 @@ class sha512
     template<typename T>
     static sha512 hash( const T& t ) 
     { 
-      sha512::encoder e; 
-      e << t; 
-      return e.result(); 
+      return packhash(t);
     } 
 
     class encoder 

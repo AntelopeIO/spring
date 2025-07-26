@@ -96,20 +96,8 @@ namespace eosio { namespace chain {
    };
 
    inline digest_type generate_action_digest(const action& act, const vector<char>& action_output) {
-      std::array<digest_type,2> hashes;
       const action_base& base = act;
-
-      fc::sha256::encoder enc;
-      fc::raw::pack(enc, base);
-      hashes[0] = enc.result();
-
-      enc.reset();
-      fc::raw::pack(enc, act.data, action_output);
-      hashes[1] = enc.result();
-
-      enc.reset();
-      fc::raw::pack(enc, hashes);
-      return enc.result();
+      return fc::sha256::packhash(fc::sha256::packhash(base), fc::sha256::packhash(act.data, action_output));
    }
 
 } } /// namespace eosio::chain

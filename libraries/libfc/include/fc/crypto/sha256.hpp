@@ -4,13 +4,14 @@
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
+#include <fc/crypto/packhash.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <boost/functional/hash.hpp>
 
 namespace fc
 {
 
-class sha256 
+class sha256 : public add_packhash_to_hash<sha256>
 {
   public:
     sha256();
@@ -39,9 +40,7 @@ class sha256
     template<typename T>
     static sha256 hash( const T& t ) 
     { 
-      sha256::encoder e; 
-      fc::raw::pack(e,t);
-      return e.result(); 
+      return packhash(t);
     } 
 
     class encoder 

@@ -1,10 +1,11 @@
 #pragma once
 #include <fc/fwd.hpp>
 #include <fc/string.hpp>
+#include <fc/crypto/packhash.hpp>
 
 namespace fc{
 
-class sha1 
+class sha1 : public add_packhash_to_hash<sha1>
 {
   public:
     sha1();
@@ -23,9 +24,7 @@ class sha1
     template<typename T>
     static sha1 hash( const T& t ) 
     { 
-      sha1::encoder e; 
-      e << t; 
-      return e.result(); 
+      return packhash(t);
     } 
 
     class encoder 
