@@ -48,8 +48,8 @@ try:
     # Create a transaction to create an account
     Utils.Print("create a new account payloadless from the producer node")
     payloadlessAcc = Account("payloadless")
-    payloadlessAcc.ownerPublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
-    payloadlessAcc.activePublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+    payloadlessAcc.ownerPublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
+    payloadlessAcc.activePublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
     producerNode.createAccount(payloadlessAcc, cluster.eosioAccount)
 
 

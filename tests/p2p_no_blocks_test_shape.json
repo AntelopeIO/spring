@@ -6,7 +6,7 @@
       "name": "bios",
       "keys": [
         {
-          "pubkey": "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV",
+          "pubkey": "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63",
           "privkey": "5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3",
           "blspubkey": "PUB_BLS_sGOyYNtpmmjfsNbQaiGJrPxeSg9sdx0nRtfhI_KnWoACXLL53FIf1HjpcN8wX0cYQyOE60NLSI9iPY8mIlT4GkiFMT3ez7j2IbBBzR0D1MthC0B_fYlgYWwjcbqCOowSaH48KA",
           "blsprivkey": "PVT_BLS_QgHHJ5vprZcjG7P0xWoIdX4yKPQXoG4k3e28TpLIQicB7GL_",
@@ -32,7 +32,7 @@
       "name": "testnet_00",
       "keys": [
         {
-          "pubkey": "EOS7D6jfN6bbJD9cYheyhnBT4bmUWc3Qf4Yphf5GBeAAy58okcwHU",
+          "pubkey": "PUB_K1_7D6jfN6bbJD9cYheyhnBT4bmUWc3Qf4Yphf5GBeAAy58p6iuRk",
           "privkey": "5KkmnyunnpCQzgFoLMEtU3j7BRBa5aWmsBNru49ke7LdnZKFhmt",
           "blspubkey": "PUB_BLS_X6Wzge0CMkDLu0svywBWGBdIuMfol_hAG7zeukAddsbQsArgcuZ6tz3LLoLRurUMhz6ZpOHdYCPU0Rg8Fo8n4UDsT6pcHSmwWMKWIhyS-Ms0O_dYCRQ2Q5HLxBGMxyIWaltxlw",
           "blsprivkey": "PVT_BLS_TvIkGjiwy3b5k9yc6YnwHPQp1n_9x8yP4mZQl5Ke1yvp2_vv",
@@ -78,7 +78,7 @@
       "name": "testnet_01",
       "keys": [
         {
-          "pubkey": "EOS5tZqxLB8y9q2yHkgcXU4QFBEV6QKN3NQ54ygaFLWHJbjqYzFhw",
+          "pubkey": "PUB_K1_5tZqxLB8y9q2yHkgcXU4QFBEV6QKN3NQ54ygaFLWHJbjoUr325",
           "privkey": "5KBs4qR7T8shJjCJUeFQXd77iKrok5TCtZiQhWJpCpc1VRxpNAs",
           "blspubkey": "PUB_BLS_UmHR2Ez-gUJVkptOXXlWBCSu2aPQ3EBk69L7IzXn-pAXiWv5gP6fgQv5Js4n3VcJL6TK1M9rB9wAPhnr7b6xdKg2_zWD62qUoal9GYmBS5doxlCdKDY8ZFj6fbGS02oY_-ItrQ",
           "blsprivkey": "PVT_BLS_IRjJHkfSSII-mDq7iVOsznvka_sRMsmxJSJwXQyr5mqmERAV",
@@ -102,7 +102,7 @@
       "name": "testnet_02",
       "keys": [
         {
-          "pubkey": "EOS5FBPf5EN9bYEqmsKfPx9bxyUZ9grDiE24zqLFXtPa6UpVzMjE7",
+          "pubkey": "PUB_K1_5FBPf5EN9bYEqmsKfPx9bxyUZ9grDiE24zqLFXtPa6UpTwFq84",
           "privkey": "5HtVDiAsD24seDm5sdswTcdZpx672XbBW9gBkyrzbsj2j9Y9JeC",
           "blspubkey": "PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w",
           "blsprivkey": "PVT_BLS_QRxLAVbe2n7RaPWx2wHbur8erqUlAs-V_wXasGhjEA78KlBq",
@@ -125,7 +125,7 @@
       "name": "testnet_03",
       "keys": [
         {
-          "pubkey": "EOS8XH2gKxsef9zxmMHm4vaSvxQUhg7W4GC3nK2KSRxyYrNG5gZFS",
+          "pubkey": "PUB_K1_8XH2gKxsef9zxmMHm4vaSvxQUhg7W4GC3nK2KSRxyYrNDSQ7Sm",
           "privkey": "5JcoRRhDcgm51dkBrRTmErceTqrYhrq22UnmUjTZToMpH91B9N1",
           "blspubkey": "PUB_BLS_rYRa_-bT7uLOSAfPIBy6NlXFB0YxwROeSuqHzw6s-1cuK_-GJUKqp20ktyAnsO4ZuHdx3BEPDaLronpnL22MXKWM7bvZnkCfbGCD6OzizQqxXkM9N5z5R-OUA4Ime6cF5YTSFg",
           "blsprivkey": "PVT_BLS_GQjR0E8Hu8KrsTCvLKnlOCIwQijAj2-5KDizQwF-bAY6pise",

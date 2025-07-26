@@ -58,8 +58,8 @@ try:
 
     # Schedule a new producer to trigger new producer schedule for "global_property_object"
     newProducerAcc = Account("newprod")
-    newProducerAcc.ownerPublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
-    newProducerAcc.activePublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+    newProducerAcc.ownerPublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
+    newProducerAcc.activePublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
     nonProdNode.createAccount(newProducerAcc, cluster.eosioAccount, waitForTransBlock=True)
 
     setProdsStr = '{"schedule": ['

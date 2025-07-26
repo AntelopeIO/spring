@@ -39,7 +39,7 @@ private key:
 **Example Output**
 The command confirms that the private key is imported correctly by displaying the corresponding public key:
 ```console
-imported private key for: EOS8FBXJUfbANf3xeDWPoJxnip3Ych9HjzLBr1VaXRQFdkVAxwLE7
+imported private key for: PUB_K1_8FBXJUfbANf3xeDWPoJxnip3Ych9HjzLBr1VaXRQFdkVCyGc9J
 ```
 
 ## Summary

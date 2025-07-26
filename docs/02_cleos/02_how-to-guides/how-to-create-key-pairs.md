@@ -33,7 +33,7 @@ cleos create key --to-console
 
 ```console
 Private key: 5KPzrqNMJdr6AX6abKg*******************************cH
-Public key: EOS4wSiQ2jbYGrqiiKCm8oWR88NYoqnmK4nNL1RCtSQeSFkGtqsNc
+Public key: PUB_K1_4wSiQ2jbYGrqiiKCm8oWR88NYoqnmK4nNL1RCtSQeSFkD9wFug
 ```
 
 2. Create a public/private keypair and save it to a file:
@@ -59,7 +59,7 @@ cat pw.txt
 ```
 ```console
 Private key: 5K7************************************************
-Public key: EOS71k3WdpLDeqeyqVRAAxwpz6TqXwDo9Brik5dQhdvvpeTKdNT59
+Public key: PUB_K1_71k3WdpLDeqeyqVRAAxwpz6TqXwDo9Brik5dQhdvvpeTJVeU1k
 ```
 
 ## Summary
