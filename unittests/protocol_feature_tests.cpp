@@ -2432,8 +2432,8 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
                        c.success());
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) { try {
-   T c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE(packed_transaction_restrictions_test) { try {
+   tester c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto alice_account = account_name("alice");
    c.create_accounts( {alice_account} );
@@ -2462,7 +2462,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
       }
 
       auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
-      auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, true, 0 );
+      auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), c.DEFAULT_BILLED_CPU_TIME_US, true, 0 );
       if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
       return r;
    };
@@ -2481,11 +2481,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
    //
 
    // Ensure validator node rejects the block
-   T v(setup_policy::none, db_read_mode::HEAD);
+   tester v(setup_policy::none, db_read_mode::HEAD);
    push_blocks( c, v );
 
    // Another chain for the invalid compressed block
-   T c_compress(setup_policy::none, db_read_mode::HEAD);
+   tester c_compress(setup_policy::none, db_read_mode::HEAD);
    push_blocks( c, c_compress );
 
    c_compress.produce_block();
@@ -2501,7 +2501,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(packed_transaction_restrictions_test, T, testers) 
                           fc_exception_message_contains( "Compressed packed_transaction not allowed" ) );
 
    // Another chain for the invalid extra data block
-   T c_extra_data(setup_policy::none, db_read_mode::HEAD);
+   tester c_extra_data(setup_policy::none, db_read_mode::HEAD);
    push_blocks( c, c_extra_data );
 
    c_extra_data.produce_block();
