@@ -91,17 +91,17 @@ try:
     n_LIB = currentLIB + 1
     libBlock = node0.getBlock(n_LIB)
 
-    Print("Resume production on Node2 and Node3")
-    for node in [node2, node3]:
-        node.processUrllibRequest("producer", "resume", exitOnError=True)
-
     Print("Shutdown two nodes at LIB N-1, should be locked on block after N")
     for node in [node0, node1]:
         node.kill(signal.SIGTERM)
     for node in [node0, node1]:
         assert not node.verifyAlive(), "Node did not shutdown"
 
-    Print("Wait for lib to advance to LIB N on other 2 nodes")
+    Print("Resume production on Node2 and Node3, after shutdown of Node0 and Node1, LIB can no longer advance")
+    for node in [node2, node3]:
+        node.processUrllibRequest("producer", "resume", exitOnError=True)
+
+    Print("Wait for lib to advance to LIB N on other 2 nodes, LIB should not advance any further since Node0 and Node1 shutdown")
     for node in [node2, node3]:
         assert node.waitForBlock(n_LIB, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
         currentLIB = node.getIrreversibleBlockNum()

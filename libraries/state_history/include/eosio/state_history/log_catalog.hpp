@@ -12,8 +12,6 @@
 #include <eosio/state_history/log.hpp>
 #include <eosio/state_history/log_config.hpp>
 
-#include <fc/scoped_exit.hpp>
-
 namespace eosio::state_history {
 
 using namespace boost::multi_index;

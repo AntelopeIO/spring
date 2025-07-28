@@ -159,12 +159,12 @@ int main(int argc, char** argv)
 
    try {
       appbase::scoped_app app;
-      fc::scoped_exit<std::function<void()>> on_exit = [&]() {
+      auto on_exit = fc::make_scoped_exit([&]() {
          ilog("${name} version ${ver} ${fv}",
               ("name", nodeos::config::node_executable_name)("ver", app->version_string())
               ("fv", app->version_string() == app->full_version_string() ? "" : app->full_version_string()) );
          ::detail::log_non_default_options(app->get_parsed_options());
-      };
+      });
       uint32_t short_hash = 0;
       fc::from_hex(eosio::version::version_hash(), (char*)&short_hash, sizeof(short_hash));
 

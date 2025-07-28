@@ -136,7 +136,7 @@ class Node(Transactions):
                 Utils.Print("account validation failed. account: %s" % (account.name))
                 raise
 
-    def waitForTransactionInBlock(self, transId, timeout=None, exitOnError=True):
+    def waitForTransactionInBlock(self, transId, timeout=None, exitOnError=False):
         """Wait for trans id to appear in a block."""
         assert(isinstance(transId, str))
         lam = lambda: self.isTransInAnyBlock(transId, exitOnError=exitOnError)
@@ -660,6 +660,11 @@ class Node(Transactions):
         dataDir = Utils.getNodeDataDir(self.nodeId)
         finalizersDir = os.path.join(dataDir, "finalizers")
         shutil.rmtree(finalizersDir, ignore_errors=True)
+
+    def removeTracesDir(self):
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        tracesDir = os.path.join(dataDir, "traces")
+        shutil.rmtree(tracesDir, ignore_errors=True)
 
     @staticmethod
     def findStderrFiles(path):

@@ -177,6 +177,7 @@ namespace fc {
     } FC_RETHROW_EXCEPTIONS( warn, "fc::array<${type},${length}>", ("type",fc::get_typename<T>::name())("length",N) ) }
 
     template<typename Stream, typename T, size_t N>
+    requires (!std::is_same_v<std::remove_cv_t<T>, char>)
     inline void pack( Stream& s, T (&v)[N]) {
       fc::raw::pack( s, unsigned_int((uint32_t)N) );
       for (uint64_t i = 0; i < N; ++i)
@@ -184,6 +185,7 @@ namespace fc {
     }
 
     template<typename Stream, typename T, size_t N>
+    requires (!std::is_same_v<std::remove_cv_t<T>, char>)
     inline void unpack( Stream& s, T (&v)[N])
     { try {
       unsigned_int size; fc::raw::unpack( s, size );

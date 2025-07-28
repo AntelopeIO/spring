@@ -4,6 +4,8 @@
 #include <eosio/producer_plugin/producer_plugin.hpp>
 #include <eosio/testing/tester.hpp>
 
+#include <fc/scoped_exit.hpp>
+
 #include <regex>
 
 using namespace eosio;
