@@ -3,6 +3,9 @@
 #include <chainbase/pagemap_accessor.hpp>
 #include <chainbase/scope_exit.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <fc/io/raw.hpp>
+#include <fc/log/logger.hpp>
+#include <fc/reflect/variant.hpp>
 #include <iostream>
 #include <fstream>
 //#include <unistd.h>
@@ -107,21 +110,22 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       if(hs.fail())
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_header)));
 
-      db_header* dbheader = reinterpret_cast<db_header*>(header);
-      if(dbheader->id != header_id) {
+      const db_header dbheader = fc::raw::unpack<db_header>(header, sizeof(header));
+      if(dbheader.id != header_id) {
          std::string what_str("\"" + _database_name + "\" database format not compatible with this version of chainbase.");
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incorrect_db_version), what_str));
       }
-      if(!allow_dirty && dbheader->dirty) {
+      if(!allow_dirty && dbheader.dirty) {
          std::string what_str("\"" + _database_name + "\" database dirty flag set");
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::dirty)));
       }
-      if(dbheader->dbenviron != environment()) {
-         std::cerr << "CHAINBASE: \"" << _database_name << "\" database was created with a chainbase from a different environment" << '\n';
-         std::cerr << "Current compiler environment:" << '\n';
-         std::cerr << environment();
-         std::cerr << "DB created with compiler environment:" << '\n';
-         std::cerr << dbheader->dbenviron;
+      if(dbheader.dbenviron != environment()) {
+         elog("\"${dbname}\" database was created with a chainbase from a different environment\n"
+              "Current compiler environment:\n"
+              "${current}\n"
+              "DB created with compiler environment:\n"
+              "${createdby}",
+              ("dbname", _database_name)("current", environment_as_string(environment()))("createdby", environment_as_string(dbheader.dbenviron)));
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incompatible)));
       }
    }
@@ -134,7 +138,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
       _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
       file_mapped_segment_manager = new ((char*)_file_mapped_region.get_address()+header_size) segment_manager(shared_file_size-header_size);
-      new (_file_mapped_region.get_address()) db_header;
+      fc::raw::pack((char*)_file_mapped_region.get_address(), (uint32_t)header_size, db_header());
    }
    else if(_writable) {
          auto existing_file_size = std::filesystem::file_size(_data_file_path);
@@ -535,15 +539,29 @@ static std::string print_arch(environment::arch_t arch) {
    return "error";
 }
 
-std::ostream& operator<<(std::ostream& os, const chainbase::environment& dt) {
-   os << std::right << std::setw(17) << "Compiler: " << dt.compiler << '\n';
-   os << std::right << std::setw(17) << "Debug: " << (dt.debug ? "Yes" : "No") << '\n';
-   os << std::right << std::setw(17) << "OS: " << print_os(dt.os) << '\n';
-   os << std::right << std::setw(17) << "Arch: " << print_arch(dt.arch) << '\n';
-   os << std::right << std::setw(17) << "Boost: " << dt.boost_version/100000 << "."
-                                                  << dt.boost_version/100%1000 << "."
-                                                  << dt.boost_version%100 << '\n';
-   return os;
+std::string environment::as_old_string() const {
+   std::stringstream ss;
+   ss << std::right << std::setw(17) << "Compiler: " << compiler.data() << '\n';
+   ss << std::right << std::setw(17) << "Debug: " << (debug ? "Yes" : "No") << '\n';
+   ss << std::right << std::setw(17) << "OS: " << print_os(os) << '\n';
+   ss << std::right << std::setw(17) << "Arch: " << print_arch(arch) << '\n';
+   ss << std::right << std::setw(17) << "Boost: " << boost_version/100000 << "."
+                                                  << boost_version/100%1000 << "."
+                                                  << boost_version%100;
+   return ss.str();
 }
 
+}
+
+namespace fc {
+void to_variant(const chainbase::environment& bi, variant& v) {
+      v = fc::mutable_variant_object()("debug", bi.debug)
+                                      ("os", bi.os)
+                                      ("arch", bi.arch)
+                                      ("boost_version", bi.boost_version)
+                                      ("compiler", bi.compiler.data());
+   }
+   void to_variant(const chainbase::environment_as_string& env, variant& v) {
+      v = env.e.as_old_string();
+   }
 }
