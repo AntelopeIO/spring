@@ -98,21 +98,12 @@ namespace eosio::trace_api {
       return std::make_tuple( entry.value(), irreversible );
    }
 
-   get_block_n store_provider::get_trx_block_number(const chain::transaction_id_type& trx_id, std::optional<uint32_t> minimum_irreversible_history_blocks, const yield_function& yield) {
-      fc::cfile trx_id_file;
-      int32_t slice_number;
-      if (minimum_irreversible_history_blocks) {
-         slice_number = _slice_directory.slice_number(*minimum_irreversible_history_blocks);
-      } else {
-         slice_number = 0;
-      }
-
+   get_block_n store_provider::get_trx_block_number(const chain::transaction_id_type& trx_id, const yield_function& yield) {
+      // traversing from last stride to first
+      // if we find a trx it is either LIB or it is the latest fork, either way we are done
       std::set<uint32_t> trx_block_nums;
-      while (true){
-         const bool found = _slice_directory.find_trx_id_slice(slice_number, open_state::read, trx_id_file);
-         if( !found )
-            break; // traversed all slices
 
+      _slice_directory.for_each_trx_id_slice([&](fc::cfile& trx_id_file) -> bool {
          metadata_log_entry entry;
          auto ds = trx_id_file.create_datastream();
          const uint64_t end = file_size(trx_id_file.get_file_path());
@@ -136,21 +127,22 @@ namespace eosio::trace_api {
             } else if (std::holds_alternative<lib_entry_v0>(entry)) {
                auto lib = std::get<lib_entry_v0>(entry).lib;
                if (!trx_block_nums.empty() && lib >= *(--trx_block_nums.end())) {
-                  return *(--trx_block_nums.end()); // *(--trx_block_nums.end()) is the block with highest block number which is final
+                  return false; // *(--trx_block_nums.end()) is the block with highest block number which is final
                }
             } else {
                FC_ASSERT( false, "unpacked data should be a block_trxs_entry or a lib_entry_v0" );;
             }
             offset = trx_id_file.tellp();
          }
-         slice_number++;
-      }
+         // if empty() keep searching
+         // if not empty() then we have found the trx and since traversing in reverse order this should be the latest
+         return trx_block_nums.empty();
+      });
 
-      // transaction's block is not irreversible
       if (!trx_block_nums.empty())
          return *(--trx_block_nums.end());
 
-      return get_block_n{};
+      return {};
    }
 
    slice_directory::slice_directory(const std::filesystem::path& slice_dir, uint32_t width, std::optional<uint32_t> minimum_irreversible_history_blocks, std::optional<uint32_t> minimum_uncompressed_irreversible_history_blocks, size_t compression_seek_point_stride)
@@ -289,6 +281,36 @@ namespace eosio::trace_api {
           trx_id_file.seek_end(0);
       }
       return true;
+   }
+
+   void slice_directory::for_each_trx_id_slice(std::function<bool(fc::cfile&)> callback) const {
+      namespace fs = std::filesystem;
+      std::vector<fs::directory_entry> trx_id_files;
+      for (const auto& entry : fs::directory_iterator(_slice_dir)) {
+         if (entry.is_regular_file()) {
+            if (entry.path().filename().string().find(_trace_trx_id_prefix) != std::string::npos) {
+               trx_id_files.push_back(entry);
+            }
+         }
+      }
+      // the trace_trx_id_ files naturally sort via their file names, e.g. trace_trx_id_0211960000-0211970000.log
+      // std::filesystem::path is lexicographically compared
+      std::sort(trx_id_files.begin(), trx_id_files.end(),
+                [&](const fs::directory_entry& a, const fs::directory_entry& b) {
+                   return a.path() > b.path();
+                });
+      fc::cfile slice_file;
+      for (const auto& entry : trx_id_files) {
+         std::error_code ec;
+         if (!entry.exists(ec))
+            continue;
+         slice_file.set_file_path(entry.path());
+         slice_file.open("rb");
+         slice_file.seek(0);
+         if (!callback(slice_file))
+            return;
+         slice_file.close();
+      }
    }
 
    void slice_directory::set_lib(uint32_t lib) {

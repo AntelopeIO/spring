@@ -9,7 +9,6 @@
 #include <fc/io/json.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/log/logger.hpp>
-#include <fc/scoped_exit.hpp>
 #include <fc/time.hpp>
 
 #include <eosio/chain/contract_types.hpp>
