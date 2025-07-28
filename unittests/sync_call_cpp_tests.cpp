@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE(forever_loop_test) { try {
    signed_transaction trx;
    trx.actions.emplace_back(vector<permission_level>{{"caller"_n, config::active_name}}, "caller"_n,   "forevertest"_n, bytes{});
    t.set_transaction_headers(trx);
-   trx.sign(t.get_private_key("caller"_n, "active"), t.get_chain_id());
+   t.sign(trx, "caller"_n);
 
    BOOST_CHECK_EXCEPTION(t.push_transaction(trx, fc::time_point::now() + fc::microseconds(config::default_max_block_cpu_usage)),
                          deadline_exception,
@@ -255,6 +255,12 @@ Before making sync call. After returned from sync call.
 Test END   ==================)=====";
 
    BOOST_REQUIRE_EQUAL(actual, expected);
+} FC_LOG_AND_RETHROW() }
+
+// Verify get_sender() works
+BOOST_AUTO_TEST_CASE(get_sender_test) { try {
+   call_tester_cpp t;
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "getsendertst"_n, "caller"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -47,7 +47,7 @@ namespace fc {
 
            public_key( const public_key_data& v );
            public_key( const public_key_point_data& v );
-           public_key( const compact_signature& c, const fc::sha256& digest, bool check_canonical = true );
+           public_key( const compact_signature& c, const fc::sha256& digest );
 
            bool valid()const;
 
@@ -66,10 +66,11 @@ namespace fc {
 
            unsigned int fingerprint() const;
 
+           static bool is_canonical( const compact_signature& c );
+
         private:
           friend class private_key;
           static public_key from_key_data( const public_key_data& v );
-          static bool is_canonical( const compact_signature& c );
           fc::fwd<detail::public_key_impl,33> my;
     };
 
@@ -111,7 +112,8 @@ namespace fc {
            fc::sha512 get_shared_secret( const public_key& pub )const;
 
 //           signature         sign( const fc::sha256& digest )const;
-           compact_signature sign_compact( const fc::sha256& digest, bool require_canonical = true )const;
+           compact_signature sign_compact( const fc::sha256& digest,
+                                           require_canonical_t require_canonical = require_canonical_t::yes )const;
 //           bool              verify( const fc::sha256& digest, const signature& sig );
 
            public_key get_public_key()const;
@@ -147,8 +149,8 @@ namespace fc {
          using public_key_type = public_key_shim;
          using crypto::shim<compact_signature>::shim;
 
-         public_key_type recover(const sha256& digest, bool check_canonical) const {
-            return public_key_type(public_key(_data, digest, check_canonical).serialize());
+         public_key_type recover(const sha256& digest) const {
+            return public_key_type(public_key(_data, digest).serialize());
          }
       };
 
@@ -157,7 +159,7 @@ namespace fc {
          using signature_type = signature_shim;
          using public_key_type = public_key_shim;
 
-         signature_type sign( const sha256& digest, bool require_canonical = true ) const
+         signature_type sign( const sha256& digest, require_canonical_t require_canonical = require_canonical_t::yes ) const
          {
            return signature_type(private_key::regenerate(_data).sign_compact(digest, require_canonical));
          }

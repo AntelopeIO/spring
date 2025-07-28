@@ -198,4 +198,11 @@ public:
       eosio::check(user_info.first_name == "alice", "first name not alice");
       eosio::check(user_info.street == "123 Main St.", "street not 123 Main St.");
    }
+
+   // Test get_sender in a chain of action and sync call
+   [[eosio::action]]
+   void getsendertst() {
+      sync_callee::get_sender_test_func get_sender_test{"callee"_n};
+      get_sender_test();
+   }
 };

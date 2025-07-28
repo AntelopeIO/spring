@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <boost/assign/list_of.hpp>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
    const std::unordered_map<builtin_protocol_feature_t, builtin_protocol_feature_spec, enum_hash<builtin_protocol_feature_t>>
    builtin_protocol_feature_codenames =
@@ -371,6 +371,20 @@ host function call will trigger a transition to the Savanna consensus algorithm.
 Builtin protocol feature: SYNC_CALL
 
 Enables synchronous calls to functions in other and own contracts.
+*/
+            {builtin_protocol_feature_t::savanna}
+         } )
+         (  builtin_protocol_feature_t::allow_non_canonical_signatures, builtin_protocol_feature_spec{
+            "ALLOW_NON_CANONICAL_SIGNATURES",
+            fc::variant("f8e30509ba72dedbaf810114193c802aae73ae173e83b07bd08ba214d0f95312").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
+/*
+Builtin protocol feature: ALLOW_NON_CANONICAL_SIGNATURES
+
+Requiring signatures to be canonical is necessary to prevent Signature Malleability attacks.
+However, in Antelope-based chains, this requirement serves no functional purpose since the
+signature does not affect the transaction hash generation.
+Consequently, even if an attacker alters the signature, they cannot exploit it.
 */
             {builtin_protocol_feature_t::savanna}
          } )
@@ -1104,4 +1118,4 @@ Do not allow on-chain zlib compressed packed_transaction.
    }
 
 
-} }  // eosio::chain
+}  // eosio::chain

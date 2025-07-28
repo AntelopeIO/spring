@@ -79,7 +79,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
    signed_transaction trx;
    abi_serializer::from_variant(pretty_trx, trx, resolver, abi_serializer::create_yield_function( abi_serializer_max_time ));
    set_transaction_headers(trx);
-   trx.sign( get_private_key( "asserter"_n, "active" ), control->get_chain_id() );
+   sign(trx, "asserter"_n);
    push_transaction( trx );
    produce_block();
 

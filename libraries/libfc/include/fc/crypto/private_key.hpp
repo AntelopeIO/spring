@@ -27,7 +27,7 @@ namespace fc { namespace crypto {
          private_key& operator=(const private_key& ) = default;
 
          public_key     get_public_key() const;
-         signature      sign( const sha256& digest, bool require_canonical = true ) const;
+         signature      sign( const sha256& digest, require_canonical_t require_canonical = require_canonical_t::yes ) const;
          sha512         generate_shared_secret( const public_key& pub ) const;
 
          template< typename KeyType = ecc::private_key_shim >

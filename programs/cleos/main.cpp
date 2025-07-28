@@ -3346,7 +3346,7 @@ int main( int argc, char** argv ) {
       }
 
       flat_set<public_key_type> recovered_pub_keys;
-      trx.get_signature_keys( *chain_id, fc::time_point::maximum(), recovered_pub_keys, false );
+      trx.get_signature_keys( *chain_id, fc::time_point::maximum(), recovered_pub_keys );
 
       std::cout << fc::json::to_pretty_string(recovered_pub_keys) << std::endl;
    });
@@ -4279,7 +4279,7 @@ int main( int argc, char** argv ) {
          try {
             priv_key = private_key_type(str_private_key);
          } EOS_RETHROW_EXCEPTIONS(private_key_type_exception, "Invalid private key")
-         trx.sign(priv_key, *chain_id);
+         trx.sign(priv_key, *chain_id, fc::require_canonical_t::yes);
       }
 
       if(push_trx) {

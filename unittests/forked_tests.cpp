@@ -651,7 +651,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
                                 });
       trx.expiration = fc::time_point_sec{c1.head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), c1.get_chain_id()  );
+      c1.sign(trx, config::system_account_name);
       trace1 = c1.push_transaction( trx );
    }
    c1.produce_block();
@@ -668,7 +668,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
                                 });
       trx.expiration = fc::time_point_sec{c1.head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), c1.get_chain_id()  );
+      c1.sign(trx, config::system_account_name);
       trace2 = c1.push_transaction( trx );
    }
    {
@@ -684,7 +684,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
                                 });
       trx.expiration = fc::time_point_sec{c1.head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), c1.get_chain_id()  );
+      c1.sign(trx, config::system_account_name);
       trace3 = c1.push_transaction( trx );
    }
    {
@@ -700,7 +700,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
                                 });
       trx.expiration = fc::time_point_sec{c1.head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( b->calculate_id() ); // tapos to dan's block should be rejected on fork switch
-      trx.sign( get_private_key( config::system_account_name, "active" ), c1.get_chain_id()  );
+      c1.sign(trx, config::system_account_name);
       trace4 = c1.push_transaction( trx );
       BOOST_CHECK( trace4->receipt->status == transaction_receipt_header::executed );
    }

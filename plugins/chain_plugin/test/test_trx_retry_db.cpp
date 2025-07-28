@@ -101,7 +101,7 @@ auto make_unique_trx( const chain_id_type& chain_id, const fc::microseconds& exp
    trx.expiration = fc::time_point_sec{fc::time_point::now() + expiration};
    trx.actions.emplace_back( vector<permission_level>{{creator, config::active_name}},
                              testit{ id } );
-   trx.sign( get_private_key("test"_n), chain_id );
+   trx.sign( get_private_key("test"_n), chain_id, fc::require_canonical_t::yes );
 
    return std::make_shared<packed_transaction>( std::move(trx), packed_transaction::compression_type::none);
 }

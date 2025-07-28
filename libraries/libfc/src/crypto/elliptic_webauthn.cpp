@@ -216,7 +216,7 @@ struct webauthn_json_handler : public rapidjson::BaseReaderHandler<rapidjson::UT
 } //detail
 
 
-public_key::public_key(const signature& c, const fc::sha256& digest, bool) {
+public_key::public_key(const signature& c, const fc::sha256& digest) {
    detail::webauthn_json_handler handler;
    detail::rapidjson::Reader reader;
    detail::rapidjson::StringStream ss(c.client_json.c_str());

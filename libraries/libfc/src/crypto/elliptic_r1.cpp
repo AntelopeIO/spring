@@ -6,7 +6,7 @@
 #include <fc/exception/exception.hpp>
 #include <fc/log/logger.hpp>
 
-namespace fc { namespace crypto { namespace r1 {
+namespace fc::crypto::r1 {
     namespace detail
     {
       class public_key_impl
@@ -488,7 +488,7 @@ namespace fc { namespace crypto { namespace r1 {
     {
     }
 
-    public_key::public_key( const compact_signature& c, const fc::sha256& digest, bool check_canonical )
+    public_key::public_key( const compact_signature& c, const fc::sha256& digest )
     {
         int nV = c.data[0];
         if (nV<27 || nV>=35)
@@ -502,13 +502,6 @@ namespace fc { namespace crypto { namespace r1 {
 
         my->_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
 
-        const EC_GROUP* group = EC_KEY_get0_group(my->_key);
-        ssl_bignum order, halforder;
-        EC_GROUP_get_order(group, order, nullptr);
-        BN_rshift1(halforder, order);
-        if(BN_cmp(s, halforder) > 0)
-           FC_THROW_EXCEPTION( exception, "invalid high s-value encountered in r1 signature" );
-
         if (nV >= 31)
         {
             EC_KEY_set_conv_form( my->_key, POINT_CONVERSION_COMPRESSED );
@@ -519,6 +512,28 @@ namespace fc { namespace crypto { namespace r1 {
         if (ECDSA_SIG_recover_key_GFp(my->_key, sig, (unsigned char*)&digest, sizeof(digest), nV - 27, 0) == 1)
             return;
         FC_THROW_EXCEPTION( exception, "unable to reconstruct public key from signature" );
+    }
+
+    bool public_key::is_canonical( const compact_signature& c ) {
+        int nV = c.data[0];
+        if (nV<27 || nV>=35)
+            FC_THROW_EXCEPTION( exception, "unable to reconstruct public key from signature" );
+
+        BIGNUM *s = BN_new();
+        BN_bin2bn(&c.data[33],32,s);
+
+        static ssl_bignum halforder = [](EC_KEY* key) {
+           const EC_GROUP* group = EC_KEY_get0_group(key);
+           ssl_bignum      order, halforder;
+           EC_GROUP_get_order(group, order, nullptr);
+           BN_rshift1(halforder, order);
+           EC_KEY_free(key);
+           return halforder;
+        }(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+
+        bool res = BN_cmp(s, halforder) <= 0;
+        BN_free(s);
+        return res;
     }
 
     compact_signature private_key::sign_compact( const fc::sha256& digest )const
@@ -590,8 +605,5 @@ namespace fc { namespace crypto { namespace r1 {
      my->_key = EC_KEY_dup(pk.my->_key);
      return *this;
    }
-
-}
-}
 
 }

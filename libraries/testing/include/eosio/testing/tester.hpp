@@ -66,8 +66,10 @@ namespace eosio::testing {
    enum class setup_action {
       preactivate_protocol_feature,
       set_before_producer_authority_bios_contract,
-      activate_features,     // activate features listed in `setup_policy::features`. enforce dependencies.
-      activate_all_features, // activate all available features
+      activate_features,       // activate features listed in `setup_policy::features`. enforce dependencies.
+      activate_features_up_to, // activate all features up to the first one specified in `setup_policy::features`
+                               // if `setup_policy::features` contains more than one the remaining are also activated
+      activate_all_features,   // activate all available features
       set_bios_contract,
       activate_savanna
    };
@@ -85,8 +87,9 @@ namespace eosio::testing {
       static const setup_policy preactivate_feature_and_new_bios;
       static const setup_policy old_wasm_parser;
       static const setup_policy before_disable_deferred_trx;
-      static const setup_policy full_except_do_not_transition_to_savanna;
-      static const setup_policy full;
+      static const setup_policy full_except_do_not_transition_to_savanna;  // all features up to savanna, savanna *not* transitioned to
+      static const setup_policy savanna;                                   // all features up to savanna, savanna transitioned to (setfinalizers)
+      static const setup_policy full;                                      // all features activated, savanna transitioned to (setfinalizers)
    };
 
    enum class call_startup_t {
@@ -366,6 +369,8 @@ namespace eosio::testing {
                                                bool include_code = true
                                              );
 
+         signed_transaction create_dummy_transaction(account_name from, const std::string& v);
+
          transaction_trace_ptr push_reqauth( account_name from, const vector<permission_level>& auths, const vector<private_key_type>& keys );
          transaction_trace_ptr push_reqauth(account_name from, string role, bool multi_sig = false);
          // use when just want any old non-context free action
@@ -390,7 +395,7 @@ namespace eosio::testing {
          }
 
          template< typename KeyType = fc::ecc::private_key_shim >
-         static auto get_private_key( name keyname, string role = "owner" ) {
+         static auto get_private_key( name keyname, const string& role = "owner" ) {
             auto secret = fc::sha256::hash(keyname.to_string() + role);
             if constexpr (std::is_same_v<KeyType, mock::webauthn_private_key>) {
                return mock::webauthn_private_key::regenerate(secret);
@@ -400,7 +405,7 @@ namespace eosio::testing {
          }
 
          template< typename KeyType = fc::ecc::private_key_shim >
-         static auto get_public_key( name keyname, string role = "owner" ) {
+         static auto get_public_key( name keyname, const string& role = "owner" ) {
             return get_private_key<KeyType>( keyname, role ).get_public_key();
          }
 
@@ -486,11 +491,13 @@ namespace eosio::testing {
             return cfg;
          }
 
+         enum activate_flags_t { allow_non_canonical_signatures_activated = 1<<0 };
+
          void schedule_protocol_features_wo_preactivation(const vector<digest_type>& feature_digests);
          void activate_protocol_features(const vector<digest_type>& feature_digests);
-         void activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
-         void activate_all_builtin_protocol_features();
-         void activate_all_but_disable_deferred_trx();
+         uint32_t activate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& features);
+         uint32_t activate_builtin_protocol_features_up_to(const std::vector<builtin_protocol_feature_t>& features);
+         uint32_t activate_all_builtin_protocol_features();
 
          static genesis_state default_genesis() {
             genesis_state genesis;
@@ -591,6 +598,17 @@ namespace eosio::testing {
          void set_open_callback(std::function<void()> cb) { _open_callback = std::move(cb); }
          void do_check_for_votes(bool val) { _expect_votes = val; }
 
+         auto sign(signed_transaction& trx, const private_key_type& priv_key) const {
+            return trx.sign(priv_key, get_chain_id(), require_canonical);
+         }
+         auto sign(signed_transaction& trx, account_name signer, const std::string& role) const {
+            return sign(trx, get_private_key(signer, role));
+         }
+         auto sign(signed_transaction& trx, account_name signer) const {
+            static const std::string active_role{"active"};
+            return sign(trx, signer, active_role);
+         }
+
       protected:
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
          produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
@@ -627,7 +645,8 @@ namespace eosio::testing {
          uint32_t                                      lib_number {0}; // updated via irreversible_block signal
 
       private:
-         std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
+         std::vector<builtin_protocol_feature_t>       get_all_builtin_protocol_features();
+         fc::require_canonical_t                       require_canonical {fc::require_canonical_t::yes};
    };
 
    class tester : public base_tester {

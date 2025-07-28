@@ -4312,7 +4312,7 @@ namespace eosio {
          }
          chain::public_key_type peer_key;
          try {
-            peer_key = crypto::public_key(msg.sig, msg.token, true);
+            peer_key = crypto::public_key(msg.sig, msg.token);
          }
          catch (const std::exception& /*e*/) {
             fc_wlog( p2p_conn_log, "Peer ${peer} sent a handshake with an unrecoverable key.", ("peer", msg.p2p_address) );

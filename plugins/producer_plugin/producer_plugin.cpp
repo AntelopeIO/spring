@@ -1152,8 +1152,7 @@ public:
          auto private_key_itr = _signature_providers.find(key);
          EOS_ASSERT(private_key_itr != _signature_providers.end(), producer_priv_key_not_found,
                     "Local producer has no private key in config.ini corresponding to public key ${key}", ("key", key));
-
-         return private_key_itr->second(digest);
+         return private_key_itr->second(digest, fc::require_canonical_t::no);
       } else {
          return chain::signature_type();
       }
@@ -2971,9 +2970,14 @@ void producer_plugin_impl::produce_block() {
       vector<signature_type> sigs;
       sigs.reserve(relevant_providers.size());
 
+      fc::require_canonical_t require_canonical =
+            chain.is_builtin_activated(builtin_protocol_feature_t::allow_non_canonical_signatures)
+               ? fc::require_canonical_t::no
+               : fc::require_canonical_t::yes;
+
       // sign with all relevant public keys
       for (const auto& p : relevant_providers) {
-         sigs.emplace_back(p.get()(d));
+         sigs.emplace_back(p.get()(d, require_canonical));
       }
       return sigs;
    });

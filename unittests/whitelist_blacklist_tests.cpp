@@ -127,8 +127,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( actor_whitelist, T, whitelist_blacklist_validatin
                              })
                            );
    test.chain->set_transaction_headers(trx);
-   trx.sign( test.chain->get_private_key( "alice"_n, "active" ), test.chain->get_chain_id() );
-   trx.sign( test.chain->get_private_key( "bob"_n, "active" ), test.chain->get_chain_id() );
+   test.chain->sign(trx, "alice"_n);
+   test.chain->sign(trx, "bob"_n);
    BOOST_CHECK_EXCEPTION( test.chain->push_transaction( trx ),
                           actor_whitelist_exception,
                           fc_exception_message_starts_with("authorizing actor(s) in transaction are not on the actor whitelist: [\"bob\"]")
@@ -161,8 +161,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( actor_blacklist, T, whitelist_blacklist_validatin
                              })
                            );
    test.chain->set_transaction_headers(trx);
-   trx.sign( test.chain->get_private_key( "alice"_n, "active" ), test.chain->get_chain_id() );
-   trx.sign( test.chain->get_private_key( "bob"_n, "active" ), test.chain->get_chain_id() );
+   test.chain->sign(trx, "alice"_n);
+   test.chain->sign(trx, "bob"_n);
    BOOST_CHECK_EXCEPTION( test.chain->push_transaction( trx ),
                           actor_blacklist_exception,
                           fc_exception_message_starts_with("authorizing actor(s) in transaction are on the actor blacklist: [\"bob\"]")
@@ -772,7 +772,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( greylist_limit_tests, T, testers ) { try {
                                               std::vector<permission_level>{{acnt, perm}},
                                               fc::mutable_variant_object()("from", acnt) ) );
       c.set_transaction_headers( trx, 6, 0 );
-      trx.sign( c.get_private_key( acnt, perm.to_string() ), c.get_chain_id() );
+      c.sign(trx, acnt,  perm.to_string());
       // This transaction is charged 104 bytes of NET.
 
       return c.push_transaction( trx, fc::time_point::maximum(), billed_cpu_time_us );

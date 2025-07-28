@@ -54,7 +54,7 @@ struct read_only_trx_tester : T {
       T::set_transaction_headers( trx );
       trx.delay_sec = delay_sec;
       if ( type == transaction_metadata::trx_type::input ) {
-         trx.sign(T::get_private_key("alice"_n, "active"), T::get_chain_id());
+         T::sign(trx, "alice"_n);
       }
 
       return T::push_transaction( trx, fc::time_point::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, false, type );

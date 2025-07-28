@@ -191,7 +191,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_light_validation_restart_from_block_log, T, 
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
    // run normal passing case
-   auto sigs  = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.get_chain_id());
+   auto sigs  = chain.sign(trx, "testapi"_n);
    auto trace = chain.push_transaction(trx);
    chain.produce_block();
 

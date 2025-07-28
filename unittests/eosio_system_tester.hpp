@@ -121,7 +121,7 @@ public:
                                 );
 
       T::set_transaction_headers(trx);
-      trx.sign( T::get_private_key( creator, "active" ), T::get_chain_id()  );
+      T::sign(trx, creator);
       return T::push_transaction( trx );
    }
 
@@ -164,7 +164,7 @@ public:
                                 );
 
       T::set_transaction_headers(trx);
-      trx.sign( T::get_private_key( creator, "active" ), T::get_chain_id()  );
+      T::sign(trx, creator);
       return T::push_transaction( trx );
    }
 
@@ -205,7 +205,7 @@ public:
       }
 
       T::set_transaction_headers(trx);
-      trx.sign( T::get_private_key( creator, "active" ), T::get_chain_id()  );
+      T::sign(trx, creator);
       return T::push_transaction( trx );
    }
 
@@ -444,7 +444,7 @@ public:
                                    );
       }
       T::set_transaction_headers( trx );
-      trx.sign( T::get_private_key( manager, "active" ), T::get_chain_id()  );
+      T::sign(trx, manager);
       T::push_transaction( trx );
    }
 
@@ -610,8 +610,8 @@ public:
                                  );
 
          T::set_transaction_headers(trx);
-         trx.sign( T::get_private_key( config::system_account_name, "active" ), T::get_chain_id()  );
-         trx.sign( T::get_private_key( "producer1111"_n, "active" ), T::get_chain_id()  );
+         T::sign(trx, config::system_account_name);
+         T::sign(trx, "producer1111"_n);
          T::push_transaction( trx );
       }
    }
