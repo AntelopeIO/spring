@@ -298,6 +298,10 @@ namespace eosio::chain {
       if( trx.transaction_extensions.size() > 0 ) {
          disallow_transaction_extensions( "no transaction extensions supported yet for input transactions" );
       }
+      if( control.is_builtin_activated(builtin_protocol_feature_t::packed_transaction_restrictions) ) {
+         packed_trx.validate_no_extra_data();
+         packed_trx.validate_no_compression();
+      }
 
       const auto& cfg = control.get_global_properties().configuration;
 

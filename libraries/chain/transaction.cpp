@@ -200,8 +200,14 @@ static vector<bytes> unpack_context_free_data(const bytes& data) {
    return fc::raw::unpack< vector<bytes> >(data);
 }
 
-static transaction unpack_transaction(const bytes& data) {
-   return fc::raw::unpack<transaction>(data);
+static transaction unpack_transaction(const bytes& data, bool& extra_data) {
+   try  {
+      transaction tmp;
+      fc::datastream<const char*>  ds( data.data(), size_t(data.size()) );
+      fc::raw::unpack(ds,tmp);
+      extra_data = ds.remaining();
+      return tmp;
+   } FC_RETHROW_EXCEPTIONS( warn, "error unpacking transaction" )
 }
 
 static bytes zlib_decompress(const bytes& data) {
@@ -230,9 +236,9 @@ static vector<bytes> zlib_decompress_context_free_data(const bytes& data) {
    return unpack_context_free_data(out);
 }
 
-static transaction zlib_decompress_transaction(const bytes& data) {
+static transaction zlib_decompress_transaction(const bytes& data, bool& extra_data) {
    bytes out = zlib_decompress(data);
-   return unpack_transaction(out);
+   return unpack_transaction(out, extra_data);
 }
 
 static bytes pack_transaction(const transaction& t) {
@@ -271,20 +277,6 @@ static bytes zlib_compress_transaction(const transaction& t) {
    return out;
 }
 
-bytes packed_transaction::get_raw_transaction() const
-{
-   try {
-      switch(compression) {
-         case compression_type::none:
-            return packed_trx;
-         case compression_type::zlib:
-            return zlib_decompress(packed_trx);
-         default:
-            EOS_THROW(unknown_transaction_compression, "Unknown transaction compression algorithm");
-      }
-   } FC_CAPTURE_AND_RETHROW((compression)(packed_trx))
-}
-
 packed_transaction::packed_transaction( bytes&& packed_txn, vector<signature_type>&& sigs, bytes&& packed_cfd, compression_type _compression )
 :signatures(std::move(sigs))
 ,compression(_compression)
@@ -321,6 +313,29 @@ packed_transaction::packed_transaction( transaction&& t, vector<signature_type>&
    }
 }
 
+void packed_transaction::normalize() {
+   validate_no_extra_data();
+
+   switch( compression ) {
+      case compression_type::none:
+         return;
+      case compression_type::zlib:
+         break;
+      default:
+         EOS_THROW( unknown_transaction_compression, "Unknown transaction compression algorithm" );
+   }
+   packed_trx = zlib_decompress(packed_trx);
+   compression = compression_type::none;
+}
+
+void packed_transaction::validate_no_extra_data() const {
+   EOS_ASSERT(!extra_data, tx_extra_data_error, "Extra-data not allowed in packed_transaction");
+}
+
+void packed_transaction::validate_no_compression() const {
+   EOS_ASSERT(get_compression() == compression_type::none, tx_compression_error, "Compressed packed_transaction not allowed");
+}
+
 void packed_transaction::reflector_init()
 {
    // called after construction, but always on the same thread and before packed_transaction passed to any other threads
@@ -336,10 +351,10 @@ void packed_transaction::local_unpack_transaction(vector<bytes>&& context_free_d
    try {
       switch( compression ) {
          case compression_type::none:
-            unpacked_trx = signed_transaction( unpack_transaction( packed_trx ), signatures, std::move(context_free_data) );
+            unpacked_trx = signed_transaction( unpack_transaction( packed_trx, extra_data ), signatures, std::move(context_free_data) );
             break;
          case compression_type::zlib:
-            unpacked_trx = signed_transaction( zlib_decompress_transaction( packed_trx ), signatures, std::move(context_free_data) );
+            unpacked_trx = signed_transaction( zlib_decompress_transaction( packed_trx, extra_data ), signatures, std::move(context_free_data) );
             break;
          default:
             EOS_THROW( unknown_transaction_compression, "Unknown transaction compression algorithm" );

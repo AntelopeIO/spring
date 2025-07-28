@@ -41,6 +41,7 @@ enum class builtin_protocol_feature_t : uint32_t {
    savanna = 24,
    sync_call = 25,
    allow_non_canonical_signatures = 26,
+   packed_transaction_restrictions = 27,
    reserved_private_fork_protocol_features = 500000,
 };
 

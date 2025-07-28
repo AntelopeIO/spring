@@ -2432,4 +2432,101 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
                        c.success());
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE(packed_transaction_restrictions_test) { try {
+   tester c( setup_policy::preactivate_feature_and_new_bios );
+
+   const auto alice_account = account_name("alice");
+   c.create_accounts( {alice_account} );
+   c.produce_block();
+
+   auto push_trx = [&](auto& chain, bool extra_data, packed_transaction::compression_type compression) {
+      signed_transaction trx;
+      auto pl = vector<permission_level>{{alice_account, config::active_name}};
+      vector<char> abi; // doesn't matter what action, just use setabi
+      trx.actions.emplace_back( chain.get_action( config::system_account_name, "setabi"_n, pl, fc::mutable_variant_object()("account", alice_account)("abi", abi) ) );
+      chain.set_transaction_headers( trx, chain.DEFAULT_EXPIRATION_DELTA );
+      trx.sign( chain.get_private_key( alice_account, "active" ), chain.get_chain_id() );
+
+      auto time_limit = fc::microseconds::maximum();
+      auto ptrx = std::make_shared<packed_transaction>( signed_transaction(trx), compression );
+
+      if (extra_data) {
+         auto packed = fc::raw::pack(ptrx->get_transaction());
+         if (extra_data) {
+            packed.push_back('7'); packed.push_back('7');
+         }
+         vector<signature_type> psigs = ptrx->get_signatures();
+         vector<bytes>          pcfd  = ptrx->get_context_free_data();
+         packed_transaction     pkt(std::move(packed), std::move(psigs), std::move(pcfd), compression);
+         ptrx = std::make_shared<packed_transaction>(pkt);
+      }
+
+      auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), chain.control->get_thread_pool(), chain.get_chain_id(), time_limit, transaction_metadata::trx_type::input );
+      auto r = chain.control->push_transaction( fut.get(), fc::time_point::maximum(), fc::microseconds::maximum(), c.DEFAULT_BILLED_CPU_TIME_US, true, 0 );
+      if( r->except_ptr ) std::rethrow_exception( r->except_ptr );
+      return r;
+   };
+
+   push_trx(c, false, packed_transaction::compression_type::zlib);
+   c.produce_block();
+   push_trx(c, true, packed_transaction::compression_type::none);
+   auto block_before_feature = c.produce_block();
+
+   // activate packed_transaction_restrictions
+   c.activate_all_builtin_protocol_features();
+   c.produce_block();
+
+   //
+   // Verify validation does not allow packed_transaction extra-data or compression in blocks
+   //
+
+   // Ensure validator node rejects the block
+   tester v(setup_policy::none, db_read_mode::HEAD);
+   push_blocks( c, v );
+
+   // Another chain for the invalid compressed block
+   tester c_compress(setup_policy::none, db_read_mode::HEAD);
+   push_blocks( c, c_compress );
+
+   c_compress.produce_block();
+   {  // allow compressed as if packed_transaction_restrictions not activated
+      const protocol_feature_manager& cpfm = c_compress.control->get_protocol_feature_manager();
+      protocol_feature_manager& pfm = const_cast<protocol_feature_manager&>(cpfm);
+      pfm.popped_blocks_to(block_before_feature->block_num());
+   }
+   push_trx(c_compress, false, packed_transaction::compression_type::zlib);
+   c_compress.produce_block();
+
+   BOOST_CHECK_EXCEPTION( push_blocks( c_compress, v ), fc::exception,
+                          fc_exception_message_contains( "Compressed packed_transaction not allowed" ) );
+
+   // Another chain for the invalid extra data block
+   tester c_extra_data(setup_policy::none, db_read_mode::HEAD);
+   push_blocks( c, c_extra_data );
+
+   c_extra_data.produce_block();
+   {  // allow extra data as if packed_transaction_restrictions not activated
+      const protocol_feature_manager& cpfm = c_extra_data.control->get_protocol_feature_manager();
+      protocol_feature_manager& pfm = const_cast<protocol_feature_manager&>(cpfm);
+      pfm.popped_blocks_to(block_before_feature->block_num());
+   }
+
+   push_trx(c_extra_data, true, packed_transaction::compression_type::none);
+   c_extra_data.produce_block();
+
+   BOOST_CHECK_EXCEPTION( push_blocks( c_extra_data, v ), fc::exception,
+                          fc_exception_message_contains( "Extra-data not allowed in packed_transaction" ) );
+
+   //
+   // Verify production does not allow packed_transaction extra-data or compression in blocks
+   //
+
+   BOOST_CHECK_EXCEPTION( push_trx(c, true, packed_transaction::compression_type::none), tx_extra_data_error,
+                          fc_exception_message_contains( "Extra-data not allowed in packed_transaction" ) );
+   BOOST_CHECK_EXCEPTION( push_trx(c, false, packed_transaction::compression_type::zlib), tx_compression_error,
+                          fc_exception_message_contains( "Compressed packed_transaction not allowed" ) );
+
+
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()

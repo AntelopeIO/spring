@@ -388,6 +388,18 @@ Consequently, even if an attacker alters the signature, they cannot exploit it.
 */
             {builtin_protocol_feature_t::savanna}
          } )
+         (  builtin_protocol_feature_t::packed_transaction_restrictions, builtin_protocol_feature_spec{
+            "PACKED_TRANSACTION_RESTRICTIONS",
+            fc::variant("8919a679245961f3463a0e013626c24684f4215eaf1872edfe3f65c04037b0d8").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
+/*
+Builtin protocol feature: PACKED_TRANSACTION_RESTRICTIONS
+
+Do not allow extra-data in packed_transaction.
+Do not allow on-chain zlib compressed packed_transaction.
+*/
+            {builtin_protocol_feature_t::savanna}
+         } )
    ;
 
 
@@ -1106,4 +1118,4 @@ Consequently, even if an attacker alters the signature, they cannot exploit it.
    }
 
 
-} // eosio::chain
+}  // eosio::chain

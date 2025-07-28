@@ -3221,6 +3221,8 @@ namespace eosio {
       const auto& tid = ptr->id();
       peer_dlog( p2p_trx_log, this, "received packed_transaction ${id}", ("id", tid) );
 
+      ptr->normalize();
+
       if (message_length < def_trx_notice_min_size) {
          // transfer packed transaction is ~170 bytes, transaction notice is 41 bytes
          fc_dlog( p2p_trx_log, "trx notice not sent, trx size ${s}", ("s", message_length));
