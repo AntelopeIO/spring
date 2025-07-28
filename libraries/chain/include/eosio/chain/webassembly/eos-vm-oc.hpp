@@ -45,8 +45,8 @@ class eosvmoc_runtime : public eosio::chain::wasm_runtime_interface {
       void release_call_exec(eosvmoc::executor* e);
       eosvmoc::memory* acquire_call_mem(uint32_t call_depth);
       void release_call_mem(uint32_t call_depth, eosvmoc::memory* m);
-      void set_num_threads_for_call_res_pools(uint32_t num_threads);
-      void set_max_call_depth_for_call_res_pools(uint32_t depth);
+      void set_num_threads_for_call_res_pools(uint32_t num_threads) override;
+      void set_max_call_depth_for_call_res_pools(uint32_t depth) override;
 
       friend eosvmoc_instantiated_module;
       eosvmoc::code_cache_sync cc;
