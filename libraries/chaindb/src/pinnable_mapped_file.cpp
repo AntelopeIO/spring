@@ -121,11 +121,9 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       }
       if(dbheader.dbenviron != environment()) {
          elog("\"${dbname}\" database was created with a chainbase from a different environment\n"
-              "Current compiler environment:\n"
-              "${current}\n"
-              "DB created with compiler environment:\n"
-              "${createdby}",
-              ("dbname", _database_name)("current", environment_as_string(environment()))("createdby", environment_as_string(dbheader.dbenviron)));
+              "Current compiler environment: ${current}\n"
+              "DB created with compiler environment: ${createdby}",
+              ("dbname", _database_name)("current", environment())("createdby", dbheader.dbenviron));
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incompatible)));
       }
    }
@@ -520,48 +518,15 @@ std::ostream& operator<<(std::ostream& osm, pinnable_mapped_file::map_mode m) {
    return osm;
 }
 
-static std::string print_os(environment::os_t os) {
-   switch(os) {
-      case environment::OS_LINUX: return "Linux";
-      case environment::OS_MACOS: return "macOS";
-      case environment::OS_WINDOWS: return "Windows";
-      case environment::OS_OTHER: return "Unknown";
-   }
-   return "error";
-}
-static std::string print_arch(environment::arch_t arch) {
-   switch(arch) {
-      case environment::ARCH_X86_64: return "x86_64";
-      case environment::ARCH_ARM: return "ARM";
-      case environment::ARCH_RISCV: return "RISC-v";
-      case environment::ARCH_OTHER: return "Unknown";
-   }
-   return "error";
-}
-
-std::string environment::as_old_string() const {
-   std::stringstream ss;
-   ss << std::right << std::setw(17) << "Compiler: " << compiler.data() << '\n';
-   ss << std::right << std::setw(17) << "Debug: " << (debug ? "Yes" : "No") << '\n';
-   ss << std::right << std::setw(17) << "OS: " << print_os(os) << '\n';
-   ss << std::right << std::setw(17) << "Arch: " << print_arch(arch) << '\n';
-   ss << std::right << std::setw(17) << "Boost: " << boost_version/100000 << "."
-                                                  << boost_version/100%1000 << "."
-                                                  << boost_version%100;
-   return ss.str();
-}
-
 }
 
 namespace fc {
+//Reconsider post-CHAINB01, when compiler can be stored as a proper string
 void to_variant(const chainbase::environment& bi, variant& v) {
       v = fc::mutable_variant_object()("debug", bi.debug)
                                       ("os", bi.os)
                                       ("arch", bi.arch)
                                       ("boost_version", bi.boost_version)
                                       ("compiler", bi.compiler.data());
-   }
-   void to_variant(const chainbase::environment_as_string& env, variant& v) {
-      v = env.e.as_old_string();
    }
 }
