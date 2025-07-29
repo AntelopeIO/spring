@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_CASE(correct_num_callbacks_test)
          break;
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
    }
-   BOOST_TEST_REQUIRE(barrier == 0);
+   BOOST_TEST_REQUIRE(barrier == 0u);
    pool.stop();
 
    BOOST_TEST(calls == num_threads);
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(correct_callback_test)
          break;
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
    }
-   BOOST_TEST_REQUIRE(barrier == 0);
+   BOOST_TEST_REQUIRE(barrier == 0u);
    pool.stop();
 
    std::lock_guard lock(cc_mtx);
