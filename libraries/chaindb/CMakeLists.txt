@@ -9,7 +9,7 @@ file(GLOB HEADERS "include/chainbase/*.hpp")
 
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
 target_link_libraries( chainbase PUBLIC Threads::Threads Boost::system Boost::headers Boost::interprocess
-                                        Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio )
+                                        Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio fc )
 
 target_include_directories( chainbase PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
                                              "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"  )
