@@ -455,9 +455,11 @@ namespace eosio {
 
       boost::asio::deadline_timer           accept_error_timer{thread_pool.get_executor()};
 
-
       alignas(hardware_destructive_interference_sz)
       std::atomic<fc::time_point>           head_block_time;
+
+      alignas(hardware_destructive_interference_sz)
+      std::atomic<fc::time_point>           last_block_received_time{};
 
       struct chain_info_t {
          block_id_type fork_db_root_id;
@@ -812,6 +814,7 @@ namespace eosio {
       std::atomic<uint32_t>           peer_start_block_num{0};
       std::atomic<uint32_t>           peer_fork_db_head_block_num{0};
       std::atomic<uint32_t>           last_received_block_num{0};
+      std::atomic<fc::time_point>     last_received_block_time{};
       std::atomic<uint32_t>           unique_blocks_rcvd_count{0};
       std::atomic<size_t>             bytes_received{0};
       std::atomic<std::chrono::nanoseconds>   last_bytes_received{0ns};
@@ -1474,8 +1477,8 @@ namespace eosio {
       last_block_nack = block_id_type{};
       bp_connection = bp_connection_type::non_bp;
 
-      uint32_t head_num = my_impl->get_chain_head_num();
-      if (last_received_block_num >= head_num) {
+      // if recently received a block from the connection then reset all connection block nacks
+      if (last_received_block_time.load() >= my_impl->last_block_received_time.load() - fc::seconds(3)) {
          sync_manager::send_block_nack_resets();
       }
 
@@ -3148,7 +3151,9 @@ namespace eosio {
       fc::raw::unpack( peek_ds, bh );
       const block_id_type blk_id = bh.calculate_id();
       const uint32_t blk_num = last_received_block_num = block_header::num_from_id(blk_id);
-      const fc::microseconds age(fc::time_point::now() - bh.timestamp);
+      const fc::time_point now = fc::time_point::now();
+      my_impl->last_block_received_time = last_received_block_time = now;
+      const fc::microseconds age(now - bh.timestamp);
       if( my_impl->dispatcher.have_block( blk_id ) ) {
          pending_message_buffer.advance_read_ptr( message_length ); // advance before any send
 
@@ -3874,6 +3879,8 @@ namespace eosio {
       if (before_lib || my_impl->dispatcher.have_block(msg.id)) {
          if (block_num - 1 == block_header::num_from_id(last_block_nack)) {
             ++consecutive_blocks_nacks;
+         } else {
+            consecutive_blocks_nacks = 0;
          }
          if (!before_lib) {
             my_impl->dispatcher.add_peer_block(msg.id, connection_id);
