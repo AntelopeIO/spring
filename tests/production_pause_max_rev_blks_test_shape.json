@@ -12,7 +12,7 @@
         "keys": [
           {
             "privkey":"5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3",
-            "pubkey":"EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+            "pubkey":"PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
           }
         ],
         "peers": [],
@@ -26,7 +26,7 @@
         "keys": [
           {
             "privkey":"5Jf4sTk7vwX1MYpLJ2eQFanVvKYXFqGBrCyANPukuP2BJ5WAAKZ",
-            "pubkey":"EOS58B33q9S7oNkgeFfcoW3VJYu4obfDiqn5RHGE2ige6jVjUhymR",
+            "pubkey":"PUB_K1_58B33q9S7oNkgeFfcoW3VJYu4obfDiqn5RHGE2ige6jVj6ocnc",
             "blspubkey":"PUB_BLS_rYRa_-bT7uLOSAfPIBy6NlXFB0YxwROeSuqHzw6s-1cuK_-GJUKqp20ktyAnsO4ZuHdx3BEPDaLronpnL22MXKWM7bvZnkCfbGCD6OzizQqxXkM9N5z5R-OUA4Ime6cF5YTSFg",
             "blsprivkey":"PVT_BLS_GQjR0E8Hu8KrsTCvLKnlOCIwQijAj2-5KDizQwF-bAY6pise",
             "blspop":"SIG_BLS_syFMuifUnX2zQQKr0cuHYzQQjsuPrNG75_z6y8fOyYg_twqMICZ0kT7ObbwIOUsLfXx9PVb4-QLEgUYGSRg1NSfeHGjIGkhea82wa3ayfI8elUEU1MStKbeKpys7xUAQz1PEgwcz5dClq3HyLQmMAjpoL74N_Znf0KiNEVZMte-DLF7x_6sAfp_834LthyYHjZYTmdG7belyzlYHKJb6upnZy9nR_zoKpx9jeTd3tzVhoTCuAN6aFw68D_ItY5cWiY2dhA"
@@ -45,7 +45,7 @@
         "name": "testnet_01",
         "keys": [
           {
-            "pubkey": "EOS6Tkpf8kcDfa32WA9B4nTcEJ64ZdDMSNioDcaL6rzdMwnpzaWJB",
+            "pubkey": "PUB_K1_6Tkpf8kcDfa32WA9B4nTcEJ64ZdDMSNioDcaL6rzdMwntK66yk",
             "privkey": "5KkQbdxFHr8Pg1N3DEMDdU7emFgUTwQvh99FDJrodFhUbbsAtQT"
           }
         ],
@@ -63,7 +63,7 @@
         "name": "testnet_02",
         "keys": [
           {
-            "pubkey": "EOS52ntDHqA2qj4xVo7KmxdezMRhvvBqpZBuKYJCsgihisxmywpAx",
+            "pubkey": "PUB_K1_52ntDHqA2qj4xVo7KmxdezMRhvvBqpZBuKYJCsgihisxn2YidT",
             "privkey": "5JxTJJegQBpEL1p77TzkN1ompMB9gDwAfjM9chPzFCB4chxmwrE",
             "blspubkey":"PUB_BLS_C-FprIiry6X-8dlLYH7xUAhIuKXBQv56zJPgtcdmKeHf8AAy750eRrOYBtKG0-QEIN5l_yl9dTLvAYmOios6Q5t3ybWBUVVQ2WWcbZLVxzwBftLwYvo1zPXH7LHEE_sAgP1i7g",
             "blsprivkey":"PVT_BLS_ubElmjajfsYP_9HRSpmV-Fi_IPWKTyJS4XFSWrU8ezMZ_mL_",

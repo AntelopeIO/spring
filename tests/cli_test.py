@@ -114,7 +114,7 @@ def cleos_sign_test():
 
     # Test packed transaction is unpacked. Only with options --print-request and --public-key
     # the sign request is dumped to stderr.
-    cmd = ['./programs/cleos/cleos', '--print-request', '--no-auto-keosd', 'sign', '-c', chain, '--public-key', 'EOS8Dq1KosJ9PMn1vKQK3TbiihgfUiDBUsz471xaCE6eYUssPB1KY', packed_trx]
+    cmd = ['./programs/cleos/cleos', '--print-request', '--no-auto-keosd', 'sign', '-c', chain, '--public-key', 'PUB_K1_8Dq1KosJ9PMn1vKQK3TbiihgfUiDBUsz471xaCE6eYUsmdCc5Y', packed_trx]
     outs=None
     errs=None
     try:
@@ -203,7 +203,7 @@ def cleos_abi_file_test():
         "owner": {
           "threshold": 1,
           "keys": [{
-              "key": "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV",
+              "key": "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63",
               "weight": 1
             }
           ],
@@ -213,7 +213,7 @@ def cleos_abi_file_test():
         "active": {
           "threshold": 1,
           "keys": [{
-              "key": "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV",
+              "key": "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63",
               "weight": 1
             }
           ],
@@ -257,7 +257,7 @@ def cleos_abi_file_test():
                 "owner": {
                 "threshold": 1,
                 "keys": [{
-                    "key": "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV",
+                    "key": "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63",
                     "weight": 1
                     }
                 ],
@@ -267,7 +267,7 @@ def cleos_abi_file_test():
                 "active": {
                 "threshold": 1,
                 "keys": [{
-                    "key": "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV",
+                    "key": "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63",
                     "weight": 1
                     }
                 ],
@@ -364,7 +364,7 @@ def abi_file_with_nodeos_test():
         for name in accountNames:
             account = Account(name)
             account.ownerPrivateKey = account.activePrivateKey = "5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3"
-            account.ownerPublicKey = account.activePublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+            account.ownerPublicKey = account.activePublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
             accounts.append(account)
         walletMgr.create('eosio', [accounts[0]])
         node.createAccount(accounts[1], accounts[0], stakedDeposit=0)

@@ -59,7 +59,7 @@ cleos wallet keys
 **Example Output**
 ```console
 [
-  "EOS5VCUBtxS83ZKqVcWtDBF4473P9HyrvnCM9NBc4Upk1C387qmF3"
+  "PUB_K1_5VCUBtxS83ZKqVcWtDBF4473P9HyrvnCM9NBc4Upk1C3A57myq"
 ]
 ```
 
@@ -79,7 +79,7 @@ password:
 If the password is correct, the public/private key pairs are listed:
 ```console
 password: [[
-    "EOS5VCUBt****************************************F3",
+    "PUB_K1_5VCUBtxS83ZKqVcWtDBF4473P9HyrvnCM9NBc4Upk1C3A57myq",
     "5JnuuGM1S****************************************4D"
   ]
 ]

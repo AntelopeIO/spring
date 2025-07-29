@@ -17,7 +17,7 @@ Only the k1 key format differs between legacy format and canonical format.
 
 
 ```sh
- cleos convert public_key EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
+ cleos convert public_key PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63
 ```
 
 ## Output
