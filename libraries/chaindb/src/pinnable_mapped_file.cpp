@@ -523,10 +523,10 @@ std::ostream& operator<<(std::ostream& osm, pinnable_mapped_file::map_mode m) {
 namespace fc {
 //Reconsider post-CHAINB01, when compiler can be stored as a proper string
 void to_variant(const chainbase::environment& bi, variant& v) {
-      v = fc::mutable_variant_object()("debug", bi.debug)
-                                      ("os", bi.os)
-                                      ("arch", bi.arch)
-                                      ("boost_version", bi.boost_version)
-                                      ("compiler", bi.compiler.data());
-   }
+   v = fc::mutable_variant_object()("debug", bi.debug)
+                                   ("os", bi.os)
+                                   ("arch", bi.arch)
+                                   ("boost_version", bi.boost_version)
+                                   ("compiler", bi.compiler.data());
+}
 }
