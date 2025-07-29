@@ -95,8 +95,6 @@ struct environment  {
       fc::raw::unpack(ds, e.compiler);
       return ds;
    }
-
-   std::string as_old_string() const;
 };
 
 struct db_header  {
@@ -112,14 +110,6 @@ static_assert(header_dirty_bit_offset == 8, "DB dirty byte is expected to be at 
 //really what we want to check here is the pack_size() of a db_header, but that isn't constexpr. Reconsider post-CHAINB01
 static_assert(sizeof(db_header) <= header_size, "DB header struct too large");
 
-std::ostream& operator<<(std::ostream& os, const chainbase::environment& dt);
-
-// a wrapper to provide the output as if operator<<, but in context of a variant (such as logging)
-struct environment_as_string {
-   explicit environment_as_string(const environment& e) : e(e) {};
-   const environment& e;
-};
-
 }
 
 FC_REFLECT_ENUM(chainbase::environment::os_t, (OS_LINUX)(OS_MACOS)(OS_WINDOWS)(OS_OTHER))
@@ -129,5 +119,4 @@ FC_REFLECT(chainbase::db_header, (id)(dirty)(dbenviron));
 
 namespace fc {
    void to_variant(const chainbase::environment& var, variant& vo);
-   void to_variant(const chainbase::environment_as_string& var, variant& vo);
 }
