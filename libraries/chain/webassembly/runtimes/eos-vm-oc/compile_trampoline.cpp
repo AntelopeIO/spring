@@ -18,7 +18,8 @@ using namespace IR;
 namespace eosio { namespace chain { namespace eosvmoc {
 
 void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t stack_size_limit,
-                 size_t generated_code_size_limit, fc::time_point queued_time) noexcept {  //noexcept; we'll just blow up if anything tries to cross this boundry
+                 size_t generated_code_size_limit, account_name receiver, fc::time_point queued_time) noexcept {  //noexcept; we'll just blow up if anything tries to cross this boundry
+   fc::time_point start = fc::time_point::now();
    std::vector<uint8_t> wasm = vector_for_memfd(wasm_code);
 
    //ideally we catch exceptions and sent them upstream as strings for easier reporting
@@ -133,6 +134,15 @@ void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t st
    std::move(prologue_it, prologue.end(), std::back_inserter(initdata_prep));
    std::move(initial_mem.begin(), initial_mem.end(), std::back_inserter(initdata_prep));
 
+   auto get_resource_size = []() {
+      rusage usage{};
+      getrusage(RUSAGE_SELF, &usage);
+      // ru_maxrss is in kilobytes
+      return usage.ru_maxrss;
+   };
+   tlog("receiver ${a}, wasm size: ${ws} KB, oc code size: ${c} KB, compile resident size: ${rs} MB, time ${t} ms, time since queued ${qt} ms",
+        ("a", receiver)("ws", wasm.size()/1024)("c", code.code.size()/1024)("rs", get_resource_size()/1024)
+        ("t", (fc::time_point::now() - start).count()/1000)("qt", (fc::time_point::now() - queued_time).count()/1000));
    std::array<wrapped_fd, 2> fds_to_send{ memfd_for_bytearray(code.code), memfd_for_bytearray(initdata_prep) };
    write_message_with_fds(response_sock, result_message, fds_to_send);
 }
@@ -194,7 +204,7 @@ void run_compile_trampoline(int fd) {
          struct rlimit core_limits = {0u, 0u};
          setrlimit(RLIMIT_CORE, &core_limits);
 
-         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size, generated_code_size_limit, msg.queued_time);
+         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size, generated_code_size_limit, msg.receiver, msg.queued_time);
          _exit(0);
       }
       else if(pid == -1)
