@@ -140,7 +140,7 @@ void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t st
       // ru_maxrss is in kilobytes
       return usage.ru_maxrss;
    };
-   tlog("receiver ${a}, wasm size: ${ws} KB, oc code size: ${c} KB, compile resident size: ${rs} MB, time ${t} ms, time since queued ${qt} ms",
+   tlog("receiver ${a}, wasm size: ${ws} KB, oc code size: ${c} KB, compile memory usage: ${rs} MB, time: ${t} ms, time since queued: ${qt} ms",
         ("a", receiver)("ws", wasm.size()/1024)("c", code.code.size()/1024)("rs", get_resource_size()/1024)
         ("t", (fc::time_point::now() - start).count()/1000)("qt", (fc::time_point::now() - queued_time).count()/1000));
    std::array<wrapped_fd, 2> fds_to_send{ memfd_for_bytearray(code.code), memfd_for_bytearray(initdata_prep) };
