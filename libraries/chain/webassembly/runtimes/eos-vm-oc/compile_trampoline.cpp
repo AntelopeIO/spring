@@ -17,8 +17,8 @@ using namespace IR;
 
 namespace eosio { namespace chain { namespace eosvmoc {
 
-void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t stack_size_limit,
-                 size_t generated_code_size_limit, account_name receiver, fc::time_point queued_time) noexcept {  //noexcept; we'll just blow up if anything tries to cross this boundry
+void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t stack_size_limit, size_t generated_code_size_limit,
+                 fc::log_level log_level, account_name receiver, fc::time_point queued_time) noexcept {  //noexcept; we'll just blow up if anything tries to cross this boundry
    fc::time_point start = fc::time_point::now();
    std::vector<uint8_t> wasm = vector_for_memfd(wasm_code);
 
@@ -140,9 +140,13 @@ void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t st
       // ru_maxrss is in kilobytes
       return usage.ru_maxrss;
    };
-   tlog("receiver ${a}, wasm size: ${ws} KB, oc code size: ${c} KB, max compile memory usage: ${rs} MB, time: ${t} ms, time since queued: ${qt} ms",
-        ("a", receiver)("ws", wasm.size()/1024)("c", code.code.size()/1024)("rs", get_resource_size()/1024)
-        ("t", (fc::time_point::now() - start).count()/1000)("qt", (fc::time_point::now() - queued_time).count()/1000));
+   if (log_level == fc::log_level::all) {
+      // compile trampoline is forked before logging config is loaded, also no SIGHUP support for updating logging,
+      // use provided log_level to determine if this should be logged. info level is available by default
+      ilog("receiver ${a}, wasm size: ${ws} KB, oc code size: ${c} KB, max compile memory usage: ${rs} MB, time: ${t} ms, time since queued: ${qt} ms",
+           ("a", receiver)("ws", wasm.size()/1024)("c", code.code.size()/1024)("rs", get_resource_size()/1024)
+           ("t", (fc::time_point::now() - start).count()/1000)("qt", (fc::time_point::now() - queued_time).count()/1000));
+   }
    std::array<wrapped_fd, 2> fds_to_send{ memfd_for_bytearray(code.code), memfd_for_bytearray(initdata_prep) };
    write_message_with_fds(response_sock, result_message, fds_to_send);
 }
@@ -204,7 +208,8 @@ void run_compile_trampoline(int fd) {
          struct rlimit core_limits = {0u, 0u};
          setrlimit(RLIMIT_CORE, &core_limits);
 
-         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size, generated_code_size_limit, msg.receiver, msg.queued_time);
+         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size, generated_code_size_limit,
+                     msg.log_level, msg.receiver, msg.queued_time);
          _exit(0);
       }
       else if(pid == -1)

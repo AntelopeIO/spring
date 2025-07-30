@@ -21,6 +21,7 @@ struct code_tuple {
 };
 
 struct compile_wasm_message {
+   fc::log_level log_level;
    account_name receiver; // for logging
    code_tuple code;
    fc::time_point queued_time;      // when compilation was queued to begin
@@ -67,7 +68,7 @@ using eosvmoc_message = std::variant<initialize_message,
 FC_REFLECT(eosio::chain::eosvmoc::initialize_message, )
 FC_REFLECT(eosio::chain::eosvmoc::initalize_response_message, (error_message))
 FC_REFLECT(eosio::chain::eosvmoc::code_tuple, (code_id)(vm_version))
-FC_REFLECT(eosio::chain::eosvmoc::compile_wasm_message, (receiver)(code)(queued_time)(limits))
+FC_REFLECT(eosio::chain::eosvmoc::compile_wasm_message, (log_level)(receiver)(code)(queued_time)(limits))
 FC_REFLECT(eosio::chain::eosvmoc::evict_wasms_message, (codes))
 FC_REFLECT(eosio::chain::eosvmoc::code_compilation_result_message, (start)(apply_offset)(starting_memory_pages)(initdata_prologue_size)(queued_time))
 FC_REFLECT(eosio::chain::eosvmoc::compilation_result_unknownfailure, )

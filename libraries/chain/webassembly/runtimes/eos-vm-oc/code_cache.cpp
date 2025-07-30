@@ -198,6 +198,7 @@ code_cache_async::get_descriptor_for_code(mode m, account_name receiver, const d
    }
 
    auto msg = compile_wasm_message{
+      .log_level = fc::logger::default_logger().get_log_level(),
       .receiver = receiver,
       .code = { code_id, vm_version },
       .queued_time = fc::time_point::now(),
