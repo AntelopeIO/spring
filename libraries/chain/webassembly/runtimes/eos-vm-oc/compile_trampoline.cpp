@@ -134,15 +134,15 @@ void run_compile(wrapped_fd&& response_sock, wrapped_fd&& wasm_code, uint64_t st
    std::move(prologue_it, prologue.end(), std::back_inserter(initdata_prep));
    std::move(initial_mem.begin(), initial_mem.end(), std::back_inserter(initdata_prep));
 
-   auto get_resource_size = []() {
-      rusage usage{};
-      getrusage(RUSAGE_SELF, &usage);
-      // ru_maxrss is in kilobytes
-      return usage.ru_maxrss;
-   };
    if (log_level == fc::log_level::all) {
       // compile trampoline is forked before logging config is loaded, also no SIGHUP support for updating logging,
       // use provided log_level to determine if this should be logged. info level is available by default
+      auto get_resource_size = []() {
+         rusage usage{};
+         getrusage(RUSAGE_SELF, &usage);
+         // ru_maxrss is in kilobytes
+         return usage.ru_maxrss;
+      };
       ilog("receiver ${a}, wasm size: ${ws} KB, oc code size: ${c} KB, max compile memory usage: ${rs} MB, time: ${t} ms, time since queued: ${qt} ms",
            ("a", receiver)("ws", wasm.size()/1024)("c", code.code.size()/1024)("rs", get_resource_size()/1024)
            ("t", (fc::time_point::now() - start).count()/1000)("qt", (fc::time_point::now() - queued_time).count()/1000));

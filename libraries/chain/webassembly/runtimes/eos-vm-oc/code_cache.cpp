@@ -247,6 +247,7 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode 
       return nullptr;
 
    auto msg = compile_wasm_message{
+      .log_level = fc::logger::default_logger().get_log_level(),
       .receiver = receiver,
       .code = { code_id, vm_version },
       .queued_time = fc::time_point{}, // could use now() if compile time measurement desired
