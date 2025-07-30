@@ -430,7 +430,9 @@ public:
             }
          } else {
             auto r = idx.equal_range(peer.producer_name);
-            if (std::distance(r.first, r.second) >= max_bp_gossip_peers_per_producer) {
+            // The static_cast is to prevent the sign-compare compile
+            // warning. It is a safe cast.
+            if (std::distance(r.first, r.second) >= static_cast<std::ptrdiff_t>(max_bp_gossip_peers_per_producer)) {
                // remove entry with min expiration
                auto min_expiration_itr = r.first;
                auto min_expiration = min_expiration_itr->expiration();
