@@ -93,8 +93,9 @@ void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu
    auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), test.control->get_thread_pool(),
                                                         test.get_chain_id(), fc::microseconds::maximum(),
                                                         trx_type );
+   fc::microseconds max_trx_time = max_cpu_usage_ms == UINT32_MAX ? fc::microseconds::maximum() : fc::milliseconds(max_cpu_usage_ms);
    auto res = test.control->push_transaction( fut.get(), fc::time_point::now() + fc::milliseconds(max_block_cpu_ms),
-                                              fc::milliseconds(max_cpu_usage_ms), billed_cpu_time_us, explicit_bill, 0 );
+                                              max_trx_time, billed_cpu_time_us, explicit_bill, 0 );
    if( res->except_ptr ) std::rethrow_exception( res->except_ptr );
    if( res->except ) throw *res->except;
 };
