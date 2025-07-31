@@ -2577,15 +2577,23 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
    if (!disable_subjective_enforcement)
       sub_bill = subjective_bill.get_subjective_bill(first_auth, fc::time_point::now());
 
-   const auto prev_elapsed_time_us = trx->elapsed_time_us;
+   auto prev_elapsed_time_us = trx->elapsed_time_us;
    const auto prev_billed_cpu_time_us = trx->billed_cpu_time_us;
    if (in_producing_mode() && prev_elapsed_time_us > 0) {
-      const auto& rl = chain.get_resource_limits_manager();
-      const uint64_t block_cpu_limit = rl.get_block_cpu_limit();
       const fc::microseconds block_time_remaining_us = block_deadline - start;
+      const auto& rl = chain.get_resource_limits_manager();
+      const auto& gpo = chain.get_global_properties();
+
+      const auto on_chain_max_trx = gpo.configuration.max_transaction_cpu_usage;
+      if (prev_elapsed_time_us > on_chain_max_trx) {
+         fc_dlog(_log, "previous elapsed time ${e} > max_transaction_cpu_usage ${m}us, reducing to ${m}us", ("e", prev_elapsed_time_us)("m", on_chain_max_trx));
+         prev_elapsed_time_us = gpo.configuration.max_transaction_cpu_usage;
+      }
+      const uint64_t block_cpu_limit = rl.get_block_cpu_limit();
 
       fc_tlog(_log, "prev cpu ${pc}us, prev elapsed ${p}us, block cpu limit ${c}us, time left ${t}us, tx: ${txid}",
               ("pc", prev_billed_cpu_time_us)("p", prev_elapsed_time_us)("c", block_cpu_limit)("t", block_time_remaining_us)("txid", trx->id()));
+
       // no use attempting to execute if not enough time left in block for what it took previously
       if (block_time_remaining_us.count() < prev_elapsed_time_us || block_cpu_limit < prev_billed_cpu_time_us ) {
          push_result pr;
