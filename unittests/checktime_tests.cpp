@@ -151,7 +151,16 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE( checktime_speculative_max_trx_test ) { try {
-   savanna_tester t;
+   fc::temp_directory tempdir;
+   auto conf_genesis = tester::default_config( tempdir );
+   auto& cfg = conf_genesis.second.initial_configuration;
+
+   cfg.max_block_cpu_usage        = 350'000;
+   cfg.max_transaction_cpu_usage  = 150'000;
+   cfg.min_transaction_cpu_usage  = 1;
+
+   savanna_tester t( conf_genesis.first, conf_genesis.second );
+   t.execute_setup_policy( setup_policy::full );
    t.produce_block();
    t.create_account( "pause"_n );
    t.set_code( "pause"_n, test_contracts::test_api_wasm() );
