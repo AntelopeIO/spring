@@ -41,8 +41,6 @@ if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
    llvm_map_components_to_libnames(LLVM_LIBS support core passes mcjit native orcjit)
    include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
    add_definitions(${LLVM_DEFINITIONS})
-
-   option(EOSVMOC_ENABLE_DEVELOPER_OPTIONS "enable developer options for EOS VM OC" OFF)
 endif()
 
 if("eos-vm" IN_LIST EOSIO_WASM_RUNTIMES OR "eos-vm-jit" IN_LIST EOSIO_WASM_RUNTIMES)
