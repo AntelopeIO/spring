@@ -150,6 +150,36 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
 
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE( checktime_speculative_max_trx_test ) { try {
+   savanna_tester t;
+   t.produce_block();
+   t.create_account( "pause"_n );
+   t.set_code( "pause"_n, test_contracts::test_api_wasm() );
+   t.produce_block();
+
+   BOOST_CHECK_EXCEPTION( push_trx( t, test_pause_action<WASM_TEST_ACTION("test_checktime", "checktime_failure")>{},
+                                    0, 25, 500, false, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, fc_exception_message_contains("reached node configured max-transaction-time") );
+
+   // test case where max-transaction-time = -1, fc::microseconds::maximum()
+   // Verify restricted to 150ms (on-chain max_transaction_cpu_usage)
+   BOOST_CHECK_EXCEPTION( push_trx( t, test_pause_action<WASM_TEST_ACTION("test_checktime", "checktime_failure")>{},
+                                     100000, UINT32_MAX, 10000, false, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          tx_cpu_usage_exceeded, fc_exception_message_contains("reached on chain max_transaction_cpu_usage 150000us") );
+
+   // verify interrupt works for speculative trxs
+   std::thread th( [&]() {
+      std::this_thread::sleep_for( std::chrono::milliseconds(50) );
+      t.control->interrupt_transaction(controller::interrupt_t::speculative_block_trx);
+   } );
+
+   BOOST_CHECK_EXCEPTION( push_trx( t, test_pause_action<WASM_TEST_ACTION("test_checktime", "checktime_failure")>{},
+                                     100000, UINT32_MAX, 10000, false, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                          interrupt_exception, fc_exception_message_contains("interrupt signaled") );
+   th.join();
+
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_max_trx_cpu_extended_test, T, testers ) { try {
    fc::temp_directory tempdir;
    auto conf_genesis = tester::default_config( tempdir );
