@@ -2580,7 +2580,6 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
    auto prev_elapsed_time_us = trx->elapsed_time_us;
    const auto prev_billed_cpu_time_us = trx->billed_cpu_time_us;
    if (in_producing_mode() && prev_elapsed_time_us > 0) {
-      const fc::microseconds block_time_remaining_us = block_deadline - start;
       const auto& rl = chain.get_resource_limits_manager();
       const auto& gpo = chain.get_global_properties();
 
@@ -2591,6 +2590,7 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
       }
       const uint64_t block_cpu_limit = rl.get_block_cpu_limit();
 
+      const fc::microseconds block_time_remaining_us = block_deadline - start;
       fc_tlog(_log, "prev cpu ${pc}us, prev elapsed ${p}us, block cpu limit ${c}us, time left ${t}us, tx: ${txid}",
               ("pc", prev_billed_cpu_time_us)("p", prev_elapsed_time_us)("c", block_cpu_limit)("t", block_time_remaining_us)("txid", trx->id()));
 
