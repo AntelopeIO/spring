@@ -161,11 +161,17 @@ BOOST_AUTO_TEST_CASE( checktime_speculative_max_trx_test ) { try {
                                     0, 25, 500, false, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
                           tx_cpu_usage_exceeded, fc_exception_message_contains("reached node configured max-transaction-time") );
 
-   // test case where max-transaction-time = -1, fc::microseconds::maximum()
+   auto before = fc::time_point::now();
+   // test case where max-transaction-time = -1, UINT32_MAX is converted to fc::microseconds::maximum() in push_trx
    // Verify restricted to 150ms (on-chain max_transaction_cpu_usage)
    BOOST_CHECK_EXCEPTION( push_trx( t, test_pause_action<WASM_TEST_ACTION("test_checktime", "checktime_failure")>{},
                                      100000, UINT32_MAX, 10000, false, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
                           tx_cpu_usage_exceeded, fc_exception_message_contains("reached on chain max_transaction_cpu_usage 150000us") );
+   auto after = fc::time_point::now();
+   auto dur = (after - before).count();
+   // verify within 20% of expected time
+   BOOST_CHECK_MESSAGE( dur >= 150'000, "elapsed " << dur << "us" );
+   BOOST_CHECK_MESSAGE( dur <= 180'000, "elapsed " << dur << "us" );
 
    // verify interrupt works for speculative trxs
    std::thread th( [&]() {
@@ -173,9 +179,16 @@ BOOST_AUTO_TEST_CASE( checktime_speculative_max_trx_test ) { try {
       t.control->interrupt_transaction(controller::interrupt_t::speculative_block_trx);
    } );
 
+   before = fc::time_point::now();
    BOOST_CHECK_EXCEPTION( push_trx( t, test_pause_action<WASM_TEST_ACTION("test_checktime", "checktime_failure")>{},
                                      100000, UINT32_MAX, 10000, false, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
                           interrupt_exception, fc_exception_message_contains("interrupt signaled") );
+   after = fc::time_point::now();
+   dur = (after - before).count();
+   // verify within 20% of expected time
+   BOOST_CHECK_MESSAGE( dur >= 50'000, "elapsed " << dur << "us" );
+   BOOST_CHECK_MESSAGE( dur <= 60'000, "elapsed " << dur << "us" );
+
    th.join();
 
 } FC_LOG_AND_RETHROW() }
