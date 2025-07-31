@@ -306,7 +306,7 @@ struct block_time_tracker {
       using namespace std::string_literals;
       assert(!paused);
       if( _log.is_enabled( fc::log_level::debug ) ) {
-         auto diff = now - clear_time_point - block_idle_time - trx_success_time - trx_fail_time - transient_trx_time - other_time;
+         auto diff = now - clear_time_point - block_idle_time - trx_success_time - trx_exhausted_time - trx_fail_time - transient_trx_time - other_time;
          fc_dlog( _log, "Block #${n} ${p} trx idle: ${i}us out of ${t}us, success: ${sn}, ${s}us, exhausted: ${en}, ${e}us, fail: ${fn}, ${f}us, "
                   "transient: ${ttn}, ${tt}us, other: ${o}us${rest}",
                   ("n", block_num)("p", producer)
