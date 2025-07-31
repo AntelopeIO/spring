@@ -209,7 +209,7 @@ private:
 struct block_time_tracker {
 
    struct trx_time_tracker {
-      enum class time_status { success, fail, other };
+      enum class time_status { success, fail, exhausted, other };
 
       trx_time_tracker(block_time_tracker& btt, bool transient)
           : _block_time_tracker(btt), _is_transient(transient) {}
@@ -222,6 +222,7 @@ struct block_time_tracker {
       trx_time_tracker& operator=(trx_time_tracker&&) = delete;
 
       void trx_success() { _time_status = time_status::success; }
+      void trx_exhausted() { _time_status = time_status::exhausted; }
 
       // Neither success nor fail, will be reported as other
       void cancel() { _time_status = time_status::other; }
@@ -234,6 +235,9 @@ struct block_time_tracker {
             break;
          case time_status::fail:
             _block_time_tracker.add_fail_time(_is_transient);
+            break;
+         case time_status::exhausted:
+            _block_time_tracker.add_exhausted_time(_is_transient);
             break;
          case time_status::other:
             _block_time_tracker.add_other_time();
@@ -303,11 +307,11 @@ struct block_time_tracker {
       assert(!paused);
       if( _log.is_enabled( fc::log_level::debug ) ) {
          auto diff = now - clear_time_point - block_idle_time - trx_success_time - trx_fail_time - transient_trx_time - other_time;
-         fc_dlog( _log, "Block #${n} ${p} trx idle: ${i}us out of ${t}us, success: ${sn}, ${s}us, fail: ${fn}, ${f}us, "
+         fc_dlog( _log, "Block #${n} ${p} trx idle: ${i}us out of ${t}us, success: ${sn}, ${s}us, exhausted: ${en}, ${e}us, fail: ${fn}, ${f}us, "
                   "transient: ${ttn}, ${tt}us, other: ${o}us${rest}",
                   ("n", block_num)("p", producer)
                   ("i", block_idle_time)("t", now - clear_time_point)("sn", trx_success_num)("s", trx_success_time)
-                  ("fn", trx_fail_num)("f", trx_fail_time)
+                  ("en", trx_exhausted_num)("e", trx_exhausted_time)("fn", trx_fail_num)("f", trx_fail_time)
                   ("ttn", transient_trx_num)("tt", transient_trx_time)
                   ("o", other_time)("rest", diff.count() > 5 ? ", diff: "s + std::to_string(diff.count()) + "us"s : ""s ) );
       }
@@ -315,8 +319,8 @@ struct block_time_tracker {
 
    void clear() {
       assert(!paused);
-      block_idle_time = trx_fail_time = trx_success_time = transient_trx_time = other_time = fc::microseconds{};
-      trx_fail_num = trx_success_num = transient_trx_num = 0;
+      block_idle_time = trx_success_time = trx_exhausted_time = trx_fail_time = transient_trx_time = other_time = fc::microseconds{};
+      trx_success_num = trx_exhausted_num = trx_fail_num = transient_trx_num = 0;
       clear_time_point = last_time_point = fc::time_point::now();
    }
 
@@ -325,7 +329,7 @@ struct block_time_tracker {
       assert(!paused);
       auto now = fc::time_point::now();
       if( is_transient ) {
-         // transient time includes both success and fail time
+         // transient time includes success, exhausted, and fail time
          transient_trx_time += now - last_time_point;
          ++transient_trx_num;
       } else {
@@ -335,11 +339,25 @@ struct block_time_tracker {
       last_time_point = now;
    }
 
+   void add_exhausted_time(bool is_transient) {
+      assert(!paused);
+      auto now = fc::time_point::now();
+      if( is_transient ) {
+         // transient time includes success, exhausted, and fail time
+         transient_trx_time += now - last_time_point;
+         ++transient_trx_num;
+      } else {
+         trx_exhausted_time += now - last_time_point;
+         ++trx_exhausted_num;
+      }
+      last_time_point = now;
+   }
+
    void add_fail_time(bool is_transient) {
       assert(!paused);
       auto now = fc::time_point::now();
       if( is_transient ) {
-         // transient time includes both success and fail time
+         // transient time includes success, exhausted, and fail time
          transient_trx_time += now - last_time_point;
          ++transient_trx_num;
       } else {
@@ -352,9 +370,11 @@ struct block_time_tracker {
  private:
    fc::microseconds block_idle_time;
    uint32_t         trx_success_num   = 0;
+   uint32_t         trx_exhausted_num   = 0;
    uint32_t         trx_fail_num      = 0;
    uint32_t         transient_trx_num = 0;
    fc::microseconds trx_success_time;
+   fc::microseconds trx_exhausted_time;
    fc::microseconds trx_fail_time;
    fc::microseconds transient_trx_time;
    fc::microseconds other_time;
@@ -1056,7 +1076,6 @@ public:
                          [this, trx_meta{std::move(trx_meta)}, is_transient, next{std::move(next)}, api_trx, return_failure_traces]() {
                             auto start       = fc::time_point::now();
                             auto idle_time   = _time_tracker.add_idle_time(start);
-                            auto trx_tracker = _time_tracker.start_trx(is_transient, start);
                             fc_tlog(_log, "Time since last trx: ${t}us", ("t", idle_time));
 
                             auto exception_handler = [this, is_transient, &next, &trx_meta](fc::exception_ptr ex) {
@@ -1064,7 +1083,7 @@ public:
                                next(std::move(ex));
                             };
                             try {
-                               if (!process_incoming_transaction_async(trx_meta, api_trx, return_failure_traces, trx_tracker, next)) {
+                               if (!process_incoming_transaction_async(trx_meta, api_trx, start, return_failure_traces, next)) {
                                   if (in_producing_mode()) {
                                      schedule_maybe_produce_block(true);
                                   } else {
@@ -1079,9 +1098,10 @@ public:
 
    bool process_incoming_transaction_async(const transaction_metadata_ptr&             trx,
                                            bool                                        api_trx,
+                                           const fc::time_point&                       start,
                                            bool                                        return_failure_trace,
-                                           block_time_tracker::trx_time_tracker&       trx_tracker,
                                            const next_function<transaction_trace_ptr>& next) {
+      auto trx_tracker = _time_tracker.start_trx(trx->is_transient(), start);
       bool               exhausted = false;
       chain::controller& chain     = chain_plug->chain();
       try {
@@ -2617,7 +2637,9 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
 
    auto pr = handle_push_result(trx, next, start, chain, trace, return_failure_trace, disable_subjective_enforcement, first_auth, sub_bill, prev_billed_cpu_time_us);
 
-   if (!pr.failed) {
+   if (pr.trx_exhausted) {
+      trx_tracker.trx_exhausted();
+   } else if (!pr.failed) {
       trx_tracker.trx_success();
    }
    return pr;
