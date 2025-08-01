@@ -28,11 +28,11 @@ struct offset_tag_t {
 };
 
 // ---------------------------------------------------------------------------
-struct tag_spec {
+struct tag_list_t {
    pos_tag_t pos_tag;
    std::optional<std::vector<offset_tag_t>> offset_tags;
 
-   friend bool operator==(const tag_spec&, const tag_spec&) = default;
+   friend bool operator==(const tag_list_t&, const tag_list_t&) = default;
 };
 
 // ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ struct tag_filter_t {
       friend bool operator==(const or_f&, const or_f&) = default;
    };
 
-   std::variant<and_f, or_f, tag_spec> and_or_tags;
+   std::variant<and_f, or_f, tag_list_t> and_or_tags;
 
    friend bool operator==(const tag_filter_t&, const tag_filter_t&) = default;
 };
@@ -59,15 +59,65 @@ struct tag_filter_t {
 // ---------------------------------------------------------------------------
 FC_REFLECT(eosio::chain::pos_tag_t, (ord)(tag))
 FC_REFLECT(eosio::chain::offset_tag_t, (offset)(tag))
-FC_REFLECT(eosio::chain::tag_spec, (pos_tag)(offset_tags))
+FC_REFLECT(eosio::chain::tag_list_t, (pos_tag)(offset_tags))
 FC_REFLECT(eosio::chain::tag_filter_t::and_f, (filter_list))
 FC_REFLECT(eosio::chain::tag_filter_t::or_f, (filter_list))
 FC_REFLECT(eosio::chain::tag_filter_t, (and_or_tags))
 
+   template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+   template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 // ---------------------------------------------------------------------------
 namespace std {
-   inline std::ostream& operator<<(std::ostream& os, const eosio::chain::tag_filter_t& tf) {
-      os << fc::json::to_string(tf, fc::time_point::maximum());
-      return os;
-   }
+
+inline std::ostream& operator<<(std::ostream& os, const eosio::chain::pos_tag_t& ot) {
+   if (ot.ord)
+      os << "pos_tag(" << (int)*ot.ord << ", " << ot.tag << ')';
+   else
+      os << "pos_tag({}, " << ot.tag << ')';
+   return os;
 }
+
+inline std::ostream& operator<<(std::ostream& os, const eosio::chain::offset_tag_t& ot) {
+   os << "offset_tag(" << (int)ot.offset << ", " << ot.tag << ')';
+   return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const eosio::chain::tag_list_t& ts) {
+   os << "tag_list(" << ts.pos_tag;
+   if (ts.offset_tags && !ts.offset_tags->empty()) {
+      for (const auto& ot : *ts.offset_tags)
+         os << ", " << ot;
+   }
+   os << ')';
+   return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const eosio::chain::tag_filter_t& tf) {
+   using namespace eosio::chain;
+
+   auto print_list = [&](const std::vector<tag_filter_t>& l, std::string_view oper, std::string_view sep = "\n") {
+      os << oper << '(';
+      switch (l.size()) {
+      case 0:
+         os << "[]";
+         break;
+      default:
+         os << "[" << sep;
+         for (size_t i=0; i<l.size(); ++i) {
+            os << l[i];
+            if (i+i < l.size())
+               os << ", ";
+         }
+         os << ']' << sep;
+         break;
+      };
+      os <<  ')';
+   };
+
+   std::visit(overloaded{[&](const tag_list_t& s) { os << s; },
+            [&](const tag_filter_t::and_f& l) { print_list(l.filter_list, "and", ""); },
+                         [&](const tag_filter_t::or_f& l) { print_list(l.filter_list, "or", ""); }},
+              tf.and_or_tags);
+   return os;
+}
+} // namespace std

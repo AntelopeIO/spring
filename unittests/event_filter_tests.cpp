@@ -23,31 +23,22 @@ BOOST_AUTO_TEST_CASE(event_json)
 
       tag_filter_t tf
          { tag_filter_t::and_f { {
-               tag_filter_t { tag_spec { pos_tag_t {1, tag_xfer}}},
+               tag_filter_t { tag_list_t { pos_tag_t {1, tag_xfer}}},
                tag_filter_t { tag_filter_t::or_f { {
-                   tag_filter_t { tag_spec { pos_tag_t {2, tag_x}}},
-                   tag_filter_t { tag_spec { pos_tag_t {3, tag_y}}}}}}
+                   tag_filter_t { tag_list_t { pos_tag_t {2, tag_x}}},
+                   tag_filter_t { tag_list_t { pos_tag_t {3, tag_y}}}}}}
                }}};
 
       auto s = fc::json::to_pretty_string(tf);
 
       auto filter = fc::json::from_string(s).as<tag_filter_t>();
       BOOST_TEST(filter == tf);
-      std::cout << s << '\n';
+      std::cout << tf << '\n';
 
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE(event_json2)
 { try {
-
-const char* test_filter_old = R"=====(
-{ "tag_filter" :
-  { "and": [
-    {"tag_filter" :  "tag_spec" : { "pos_tag" : { "ord": 1, "tag": tag_xfer }}},
-    {"tag_filter" :  "or" : [
-      {"tag_filter" :  "tag_spec" : { "pos_tag" : { "ord": 2, "tag": derive_tag(x) }}},
-      {"tag_filter" :  "tag_spec" : { "pos_tag" : { "ord": 3, "tag": derive_tag(x) }}}]}]}}
-   )=====";
 
 const char* test_filter = R"=====(
 {
