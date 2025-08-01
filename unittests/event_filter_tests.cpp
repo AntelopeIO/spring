@@ -21,19 +21,65 @@ BOOST_AUTO_TEST_CASE(event_json)
       uint64_t tag_x    = 0x1112;
       uint64_t tag_y    = 0x1113;
 
-      tag_filter_t tf
-         { tag_filter_t::and_f { {
-               tag_filter_t { tag_list_t { pos_tag_t {1, tag_xfer}}},
-               tag_filter_t { tag_filter_t::or_f { {
-                   tag_filter_t { tag_list_t { pos_tag_t {2, tag_x}}},
-                   tag_filter_t { tag_list_t { pos_tag_t {3, tag_y}}}}}}
-               }}};
+      auto check_filter = [&](const tag_filter_t& tf, std::string_view msg) {
+         auto s = fc::json::to_pretty_string(tf);
 
-      auto s = fc::json::to_pretty_string(tf);
+         auto filter = fc::json::from_string(s).as<tag_filter_t>();
+         BOOST_TEST(filter == tf);
 
-      auto filter = fc::json::from_string(s).as<tag_filter_t>();
-      BOOST_TEST(filter == tf);
-      std::cout << tf << '\n';
+         std::cout << "-----------------------------------------------------------------\n";
+         std::cout << "// " << msg;
+         std::cout << tf << "\n\n";
+
+         // std::cout << s <<  "\n\n";
+      };
+
+      // -------------------------------------------------------------------------
+      check_filter(
+         tag_filter_t{ tag_list_t{ pos_tag_t{{}, tag_x}}},
+         "Search for a single tag value in any ordinal position\n");
+
+      // -------------------------------------------------------------------------
+      check_filter(
+         tag_filter_t{ tag_list_t{ pos_tag_t{2, tag_x}}},
+         "Search for a single tag value in absolute ordinal position 2\n");
+
+      // -------------------------------------------------------------------------
+      check_filter(
+         tag_filter_t{ tag_list_t{ pos_tag_t{{}, tag_x}, tag_list_t::list_t{ offset_tag_t {2, tag_y}} }},
+         "Search for a single tag value in relative ordinal positions (tag_x at position X, tag_y at position X+2)\n");
+
+      // -------------------------------------------------------------------------
+      check_filter(
+         tag_filter_t{ tag_filter_t::and_f{ {
+               tag_filter_t{ tag_list_t{ pos_tag_t{1, tag_xfer}}},
+               tag_filter_t{ tag_list_t{ pos_tag_t{2, tag_x}}},
+               tag_filter_t{ tag_list_t{ pos_tag_t{3, tag_y}}}}}},
+         "Search for all transfers where `from == x` and `to == y`\n");
+
+      // -------------------------------------------------------------------------
+      check_filter(
+         tag_filter_t{ tag_filter_t::and_f{ {
+               tag_filter_t{ tag_list_t{ pos_tag_t{1, tag_xfer}}},
+               tag_filter_t{ tag_filter_t::or_f{ {
+                                    tag_filter_t{ tag_list_t{ pos_tag_t{2, tag_x}}},
+                                    tag_filter_t{ tag_list_t{ pos_tag_t{3, tag_x}}}}}}}}},
+         "Search for all transfers where `from == x` or `to == x`\n");
+
+      // -------------------------------------------------------------------------
+      check_filter(
+         tag_filter_t{ tag_filter_t::and_f{ {
+               tag_filter_t{ tag_list_t{ pos_tag_t{1, tag_xfer}}},
+               tag_filter_t{ tag_filter_t::or_f{ {
+                     tag_filter_t{ tag_filter_t::and_f{ {
+                                      tag_filter_t{ tag_list_t{ pos_tag_t{2, tag_x}}},
+                                      tag_filter_t{ tag_list_t{ pos_tag_t{3, tag_y}}}}}},
+                     tag_filter_t{ tag_filter_t::and_f{ {
+                                      tag_filter_t{ tag_list_t{ pos_tag_t{2, tag_y}}},
+                                      tag_filter_t{ tag_list_t{ pos_tag_t{3, tag_x}}}}}}}}}}}},
+         "Search for any transfer (any direction) between accounts `x` and `y`\n");
+
+
 
 } FC_LOG_AND_RETHROW() }
 

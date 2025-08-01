@@ -29,8 +29,10 @@ struct offset_tag_t {
 
 // ---------------------------------------------------------------------------
 struct tag_list_t {
-   pos_tag_t pos_tag;
-   std::optional<std::vector<offset_tag_t>> offset_tags;
+   using list_t = std::vector<offset_tag_t>;
+
+   pos_tag_t             pos_tag;
+   std::optional<list_t> offset_tags;
 
    friend bool operator==(const tag_list_t&, const tag_list_t&) = default;
 };
@@ -64,8 +66,9 @@ FC_REFLECT(eosio::chain::tag_filter_t::and_f, (filter_list))
 FC_REFLECT(eosio::chain::tag_filter_t::or_f, (filter_list))
 FC_REFLECT(eosio::chain::tag_filter_t, (and_or_tags))
 
-   template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-   template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+template<class... Ts> overload(Ts...) -> overload<Ts...>;
+
 // ---------------------------------------------------------------------------
 namespace std {
 
@@ -114,7 +117,7 @@ inline std::ostream& operator<<(std::ostream& os, const eosio::chain::tag_filter
       os <<  ')';
    };
 
-   std::visit(overloaded{[&](const tag_list_t& s) { os << s; },
+   std::visit(overload{[&](const tag_list_t& s) { os << s; },
             [&](const tag_filter_t::and_f& l) { print_list(l.filter_list, "and"); },
                          [&](const tag_filter_t::or_f& l) { print_list(l.filter_list, "or"); }},
               tf.and_or_tags);
