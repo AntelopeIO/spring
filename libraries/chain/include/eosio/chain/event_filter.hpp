@@ -95,28 +95,28 @@ inline std::ostream& operator<<(std::ostream& os, const eosio::chain::tag_list_t
 inline std::ostream& operator<<(std::ostream& os, const eosio::chain::tag_filter_t& tf) {
    using namespace eosio::chain;
 
-   auto print_list = [&](const std::vector<tag_filter_t>& l, std::string_view oper, std::string_view sep = "\n") {
+   auto print_list = [&](const std::vector<tag_filter_t>& l, std::string_view oper) {
       os << oper << '(';
       switch (l.size()) {
       case 0:
          os << "[]";
          break;
       default:
-         os << "[" << sep;
+         os << "[";
          for (size_t i=0; i<l.size(); ++i) {
             os << l[i];
             if (i+i < l.size())
                os << ", ";
          }
-         os << ']' << sep;
+         os << ']';
          break;
       };
       os <<  ')';
    };
 
    std::visit(overloaded{[&](const tag_list_t& s) { os << s; },
-            [&](const tag_filter_t::and_f& l) { print_list(l.filter_list, "and", ""); },
-                         [&](const tag_filter_t::or_f& l) { print_list(l.filter_list, "or", ""); }},
+            [&](const tag_filter_t::and_f& l) { print_list(l.filter_list, "and"); },
+                         [&](const tag_filter_t::or_f& l) { print_list(l.filter_list, "or"); }},
               tf.and_or_tags);
    return os;
 }
