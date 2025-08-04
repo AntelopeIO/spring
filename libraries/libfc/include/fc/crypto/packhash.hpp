@@ -19,6 +19,8 @@ struct add_packhash_to_hash {
    static auto packhash(const T&... args) {
       return fc::packhash<typename Derived::encoder>(args...);
    }
+
+   friend auto operator<=>(const add_packhash_to_hash&, const add_packhash_to_hash&) = default;
 };
 
 }
