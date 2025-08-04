@@ -1988,8 +1988,12 @@ struct controller_impl {
                }
             }
          });
+
          auto snapshot_load_time = (fc::time_point::now() - snapshot_load_start_time).to_seconds();
-         ilog( "Finished initialization from snapshot (snapshot load time was ${t}s)", ("t", snapshot_load_time) );
+         auto db_size = db.get_segment_manager()->get_size();
+         auto free_size = db.get_segment_manager()->get_free_memory();
+
+         ilog( "Finished initialization from snapshot (snapshot load time was ${t}s, db size used is ${s} bytes)", ("t", snapshot_load_time)("s", db_size - free_size) );
       } catch (boost::interprocess::bad_alloc& e) {
          elog( "Failed initialization from snapshot - db storage not configured to have enough storage for the provided snapshot, please increase and retry snapshot" );
          shutdown();
