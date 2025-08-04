@@ -265,12 +265,12 @@ namespace fc {
     template<typename Stream, typename T>
     void unpack( Stream& s, fc::safe<T>& v ) { fc::raw::unpack( s, v.value ); }
 
-    template<typename Stream, typename T, unsigned int S, typename Align>
+    template<typename Stream, typename T, unsigned int S, unsigned Align>
     void pack( Stream& s, const fc::fwd<T,S,Align>& v ) {
        fc::raw::pack( *v );
     }
 
-    template<typename Stream, typename T, unsigned int S, typename Align>
+    template<typename Stream, typename T, unsigned int S, unsigned Align>
     void unpack( Stream& s, fc::fwd<T,S,Align>& v ) {
        fc::raw::unpack( *v );
     }

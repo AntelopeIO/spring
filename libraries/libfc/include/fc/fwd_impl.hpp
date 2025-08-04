@@ -38,43 +38,43 @@ namespace fc {
     }
 
 
-    template<typename T, unsigned int S, typename U, typename A>
+    template<typename T, unsigned int S, typename U, unsigned A>
     auto operator + ( const fwd<T,S,A>& x, U&& u ) -> typename detail::add<T,U>::type { return *x+fc::forward<U>(u); }
 
-    template<typename T, unsigned int S, typename U, typename A>
+    template<typename T, unsigned int S, typename U, unsigned A>
     auto operator - ( const fwd<T,S,A>& x, U&& u ) -> typename detail::sub<T,U>::type { return *x-fc::forward<U>(u); }
 
-    template<typename T, unsigned int S, typename U, typename A>
+    template<typename T, unsigned int S, typename U, unsigned A>
     auto operator << ( U& u, const fwd<T,S,A>& f ) -> typename detail::insert_op<U,T>::type { return u << *f; }
 
-    template<typename T, unsigned int S, typename U, typename A>
+    template<typename T, unsigned int S, typename U, unsigned A>
     auto operator >> ( U& u, fwd<T,S,A>& f ) -> typename detail::extract_op<U,T>::type { return u >> *f; }
 
-    template<typename T, unsigned int S, typename A>
+    template<typename T, unsigned int S, unsigned A>
     bool fwd<T,S,A>::operator !()const { return !(**this); }
 
 
     template<uint64_t RequiredSize, uint64_t ProvidedSize>
     void check_size() { static_assert( (ProvidedSize >= RequiredSize), "Failed to reserve enough space in fc::fwd<T,S>" ); }
 
-    template<typename T,unsigned int S,typename A>
+    template<typename T,unsigned int S,unsigned A>
     template<typename... U>
     fwd<T,S,A>::fwd( U&&... u ) {
       check_size<sizeof(T),sizeof(_store)>();
       new (this) T( fc::forward<U>(u)... );
     }
 
-    template<typename T,unsigned int S,typename A>
+    template<typename T,unsigned int S,unsigned A>
     fwd<T,S,A>::fwd() {
       check_size<sizeof(T),sizeof(_store)>();
       new (this) T;
     }
-    template<typename T,unsigned int S,typename A>
+    template<typename T,unsigned int S,unsigned A>
     fwd<T,S,A>::fwd( const fwd<T,S,A>& f ){
       check_size<sizeof(T),sizeof(_store)>();
       new (this) T( *f );
     }
-    template<typename T,unsigned int S,typename A>
+    template<typename T,unsigned int S,unsigned A>
     fwd<T,S,A>::fwd( fwd<T,S,A>&& f ){
       check_size<sizeof(T),sizeof(_store)>();
       new (this) T( std::move(*f) );
@@ -82,37 +82,37 @@ namespace fc {
 
 
 
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     fwd<T,S,A>::operator  T&() { return *(( T*)this); }
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     fwd<T,S,A>::operator const T&()const { return *((const T*)this); }
 
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     T& fwd<T,S,A>::operator*() { return *((T*)this); }
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     const T& fwd<T,S,A>::operator*()const  { return *((const T*)this); }
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     const T* fwd<T,S,A>::operator->()const { return ((const T*)this); }
 
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     T* fwd<T,S,A>::operator->(){ return ((T*)this); }
 
 
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     fwd<T,S,A>::~fwd() {
       ((T*)this)->~T();
     }
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     template<typename U>
     T& fwd<T,S,A>::operator = ( U&& u ) {
       return **this = fc::forward<U>(u);
     }
 
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     T& fwd<T,S,A>::operator = ( fwd<T,S,A>&& u ) {
       return **this = std::move(*u);
     }
-    template<typename T,unsigned int S, typename A>
+    template<typename T,unsigned int S, unsigned A>
     T& fwd<T,S,A>::operator = ( const fwd<T,S,A>& u ) {
       return **this = *u;
     }

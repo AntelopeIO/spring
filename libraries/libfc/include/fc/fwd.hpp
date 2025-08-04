@@ -1,5 +1,4 @@
 #pragma once
-#include <fc/aligned.hpp>
 
 namespace fc {
 
@@ -7,7 +6,7 @@ namespace fc {
  *  @brief Used to forward declare value types.
  *
  */
-template<typename T,unsigned int S, typename Align=double>
+template<typename T,unsigned int S, unsigned Align=alignof(double)>
 class fwd {
   public:
     template<typename... U>
@@ -36,7 +35,7 @@ class fwd {
     ~fwd();
     
   private:
-    aligned<S,Align> _store;
+    alignas(Align) char _store[S];
 };
   
 
