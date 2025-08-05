@@ -2,6 +2,7 @@
 
 #include <fc/crypto/hex.hpp>
 #include <fc/crypto/sha3.hpp>
+#include <fc/crypto/xxh3.hpp>
 #include <fc/utility.hpp>
 
 using namespace fc;
@@ -62,6 +63,35 @@ BOOST_AUTO_TEST_CASE(keccak256) try {
 
    for(const auto& test : tests) {
       BOOST_CHECK_EQUAL(fc::sha3::hash(std::get<0>(test), false).str(), std::get<1>(test));
+   }
+
+} FC_LOG_AND_RETHROW();
+
+#define XSUM_U8 uint8_t
+#define XSUM_U32 uint32_t
+#define XSUM_U64 uint64_t
+typedef struct {
+   uint64_t low64;
+   uint64_t high64;
+} XXH128_hash_t;
+#include <xxHash/tests/sanity_test_vectors.h>
+
+BOOST_AUTO_TEST_CASE(xhh3) try {
+   //reconstruct test vector input from xxhash library's tests
+   char sanity_buffer[4096+64+1];
+
+   uint64_t byte_gen = 2654435761U;
+   for(unsigned i = 0; i < sizeof(sanity_buffer); ++i) {
+      sanity_buffer[i] = (char)(byte_gen>>56);
+      byte_gen *= 11400714785074694797ULL;
+   }
+
+   for(const XSUM_testdata64_t& t : XSUM_XXH3_testdata) {
+      //non-zero seed not exposed by fc's xxh3 interface
+      if(t.seed != 0)
+         continue;
+
+      BOOST_CHECK_EQUAL(t.Nresult, xxh3::hash(sanity_buffer, t.len)._hash);
    }
 
 } FC_LOG_AND_RETHROW();

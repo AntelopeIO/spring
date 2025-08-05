@@ -60,6 +60,7 @@ set( fc_sources
      src/crypto/modular_arithmetic.cpp
      src/crypto/blake2.cpp
      src/crypto/k1_recover.cpp
+     src/crypto/xxh3.cpp
      src/network/url.cpp
      src/network/http/http_client.cpp
      src/compress/zlib.cpp
@@ -106,7 +107,7 @@ endif()
 
 target_link_libraries( fc PUBLIC Boost::date_time Boost::chrono Boost::iostreams Boost::interprocess Boost::multi_index Boost::dll
                                  Boost::multiprecision Boost::beast Boost::asio Boost::thread Boost::crc Threads::Threads
-                                 boringssl ZLIB::ZLIB ${PLATFORM_SPECIFIC_LIBS} ${CMAKE_DL_LIBS} secp256k1 bls12-381
+                                 boringssl ZLIB::ZLIB ${PLATFORM_SPECIFIC_LIBS} ${CMAKE_DL_LIBS} secp256k1 bls12-381 xxhash
                                  ${security_framework} ${corefoundation_framework})
 
 add_subdirectory( test )
