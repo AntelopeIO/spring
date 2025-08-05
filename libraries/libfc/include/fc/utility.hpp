@@ -204,6 +204,42 @@ namespace fc {
 
   using yield_function_t = optional_delegate<void()>;
 
+  //TODO: these should really be consteval, but they're getting pulled in by a few of our c++17 compiled files
+  namespace size_literals {
+     namespace detail {
+        template <unsigned ShiftAmount>
+        constexpr unsigned long long to_bytes(const unsigned long long val) {
+           constexpr unsigned long long max_ull = std::numeric_limits<unsigned long long>::max();
+           constexpr unsigned long long multiplier = 1ull << ShiftAmount;
+           if(val > max_ull/multiplier)
+              throw std::invalid_argument("literal too large");
+           return val * multiplier;
+        }
+     }
+
+     constexpr unsigned long long operator""_KiB(const unsigned long long val) {
+        return detail::to_bytes<10>(val);
+     }
+     constexpr unsigned long long operator""_MiB(const unsigned long long val) {
+        return detail::to_bytes<20>(val);
+     }
+     constexpr unsigned long long operator""_GiB(const unsigned long long val) {
+        return detail::to_bytes<30>(val);
+     }
+     constexpr unsigned long long operator""_TiB(const unsigned long long val) {
+        return detail::to_bytes<40>(val);
+     }
+
+     constexpr unsigned long long operator""_pow2(const unsigned long long n) {
+        if(n >= std::numeric_limits<unsigned long long>::digits)
+           throw std::invalid_argument("exponent for _pow2 too large");
+        return 1ull << n;
+     }
+
+     static_assert(4_MiB == 4*1024*1024);
+     static_assert(16_pow2 == 64*1024);
+  }
+
 }
 
   // outside of namespace fc becuase of VC++ conflict with std::swap
