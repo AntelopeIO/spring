@@ -34,3 +34,6 @@
 [submodule "libraries/libfc/libraries/boringssl/bssl"]
 	path = libraries/libfc/libraries/boringssl/bssl
 	url = https://boringssl.googlesource.com/boringssl
+[submodule "libraries/libfc/libraries/xxhash/xxHash"]
+	path = libraries/libfc/libraries/xxhash/xxHash
+	url = https://github.com/Cyan4973/xxHash

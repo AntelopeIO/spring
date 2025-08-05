@@ -60,6 +60,7 @@ find_library(libbscrypto bscrypto @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libdecrepit decrepit @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libchainbase chainbase @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libbuiltins builtins @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
+find_library(libspringxxhash springxxhash @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 
 #Ubuntu build requires rt library to be specified explicitly
 if(UNIX AND NOT APPLE)
@@ -85,6 +86,7 @@ target_link_libraries(EosioChain INTERFACE
    ${liblogging}
    ${libchainbase}
    ${libbuiltins}
+   ${libspringxxhash}
    ${libsecp256k1}
    ${libbn256}
    ${libbls12-381}
@@ -118,6 +120,7 @@ target_include_directories(EosioChain INTERFACE
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/wasm-jit
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/springboringssl
+                              @CMAKE_INSTALL_FULL_INCLUDEDIR@/springxxhash
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/softfloat )
 
 #adds -lrt and -latomic. Ubuntu eosio.contracts build breaks without this

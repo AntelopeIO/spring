@@ -245,6 +245,7 @@ configure_file(libraries/prometheus/prometheus-cpp/LICENSE                 licen
 configure_file(programs/cleos/LICENSE.CLI11                                licenses/spring/LICENSE.CLI11     COPYONLY)
 configure_file(libraries/libfc/libraries/bls12-381/LICENSE                 licenses/spring/LICENSE.bls12-381 COPYONLY)
 configure_file(libraries/libfc/libraries/boringssl/bssl/LICENSE            licenses/spring/LICENSE.boringssl COPYONLY)
+configure_file(libraries/libfc/libraries/xxhash/xxHash/LICENSE             licenses/spring/LICENSE.xxHash    COPYONLY)
 
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/licenses/spring" DESTINATION "${CMAKE_INSTALL_FULL_DATAROOTDIR}/licenses/" COMPONENT base)
 
