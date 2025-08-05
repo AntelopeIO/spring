@@ -583,6 +583,8 @@ public:
    call_trace& get_call_trace(uint32_t ordinal);
    virtual void store_console_marker() = 0;
 
+   void emit_event(std::span<const char> tags, std::span<const char> data);
+
    /// Execution methods:
 
    virtual void execute_inline( action&& a ) { assert(false); }

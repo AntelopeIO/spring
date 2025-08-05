@@ -701,4 +701,9 @@ namespace eosio { namespace chain {
                                     3270004, "max allowed sync call depth reached" )
       FC_DECLARE_DERIVED_EXCEPTION( sync_call_invalid_status_exception, sync_call_exception,
                                     3270005, "Status of sync call is invalid" )
+
+   FC_DECLARE_DERIVED_EXCEPTION( event_exception,    chain_exception,
+                                    3280000, "Event exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( event_too_many_tags, event_exception,
+                                    3280001, "Event has too many tags" )
 } } // eosio::chain
