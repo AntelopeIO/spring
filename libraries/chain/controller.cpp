@@ -1370,6 +1370,7 @@ struct controller_impl {
       set_activation_handler<builtin_protocol_feature_t::disable_deferred_trxs_stage_2>();
       set_activation_handler<builtin_protocol_feature_t::savanna>();
       set_activation_handler<builtin_protocol_feature_t::sync_call>();
+      set_activation_handler<builtin_protocol_feature_t::events>();
 
       irreversible_block.connect([this](const block_signal_params& t) {
          const auto& [ block, id] = t;
@@ -6500,6 +6501,13 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_return_value" );
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_data" );
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
+   } );
+}
+
+template<>
+void controller_impl::on_activation<builtin_protocol_feature_t::events>() {
+   db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
+      ///TODO: whitelist host function here
    } );
 }
 

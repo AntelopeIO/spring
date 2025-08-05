@@ -2687,8 +2687,24 @@ read_only::get_consensus_parameters_results
 read_only::get_consensus_parameters(const get_consensus_parameters_params&, const fc::time_point& ) const {
    get_consensus_parameters_results results;
 
-   if (db.is_builtin_activated(builtin_protocol_feature_t::sync_call))
-      to_variant(db.get_global_properties().configuration, results.chain_config); //chain_config_v2
+   if (db.is_builtin_activated(builtin_protocol_feature_t::sync_call) || db.is_builtin_activated(builtin_protocol_feature_t::events)) {
+      ///XXX yuk
+      fc::mutable_variant_object chain_config_mvo;
+      {
+         fc::variant chain_config_full;
+         to_variant(db.get_global_properties().configuration, chain_config_full);
+         chain_config_mvo = std::move(chain_config_full.get_object());
+      }
+
+      if(!db.is_builtin_activated(builtin_protocol_feature_t::sync_call)) {
+         chain_config_mvo.erase("max_sync_call_depth");
+         chain_config_mvo.erase("max_sync_call_data_size");
+      }
+      if(!db.is_builtin_activated(builtin_protocol_feature_t::events))
+         chain_config_mvo.erase("new_event_epoch_log_size_threshold");
+
+      results.chain_config = std::move(chain_config_mvo);
+   }
    else if (db.is_builtin_activated(builtin_protocol_feature_t::action_return_value))
       to_variant(db.get_global_properties().configuration.base(), results.chain_config); //chain_config_v1
    else

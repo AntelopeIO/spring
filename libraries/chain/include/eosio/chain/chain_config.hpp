@@ -195,11 +195,13 @@ struct chain_config_v2 : chain_config_v1 {
 
    uint32_t   max_sync_call_depth = config::default_max_sync_call_depth;            ///< size limit for sync call depth
    uint32_t   max_sync_call_data_size = config::default_max_sync_call_data_size;    ///< size limit for sync call data: input and return value respectively
+   uint64_t   new_event_epoch_log_size_threshold = config::default_new_event_epoch_log_size_threshold; ///< new epoch will be created at start of block if log size exceeds this
 
    //order must match parameters as ids are used in serialization
    enum {
      max_sync_call_depth_id = Base::PARAMS_COUNT,
      max_sync_call_data_size_id,
+     new_event_epoch_log_size_threshold_id,
      PARAMS_COUNT
    };
 
@@ -229,7 +231,8 @@ protected:
    template<typename Stream>
    Stream& log(Stream& out) const{
       return base().log(out) << ", Max Sync Call Depth: " << max_sync_call_depth
-                             << ", Max Sync Call Data Size: " << max_sync_call_data_size;
+                             << ", Max Sync Call Data Size: " << max_sync_call_data_size
+                             << ", New Event Epoch On Log Size: " << new_event_epoch_log_size_threshold;
    }
 };
 
@@ -265,7 +268,7 @@ FC_REFLECT_DERIVED(eosio::chain::chain_config_v1, (eosio::chain::chain_config_v0
 )
 
 FC_REFLECT_DERIVED(eosio::chain::chain_config_v2, (eosio::chain::chain_config_v1),
-           (max_sync_call_depth)(max_sync_call_data_size)
+           (max_sync_call_depth)(max_sync_call_data_size)(new_event_epoch_log_size_threshold)
 )
 
 namespace fc {
@@ -402,6 +405,9 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
       case chain_config_v2::max_sync_call_data_size_id:
       fc::raw::pack(s, entry.config.max_sync_call_data_size);
       break;
+      case chain_config_v2::new_event_epoch_log_size_threshold_id:
+      fc::raw::pack(s, entry.config.new_event_epoch_log_size_threshold);
+      break;
       default:
       data_entry<chain_config_v1, config_entry_validator> base_entry(entry);
       fc::raw::pack(s, base_entry);
@@ -526,6 +532,9 @@ inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::cha
       break;
       case chain_config_v2::max_sync_call_data_size_id:
       fc::raw::unpack(s, entry.config.max_sync_call_data_size);
+      break;
+      case chain_config_v2::new_event_epoch_log_size_threshold_id:
+      fc::raw::unpack(s, entry.config.new_event_epoch_log_size_threshold);
       break;
       default:
       eosio::chain::data_entry<chain_config_v1, config_entry_validator> base_entry(entry);

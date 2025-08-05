@@ -400,6 +400,17 @@ Do not allow on-chain zlib compressed packed_transaction.
 */
             {builtin_protocol_feature_t::savanna}
          } )
+         (  builtin_protocol_feature_t::events, builtin_protocol_feature_spec{
+            "EVENTS",
+            fc::variant("b1dd7f3fdd91902a2b71beb2ab0bd040409f691d269a33f7a7920758572c6856").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
+/*
+Builtin protocol feature: EVENTS
+
+Enables event root as part of savanna finality which provides proof of contract emitted events.
+*/
+            {builtin_protocol_feature_t::savanna}
+         } )
    ;
 
 
