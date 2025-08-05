@@ -5,6 +5,8 @@
 
 namespace eosio { namespace chain { namespace config {
 
+using namespace fc::size_literals;
+
 typedef __uint128_t uint128_t;
 
 const static auto default_finalizers_dir_name = "finalizers";
@@ -90,6 +92,8 @@ const static uint32_t   default_max_reversible_blocks                = 3600u;
 const static uint32_t   default_max_sync_call_depth                  = 16u;
 const static uint32_t   default_max_sync_call_data_size              = 512 * 1024; // for input and output each
 
+constexpr static size_t default_new_event_epoch_log_size_threshold   = 1_GiB;
+
 const static uint32_t   default_max_transaction_finality_status_success_duration_sec = 180;
 const static uint32_t   default_max_transaction_finality_status_failure_duration_sec = 180;
 
@@ -119,6 +123,8 @@ const static uint32_t   overhead_per_account_ram_bytes     = 2*1024; ///< overhe
 const static uint32_t   setcode_ram_bytes_multiplier       = 10;     ///< multiplier on contract size to account for multiple copies and cached compilation
 
 const static uint32_t   hashing_checktime_block_size       = 10*1024;  /// call checktime from hashing intrinsic once per this number of bytes
+
+const static uint8_t    maximum_explicit_event_tags        = 255;
 
 #ifdef EOSIO_EOS_VM_JIT_RUNTIME_ENABLED
 const static eosio::chain::wasm_interface::vm_type default_wasm_runtime = eosio::chain::wasm_interface::vm_type::eos_vm_jit;

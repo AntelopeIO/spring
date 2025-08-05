@@ -53,6 +53,8 @@ void chain_config_v2::validate() const {
    EOS_ASSERT( max_sync_call_data_size <= MAX_SIZE_OF_BYTE_ARRAYS, action_validate_exception,
                "max sync call data size should be less than ${max} (MAX_SIZE_OF_BYTE_ARRAYS)",
                ("max", MAX_SIZE_OF_BYTE_ARRAYS));
+   EOS_ASSERT( 1 <= new_event_epoch_log_size_threshold, action_validate_exception,
+               "new event epoch log size threshold should be at least 1" );
 }
 
 bool config_entry_validator::operator()(uint32_t id) const {
@@ -73,6 +75,15 @@ bool config_entry_validator::operator()(uint32_t id) const {
          allowed = control.is_builtin_activated(builtin_protocol_feature_t::sync_call);
          if (!allowed){
             wlog("sync_call protocol feature is not active, max_sync_call_depth and max_sync_call_data_size configs are not allowed");
+         }
+      }
+      break;
+
+      case chain_config_v2::new_event_epoch_log_size_threshold_id:
+      {
+         allowed = control.is_builtin_activated(builtin_protocol_feature_t::events);
+         if (!allowed){
+            wlog("events protocol feature is not active, event_epoch_log_size_threshold configs are not allowed");
          }
       }
       break;

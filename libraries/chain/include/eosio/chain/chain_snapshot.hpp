@@ -32,6 +32,7 @@ struct chain_snapshot_header {
     *         - Spring v1.0.1 is incompatible with v7 format, but can read previous formats
     *   9: Updated for Spring v2.0.0 release:
     *         - chain_config_v2 update for new members `max_sync_call_depth` and `max_sync_call_data_size`
+    *         - Event support: new event_state table & chain_config_v2 new_event_epoch_log_size_threshold
     */
 
    static constexpr uint32_t minimum_compatible_version = 2;

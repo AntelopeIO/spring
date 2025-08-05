@@ -1370,6 +1370,7 @@ struct controller_impl {
       set_activation_handler<builtin_protocol_feature_t::disable_deferred_trxs_stage_2>();
       set_activation_handler<builtin_protocol_feature_t::savanna>();
       set_activation_handler<builtin_protocol_feature_t::sync_call>();
+      set_activation_handler<builtin_protocol_feature_t::events>();
 
       irreversible_block.connect([this](const block_signal_params& t) {
          const auto& [ block, id] = t;
@@ -6500,6 +6501,13 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
 
    const auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
    set_max_call_depth_for_call_res_pools(max_call_depth);
+}
+
+template<>
+void controller_impl::on_activation<builtin_protocol_feature_t::events>() {
+   db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
+      ///TODO: whitelist host function here
+   } );
 }
 
 /// End of protocol feature activation handlers

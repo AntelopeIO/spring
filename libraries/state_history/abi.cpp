@@ -454,7 +454,8 @@ extern const char* const state_history_plugin_abi = R"({
                 { "type": "uint16", "name": "max_authority_depth" },
                 { "type": "uint32", "name": "max_action_return_value_size" },
                 { "type": "uint32", "name": "max_sync_call_depth" },
-                { "type": "uint32", "name": "max_sync_call_data_size" }
+                { "type": "uint32", "name": "max_sync_call_data_size" },
+                { "type": "uint64", "name": "new_event_epoch_log_size_threshold" },
             ]
         },
         {

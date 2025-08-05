@@ -200,6 +200,7 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    BOOST_TEST(parms.wasm_config->max_call_depth == t.control->get_global_properties().wasm_configuration.max_call_depth);
    BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_depth"));
    BOOST_TEST(!parms.chain_config.get_object().contains("max_sync_call_data_size"));
+   BOOST_TEST(!parms.chain_config.get_object().contains("new_event_epoch_log_size_threshold"));
 
    // verifying max_sync_call_depth and max_sync_call_data_size
    t.activate_builtin_protocol_features( {builtin_protocol_feature_t::sync_call} );
@@ -209,10 +210,17 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    chain_config_v2 v2config;
    from_variant(parms.chain_config, v2config);
 
+   BOOST_TEST(!parms.chain_config.get_object().contains("new_event_epoch_log_size_threshold"));
    BOOST_TEST(parms.chain_config.get_object().contains("max_sync_call_depth"));
    BOOST_TEST(parms.chain_config.get_object().contains("max_sync_call_data_size"));
    BOOST_TEST(v2config.max_sync_call_depth == t.control->get_global_properties().configuration.max_sync_call_depth);
    BOOST_TEST(v2config.max_sync_call_data_size == t.control->get_global_properties().configuration.max_sync_call_data_size);
+
+   t.activate_builtin_protocol_features( {builtin_protocol_feature_t::events} );
+   t.produce_block();
+
+   parms = plugin.get_consensus_parameters({}, fc::time_point::maximum());
+   BOOST_TEST(parms.chain_config["new_event_epoch_log_size_threshold"] == t.control->get_global_properties().configuration.new_event_epoch_log_size_threshold);
 } FC_LOG_AND_RETHROW() //get_consensus_parameters
 
 BOOST_FIXTURE_TEST_CASE( get_account, validating_tester ) try {

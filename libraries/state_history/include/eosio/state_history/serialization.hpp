@@ -352,6 +352,7 @@ datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stat
    fc::raw::pack(ds, as_type<uint32_t>(obj.obj.max_action_return_value_size));
    fc::raw::pack(ds, as_type<uint32_t>(obj.obj.max_sync_call_depth));
    fc::raw::pack(ds, as_type<uint32_t>(obj.obj.max_sync_call_data_size));
+   fc::raw::pack(ds, as_type<uint64_t>(obj.obj.new_event_epoch_log_size_threshold));
    return ds;
 }
 

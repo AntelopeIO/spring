@@ -225,6 +225,14 @@ public:
       params_object(1_ui)(19_ui)(64*1024_32).set();
       ASSERT_EQ(params_object(1_ui)(19_ui).get(),
                 params_object(1_ui)(19_ui)(64*1024_32));
+
+      //v2 config, new_event_epoch_log_size_threshold
+      ASSERT_EQ(params_object(1_ui)(20_ui).get(),
+                params_object(1_ui)(20_ui)(1024*1024*1024_64));  // default value
+
+      params_object(1_ui)(20_ui)(7*1024*1024_64).set();
+      ASSERT_EQ(params_object(1_ui)(20_ui).get(),
+                params_object(1_ui)(20_ui)(7*1024*1024_64));
    }
 
    [[eosio::action]] void setthrow1(){
@@ -278,6 +286,11 @@ public:
       params_object(1_ui)(19_ui)(64*1024_32).set();
       ASSERT_EQ(params_object(1_ui)(19_ui).get(),
                 params_object(1_ui)(19_ui)(64*1024_32));
+
+      //v2 config, new_event_epoch_log_size_threshold
+      params_object(1_ui)(20_ui)(55*1024_64).set();
+      ASSERT_EQ(params_object(1_ui)(20_ui).get(),
+                params_object(1_ui)(20_ui)(55*1024_64));
    }
 
    [[eosio::action]] void throwrvia2(){
@@ -294,5 +307,10 @@ public:
       //v2 config, max_sync_call_data_size
       ASSERT_EQ(params_object(1_ui)(19_ui).get(),
                 params_object(1_ui)(19_ui)(64*1024_32));
+
+      //v2 config, new_event_epoch_log_size_threshold
+      params_object(1_ui)(20_ui)(55*1024_64).set();
+      ASSERT_EQ(params_object(1_ui)(20_ui).get(),
+                params_object(1_ui)(20_ui)(55*1024_64));
    }
 };
