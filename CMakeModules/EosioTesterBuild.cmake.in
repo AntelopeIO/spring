@@ -34,6 +34,7 @@ endif ( APPLE )
 
 add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP)
 add_compile_definitions(BOOST_UNORDERED_DISABLE_NEON)
+add_compile_definitions(XXH_INLINE_ALL=1)
 
 set( Boost_USE_MULTITHREADED      ON )
 set( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
@@ -116,6 +117,7 @@ target_include_directories(EosioChain INTERFACE
                               @CMAKE_SOURCE_DIR@/libraries/libfc/include
                               @CMAKE_SOURCE_DIR@/libraries/libfc/libraries/boringssl/bssl/include
                               @CMAKE_SOURCE_DIR@/libraries/libfc/libraries/bls12-381/include
+                              @CMAKE_SOURCE_DIR@/libraries/libfc/libraries/xxhash
                               @CMAKE_SOURCE_DIR@/libraries/softfloat/source/include
                               @CMAKE_SOURCE_DIR@/libraries/appbase/include
                               @CMAKE_SOURCE_DIR@/libraries/chaindb/include

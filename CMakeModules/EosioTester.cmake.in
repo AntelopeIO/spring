@@ -37,6 +37,7 @@ endif ( APPLE )
 
 add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP)
 add_compile_definitions(BOOST_UNORDERED_DISABLE_NEON)
+add_compile_definitions(XXH_INLINE_ALL=1)
 
 set( Boost_USE_MULTITHREADED      ON )
 set( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
@@ -118,6 +119,7 @@ target_include_directories(EosioChain INTERFACE
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/wasm-jit
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/springboringssl
+                              @CMAKE_INSTALL_FULL_INCLUDEDIR@/springxxhash
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/softfloat )
 
 #adds -lrt and -latomic. Ubuntu eosio.contracts build breaks without this
