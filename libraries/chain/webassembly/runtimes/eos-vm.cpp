@@ -755,6 +755,8 @@ REGISTER_CF_HOST_FUNCTION( bls_fp_mod );
 REGISTER_CF_HOST_FUNCTION( bls_fp_mul );
 REGISTER_CF_HOST_FUNCTION( bls_fp_exp ); 
 
+REGISTER_HOST_FUNCTION(emit_event, read_only_check);
+
 } // namespace webassembly
 } // namespace chain
 } // namespace eosio

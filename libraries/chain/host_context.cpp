@@ -544,6 +544,10 @@ int host_context::db_end_i64( name code, name scope, name table ) {
    return keyval_cache.cache_table( *tab );
 }
 
+void host_context::emit_event(std::span<const char> tags, std::span<const char> data) {
+
+}
+
 bool host_context::is_eos_vm_oc_whitelisted() const {
    return receiver.prefix() == config::system_account_name || // "eosio"_n
           control.is_eos_vm_oc_whitelisted(receiver);

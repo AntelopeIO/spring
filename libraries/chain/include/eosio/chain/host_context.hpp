@@ -611,6 +611,8 @@ public:
    // invalidate obj_ptr in all iterator_caches of current host_context
    void invalidate_iterator_caches(const void* obj_ptr);
 
+   void emit_event(std::span<const char> tags, std::span<const char> data);
+
    /// Execution methods:
 
    virtual void execute_inline( action&& a ) { assert(false); }

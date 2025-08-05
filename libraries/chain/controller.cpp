@@ -6507,7 +6507,7 @@ void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
 template<>
 void controller_impl::on_activation<builtin_protocol_feature_t::events>() {
    db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
-      ///TODO: whitelist host function here
+      add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "emit_event" );
    } );
 }
 

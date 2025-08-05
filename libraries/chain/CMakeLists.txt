@@ -59,6 +59,7 @@ set(CHAIN_WEBASSEMBLY_SOURCES
    webassembly/console.cpp
    webassembly/crypto.cpp
    webassembly/database.cpp
+   webassembly/event.cpp
    webassembly/memory.cpp
    webassembly/permission.cpp
    webassembly/privileged.cpp

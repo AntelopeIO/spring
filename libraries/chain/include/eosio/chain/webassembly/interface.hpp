@@ -1968,6 +1968,14 @@ namespace webassembly {
          */
          int32_t bls_fp_exp(span<const char> base, span<const char> exp, span<char> result) const;
 
+         /**
+          * Emit an event
+          *
+          * @ingroup event
+          * @param tags_and_data - pair<vector<uint64>,bytes> representing tags for this event and the event data
+         */
+         void emit_event(span<const char> tags_and_data);
+
          // compiler builtins api
          void __ashlti3(legacy_ptr<int128_t>, uint64_t, uint64_t, uint32_t) const;
          void __ashrti3(legacy_ptr<int128_t>, uint64_t, uint64_t, uint32_t) const;
