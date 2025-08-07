@@ -134,6 +134,112 @@ sync_callee::person_info sync_callee::getperson(name user) {
                        .street     = iterator->street };
 }
 
+[[eosio::call]]
+void sync_callee::erase_alice() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   auto itr = table.find("alice"_n.value);
+   check(itr != table.end(), "Alice does not exist");
+   table.erase(itr);
+}
+
+[[eosio::call]]
+void sync_callee::indirectly_erase_alice() {
+   // make the sync call to erase Alice
+   sync_callee::erase_alice_wrapper{"callee"_n}();
+}
+
+// Insert a row, get the iterator to the row, erase the row via sync call,
+// and modify the row using the iterator
+[[eosio::action]]
+void sync_callee::erasemodify() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
+
+   // make the sync call to erase Alice
+   sync_callee::erase_alice_wrapper{"callee"_n}();
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.modify(itr, get_first_receiver(), [&]( auto& row ) {
+      row.street = "5 Main Street";
+   });
+}
+
+// Test erasures are broadcast along the calling path by making the first
+// sync call not erase the row but the second sync call erase the row
+[[eosio::action]]
+void sync_callee::erasemodify1() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
+
+   // make the sync call to erase Alice indirectly
+   sync_callee::indirectly_erase_alice_wrapper{"callee"_n}();
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.modify(itr, get_first_receiver(), [&]( auto& row ) {
+      row.street = "5 Main Street";
+   });
+}
+
+// Insert a row, get the iterator to the row, erase the row via sync call,
+// and erase the row again using the iterator
+[[eosio::action]]
+void sync_callee::eraseerase() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
+
+   // make the sync call to erase Alice
+   sync_callee::erase_alice_wrapper{"callee"_n}();
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.erase(itr);
+}
+
+// Test erasures are broadcast along the calling path by making the first
+// sync call not erase the row but the second sync call erase the row
+[[eosio::action]]
+void sync_callee::eraseerase1() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
+
+   // make the sync call to erase Alice indirectly
+   sync_callee::indirectly_erase_alice_wrapper{"callee"_n}();
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.erase(itr);
+}
+
 void sync_callee::get_sender_test() {
    // This method is only called by "caller"_n
    check(get_sender() == "caller"_n, "get_sender() in sync_callee::get_sender_test() got an incorrect value");
