@@ -96,6 +96,26 @@ public:
    person_info getperson(eosio::name user);
    using get_person_func = eosio::call_wrapper<"getperson"_i, &sync_callee::getperson>;
 
+   [[eosio::call]]
+   void erase_alice();
+   using erase_alice_wrapper = eosio::call_wrapper<"erase_alice"_i, &sync_callee::erase_alice>;
+
+   [[eosio::call]]
+   void indirectly_erase_alice();
+   using indirectly_erase_alice_wrapper = eosio::call_wrapper<"indirectly_erase_alice"_i, &sync_callee::indirectly_erase_alice>;
+
+   [[eosio::action]]
+   void erasemodify();
+
+   [[eosio::action]]
+   void erasemodify1();
+
+   [[eosio::action]]
+   void eraseerase();
+
+   [[eosio::action]]
+   void eraseerase1();
+
    // Test get_sender in a chain of action and sync call
    [[eosio::call]]
    void get_sender_test();

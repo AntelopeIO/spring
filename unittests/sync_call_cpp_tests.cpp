@@ -219,6 +219,38 @@ BOOST_AUTO_TEST_CASE(insert_into_table_read_only_test) { try {
                          fc_exception_message_contains("this API is not allowed in read only action/call"));
 } FC_LOG_AND_RETHROW() }
 
+// Test erase after erase using the same iterator
+BOOST_AUTO_TEST_CASE(erase_erase_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraseerase"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test erasures are broadcast along the calling path
+BOOST_AUTO_TEST_CASE(indirectly_erase_erase_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraseerase1"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test modify after erase using the same iterator
+BOOST_AUTO_TEST_CASE(erase_modify_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "erasemodify"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test erasures are broadcast along the calling path
+BOOST_AUTO_TEST_CASE(indirectly_erase_modify_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "erasemodify1"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
 // Verify initiating action does not have console but its children sync calls have console
 BOOST_AUTO_TEST_CASE(caller_has_no_console_test) { try {
    call_tester_cpp t;

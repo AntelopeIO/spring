@@ -33,6 +33,31 @@
             "fields": []
         },
         {
+            "name": "erase_alice",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "eraseerase",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "eraseerase1",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "erasemodify",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "erasemodify1",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "forever",
             "base": "",
             "fields": []
@@ -73,6 +98,11 @@
                     "type": "name"
                 }
             ]
+        },
+        {
+            "name": "indirectly_erase_alice",
+            "base": "",
+            "fields": []
         },
         {
             "name": "insertperson",
@@ -227,6 +257,26 @@
     ],
     "actions": [
         {
+            "name": "eraseerase",
+            "type": "eraseerase",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "eraseerase1",
+            "type": "eraseerase1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "erasemodify",
+            "type": "erasemodify",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "erasemodify1",
+            "type": "erasemodify1",
+            "ricardian_contract": ""
+        },
+        {
             "name": "pureaction",
             "type": "pureaction",
             "ricardian_contract": ""
@@ -264,6 +314,12 @@
             "result_type": ""
         },
         {
+            "name": "erase_alice",
+            "type": "erase_alice",
+            "id": 13872779962195883826,
+            "result_type": ""
+        },
+        {
             "name": "forever",
             "type": "forever",
             "id": 229466054377278,
@@ -280,6 +336,12 @@
             "type": "getperson",
             "id": 249889516434780860,
             "result_type": "person_info"
+        },
+        {
+            "name": "indirectly_erase_alice",
+            "type": "indirectly_erase_alice",
+            "id": 1684178545362886536,
+            "result_type": ""
         },
         {
             "name": "insertperson",

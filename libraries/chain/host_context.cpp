@@ -16,6 +16,7 @@ host_context::host_context(controller& con, transaction_context& trx_ctx)
    , idx256(*this)
    , idx_double(*this)
    , idx_long_double(*this)
+   , keyval_cache(*this)
 {
 }
 
@@ -32,6 +33,7 @@ host_context::host_context(controller& con, transaction_context& trx_ctx, accoun
    , idx256(*this)
    , idx_double(*this)
    , idx_long_double(*this)
+   , keyval_cache(*this)
 {
 }
 
@@ -115,7 +117,7 @@ int64_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std:
          }
 
          // use a new sync_call_context for next sync call
-         sync_call_context call_ctx(control, trx_context, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, is_next_call_read_only, data);
+         sync_call_context call_ctx(control, trx_context, *this, ordinal, get_current_action_trace(), get_sync_call_sender(), call_receiver, receiver_account->is_privileged(), depth, is_next_call_read_only, data);
 
          try {
             // execute the sync call
@@ -521,6 +523,16 @@ int host_context::db_upperbound_i64( name code, name scope, name table, uint64_t
    if( itr->t_id != tab->id ) return table_end_itr;
 
    return keyval_cache.add( *itr );
+}
+
+// invalidate obj_ptr in all iterator_caches of current host_context
+void host_context::invalidate_iterator_caches(const void* obj_ptr) {
+   keyval_cache.invalidate(obj_ptr);
+   idx64.invalidate(obj_ptr);
+   idx128.invalidate(obj_ptr);
+   idx256.invalidate(obj_ptr);
+   idx_double.invalidate(obj_ptr);
+   idx_long_double.invalidate(obj_ptr);
 }
 
 int host_context::db_end_i64( name code, name scope, name table ) {
