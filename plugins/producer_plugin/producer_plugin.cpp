@@ -1921,7 +1921,7 @@ fc::variants producer_plugin::get_supported_protocol_features(const get_supporte
          }
       }
 
-      res.first->second = true;
+      visited_protocol_features[pf.feature_digest] = true; // iterator `res.first` invalidated
       results.emplace_back(pf.to_variant(true));
       return true;
    };
