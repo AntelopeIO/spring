@@ -20,6 +20,7 @@ static_assert(std::atomic_bool::is_always_lock_free, "Only lock-free atomics AS-
 
 struct platform_timer::impl {
    timer_t timerid;
+   std::atomic<bool> clear_on_signal_handler_complete;
 
    static void sig_handler(int, siginfo_t* si, void*) {
       platform_timer* self = (platform_timer*)si->si_value.sival_ptr;
@@ -72,6 +73,8 @@ void platform_timer::start(fc::time_point tp) {
       long nsec = (x.count() - (secs*1000000)) * 1000;
       struct itimerspec enable = {{0, 0}, {secs, nsec}};
       _state.store(timer_state_t{.state = state_t::running, .callback_in_flight = false});
+      my->clear_on_signal_handler_complete.store(true, std::memory_order_release);
+
       if(timer_settime(my->timerid, 0, &enable, NULL) != 0) {
          _state.store(timer_state_t{.state = state_t::timed_out, .callback_in_flight = false});
       }
@@ -84,6 +87,7 @@ void platform_timer::expire_now() {
       call_expiration_callback();
       _state.store(timer_state_t{state_t::timed_out, false});
    }
+   my->clear_on_signal_handler_complete.store(false, std::memory_order_release);
 }
 
 void platform_timer::interrupt_timer() {
@@ -109,8 +113,24 @@ void platform_timer::stop() {
    _state.store(timer_state_t{.state = state_t::stopped, .callback_in_flight = false});
    if(prior_state.state == state_t::timed_out || timer_running_forever)
       return;
+
+   //if we are here we believe the kernel timer was still operational. This can happen because the timer was still running (expire_now()
+   // was not called), or because of the timer being interrupted (notice that interrupt_timer() does not actually stop the kernel timer either).
    struct itimerspec disable = {{0, 0}, {0, 0}};
-   timer_settime(my->timerid, 0, &disable, NULL);
+   struct itimerspec old;
+
+   if(timer_settime(my->timerid, 0, &disable, &old))
+      return; //shouldn't happen; but just in case bail before doing a spinlock next
+   if(old.it_value.tv_sec == 0 && old.it_value.tv_nsec == 0) {
+      //danger zone! The timer was already expired. Yet we believed the timer was still running. The timer could have _just_ expired
+      // and thus kernel's internal signal queuing could still be queuing up SIGRTMIN, or possibly the signal has even been delivered
+      // but expire_now() has not made any meaningful progress on whatever thread it is scheduled on. To prevent an ABA-like failure
+      // where the next start() is called prior to expire_now() making it to its CAS (and thus expire_now() ending up cancelling the next
+      // timer that starts), wait for positive confirmation the signal handler is complete.
+      bool signal_handler_possibly_running = my->clear_on_signal_handler_complete.load(std::memory_order_acquire);
+      for(; signal_handler_possibly_running; signal_handler_possibly_running = my->clear_on_signal_handler_complete.load(std::memory_order_acquire))
+         boost::core::sp_thread_pause();
+   }
 }
 
 }

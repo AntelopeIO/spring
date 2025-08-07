@@ -58,7 +58,7 @@ private:
    bool timer_running_forever = false;
 
    struct impl;
-   constexpr static size_t fwd_size = 8;
+   constexpr static size_t fwd_size = 16;
    fc::fwd<impl,fwd_size> my;
 
    void call_expiration_callback() {
