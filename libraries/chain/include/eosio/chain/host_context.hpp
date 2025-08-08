@@ -93,9 +93,9 @@ private:
             if (itr == _object_to_iterator.end()) return;
 
             EOS_ASSERT(0 <= itr->second && (size_t)itr->second < _iterator_to_object.size(), invalid_table_iterator, "iterator out of range");
+            _iterator_to_object[itr->second] = nullptr;
 
             _object_to_iterator.erase((const T*)obj_ptr);
-            _iterator_to_object[itr->second] = nullptr;
          }
 
       private:
