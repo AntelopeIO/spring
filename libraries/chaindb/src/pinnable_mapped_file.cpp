@@ -3,6 +3,9 @@
 #include <chainbase/pagemap_accessor.hpp>
 #include <chainbase/scope_exit.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <fc/io/raw.hpp>
+#include <fc/log/logger.hpp>
+#include <fc/reflect/variant.hpp>
 #include <iostream>
 #include <fstream>
 //#include <unistd.h>
@@ -107,21 +110,20 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       if(hs.fail())
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_header)));
 
-      db_header* dbheader = reinterpret_cast<db_header*>(header);
-      if(dbheader->id != header_id) {
+      const db_header dbheader = fc::raw::unpack<db_header>(header, sizeof(header));
+      if(dbheader.id != header_id) {
          std::string what_str("\"" + _database_name + "\" database format not compatible with this version of chainbase.");
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incorrect_db_version), what_str));
       }
-      if(!allow_dirty && dbheader->dirty) {
+      if(!allow_dirty && dbheader.dirty) {
          std::string what_str("\"" + _database_name + "\" database dirty flag set");
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::dirty)));
       }
-      if(dbheader->dbenviron != environment()) {
-         std::cerr << "CHAINBASE: \"" << _database_name << "\" database was created with a chainbase from a different environment" << '\n';
-         std::cerr << "Current compiler environment:" << '\n';
-         std::cerr << environment();
-         std::cerr << "DB created with compiler environment:" << '\n';
-         std::cerr << dbheader->dbenviron;
+      if(dbheader.dbenviron != environment()) {
+         elog("\"${dbname}\" database was created with a chainbase from a different environment\n"
+              "Current compiler environment: ${current}\n"
+              "DB created with compiler environment: ${createdby}",
+              ("dbname", _database_name)("current", environment())("createdby", dbheader.dbenviron));
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incompatible)));
       }
    }
@@ -134,7 +136,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
       _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
       file_mapped_segment_manager = new ((char*)_file_mapped_region.get_address()+header_size) segment_manager(shared_file_size-header_size);
-      new (_file_mapped_region.get_address()) db_header;
+      fc::raw::pack((char*)_file_mapped_region.get_address(), (uint32_t)header_size, db_header());
    }
    else if(_writable) {
          auto existing_file_size = std::filesystem::file_size(_data_file_path);
@@ -145,9 +147,8 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          }
          else if(shared_file_size < existing_file_size) {
             _database_size = existing_file_size;
-            std::cerr << "CHAINBASE: \"" << _database_name << "\" requested size of " << shared_file_size << " is less than "
-                "existing size of " << existing_file_size << ". This database will not be shrunk and will "
-                "remain at " << existing_file_size << '\n';
+            wlog("\"${dbname}\" requested size of ${reqsz} is less than existing size of ${existingsz}. This database will not be shrunk and will remain at ${existingsz}",
+               ("dbname", _database_name)("reqsz", shared_file_size)("existingsz", existing_file_size));
          }
          _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
          _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
@@ -243,7 +244,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
             std::string what_str("Failed to mlock database \"" + _database_name + "\". " + details);
             BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_mlock), what_str));
          }
-         std::cerr << "CHAINBASE: Database \"" << _database_name << "\" has been successfully locked in memory" << '\n';
+         ilog("Database \"${dbname}\" has been successfully locked in memory", ("dbname", _database_name));
       }
 #endif
 
@@ -325,7 +326,7 @@ void pinnable_mapped_file::setup_non_file_mapping() {
    _non_file_mapped_mapping = mmap(NULL, _non_file_mapped_mapping_size, PROT_READ|PROT_WRITE, common_map_opts|MAP_HUGETLB|MAP_HUGE_1GB, -1, 0);
    if(_non_file_mapped_mapping != MAP_FAILED) {
       round_up_mmaped_size(_1gb);
-      std::cerr << "CHAINBASE: Database \"" << _database_name << "\" using 1GB pages" << '\n';
+      ilog("Database \"${dbname}\" using 1GB pages", ("dbname", _database_name));
       return;
    }
 #endif
@@ -336,7 +337,7 @@ void pinnable_mapped_file::setup_non_file_mapping() {
    _non_file_mapped_mapping = mmap(NULL, _non_file_mapped_mapping_size, PROT_READ|PROT_WRITE, common_map_opts|MAP_HUGETLB|MAP_HUGE_2MB, -1, 0);
    if(_non_file_mapped_mapping != MAP_FAILED) {
       round_up_mmaped_size(_2mb);
-      std::cerr << "CHAINBASE: Database \"" << _database_name << "\" using 2MB pages" << '\n';
+      ilog("Database \"${dbname}\" using 2MB pages", ("dbname", _database_name));
       return;
    }
 #endif
@@ -345,7 +346,7 @@ void pinnable_mapped_file::setup_non_file_mapping() {
    round_up_mmaped_size(_2mb);
    _non_file_mapped_mapping = mmap(NULL, _non_file_mapped_mapping_size, PROT_READ|PROT_WRITE, common_map_opts, VM_FLAGS_SUPERPAGE_SIZE_2MB, 0);
    if(_non_file_mapped_mapping != MAP_FAILED) {
-      std::cerr << "CHAINBASE: Database \"" << _database_name << "\" using 2MB pages" << '\n';
+      ilog("Database \"${dbname}\" using 2MB pages", ("dbname", _database_name));
       return;
    }
    _non_file_mapped_mapping_size = _file_mapped_region.get_size();  //restore to non 2MB rounded size
@@ -359,7 +360,7 @@ void pinnable_mapped_file::setup_non_file_mapping() {
 }
 
 void pinnable_mapped_file::load_database_file(boost::asio::io_context& sig_ios) {
-   std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, this could take a moment..." << '\n';
+   ilog("Preloading \"${dbname}\" database file, this could take a moment...", ("dbname", _database_name));
    char* const dst = (char*)_non_file_mapped_mapping;
    size_t offset = 0;
    time_t t = time(nullptr);
@@ -371,12 +372,11 @@ void pinnable_mapped_file::load_database_file(boost::asio::io_context& sig_ios) 
 
       if(time(nullptr) != t) {
          t = time(nullptr);
-         std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, " <<
-            offset/(_database_size/100) << "% complete..." << '\n';
+         ilog("Preloading \"${dbname}\" database file, ${pct}% complete...", ("dbname", _database_name)("pct", offset/(_database_size/100)));
       }
       sig_ios.poll();
    }
-   std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, complete." << '\n';
+   ilog("Preloading \"${dbname}\" database file, complete.", ("dbname", _database_name));
 }
 
 bool pinnable_mapped_file::all_zeros(const std::byte* data, size_t sz) {
@@ -397,7 +397,7 @@ std::pair<std::byte*, size_t> pinnable_mapped_file::get_region_to_save() const {
 
 void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
    assert(_writable);
-   std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, this could take a moment..." << '\n';
+   ilog("Writing \"${dbname}\" database file, this could take a moment...", ("dbname", _database_name));
    size_t offset = 0;
    time_t t = time(nullptr);
    pagemap_accessor pagemap;
@@ -410,7 +410,7 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
       if (!mapped_writable_instance ||
           !pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, flush, written_pages)) {
          if (mapped_writable_instance)
-            std::cerr << "CHAINBASE: ERROR: pagemap update of db file failed... using non-pagemap version" << '\n';
+            wlog("pagemap update of db file failed... using non-pagemap version");
          if(!all_zeros(src+offset, copy_size)) {
             bip::mapped_region dst_rgn(_file_mapping, bip::read_write, offset, copy_size);
             char *dst = (char *)dst_rgn.get_address();
@@ -418,7 +418,7 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
 
             if (flush) {
                if(dst_rgn.flush(0, 0, false) == false)
-                  std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
+                  wlog("flushing buffers failed");
             }
          }
       }
@@ -426,11 +426,10 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
 
       if(time(nullptr) != t) {
          t = time(nullptr);
-         std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, " <<
-            offset/(sz/100) << "% complete..." << '\n';
+         ilog("Writing \"${dbname}\" database file, ${pct}% complete...", ("dbname", _database_name)("pct", offset/(sz/100)));
       }
    }
-   std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, complete." << '\n';
+   ilog("Writing \"${dbname}\" database file, complete.", ("dbname", _database_name));
 }
 
 pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) noexcept
@@ -461,12 +460,12 @@ pinnable_mapped_file::~pinnable_mapped_file() {
          save_database_file();
 #ifndef _WIN32
          if(munmap(_non_file_mapped_mapping, _non_file_mapped_mapping_size))
-            std::cerr << "CHAINBASE: ERROR: unmapping failed: " << strerror(errno) << '\n';
+            wlog("Database unmapping failed: ${err}", ("err",strerror(errno)));
 #endif
       } else {
          if (_sharable) {
             if(_file_mapped_region.flush(0, 0, false) == false)
-               std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << '\n';
+               wlog("syncing buffers failed");
          } else {
             save_database_file(); // must be before `this` is removed from _instance_tracker
             if (auto it = std::find(_instance_tracker.begin(), _instance_tracker.end(), this); it != _instance_tracker.end())
@@ -487,7 +486,7 @@ void pinnable_mapped_file::set_mapped_file_db_dirty(bool dirty) {
       _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write, 0, _db_size_multiple_requirement);
    *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = dirty;
    if (_file_mapped_region.flush(0, 0, false) == false)
-      std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << '\n';
+      wlog("syncing buffers failed");
 }
 
 std::istream& operator>>(std::istream& in, pinnable_mapped_file::map_mode& runtime) {
@@ -519,34 +518,15 @@ std::ostream& operator<<(std::ostream& osm, pinnable_mapped_file::map_mode m) {
    return osm;
 }
 
-static std::string print_os(environment::os_t os) {
-   switch(os) {
-      case environment::OS_LINUX: return "Linux";
-      case environment::OS_MACOS: return "macOS";
-      case environment::OS_WINDOWS: return "Windows";
-      case environment::OS_OTHER: return "Unknown";
-   }
-   return "error";
-}
-static std::string print_arch(environment::arch_t arch) {
-   switch(arch) {
-      case environment::ARCH_X86_64: return "x86_64";
-      case environment::ARCH_ARM: return "ARM";
-      case environment::ARCH_RISCV: return "RISC-v";
-      case environment::ARCH_OTHER: return "Unknown";
-   }
-   return "error";
 }
 
-std::ostream& operator<<(std::ostream& os, const chainbase::environment& dt) {
-   os << std::right << std::setw(17) << "Compiler: " << dt.compiler << '\n';
-   os << std::right << std::setw(17) << "Debug: " << (dt.debug ? "Yes" : "No") << '\n';
-   os << std::right << std::setw(17) << "OS: " << print_os(dt.os) << '\n';
-   os << std::right << std::setw(17) << "Arch: " << print_arch(dt.arch) << '\n';
-   os << std::right << std::setw(17) << "Boost: " << dt.boost_version/100000 << "."
-                                                  << dt.boost_version/100%1000 << "."
-                                                  << dt.boost_version%100 << '\n';
-   return os;
+namespace fc {
+//Reconsider post-CHAINB01, when compiler can be stored as a proper string
+void to_variant(const chainbase::environment& bi, variant& v) {
+   v = fc::mutable_variant_object()("debug", bi.debug)
+                                   ("os", bi.os)
+                                   ("arch", bi.arch)
+                                   ("boost_version", bi.boost_version)
+                                   ("compiler", bi.compiler.data());
 }
-
 }
