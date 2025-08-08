@@ -48,17 +48,21 @@ struct platform_timer {
    state_t timer_state() const { return _state.load().state; }
 
 private:
-   void expire_now();
+   using generation_t = uint16_t;
+
+   void expire_now(generation_t expired_generation);
 
    struct timer_state_t {
       state_t state = state_t::stopped;
       bool callback_in_flight = false;
+      generation_t generation_running = 0;
    };
    std::atomic<timer_state_t> _state;
    bool timer_running_forever = false;
+   generation_t generation = 0;
 
    struct impl;
-   constexpr static size_t fwd_size = 8;
+   constexpr static size_t fwd_size = 32;
    fc::fwd<impl,fwd_size> my;
 
    void call_expiration_callback() {
