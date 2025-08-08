@@ -48,7 +48,7 @@ struct platform_timer {
    state_t timer_state() const { return _state.load().state; }
 
 private:
-   using generation_t = uint8_t;
+   using generation_t = uint16_t;
 
    void expire_now(generation_t expired_generation);
 
