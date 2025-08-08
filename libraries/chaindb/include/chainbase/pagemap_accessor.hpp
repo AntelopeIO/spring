@@ -10,6 +10,7 @@
 #include <vector>
 #include <span>
 #include <boost/interprocess/managed_mapped_file.hpp>
+#include <fc/log/logger.hpp>
 
 namespace chainbase {
 
@@ -48,7 +49,7 @@ public:
             }
          }
 #endif
-         std::cerr << "CHAINBASE: Detect Soft-Dirty pagemap support: " <<  (_pagemap_supported ? "OK" : "Not supported") << '\n';
+         ilog("Soft-Dirty pagemap support: ${sd}", ("sd", _pagemap_supported ? "OK" : "Not supported"));
       }
       return _pagemap_supported;
    }
@@ -114,7 +115,7 @@ public:
             }
          }
          if (flush && !map_rgn.flush(0, rgn.size(), /* async = */ false))
-            std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
+            wlog("Flushing chainbase buffers failed");
          return true;
       }
       return false;
