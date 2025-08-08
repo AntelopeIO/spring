@@ -25,7 +25,7 @@ struct platform_timer::impl {
    constexpr static unsigned tag_ptr_shift = 57; //safe for x64 w/ 5-level paging; RISC-V w/ Sv57; POWER10; ARM8.2's LVA is only 52
    constexpr static uint64_t tag_ptr_mask = -1ull << tag_ptr_shift;
 
-   static_assert(std::popcount(num_timers-1) <= sizeof(uintptr_t)*8-tag_ptr_shift, "generation count won't fit in pointer tag");
+   static_assert((size_t)std::popcount(num_timers-1) <= sizeof(uintptr_t)*8-tag_ptr_shift, "generation count won't fit in pointer tag");
 
    std::array<timer_t, num_timers> timerid;
 
