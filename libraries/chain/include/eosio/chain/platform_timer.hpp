@@ -62,7 +62,7 @@ private:
    generation_t generation = 0;
 
    struct impl;
-   constexpr static size_t fwd_size = 32;
+   constexpr static size_t fwd_size = 64;
    fc::fwd<impl,fwd_size> my;
 
    void call_expiration_callback() {
