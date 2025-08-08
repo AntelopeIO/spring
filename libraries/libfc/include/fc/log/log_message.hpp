@@ -139,6 +139,8 @@ namespace fc
 } // namespace fc
 
 FC_REFLECT_TYPENAME( fc::log_message );
+FC_REFLECT_ENUM(fc::log_level::values, (all)(debug)(info)(warn)(error)(off))
+FC_REFLECT(fc::log_level, (value))
 
 #ifndef __func__
 #define __func__ __FUNCTION__

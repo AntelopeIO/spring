@@ -164,7 +164,7 @@ struct eosvmoc_tier {
                m.whitelisted = context.is_eos_vm_oc_whitelisted();
                m.high_priority = m.whitelisted && context.is_applying_block();
                m.write_window = context.control.is_write_window();
-               cd = eosvmoc->cc.get_descriptor_for_code(m, code_hash, vm_version, failure);
+               cd = eosvmoc->cc.get_descriptor_for_code(m, context.get_receiver(), code_hash, vm_version, failure);
             } catch (...) {
                // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
                // In the future, consider moving bits of EOS VM that can fire exceptions and such out of this call path
