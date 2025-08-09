@@ -135,17 +135,17 @@ sync_callee::person_info sync_callee::getperson(name user) {
 }
 
 [[eosio::call]]
-void sync_callee::erase_alice() {
+void sync_callee::erase(eosio::name key) {
    address_index table(get_first_receiver(), get_first_receiver().value);
-   auto itr = table.find("alice"_n.value);
-   check(itr != table.end(), "Alice does not exist");
+   auto itr = table.find(key.value);
+   check(itr != table.end(), "Record does not exist");
    table.erase(itr);
 }
 
 [[eosio::call]]
-void sync_callee::indirectly_erase_alice() {
+void sync_callee::indirectly_erase(eosio::name key) {
    // make the sync call to erase Alice
-   sync_callee::erase_alice_wrapper{"callee"_n}();
+   sync_callee::erase_wrapper{"callee"_n}(key);
 }
 
 // Insert a row, get the iterator to the row, erase the row via sync call,
@@ -161,10 +161,9 @@ void sync_callee::erasemodify() {
    });
 
    auto itr = table.find("alice"_n.value);
-   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
 
    // make the sync call to erase Alice
-   sync_callee::erase_alice_wrapper{"callee"_n}();
+   sync_callee::erase_wrapper{"callee"_n}("alice"_n);
 
    // Will throw table_operation_not_permitted (dereference of deleted object)
    table.modify(itr, get_first_receiver(), [&]( auto& row ) {
@@ -188,7 +187,7 @@ void sync_callee::erasemodify1() {
    check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
 
    // make the sync call to erase Alice indirectly
-   sync_callee::indirectly_erase_alice_wrapper{"callee"_n}();
+   sync_callee::indirectly_erase_wrapper{"callee"_n}("alice"_n);
 
    // Will throw table_operation_not_permitted (dereference of deleted object)
    table.modify(itr, get_first_receiver(), [&]( auto& row ) {
@@ -209,10 +208,9 @@ void sync_callee::eraseerase() {
    });
 
    auto itr = table.find("alice"_n.value);
-   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
 
    // make the sync call to erase Alice
-   sync_callee::erase_alice_wrapper{"callee"_n}();
+   sync_callee::erase_wrapper{"callee"_n}("alice"_n);
 
    // Will throw table_operation_not_permitted (dereference of deleted object)
    table.erase(itr);
@@ -231,10 +229,9 @@ void sync_callee::eraseerase1() {
    });
 
    auto itr = table.find("alice"_n.value);
-   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
 
    // make the sync call to erase Alice indirectly
-   sync_callee::indirectly_erase_alice_wrapper{"callee"_n}();
+   sync_callee::indirectly_erase_wrapper{"callee"_n}("alice"_n);
 
    // Will throw table_operation_not_permitted (dereference of deleted object)
    table.erase(itr);
@@ -252,7 +249,7 @@ void sync_callee::erasetable() {
    });
 
    // make the sync call to erase Alice indirectly
-   sync_callee::indirectly_erase_alice_wrapper{"callee"_n}();
+   sync_callee::indirectly_erase_wrapper{"callee"_n}("alice"_n);
 
    // now the table is empty. let's add alice back and add another row.
    // they should work.
