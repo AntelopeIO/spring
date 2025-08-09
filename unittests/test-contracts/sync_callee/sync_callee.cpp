@@ -240,6 +240,34 @@ void sync_callee::eraseerase1() {
    table.erase(itr);
 }
 
+// Test new rows can be added into a table after the table is emptyed.
+[[eosio::action]]
+void sync_callee::erasetable() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   // make the sync call to erase Alice indirectly
+   sync_callee::indirectly_erase_alice_wrapper{"callee"_n}();
+
+   // now the table is empty. let's add alice back and add another row.
+   // they should work.
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "bob"_n;
+      row.first_name = "bob";
+      row.street = "3 Main Street";
+   });
+}
+
 void sync_callee::get_sender_test() {
    // This method is only called by "caller"_n
    check(get_sender() == "caller"_n, "get_sender() in sync_callee::get_sender_test() got an incorrect value");

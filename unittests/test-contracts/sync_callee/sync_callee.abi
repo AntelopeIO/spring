@@ -58,6 +58,11 @@
             "fields": []
         },
         {
+            "name": "erasetable",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "forever",
             "base": "",
             "fields": []
@@ -274,6 +279,11 @@
         {
             "name": "erasemodify1",
             "type": "erasemodify1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "erasetable",
+            "type": "erasetable",
             "ricardian_contract": ""
         },
         {

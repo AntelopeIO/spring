@@ -235,6 +235,12 @@ BOOST_AUTO_TEST_CASE(indirectly_erase_erase_test) { try {
                          fc_exception_message_contains("dereference of deleted object"));
 } FC_LOG_AND_RETHROW() }
 
+// Test new rows can be added into a table after the table is emptyed.
+BOOST_AUTO_TEST_CASE(erase_table_test) { try {
+   call_tester_cpp t;
+   BOOST_REQUIRE_NO_THROW(t.push_action("callee"_n, "erasetable"_n, "callee"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
 // Test modify after erase using the same iterator
 BOOST_AUTO_TEST_CASE(erase_modify_test) { try {
    call_tester_cpp t;
