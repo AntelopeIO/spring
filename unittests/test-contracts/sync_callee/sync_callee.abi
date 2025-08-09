@@ -33,9 +33,14 @@
             "fields": []
         },
         {
-            "name": "erase_alice",
+            "name": "erase",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "key",
+                    "type": "name"
+                }
+            ]
         },
         {
             "name": "eraseerase",
@@ -105,9 +110,14 @@
             ]
         },
         {
-            "name": "indirectly_erase_alice",
+            "name": "indirectly_erase",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "key",
+                    "type": "name"
+                }
+            ]
         },
         {
             "name": "insertperson",
@@ -324,9 +334,9 @@
             "result_type": ""
         },
         {
-            "name": "erase_alice",
-            "type": "erase_alice",
-            "id": 13872779962195883826,
+            "name": "erase",
+            "type": "erase",
+            "id": 210711534101,
             "result_type": ""
         },
         {
@@ -348,9 +358,9 @@
             "result_type": "person_info"
         },
         {
-            "name": "indirectly_erase_alice",
-            "type": "indirectly_erase_alice",
-            "id": 1684178545362886536,
+            "name": "indirectly_erase",
+            "type": "indirectly_erase",
+            "id": 8679623702453778923,
             "result_type": ""
         },
         {

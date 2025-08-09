@@ -97,12 +97,12 @@ public:
    using get_person_func = eosio::call_wrapper<"getperson"_i, &sync_callee::getperson>;
 
    [[eosio::call]]
-   void erase_alice();
-   using erase_alice_wrapper = eosio::call_wrapper<"erase_alice"_i, &sync_callee::erase_alice>;
+   void erase(eosio::name key);
+   using erase_wrapper = eosio::call_wrapper<"erase"_i, &sync_callee::erase>;
 
    [[eosio::call]]
-   void indirectly_erase_alice();
-   using indirectly_erase_alice_wrapper = eosio::call_wrapper<"indirectly_erase_alice"_i, &sync_callee::indirectly_erase_alice>;
+   void indirectly_erase(eosio::name key);
+   using indirectly_erase_wrapper = eosio::call_wrapper<"indirectly_erase"_i, &sync_callee::indirectly_erase>;
 
    [[eosio::action]]
    void erasemodify();
