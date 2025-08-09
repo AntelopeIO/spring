@@ -116,6 +116,9 @@ public:
    [[eosio::action]]
    void eraseerase1();
 
+   [[eosio::action]]
+   void erasetable();
+
    // Test get_sender in a chain of action and sync call
    [[eosio::call]]
    void get_sender_test();
