@@ -265,6 +265,72 @@ void sync_callee::erasetable() {
    });
 }
 
+void sync_callee::build_table(address_index& table) {
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "bob"_n;
+      row.first_name = "bob";
+      row.street = "3 Main Street";
+   });
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "charlie"_n;
+      row.first_name = "charlie";
+      row.street = "5 Main Street";
+   });
+}
+
+// Test iterator looping after the first iterator is erased.
+[[eosio::action]]
+void sync_callee::eraitrloop1() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   build_table(table);
+
+   auto begin_itr = table.begin();
+
+   for( auto itr = table.begin(); itr != table.end(); ++itr ) {
+      if (itr->key == begin_itr->key) {
+         sync_callee::indirectly_erase_wrapper{"callee"_n}(itr->key);
+      }
+   }
+}
+
+// Test iterator looping after the second iterator is erased.
+[[eosio::action]]
+void sync_callee::eraitrloop2() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   build_table(table);
+
+   auto second_itr = table.begin();
+   second_itr++;
+
+   for( auto itr = table.begin(); itr != table.end(); ++itr ) {
+      if (itr->key == second_itr->key) {
+         sync_callee::indirectly_erase_wrapper{"callee"_n}(itr->key);
+      }
+   }
+}
+
+// Test iterator looping after the last iterator is erased.
+[[eosio::action]]
+void sync_callee::eraitrloop3() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   build_table(table);
+
+   auto last_itr = table.begin();
+   last_itr++;
+   last_itr++;  // advance to last
+
+   for( auto itr = table.begin(); itr != table.end(); ++itr ) {
+      if (itr->key == last_itr->key) {
+         sync_callee::indirectly_erase_wrapper{"callee"_n}(itr->key);
+      }
+   }
+}
+
 void sync_callee::get_sender_test() {
    // This method is only called by "caller"_n
    check(get_sender() == "caller"_n, "get_sender() in sync_callee::get_sender_test() got an incorrect value");
