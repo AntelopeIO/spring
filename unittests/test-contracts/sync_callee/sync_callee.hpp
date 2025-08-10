@@ -119,6 +119,15 @@ public:
    [[eosio::action]]
    void erasetable();
 
+   [[eosio::action]]
+   void eraitrloop1();
+
+   [[eosio::action]]
+   void eraitrloop2();
+
+   [[eosio::action]]
+   void eraitrloop3();
+
    // Test get_sender in a chain of action and sync call
    [[eosio::call]]
    void get_sender_test();
@@ -134,4 +143,6 @@ private:
    };
 
    using address_index = eosio::multi_index<"people"_n, person>;
+
+   void build_table(address_index& table);
 };

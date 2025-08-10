@@ -241,6 +241,30 @@ BOOST_AUTO_TEST_CASE(erase_table_test) { try {
    BOOST_REQUIRE_NO_THROW(t.push_action("callee"_n, "erasetable"_n, "callee"_n, {}));
 } FC_LOG_AND_RETHROW() }
 
+// Test iterator looping after the first iterator is erased.
+BOOST_AUTO_TEST_CASE(erase_first_itearor_loop_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraitrloop1"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test iterator looping after the second iterator is erased.
+BOOST_AUTO_TEST_CASE(erase_second_itearor_loop_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraitrloop2"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test iterator looping after the last iterator is erased.
+BOOST_AUTO_TEST_CASE(erase_last_itearor_loop_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraitrloop3"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
 // Test modify after erase using the same iterator
 BOOST_AUTO_TEST_CASE(erase_modify_test) { try {
    call_tester_cpp t;
