@@ -5,6 +5,7 @@
 #include <fc/string.hpp>
 #include <fc/platform_independence.hpp>
 #include <fc/crypto/packhash.hpp>
+#include <fc/crypto/sha256_constexpr.hpp>
 #include <fc/io/raw_fwd.hpp>
 #include <boost/functional/hash.hpp>
 
@@ -14,9 +15,28 @@ namespace fc
 class sha256 : public add_packhash_to_hash<sha256>
 {
   public:
-    sha256();
-    explicit sha256( const std::string& hex_str );
-    explicit sha256( const char *data, size_t size );
+    constexpr sha256() {
+       _hash[0] = _hash[1] = _hash[2] = _hash[3] = 0;
+    }
+    explicit  constexpr sha256( const std::string& hex_str ) {
+       _hash[0] = _hash[1] = _hash[2] = _hash[3] = 0;
+
+       std::vector<char> bytes = fc::from_hex( hex_str );
+       for(unsigned i = 0; i < 4; ++i) {
+          std::array<char, 8> b;
+          std::copy_n(bytes.data() + i * 8, 8, b.begin());
+          _hash[i] = std::bit_cast<uint64_t>(b);
+       }
+    }
+    constexpr sha256( const char *data, size_t size ) {
+       if (size != sizeof(_hash))
+          FC_THROW_EXCEPTION( exception, "sha256: size mismatch" );
+       for(unsigned i = 0; i < 4; ++i) {
+          std::array<char, 8> b;
+          std::copy_n(data + i * 8, 8, b.begin());
+          _hash[i] = std::bit_cast<uint64_t>(b);
+       }
+    }
 
     std::string str()const;
     operator std::string()const;
@@ -34,7 +54,13 @@ class sha256 : public add_packhash_to_hash<sha256>
     }
 
     static sha256 hash( const char* d, uint32_t dlen );
-    static sha256 hash( const std::string& );
+    static constexpr sha256 hash( const std::string& s) {
+       if(std::is_constant_evaluated()) {
+          const std::array<char, 32> r = detail::constsha256(s);
+          return sha256(r.data(), r.size());
+       }
+       return hash( s.data(), s.size() );
+    }
     static sha256 hash( const sha256& );
 
     template<typename T>
@@ -74,7 +100,15 @@ class sha256 : public add_packhash_to_hash<sha256>
     friend sha256 operator >> ( const sha256& h1, uint32_t i       );
     friend sha256 operator ^  ( const sha256& h1, const sha256& h2 );
 
-    friend bool operator == ( const sha256& h1, const sha256& h2 );
+    friend constexpr bool operator == ( const sha256& h1, const sha256& h2 ) {
+      // idea to not use memcmp, from:
+      //   https://lemire.me/blog/2018/08/22/avoid-lexicographical-comparisons-when-testing-for-string-equality/
+      return
+            h1._hash[0] == h2._hash[0] &&
+            h1._hash[1] == h2._hash[1] &&
+            h1._hash[2] == h2._hash[2] &&
+            h1._hash[3] == h2._hash[3];
+   }
     friend std::strong_ordering operator <=> ( const sha256& h1, const sha256& h2 );
 
     uint32_t pop_count()const

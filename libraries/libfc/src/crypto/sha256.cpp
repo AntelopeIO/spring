@@ -11,18 +11,6 @@
 
 namespace fc {
 
-    sha256::sha256() { memset( _hash, 0, sizeof(_hash) ); }
-    sha256::sha256( const char *data, size_t size ) {
-       if (size != sizeof(_hash))
-	  FC_THROW_EXCEPTION( exception, "sha256: size mismatch" );
-       memcpy(_hash, data, size );
-    }
-    sha256::sha256( const std::string& hex_str ) {
-      auto bytes_written = fc::from_hex( hex_str, (char*)_hash, sizeof(_hash) );
-      if( bytes_written < sizeof(_hash) )
-         memset( (char*)_hash + bytes_written, 0, (sizeof(_hash) - bytes_written) );
-    }
-
     std::string sha256::str()const {
       return fc::to_hex( (char*)_hash, sizeof(_hash) );
     }
@@ -45,10 +33,6 @@ namespace fc {
       encoder e;
       e.write(d,dlen);
       return e.result();
-    }
-
-    sha256 sha256::hash( const std::string& s ) {
-      return hash( s.c_str(), s.size() );
     }
 
     sha256 sha256::hash( const sha256& s )
@@ -89,15 +73,7 @@ namespace fc {
     std::strong_ordering operator <=> ( const sha256& h1, const sha256& h2 ) {
       return memcmp( h1._hash, h2._hash, sizeof(h1._hash) )  <=> 0;
     }
-    bool operator == ( const sha256& h1, const sha256& h2 ) {
-       // idea to not use memcmp, from:
-       //   https://lemire.me/blog/2018/08/22/avoid-lexicographical-comparisons-when-testing-for-string-equality/
-       return
-             h1._hash[0] == h2._hash[0] &&
-             h1._hash[1] == h2._hash[1] &&
-             h1._hash[2] == h2._hash[2] &&
-             h1._hash[3] == h2._hash[3];
-    }
+
 
    uint32_t sha256::approx_log_32()const
    {
