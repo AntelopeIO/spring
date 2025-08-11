@@ -62,12 +62,6 @@ option(ENABLE_OC "Enable eosvm-oc on supported platforms" ON)
 if(ENABLE_OC AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32)
    if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux" AND "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
       list(APPEND EOSIO_WASM_RUNTIMES eos-vm-oc)
-      # EOS VM OC requires LLVM, but move the check up here to a central location so that the EosioTester.cmakes
-      # can be created with the exact version found
-      find_package(LLVM REQUIRED CONFIG)
-      if(LLVM_VERSION_MAJOR VERSION_LESS 7 OR LLVM_VERSION_MAJOR VERSION_GREATER_EQUAL 12)
-	      message(FATAL_ERROR "Spring requires an LLVM version 7 through 11")
-      endif()
    endif()
 endif()
 

@@ -34,3 +34,6 @@
 [submodule "libraries/libfc/libraries/boringssl/bssl"]
 	path = libraries/libfc/libraries/boringssl/bssl
 	url = https://boringssl.googlesource.com/boringssl
+[submodule "libraries/llvm/llvm"]
+	path = libraries/llvm/llvm
+	url = https://github.com/spoonincode/spring-llvm
