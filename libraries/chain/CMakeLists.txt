@@ -37,10 +37,6 @@ if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
    set_source_files_properties(webassembly/runtimes/eos-vm-oc/LLVMJIT.cpp PROPERTIES COMPILE_FLAGS "--std=gnu++17")
    set_source_files_properties(webassembly/runtimes/eos-vm-oc/LLVMEmitIR.cpp PROPERTIES COMPILE_FLAGS "--std=gnu++17")
    set_source_files_properties(webassembly/runtimes/eos-vm-oc/switch_stack_linux.s PROPERTIES COMPILE_FLAGS "-Wno-unused-command-line-argument")
-
-   llvm_map_components_to_libnames(LLVM_LIBS support core passes mcjit native orcjit)
-   include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
-   add_definitions(${LLVM_DEFINITIONS})
 endif()
 
 if("eos-vm" IN_LIST EOSIO_WASM_RUNTIMES OR "eos-vm-jit" IN_LIST EOSIO_WASM_RUNTIMES)
@@ -141,7 +137,7 @@ add_library(boost_numeric_ublas INTERFACE)
 add_library(Boost::numeric_ublas ALIAS boost_numeric_ublas)
 
 target_link_libraries( eosio_chain PUBLIC bn256 fc chainbase eosio_rapidjson Logging IR WAST WASM
-                       softfloat builtins ${CHAIN_EOSVM_LIBRARIES} ${LLVM_LIBS} ${CHAIN_RT_LINKAGE}
+                       softfloat builtins ${CHAIN_EOSVM_LIBRARIES} ${CHAIN_RT_LINKAGE}
                        Boost::signals2 Boost::hana Boost::property_tree Boost::multi_index Boost::asio Boost::lockfree
                        Boost::assign Boost::accumulators Boost::rational
                      )
@@ -154,6 +150,7 @@ add_library(eosio_chain_wrap INTERFACE )
 target_link_libraries(eosio_chain_wrap INTERFACE eosio_chain)
 
 if("eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
+   target_link_libraries(eosio_chain PUBLIC llvm)
    target_link_libraries(eosio_chain_wrap INTERFACE "-Wl,-wrap=main")
 endif()
 
