@@ -7,6 +7,7 @@ namespace eosio::chain {
 
 sync_call_context::sync_call_context(controller&           con,
                                      transaction_context&  trx_ctx,
+                                     host_context&         parent_ctx,
                                      uint32_t              ordinal,
                                      action_trace&         current_action_trace,
                                      account_name          sender,
@@ -16,6 +17,7 @@ sync_call_context::sync_call_context(controller&           con,
                                      bool                  read_only,
                                      std::span<const char> data)
    : host_context(con, trx_ctx, receiver, privileged, sync_call_depth)
+   , parent_ctx(parent_ctx)
    , ordinal(ordinal)
    , current_action_trace(current_action_trace)
    , sender(sender)
@@ -87,5 +89,17 @@ bool sync_call_context::is_context_free()const {
 
 // This needs to be investigated further
 void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {}
+
+// broadcast erasing of `obj_ptr` to all iterator caches along the call
+// path and invalidate them.
+void sync_call_context::broadcast_erasure(const void* obj_ptr) {
+   // invalidate `obj_ptr` in all iterator caches of the parent
+   parent_ctx.invalidate_iterator_caches(obj_ptr);
+
+   // continue if the parent is a sync call context
+   if (parent_ctx.is_sync_call()) {
+      parent_ctx.broadcast_erasure(obj_ptr);
+   }
+}
 
 } /// eosio::chain

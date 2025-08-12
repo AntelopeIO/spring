@@ -33,6 +33,56 @@
             "fields": []
         },
         {
+            "name": "eraitrloop1",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "eraitrloop2",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "eraitrloop3",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "erase",
+            "base": "",
+            "fields": [
+                {
+                    "name": "key",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "eraseerase",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "eraseerase1",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "erasemodify",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "erasemodify1",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "erasetable",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "forever",
             "base": "",
             "fields": []
@@ -60,11 +110,26 @@
             ]
         },
         {
+            "name": "get_sender_test",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "getperson",
             "base": "",
             "fields": [
                 {
                     "name": "user",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "indirectly_erase",
+            "base": "",
+            "fields": [
+                {
+                    "name": "key",
                     "type": "name"
                 }
             ]
@@ -222,6 +287,46 @@
     ],
     "actions": [
         {
+            "name": "eraitrloop1",
+            "type": "eraitrloop1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "eraitrloop2",
+            "type": "eraitrloop2",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "eraitrloop3",
+            "type": "eraitrloop3",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "eraseerase",
+            "type": "eraseerase",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "eraseerase1",
+            "type": "eraseerase1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "erasemodify",
+            "type": "erasemodify",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "erasemodify1",
+            "type": "erasemodify1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "erasetable",
+            "type": "erasetable",
+            "ricardian_contract": ""
+        },
+        {
             "name": "pureaction",
             "type": "pureaction",
             "ricardian_contract": ""
@@ -259,9 +364,21 @@
             "result_type": ""
         },
         {
+            "name": "erase",
+            "type": "erase",
+            "id": 210711534101,
+            "result_type": ""
+        },
+        {
             "name": "forever",
             "type": "forever",
             "id": 229466054377278,
+            "result_type": ""
+        },
+        {
+            "name": "get_sender_test",
+            "type": "get_sender_test",
+            "id": 12042755361048359460,
             "result_type": ""
         },
         {
@@ -269,6 +386,12 @@
             "type": "getperson",
             "id": 249889516434780860,
             "result_type": "person_info"
+        },
+        {
+            "name": "indirectly_erase",
+            "type": "indirectly_erase",
+            "id": 8679623702453778923,
+            "result_type": ""
         },
         {
             "name": "insertperson",

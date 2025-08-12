@@ -96,6 +96,43 @@ public:
    person_info getperson(eosio::name user);
    using get_person_func = eosio::call_wrapper<"getperson"_i, &sync_callee::getperson>;
 
+   [[eosio::call]]
+   void erase(eosio::name key);
+   using erase_wrapper = eosio::call_wrapper<"erase"_i, &sync_callee::erase>;
+
+   [[eosio::call]]
+   void indirectly_erase(eosio::name key);
+   using indirectly_erase_wrapper = eosio::call_wrapper<"indirectly_erase"_i, &sync_callee::indirectly_erase>;
+
+   [[eosio::action]]
+   void erasemodify();
+
+   [[eosio::action]]
+   void erasemodify1();
+
+   [[eosio::action]]
+   void eraseerase();
+
+   [[eosio::action]]
+   void eraseerase1();
+
+   [[eosio::action]]
+   void erasetable();
+
+   [[eosio::action]]
+   void eraitrloop1();
+
+   [[eosio::action]]
+   void eraitrloop2();
+
+   [[eosio::action]]
+   void eraitrloop3();
+
+   // Test get_sender in a chain of action and sync call
+   [[eosio::call]]
+   void get_sender_test();
+   using get_sender_test_func = eosio::call_wrapper<"get_sender_test"_i, &sync_callee::get_sender_test>;
+
 private:
    struct [[eosio::table]] person {
       eosio::name key;
@@ -106,4 +143,6 @@ private:
    };
 
    using address_index = eosio::multi_index<"people"_n, person>;
+
+   void build_table(address_index& table);
 };
