@@ -14,7 +14,7 @@ private:
    template<typename T>
    class iterator_cache {
       public:
-         iterator_cache(){
+         iterator_cache(host_context& c) : _context(c) {
             _end_iterator_to_table.reserve(8);
             _iterator_to_object.reserve(32);
          }
@@ -68,6 +68,12 @@ private:
             if( !obj_ptr ) return;
             _iterator_to_object[iterator] = nullptr;
             _object_to_iterator.erase( obj_ptr );
+
+            // Let all iterator caches along the sync call path know
+            // of the removal of the object and invalidate the iterator
+            if (_context.is_sync_call()) {
+               _context.broadcast_erasure(obj_ptr);
+            }
          }
 
          int add( const T& obj ) {
@@ -81,7 +87,19 @@ private:
             return _iterator_to_object.size() - 1;
          }
 
+         // Invalid the iterator entry for the  given object pointer
+         void invalidate(const void* obj_ptr) {
+            auto itr = _object_to_iterator.find((const T*)obj_ptr);
+            if (itr == _object_to_iterator.end()) return;
+
+            EOS_ASSERT(0 <= itr->second && (size_t)itr->second < _iterator_to_object.size(), invalid_table_iterator, "iterator out of range");
+            _iterator_to_object[itr->second] = nullptr;
+
+            _object_to_iterator.erase((const T*)obj_ptr);
+         }
+
       private:
+         host_context&                                   _context;
          map<table_id_object::id_type, pair<const table_id_object*, int>> _table_cache;
          vector<const table_id_object*>                  _end_iterator_to_table;
          vector<const T*>                                _iterator_to_object;
@@ -166,7 +184,7 @@ public:
 
          using secondary_key_helper_t = secondary_key_helper<secondary_key_type, secondary_key_proxy_type, secondary_key_proxy_const_type>;
 
-         generic_index( host_context& c ):context(c){}
+         generic_index( host_context& c ):context(c), itr_cache(c){}
 
          int store( uint64_t scope, uint64_t table, const account_name& payer,
                     uint64_t id, secondary_key_proxy_const_type value )
@@ -474,6 +492,10 @@ public:
             secondary_key_helper_t::get(secondary, obj.secondary_key);
          }
 
+         void invalidate(const void* obj_ptr) {
+            itr_cache.invalidate(obj_ptr);
+         }
+
       private:
          host_context&              context;
          iterator_cache<ObjectType>  itr_cache;
@@ -582,6 +604,12 @@ public:
    virtual uint32_t get_sync_call_ordinal() = 0;
    call_trace& get_call_trace(uint32_t ordinal);
    virtual void store_console_marker() = 0;
+   // broadcast erasing of `obj_ptr` to all iterator caches along the call
+   // path and invalidate them. Only sync_call_context implements this;
+   // apply_context is no-op
+   virtual void broadcast_erasure(const void* obj_ptr) { return; };
+   // invalidate obj_ptr in all iterator_caches of current host_context
+   void invalidate_iterator_caches(const void* obj_ptr);
 
    /// Execution methods:
 

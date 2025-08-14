@@ -3,14 +3,16 @@
 
 #include <fc/bitutil.hpp>
 #include <fc/filesystem.hpp>
+#include <fc/io/cfile.hpp>
 #include <fc/io/json.hpp>
 #include <fc/variant.hpp>
+
+#include <chainbase/environment.hpp>
 
 #include <boost/exception/diagnostic_information.hpp>
 
 #include <eosio/chain/block_log.hpp>
 #include <eosio/chain/exceptions.hpp>
-#include <eosio/chain/chainbase_environment.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
@@ -76,29 +78,19 @@ int chain_actions::run_subcommand_sstate() {
       }
    }
 
-   auto shared_mem_path = state_dir / "shared_memory.bin";
+   const auto shared_mem_path = state_dir / "shared_memory.bin";
 
-   if(!std::filesystem::exists(shared_mem_path)) {
-      std::cerr << "Unable to read database status: file not found: " << shared_mem_path << std::endl;
-      return -1;
+   try {
+      fc::random_access_file file(shared_mem_path, fc::random_access_file::read_only);
+      chainbase::db_header header = file.unpack_from<chainbase::db_header>(0);
+      FC_ASSERT(header.id == chainbase::header_id, "\"" + state_dir.string() + "\" database format not compatible with this version of spring-util");
+      FC_ASSERT(header.dirty == false, "Database dirty flag is set, shutdown was not clean");
    }
-
-   char header[chainbase::header_size];
-   std::ifstream hs(shared_mem_path.generic_string(), std::ifstream::binary);
-   hs.read(header, chainbase::header_size);
-   if(hs.fail()) {
-      std::cerr << "Unable to read database status: file invalid or corrupt" << shared_mem_path <<  std::endl;
-      return -1;
-   }
-
-   chainbase::db_header* dbheader = reinterpret_cast<chainbase::db_header*>(header);
-   if(dbheader->id != chainbase::header_id) {
-      std::string what_str("\"" + state_dir.generic_string() + "\" database format not compatible with this version of chainbase.");
-      std::cerr << what_str << std::endl;
-      return -1;
-   }
-   if(dbheader->dirty) {
-      std::cout << "Database dirty flag is set, shutdown was not clean" << std::endl;
+   catch (fc::exception& e) {
+      std::string msg = e.top_message();
+      if(auto pos = msg.find(": "); pos != std::string_view::npos) //remove ASSERT() criteria
+         msg = msg.substr(pos + 2);
+      std::cerr << msg << std::endl;
       return -1;
    }
 

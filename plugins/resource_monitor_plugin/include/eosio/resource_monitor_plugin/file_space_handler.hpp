@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/asio/deadline_timer.hpp>
 
 #include <eosio/chain/application.hpp>
 #include <eosio/chain/exceptions.hpp>

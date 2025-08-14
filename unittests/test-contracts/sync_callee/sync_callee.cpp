@@ -134,6 +134,203 @@ sync_callee::person_info sync_callee::getperson(name user) {
                        .street     = iterator->street };
 }
 
+[[eosio::call]]
+void sync_callee::erase(eosio::name key) {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   auto itr = table.find(key.value);
+   check(itr != table.end(), "Record does not exist");
+   table.erase(itr);
+}
+
+[[eosio::call]]
+void sync_callee::indirectly_erase(eosio::name key) {
+   // make the sync call to erase Alice
+   sync_callee::erase_wrapper{"callee"_n}(key);
+}
+
+// Insert a row, get the iterator to the row, erase the row via sync call,
+// and modify the row using the iterator
+[[eosio::action]]
+void sync_callee::erasemodify() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+
+   // make the sync call to erase Alice
+   sync_callee::erase_wrapper{"callee"_n}("alice"_n);
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.modify(itr, get_first_receiver(), [&]( auto& row ) {
+      row.street = "5 Main Street";
+   });
+}
+
+// Test erasures are broadcast along the calling path by making the first
+// sync call not erase the row but the second sync call erase the row
+[[eosio::action]]
+void sync_callee::erasemodify1() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+   check(itr != table.end(), "Alice does not exist in broadcast_erase_test");
+
+   // make the sync call to erase Alice indirectly
+   sync_callee::indirectly_erase_wrapper{"callee"_n}("alice"_n);
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.modify(itr, get_first_receiver(), [&]( auto& row ) {
+      row.street = "5 Main Street";
+   });
+}
+
+// Insert a row, get the iterator to the row, erase the row via sync call,
+// and erase the row again using the iterator
+[[eosio::action]]
+void sync_callee::eraseerase() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+
+   // make the sync call to erase Alice
+   sync_callee::erase_wrapper{"callee"_n}("alice"_n);
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.erase(itr);
+}
+
+// Test erasures are broadcast along the calling path by making the first
+// sync call not erase the row but the second sync call erase the row
+[[eosio::action]]
+void sync_callee::eraseerase1() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   auto itr = table.find("alice"_n.value);
+
+   // make the sync call to erase Alice indirectly
+   sync_callee::indirectly_erase_wrapper{"callee"_n}("alice"_n);
+
+   // Will throw table_operation_not_permitted (dereference of deleted object)
+   table.erase(itr);
+}
+
+// Test new rows can be added into a table after the table is emptyed.
+[[eosio::action]]
+void sync_callee::erasetable() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+
+   // make the sync call to erase Alice indirectly
+   sync_callee::indirectly_erase_wrapper{"callee"_n}("alice"_n);
+
+   // now the table is empty. let's add alice back and add another row.
+   // they should work.
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "bob"_n;
+      row.first_name = "bob";
+      row.street = "3 Main Street";
+   });
+}
+
+void sync_callee::build_table(address_index& table) {
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "alice"_n;
+      row.first_name = "alice";
+      row.street = "1 Main Street";
+   });
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "bob"_n;
+      row.first_name = "bob";
+      row.street = "3 Main Street";
+   });
+   table.emplace(get_first_receiver(), [&]( auto& row ) {
+      row.key = "charlie"_n;
+      row.first_name = "charlie";
+      row.street = "5 Main Street";
+   });
+}
+
+// Test iterator looping after the first iterator is erased.
+[[eosio::action]]
+void sync_callee::eraitrloop1() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   build_table(table);
+
+   auto begin_itr = table.begin();
+
+   for( auto itr = table.begin(); itr != table.end(); ++itr ) {
+      if (itr->key == begin_itr->key) {
+         sync_callee::indirectly_erase_wrapper{"callee"_n}(itr->key);
+      }
+   }
+}
+
+// Test iterator looping after the second iterator is erased.
+[[eosio::action]]
+void sync_callee::eraitrloop2() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   build_table(table);
+
+   auto second_itr = table.begin();
+   second_itr++;
+
+   for( auto itr = table.begin(); itr != table.end(); ++itr ) {
+      if (itr->key == second_itr->key) {
+         sync_callee::indirectly_erase_wrapper{"callee"_n}(itr->key);
+      }
+   }
+}
+
+// Test iterator looping after the last iterator is erased.
+[[eosio::action]]
+void sync_callee::eraitrloop3() {
+   address_index table(get_first_receiver(), get_first_receiver().value);
+   build_table(table);
+
+   auto last_itr = table.begin();
+   last_itr++;
+   last_itr++;  // advance to last
+
+   for( auto itr = table.begin(); itr != table.end(); ++itr ) {
+      if (itr->key == last_itr->key) {
+         sync_callee::indirectly_erase_wrapper{"callee"_n}(itr->key);
+      }
+   }
+}
+
 void sync_callee::get_sender_test() {
    // This method is only called by "caller"_n
    check(get_sender() == "caller"_n, "get_sender() in sync_callee::get_sender_test() got an incorrect value");

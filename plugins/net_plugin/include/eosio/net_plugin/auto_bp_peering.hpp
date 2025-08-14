@@ -431,7 +431,7 @@ public:
             }
          } else {
             auto r = idx.equal_range(peer.producer_name);
-            if (std::distance(r.first, r.second) >= max_bp_gossip_peers_per_producer) {
+            if (std::cmp_greater_equal(std::distance(r.first, r.second), max_bp_gossip_peers_per_producer)) {
                // remove entry with min expiration
                auto min_expiration_itr = r.first;
                auto min_expiration = min_expiration_itr->expiration();

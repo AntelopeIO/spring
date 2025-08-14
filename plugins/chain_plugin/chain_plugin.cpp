@@ -16,10 +16,11 @@
 #include <eosio/chain_plugin/trx_finality_status_processing.hpp>
 #include <eosio/chain/permission_link_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
-#include <eosio/chain/chainbase_environment.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
+
+#include <chainbase/environment.hpp>
 
 #include <boost/signals2/connection.hpp>
 #include <boost/algorithm/string.hpp>

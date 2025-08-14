@@ -219,6 +219,68 @@ BOOST_AUTO_TEST_CASE(insert_into_table_read_only_test) { try {
                          fc_exception_message_contains("this API is not allowed in read only action/call"));
 } FC_LOG_AND_RETHROW() }
 
+// Test erase after erase using the same iterator
+BOOST_AUTO_TEST_CASE(erase_erase_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraseerase"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test erasures are broadcast along the calling path
+BOOST_AUTO_TEST_CASE(indirectly_erase_erase_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraseerase1"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test new rows can be added into a table after the table is emptyed.
+BOOST_AUTO_TEST_CASE(erase_table_test) { try {
+   call_tester_cpp t;
+   BOOST_REQUIRE_NO_THROW(t.push_action("callee"_n, "erasetable"_n, "callee"_n, {}));
+} FC_LOG_AND_RETHROW() }
+
+// Test iterator looping after the first iterator is erased.
+BOOST_AUTO_TEST_CASE(erase_first_itearor_loop_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraitrloop1"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test iterator looping after the second iterator is erased.
+BOOST_AUTO_TEST_CASE(erase_second_itearor_loop_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraitrloop2"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test iterator looping after the last iterator is erased.
+BOOST_AUTO_TEST_CASE(erase_last_itearor_loop_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "eraitrloop3"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test modify after erase using the same iterator
+BOOST_AUTO_TEST_CASE(erase_modify_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "erasemodify"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
+// Test erasures are broadcast along the calling path
+BOOST_AUTO_TEST_CASE(indirectly_erase_modify_test) { try {
+   call_tester_cpp t;
+   BOOST_CHECK_EXCEPTION(t.push_action("callee"_n, "erasemodify1"_n, "callee"_n, {}),
+                         table_operation_not_permitted,
+                         fc_exception_message_contains("dereference of deleted object"));
+} FC_LOG_AND_RETHROW() }
+
 // Verify initiating action does not have console but its children sync calls have console
 BOOST_AUTO_TEST_CASE(caller_has_no_console_test) { try {
    call_tester_cpp t;
