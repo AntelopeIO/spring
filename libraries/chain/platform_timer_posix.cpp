@@ -103,10 +103,11 @@ void platform_timer::expire_now(generation_t expired_generation) {
 }
 
 void platform_timer::interrupt_timer() {
-   timer_state_t expected{.state = state_t::running, .callback_in_flight = false, .generation_running = generation};
-   if (_state.compare_exchange_strong(expected, timer_state_t{state_t::interrupted, true, generation})) {
+   const generation_t generation_running = _state.load().generation_running;
+   timer_state_t expected = {.state = state_t::running, .callback_in_flight = false, .generation_running = generation_running};
+   if (_state.compare_exchange_strong(expected, timer_state_t{state_t::interrupted, true, generation_running})) {
       call_expiration_callback();
-      _state.store(timer_state_t{state_t::interrupted, false, generation});
+      _state.store(timer_state_t{state_t::interrupted, false, generation_running});
    }
 }
 
