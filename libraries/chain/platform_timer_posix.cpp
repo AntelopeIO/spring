@@ -35,7 +35,7 @@ struct platform_timer::impl {
          sigemptyset(&act.sa_mask);
          act.sa_sigaction = impl::sig_handler;
          act.sa_flags = SA_SIGINFO | SA_RESTART;
-         FC_ASSERT(sigaction(SIGRTMIN, &act, NULL) == 0, "failed to aquire SIGRTMIN signal");
+         FC_ASSERT(sigaction(SIGRTMIN, &act, NULL) == 0, "failed to acquire SIGRTMIN signal");
       }
    };
 
