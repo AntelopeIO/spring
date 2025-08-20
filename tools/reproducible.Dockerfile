@@ -1,21 +1,20 @@
 # syntax=docker/dockerfile:1
-# debian:buster on Sep 20 2023
-FROM debian@sha256:d774a984460a74973e6ce4d1f87ab90f2818e41fcdd4802bcbdc4e0b67f9dadf AS builder
+# debian:buster on Aug 20 2025 (tag from Jun 12, 2024)
+FROM debian@sha256:58ce6f1271ae1c8a2006ff7d3e54e9874d839f573d8009c20154ad0f2fb0a225 AS builder
 
 # If enabling the snapshot repo below, this ought to be after the base image time from above.
-# date -u -d @1695620708 = Mon Sep 25 05:45:08 AM UTC 2023
-ENV SOURCE_DATE_EPOCH=1695620708
+# date -u -d @1752331000 = Sat Jul 12 02:36:40 PM UTC 2025
+ENV SOURCE_DATE_EPOCH=1752331000
 
-# The snapshot repo is currently disabled due to poor performance. Re-eval in the future.
 # When the package repo is signed, a message in the payload indicates the time when the repo becomes stale. This protection
 #  nominally exists to ensure older versions of the package repo which may contain defective packages aren't served in the far
 #  future. But in our case, we want this pinned package repo at any future date. So [check-valid-until=no] to disable this check.
-##RUN <<EOF
-##cat <<EOS > /etc/apt/sources.list
-##deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)/ buster main
-##deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)/ buster/updates main
-##EOS
-##EOF
+RUN <<EOF
+cat <<EOS > /etc/apt/sources.list
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)/ buster main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)/ buster/updates main
+EOS
+EOF
 
 RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential \
                                                                                               file \
