@@ -9,11 +9,10 @@ ENV SOURCE_DATE_EPOCH=1752331000
 # When the package repo is signed, a message in the payload indicates the time when the repo becomes stale. This protection
 #  nominally exists to ensure older versions of the package repo which may contain defective packages aren't served in the far
 #  future. But in our case, we want this pinned package repo at any future date. So [check-valid-until=no] to disable this check.
-RUN <<EOF
-cat <<EOS > /etc/apt/sources.list
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)/ buster main
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)/ buster/updates main
-EOS
+RUN DATETIMESTR=$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ) && cat <<EOF > /etc/apt/sources.list
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/${DATETIMESTR}/ buster main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/${DATETIMESTR}/ buster-updates main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/${DATETIMESTR}/ buster/updates main
 EOF
 
 RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential \
