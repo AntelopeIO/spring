@@ -19,7 +19,7 @@ EOF
 COPY tools/pinned.pl /usr/lib/apt/methods/pinned
 RUN cat <<EOF > /etc/apt/apt.conf.d/99pinned.conf
 Acquire::pinned::InReleaseHashes {
-  "buster"           "d2126c57347cfe5ca81d912ddfecc02e9a741c6e100d8d8295b735f979bc1a9d";
+  "buster"           "d2126c57347cfe5ca81d912ddfecc02e9a741c6e100d8d8295b735f979bc1a00";
   "buster-updates"   "2efadfba571a0c888a8e0175c6f782f7a0afe18dee0e3fbcf1939931639749b8";
   "updates"          "5a9bda70b67ba71088bc7576dd6ee078f75428ea6291ca7b22ac7d79a9ec73e8";
 };
