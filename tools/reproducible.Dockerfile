@@ -10,9 +10,19 @@ ENV SOURCE_DATE_EPOCH=1752331000
 #  nominally exists to ensure older versions of the package repo which may contain defective packages aren't served in the far
 #  future. But in our case, we want this pinned package repo at any future date. So [check-valid-until=no] to disable this check.
 RUN DATETIMESTR=$(date -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ) && cat <<EOF > /etc/apt/sources.list
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/${DATETIMESTR}/ buster main
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/${DATETIMESTR}/ buster-updates main
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/${DATETIMESTR}/ buster/updates main
+deb [check-valid-until=no] pinned://snapshot.debian.org/archive/debian/${DATETIMESTR}/ buster main
+deb [check-valid-until=no] pinned://snapshot.debian.org/archive/debian/${DATETIMESTR}/ buster-updates main
+deb [check-valid-until=no] pinned://snapshot.debian.org/archive/debian-security/${DATETIMESTR}/ buster/updates main
+EOF
+
+# Install the 'pinned' apt method, and define required hashes for the InRelease files of the package repos
+COPY tools/pinned.pl /usr/lib/apt/methods/pinned
+RUN cat <<EOF > /etc/apt/apt.conf.d/99pinned.conf
+Acquire::pinned::InReleaseHashes {
+  "buster"           "d2126c57347cfe5ca81d912ddfecc02e9a741c6e100d8d8295b735f979bc1a9d";
+  "buster-updates"   "2efadfba571a0c888a8e0175c6f782f7a0afe18dee0e3fbcf1939931639749b8";
+  "updates"          "5a9bda70b67ba71088bc7576dd6ee078f75428ea6291ca7b22ac7d79a9ec73e8";
+};
 EOF
 
 RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential \
