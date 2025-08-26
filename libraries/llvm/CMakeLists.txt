@@ -2,7 +2,7 @@ if(NOT "eos-vm-oc" IN_LIST EOSIO_WASM_RUNTIMES)
    return()
 endif()
 
-#many items are option()s which can simply be set() here, but others are set(CACHE) so we need to follow suit here
+#many items are option()s which can simply be set() here, but others are set(CACHE) so we need to follow suit for these
 set(LLVM_TARGETS_TO_BUILD "host" CACHE STRING "Semicolon-separated list of targets to build, or \"all\".")
 set(LLVM_ENABLE_LIBXML2 "OFF" CACHE STRING "Use libxml2 if available. Can be ON, OFF, or FORCE_ON")
 
@@ -26,6 +26,9 @@ set(LLVM_ENABLE_OCAMLDOC Off)
 # submoduled build never builds an executable so the -fno-pie is never used. It's nice to keep hands off compile
 # flags as much as possible, so adding this for now
 set(LLVM_ENABLE_PIC Off)
+
+#This doesn't actually add -frtti, but rather stops -fno-rtti from being added
+set(LLVM_ENABLE_RTTI On)
 
 add_subdirectory(llvm/llvm EXCLUDE_FROM_ALL)
 
