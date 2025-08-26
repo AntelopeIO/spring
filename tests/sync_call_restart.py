@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-#import os
-#import shutil
 import signal
 import platform
 
@@ -45,8 +43,7 @@ try:
     cluster.setWalletMgr(walletMgr)
 
     # Enable OC so that the test can execute paths invloved OC reources
-    specificExtraNodeosArgs={}
-    specificExtraNodeosArgs[0]=" --eos-vm-oc-enable all "
+    specificExtraNodeosArgs={0: " --eos-vm-oc-enable all "}
 
     Print("Stand up cluster")
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, activateIF=True, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
@@ -54,12 +51,12 @@ try:
 
     cluster.waitOnClusterSync(blockAdvancing=5)
 
-    node = cluster.getNode(0)
+    node=cluster.getNode(0)
 
     def deployContract(account_name, contract_name):
         acct=Account(account_name)
-        acct.ownerPublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
-        acct.activePublicKey = "PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
+        acct.ownerPublicKey="PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
+        acct.activePublicKey="PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63"
         cluster.createAccountAndVerify(acct, cluster.eosioAccount)
         node.publishContract(acct, f"unittests/test-contracts/{contract_name}", f"{contract_name}.wasm", f"{contract_name}.abi", waitForTransBlock=True)
 
@@ -69,7 +66,7 @@ try:
     deployContract("callee1", "sync_callee1");
 
     Print("Create snapshot");
-    ret = node.createSnapshot()
+    ret=node.createSnapshot()
     assert ret is not None, "Snapshot creation failed"
 
     Print("Stopping snapshot");
@@ -80,17 +77,17 @@ try:
     node.removeReversibleBlks()
 
     Print("Restart from snapshot");
-    isRelaunchSuccess = node.relaunch(chainArg="--snapshot {}".format(node.getLatestSnapshot()))
+    isRelaunchSuccess=node.relaunch(chainArg=f"--snapshot {node.getLatestSnapshot()}")
     assert isRelaunchSuccess, "node relaunch from snapshot failed"
 
     Print("Push a transaction containing 2-levels of a nested sync call");
-    trx={ "actions": [{"account": "caller", "name": "nestedcalls", "authorization": [{"actor": "caller","permission": "active"}], "data": {} }] }
-    results = node.pushTransaction(trx)
+    trx={"actions": [{"account": "caller", "name": "nestedcalls", "authorization": [{"actor": "caller","permission": "active"}], "data": {}}]}
+    results=node.pushTransaction(trx)
     assert results[0], "pushTransaction failed"
 
     testSuccessful=True
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful=testSuccessful, dumpErrorDetails=dumpErrorDetails)
 
-exitCode = 0 if testSuccessful else 1
+exitCode=0 if testSuccessful else 1
 exit(exitCode)
