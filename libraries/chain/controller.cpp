@@ -2091,6 +2091,13 @@ struct controller_impl {
 
       protocol_features.init( db );
 
+      // sync_call protocol feature could be already activated.
+      // Allocate resources required by nested sync calls.
+      if (is_builtin_activated(builtin_protocol_feature_t::sync_call)) {
+         const auto max_call_depth = db.get<global_property_object>().configuration.max_sync_call_depth;
+         set_max_call_depth_for_call_res_pools(max_call_depth);
+      }
+
       // At startup, no transaction specific logging is possible
       if (auto dm_logger = get_deep_mind_logger(false)) {
          dm_logger->on_startup(db, chain_head.block_num());
