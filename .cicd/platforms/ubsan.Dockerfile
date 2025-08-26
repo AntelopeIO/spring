@@ -27,6 +27,7 @@ RUN rm -rf /usr/lib/llvm-20/lib/cmake
 COPY <<-EOF /ubsan.supp
   vptr:wasm_eosio_validation.hpp
   vptr:wasm_eosio_injection.hpp
+  vptr:GlobalISelEmitter.cpp
 EOF
 
 ENV SPRING_PLATFORM_HAS_EXTRAS_CMAKE=1
