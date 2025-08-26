@@ -38,6 +38,7 @@ COPY <<-EOF /extras.cmake
   set(CMAKE_CXX_COMPILER "clang++-20" CACHE STRING "")
   set(CMAKE_C_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
   set(CMAKE_CXX_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
+  set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
 EOF
 
 ENV UBSAN_OPTIONS=print_stacktrace=1,suppressions=/ubsan.supp
