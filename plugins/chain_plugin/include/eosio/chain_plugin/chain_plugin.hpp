@@ -185,7 +185,7 @@ public:
    }
 
    using get_info_params = empty;
-
+   using get_info_results = get_info_db::get_info_results;
    get_info_db::get_info_results get_info(const get_info_params&, const fc::time_point& deadline) const;
 
    struct get_transaction_status_params {
@@ -355,21 +355,22 @@ public:
    struct get_required_keys_result {
       flat_set<public_key_type> required_keys;
    };
-
+   using get_required_keys_results = get_required_keys_result;
    get_required_keys_result get_required_keys( const get_required_keys_params& params, const fc::time_point& deadline)const;
 
    using get_transaction_id_params = transaction;
    using get_transaction_id_result = transaction_id_type;
-
+   using get_transaction_id_results = transaction_id_type;
    get_transaction_id_result get_transaction_id( const get_transaction_id_params& params, const fc::time_point& deadline)const;
 
    struct get_raw_block_params {
       string block_num_or_id;
    };
-
+   using get_raw_block_results = chain::signed_block_ptr;
    chain::signed_block_ptr get_raw_block(const get_raw_block_params& params, const fc::time_point& deadline) const;
 
    using get_block_params = get_raw_block_params;
+   using get_block_results = fc::variant;
    std::function<chain::t_or_exception<fc::variant>()> get_block(const get_block_params& params, const fc::time_point& deadline) const;
 
    // call from app() thread
@@ -389,19 +390,19 @@ public:
       fc::variant           signed_block_header;
       std::optional<chain::extensions_type> block_extensions;
    };
-
+   using get_block_header_results = get_block_header_result;
    get_block_header_result get_block_header(const get_block_header_params& params, const fc::time_point& deadline) const;
 
    struct get_block_info_params {
       uint32_t block_num = 0;
    };
-
+   using get_block_info_results = fc::variant;
    fc::variant get_block_info(const get_block_info_params& params, const fc::time_point& deadline) const;
 
    struct get_block_header_state_params {
       string block_num_or_id;
    };
-
+   using get_block_header_state_results = fc::variant;
    fc::variant get_block_header_state(const get_block_header_state_params& params, const fc::time_point& deadline) const;
 
    struct get_table_rows_params {
@@ -428,7 +429,7 @@ public:
    };
 
    using get_table_rows_return_t = std::function<chain::t_or_exception<get_table_rows_result>()>;
-   
+   using get_table_rows_results = get_table_rows_result;
    get_table_rows_return_t get_table_rows( const get_table_rows_params& params, const fc::time_point& deadline )const;
 
    struct get_table_by_scope_params {
@@ -451,7 +452,7 @@ public:
       vector<get_table_by_scope_result_row> rows;
       string      more; ///< fill lower_bound with this value to fetch more rows
    };
-
+   using get_table_by_scope_results = get_table_by_scope_result;
    get_table_by_scope_result get_table_by_scope( const get_table_by_scope_params& params, const fc::time_point& deadline )const;
 
    struct get_currency_balance_params {
@@ -459,8 +460,8 @@ public:
       name                  account;
       std::optional<string> symbol;
    };
-
-   vector<asset> get_currency_balance( const get_currency_balance_params& params, const fc::time_point& deadline )const;
+   using get_currency_balance_results = std::vector<asset>;
+   get_currency_balance_results get_currency_balance( const get_currency_balance_params& params, const fc::time_point& deadline )const;
 
    struct get_currency_stats_params {
       name           code;
@@ -473,7 +474,7 @@ public:
       asset          max_supply;
       account_name   issuer;
    };
-
+   using get_currency_stats_results = fc::variant;
    fc::variant get_currency_stats( const get_currency_stats_params& params, const fc::time_point& deadline )const;
 
    struct get_finalizer_info_params {
@@ -489,7 +490,7 @@ public:
       // the vote information on pending_finalizer_policy is used.
       std::vector<tracked_votes::vote_info>  last_tracked_votes;
    };
-
+   using get_finalizer_info_results = get_finalizer_info_result;
    get_finalizer_info_result get_finalizer_info( const get_finalizer_info_params& params, const fc::time_point& deadline )const;
 
    struct get_producers_params {
@@ -504,7 +505,7 @@ public:
       double              total_producer_vote_weight;
       string              more; ///< fill lower_bound with this value to fetch more rows
    };
-
+   using get_producers_results = get_producers_result;
    get_producers_result get_producers( const get_producers_params& params, const fc::time_point& deadline )const;
 
    struct get_producer_schedule_params {
@@ -515,7 +516,7 @@ public:
       fc::variant pending;
       fc::variant proposed;
    };
-
+   using get_producer_schedule_results = get_producer_schedule_result;
    get_producer_schedule_result get_producer_schedule( const get_producer_schedule_params& params, const fc::time_point& deadline )const;
 
    struct get_scheduled_transactions_params {
@@ -529,7 +530,7 @@ public:
       fc::variants  transactions;
       string        more; ///< fill lower_bound with this to fetch next set of transactions
    };
-
+   using get_scheduled_transactions_results = get_scheduled_transactions_result;
    get_scheduled_transactions_result get_scheduled_transactions( const get_scheduled_transactions_params& params, const fc::time_point& deadline ) const;
    struct compute_transaction_results {
        chain::transaction_id_type  transaction_id;
@@ -830,6 +831,7 @@ public:
 
    using get_accounts_by_authorizers_result = account_query_db::get_accounts_by_authorizers_result;
    using get_accounts_by_authorizers_params = account_query_db::get_accounts_by_authorizers_params;
+   using get_accounts_by_authorizers_results = get_accounts_by_authorizers_result;
    get_accounts_by_authorizers_result get_accounts_by_authorizers( const get_accounts_by_authorizers_params& args, const fc::time_point& deadline) const;
 
    chain::symbol extract_core_symbol()const;
@@ -889,6 +891,7 @@ public:
       std::optional<uint16_t> retry_trx_num_blocks{}; ///< if retry_trx, report trace at specified blocks from executed or lib if not specified
       fc::variant transaction;
    };
+   using send_transaction2_results = send_transaction_results;
    void send_transaction2(send_transaction2_params params, chain::plugin_interface::next_function<send_transaction_results> next);
 
 };
