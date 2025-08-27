@@ -15,7 +15,7 @@ namespace eosio {
     *
     * Arguments: response_code, response_body
     */
-   using url_response_callback = std::function<void(int,std::optional<fc::variant>)>;
+   using url_response_callback = std::function<void(int, string&&)>;
 
    /**
     * @brief Callback type for a URL handler
@@ -29,6 +29,14 @@ namespace eosio {
     **/
    using url_handler = std::function<void(string&&, string&&, url_response_callback&&)>;
 
+   /**
+    * @brief Callback type for serializing an error result to a string
+    *
+    * Arguments: error_results
+    * Returns: serialized error as a string
+    */
+   struct error_results;
+   using error_serializer_callback = std::function<std::string(const eosio::error_results&)>;
    /**
     * @brief An API, containing URLs and handlers
     *
@@ -46,7 +54,8 @@ namespace eosio {
 
    enum class http_content_type {
       json = 1,
-      plaintext = 2
+      plaintext = 2,
+      protobuf = 3
    };
 
    struct http_plugin_defaults {
@@ -108,7 +117,7 @@ namespace eosio {
         }
 
         // standard exception handling for api handlers
-        static void handle_exception( const char *api_name, const char *call_name, const string& body, const url_response_callback& cb );
+        static void handle_exception( const char *api_name, const char *call_name, const string& body, const url_response_callback& cb, const error_serializer_callback& error_serializer);
 
         void post_http_thread_pool(std::function<void()> f);
 
@@ -249,34 +258,6 @@ namespace eosio {
       params_required = 1,
       possible_no_params = 2
    };
-
-   template<typename T, http_params_types params_type>
-   T parse_params(const std::string& body) {
-      if constexpr (params_type == http_params_types::params_required) {
-         if (is_empty_content(body)) {
-            EOS_THROW(chain::invalid_http_request, "A Request body is required");
-         }
-      }
-
-      try {
-         try {
-            if constexpr (params_type == http_params_types::no_params || params_type == http_params_types::possible_no_params) {
-               if (is_empty_content(body)) {
-                  if constexpr (std::is_same_v<T, std::string>) {
-                     return std::string("{}");
-                  }
-                  return {};
-               }
-               if constexpr (params_type == http_params_types::no_params) {
-                  EOS_THROW(chain::invalid_http_request, "no parameter should be given");
-               }
-            }
-            return fc::json::from_string(body).as<T>();
-         } catch (const chain::chain_exception& e) { // EOS_RETHROW_EXCEPTIONS does not re-type these so, re-code it
-            throw fc::exception(e);
-         }
-      } EOS_RETHROW_EXCEPTIONS(chain::invalid_http_request, "Unable to parse valid input from POST body");
-   }
 }
 
 FC_REFLECT(eosio::error_results::error_info::error_detail, (message)(file)(line_number)(method))

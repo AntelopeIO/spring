@@ -97,6 +97,10 @@ class beast_http_session : public detail::abstract_conn,
             res_->set(http::field::content_type, "text/plain");
             break;
 
+         case http_content_type::protobuf:
+            res_->set(http::field::content_type, "application/protobuf");
+            break;
+
          case http_content_type::json:
          default:
             res_->set(http::field::content_type, "application/json");

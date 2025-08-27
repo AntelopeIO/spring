@@ -54,6 +54,7 @@ namespace eosio {
       if (name == "trace_api") return api_category::trace_api;
       if (name == "prometheus") return api_category::prometheus;
       if (name == "test_control") return api_category::test_control;
+      if (name == "chain_ro_v2") return api_category::chain_ro_v2;
       return api_category::unknown;
    }
 
@@ -69,6 +70,7 @@ namespace eosio {
       if (category == api_category::trace_api) return "trace_api";
       if (category == api_category::prometheus) return "prometheus";
       if (category == api_category::test_control) return "test_control";
+      if (category == api_category::chain_ro_v2) return "chain_ro_v2";
       if (category == api_category::node) return "node";
       // It's a programming error when the control flow reaches this point, 
       // please make sure all the category names are returned from above statements.
@@ -85,7 +87,7 @@ namespace eosio {
          return "eosio::prometheus_plugin";
       if (category == api_category::test_control)
          return "eosio::test_control_plugin";
-      if (api_category_set({api_category::chain_ro, api_category::chain_rw}).contains(category))
+      if (api_category_set({api_category::chain_ro, api_category::chain_rw, api_category::chain_ro_v2}).contains(category))
          return "eosio::chain_api_plugin";
       if (api_category_set({api_category::net_ro, api_category::net_rw}).contains(category))
          return "eosio::net_api_plugin";
@@ -150,7 +152,7 @@ namespace eosio {
                   return;
                }
 
-               url_response_callback wrapped_then = [then=std::move(then)](int code, std::optional<fc::variant> resp) {
+               url_response_callback wrapped_then = [then=std::move(then)](int code, std::string&& resp) {
                   then(code, std::move(resp));
                };
 
@@ -543,7 +545,7 @@ namespace eosio {
          boost::asio::post( my->plugin_state->thread_pool.get_executor(), f );
    }
 
-   void http_plugin::handle_exception( const char* api_name, const char* call_name, const string& body, const url_response_callback& cb) {
+   void http_plugin::handle_exception( const char* api_name, const char* call_name, const string& body, const url_response_callback& cb, const error_serializer_callback& error_serializer) {
       try {
          try {
             throw;
@@ -551,48 +553,48 @@ namespace eosio {
             fc_dlog( logger(), "Unknown block while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{400, "Unknown Block", error_results::error_info(e, verbose_http_errors)};
-            cb( 400, fc::variant( results ));
+            cb( 400, error_serializer(results));
          } catch (chain::invalid_http_request& e) {
             fc_dlog( logger(), "Invalid http request while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{400, "Invalid Request", error_results::error_info(e, verbose_http_errors)};
-            cb( 400, fc::variant( results ));
+            cb( 400, error_serializer(results));
          } catch (chain::account_query_exception& e) {
             fc_dlog( logger(), "Account query exception while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{400, "Account lookup", error_results::error_info(e, verbose_http_errors)};
-            cb( 400, fc::variant( results ));
+            cb( 400, error_serializer(results));
          } catch (chain::unsatisfied_authorization& e) {
             fc_dlog( logger(), "Auth error while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{401, "UnAuthorized", error_results::error_info(e, verbose_http_errors)};
-            cb( 401, fc::variant( results ));
+            cb( 401, error_serializer(results));
          } catch (chain::tx_duplicate& e) {
             fc_dlog( logger(), "Duplicate trx while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{409, "Conflict", error_results::error_info(e, verbose_http_errors)};
-            cb( 409, fc::variant( results ));
+            cb( 409, error_serializer(results));
          } catch (fc::eof_exception& e) {
             fc_elog( logger(), "Unable to parse arguments to ${api}.${call}", ("api", api_name)( "call", call_name ) );
             fc_dlog( logger(), "Bad arguments: ${args}", ("args", body) );
             error_results results{422, "Unprocessable Entity", error_results::error_info(e, verbose_http_errors)};
-            cb( 422, fc::variant( results ));
+            cb( 422, error_serializer(results));
          } catch (fc::exception& e) {
             fc_dlog( logger(), "Exception while processing ${api}.${call}: ${e}",
                      ("api", api_name)( "call", call_name )("e", e.to_detail_string()) );
             error_results results{500, "Internal Service Error", error_results::error_info(e, verbose_http_errors)};
-            cb( 500, fc::variant( results ));
+            cb( 500, error_serializer(results));
          } catch (std::exception& e) {
             fc_dlog( logger(), "STD Exception encountered while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.what()) );
             error_results results{500, "Internal Service Error", error_results::error_info(fc::exception( FC_LOG_MESSAGE( error, e.what())), verbose_http_errors)};
-            cb( 500, fc::variant( results ));
+            cb( 500, error_serializer(results));
          } catch (...) {
             fc_elog( logger(), "Unknown Exception encountered while processing ${api}.${call}",
                      ("api", api_name)( "call", call_name ) );
             error_results results{500, "Internal Service Error",
                error_results::error_info(fc::exception( FC_LOG_MESSAGE( error, "Unknown Exception" )), verbose_http_errors)};
-            cb( 500, fc::variant( results ));
+            cb( 500, error_serializer(results));
          }
       } catch (...) {
          std::cerr << "Exception attempting to handle exception for " << api_name << "." << call_name << std::endl;
