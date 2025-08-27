@@ -154,10 +154,9 @@ def verifyOcVirtualMemory():
             # In OC tierup a memory slice is 8GB.
             # One extra slice is added for each allocation.
             # For actions, the main thread uses 529 slices; each read-only thread uses 11 slices.
-            # For sync calls, total 2 slices per call depth for a total of max_sync_call_depth on
-            # each thread
-            # Total virtual memory allocated by OC is around:
-            # 529 slices * 8GB (for main thread) + numReadOnlyThreads * 11 slices * 8GB
+            # For sync calls, depth 1 reserves 5 slices, depth 2 reserves 4 slices, ...
+            # depths 5 to 16 each 1 slices. Total is 26 slices for a max_sync_call_depth
+            # of 16 for each thread.
             #
             # In addition, main thread and each read-only thread pre-allocates
             # `max_sync_call_depth` wasm allocator. Each wasm allocator mmap 8GB
@@ -173,10 +172,10 @@ def verifyOcVirtualMemory():
             memoryPerSlice         = 8 * GB
             actionMainThreadSlices = 529
             actionRoThreadsSlices  = args.read_only_threads * 11
-            syncCallSlices         = 2 * totalThreads * maxSyncCallDepth
+            syncCallSlices         = 26 * totalThreads
             memoryByOC             = (actionMainThreadSlices + actionRoThreadsSlices + syncCallSlices) * memoryPerSlice
 
-            memoryForOthers        = 1000 * GB # add 1TB for virtual memory used by others
+            memoryForOthers        = 2500 * GB # add virtual memory used by others
             expectedVmSize         = memoryByOC + memoryByWasmAllocators + memoryForOthers
             Utils.Print(f"pid: {apiNode.pid}, totalThreads: {totalThreads}, memoryByWasmAllocators: {memoryByWasmAllocators}, memoryByOC: {memoryByOC}, memoryForOthers: {memoryForOthers}, actualVmSize: {actualVmSize}, expectedVmSize: {expectedVmSize}")
             assert(actualVmSize < expectedVmSize)
