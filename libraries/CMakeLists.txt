@@ -27,6 +27,7 @@ add_subdirectory( cli11 )
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build tests" FORCE)
 #set(protobuf_LOCAL_DEPENDENCIES_ONLY ON CACHE BOOL "Prevent downloading any dependencies from GitHub. If this option is set, the dependency must be available locally as an installed package." FORCE)
 add_subdirectory( protobuf )
+add_subdirectory( interfaces )
 
 set(USE_EXISTING_SOFTFLOAT ON CACHE BOOL "use pre-exisiting softfloat lib")
 set(ENABLE_TOOLS OFF CACHE BOOL "Build tools")

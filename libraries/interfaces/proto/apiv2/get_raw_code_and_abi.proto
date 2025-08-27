@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package apiv2;
+
+// get_raw_code_and_abi
+message get_raw_code_and_abi_request {
+    uint64 account_name = 1;
+}
+message get_raw_code_and_abi_response {
+    uint64 account_name = 1;
+    bytes  wasm = 2;
+    bytes  abi = 3;
+}

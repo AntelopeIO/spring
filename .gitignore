@@ -42,6 +42,8 @@ libraries/wasm-jit/Source/Programs/Disassemble
 libraries/wasm-jit/Source/Programs/Test
 libraries/wasm-jit/Source/Programs/wavm
 
+libraries/interfaces/generated
+
 programs/cleos/cleos
 programs/js_operation_serializer/js_operation_serializer
 programs/data-dir

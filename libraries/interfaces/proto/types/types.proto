@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package types;
+
+message H256 {
+  bytes data = 1;
+}

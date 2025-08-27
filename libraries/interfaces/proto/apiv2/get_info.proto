@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+import "types/types.proto";
+
+package apiv2;
+
+// get_info
+message get_info_request {}
+message get_info_response {
+    string                               server_version = 1;
+    types.H256                           chain_id = 2;
+    uint32                               head_block_num = 3;
+    uint32                               last_irreversible_block_num = 4;
+    types.H256                           last_irreversible_block_id = 5;
+    types.H256                           head_block_id = 6;
+    uint64                               head_block_time = 7;
+    uint64                               head_block_producer = 8;
+
+    uint64                               virtual_block_cpu_limit = 9;
+    uint64                               virtual_block_net_limit = 10;
+
+    uint64                               block_cpu_limit = 11;
+    uint64                               block_net_limit = 12;
+    string                               server_version_string = 13;
+    uint32                               fork_db_head_block_num = 14;
+    types.H256                           fork_db_head_block_id = 15;
+    string                               server_full_version_string = 16;
+    uint64                               total_cpu_weight = 17;
+    uint64                               total_net_weight = 18;
+    uint32                               earliest_available_block_num = 19;
+    uint64                               last_irreversible_block_time = 20;
+}

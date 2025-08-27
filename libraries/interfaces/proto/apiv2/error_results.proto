@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package apiv2;
+
+// error_results
+message error_results {
+    uint32 code = 1;
+    string message = 2;
+    error_info error = 3;
+}
+
+// error_info
+message error_info {
+    int64  code = 1;
+    string name = 2;
+    string what = 3;
+    repeated error_detail details = 4;
+}
+
+// error_detail
+message error_detail {
+    string message = 1;
+    string file = 2;
+    uint64 line_number = 3;
+    string method = 4;
+}
