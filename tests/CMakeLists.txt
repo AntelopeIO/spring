@@ -89,6 +89,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/production_pause_vote_timeout_test_sh
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/production_restart.py ${CMAKE_CURRENT_BINARY_DIR}/production_restart.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/production_restart_test_shape.json ${CMAKE_CURRENT_BINARY_DIR}/production_restart_test_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pause_at_block_test.py ${CMAKE_CURRENT_BINARY_DIR}/pause_at_block_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/sync_call_restart.py ${CMAKE_CURRENT_BINARY_DIR}/sync_call_restart.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_forked_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_forked_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plugin_http_api_test.py ${CMAKE_CURRENT_BINARY_DIR}/plugin_http_api_test.py COPYONLY)
@@ -185,6 +186,7 @@ add_np_test(NAME interrupt-read-only-trx-parallel-if-eos-vm-oc-test COMMAND test
 add_np_test(NAME subjective_billing_test COMMAND tests/subjective_billing_test.py -v -p 2 -n 4 ${UNSHARE})
 add_np_test(NAME get_account_test COMMAND tests/get_account_test.py -v -p 2 -n 3 ${UNSHARE})
 add_np_test(NAME pause_at_block_test COMMAND tests/pause_at_block_test.py -v ${UNSHARE})
+add_np_test(NAME sync_call_restart COMMAND tests/sync_call_restart.py -v ${UNSHARE})
 
 add_np_test(NAME distributed-transactions-test COMMAND tests/distributed-transactions-test.py -d 2 -p 4 -n 6 -v ${UNSHARE})
 add_np_test(NAME distributed-transactions-if-test COMMAND tests/distributed-transactions-test.py -d 2 -p 4 -n 6 --activate-if -v ${UNSHARE})
