@@ -34,3 +34,6 @@
 [submodule "libraries/libfc/libraries/boringssl/bssl"]
 	path = libraries/libfc/libraries/boringssl/bssl
 	url = https://boringssl.googlesource.com/boringssl
+[submodule "libraries/protobuf"]
+	path = libraries/protobuf
+	url = https://github.com/protocolbuffers/protobuf
