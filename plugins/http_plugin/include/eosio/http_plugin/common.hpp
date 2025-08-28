@@ -76,6 +76,7 @@ struct internal_url_handler {
    api_category category;
    http_content_type content_type = http_content_type::json;
 };
+
 /**
 * Helper method to calculate the "in flight" size of a fc::variant
 * This is an estimate based on fc::raw::pack if that process can be successfully executed
@@ -83,7 +84,8 @@ struct internal_url_handler {
 * @param v - the fc::variant
 * @return in flight size of v
 */
-static size_t in_flight_sizeof(const fc::variant& v) {
+template <typename T>
+static size_t in_flight_sizeof(const T& v) {
    try {
       return fc::raw::pack_size(v);
    } catch(...) {}
@@ -155,13 +157,13 @@ struct http_plugin_state {
 */
 inline auto make_http_response_handler(http_plugin_state& plugin_state, detail::abstract_conn_ptr session_ptr, http_content_type content_type) {
    return [&plugin_state,
-           session_ptr{std::move(session_ptr)}, content_type](int code, std::string response) mutable {
-      auto payload_size = response.size();
+           session_ptr{std::move(session_ptr)}, content_type](int code, response_body_callback&& response_body, size_t response_body_size) mutable {
+      auto payload_size = response_body_size;
       plugin_state.bytes_in_flight += payload_size;
 
       // post back to an HTTP thread to allow the response handler to be called from any thread
       boost::asio::dispatch(plugin_state.thread_pool.get_executor(),
-                        [&plugin_state, session_ptr{std::move(session_ptr)}, code, payload_size, response = std::move(response), content_type]() mutable {
+                        [&plugin_state, session_ptr{std::move(session_ptr)}, code, payload_size, response_body = std::move(response_body), content_type]() mutable {
                            auto on_exit = fc::make_scoped_exit([&](){plugin_state.bytes_in_flight -= payload_size;});
 
                            if(auto error_str = session_ptr->verify_max_bytes_in_flight(0); !error_str.empty()) {
@@ -170,6 +172,7 @@ inline auto make_http_response_handler(http_plugin_state& plugin_state, detail::
                            }
 
                            try {
+                              auto response = response_body();
                               if (response.size()) {
                                  if (auto error_str = session_ptr->verify_max_bytes_in_flight(response.size()); error_str.empty())
                                     session_ptr->send_response(std::move(response), code);

@@ -8,7 +8,10 @@
           try { \
              auto params = request_deserializer(body); \
              auto result( api_handle.call_name( std::move(params), deadline ) ); \
-             cb(http_response_code, response_serializer(std::move(result))); \
+             auto result_size = eosio::detail::in_flight_sizeof(result); \
+             cb(http_response_code, [result=std::move(result)]() mutable { \
+               return response_serializer(std::move(result)); \
+             }, result_size); \
           } catch (...) { \
              http_plugin::handle_exception(#api_name, #call_name, body, cb, error_serializer); \
           } \
@@ -32,7 +35,10 @@
                     http_plugin::handle_exception(#api_name, #call_name, body, cb, error_serializer);           \
                  }                                                                                              \
               } else if (std::holds_alternative<call_result>(result)) {                                         \
-                 cb(http_resp_code, response_serializer(std::get<call_result>(std::move(result))));             \
+                 auto result_size = eosio::detail::in_flight_sizeof(std::get<call_result>(result));                                           \
+                 cb(http_resp_code, [result=std::move(result)]() mutable {                                      \
+                    return response_serializer(std::get<call_result>(std::move(result)));                       \
+                 }, result_size);                                                                               \
               } else {                                                                                          \
                  /* api returned a function to be processed on the http_plugin thread pool */                   \
                  assert(std::holds_alternative<http_fwd_t>(result));                                            \
@@ -47,7 +53,10 @@
                           http_plugin::handle_exception(#api_name, #call_name, body, cb, error_serializer);     \
                        }                                                                                        \
                     } else {                                                                                    \
-                       cb(resp_code, response_serializer(std::get<call_result>(std::move(result))));                    \
+                       auto result_size = eosio::detail::in_flight_sizeof(std::get<call_result>(result));                                     \
+                       cb(resp_code, [result=std::move(result)]() mutable {                                     \
+                         return response_serializer(std::get<call_result>(std::move(result)));                  \
+                       }, result_size);                                                                         \
                     }                                                                                           \
                  });                                                                                            \
               }                                                                                                 \
@@ -84,7 +93,10 @@
                          http_plugin::handle_exception(#api_name, #call_name, body, cb, error_serializer);      \
                       }                                                                                         \
                    } else {                                                                                     \
-                      cb(resp_code, response_serializer(std::get<call_result>(std::move(result))));             \
+                      auto result_size = eosio::detail::in_flight_sizeof(std::get<call_result>(result));               \
+                      cb(resp_code, [result=std::move(result)]() {                                              \
+                         return response_serializer(std::get<call_result>(result));                             \
+                      }, result_size);                                                                          \
                    }                                                                                            \
                 } catch (...) {                                                                                 \
                    http_plugin::handle_exception(#api_name, #call_name, body, cb, error_serializer);            \

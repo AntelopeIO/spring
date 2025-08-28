@@ -152,8 +152,8 @@ namespace eosio {
                   return;
                }
 
-               url_response_callback wrapped_then = [then=std::move(then)](int code, std::string&& resp) {
-                  then(code, std::move(resp));
+               url_response_callback wrapped_then = [then=std::move(then)](int code, response_body_callback&& resp, size_t size) {
+                  then(code, std::move(resp), size);
                };
 
                // post to the app thread taking shared ownership of next (via std::shared_ptr),
@@ -545,7 +545,7 @@ namespace eosio {
          boost::asio::post( my->plugin_state->thread_pool.get_executor(), f );
    }
 
-   void http_plugin::handle_exception( const char* api_name, const char* call_name, const string& body, const url_response_callback& cb, const error_serializer_callback& error_serializer) {
+   void http_plugin::handle_exception( const char* api_name, const char* call_name, const string& body, const url_response_callback& cb, const error_serializer_callback& err) {
       try {
          try {
             throw;
@@ -553,48 +553,48 @@ namespace eosio {
             fc_dlog( logger(), "Unknown block while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{400, "Unknown Block", error_results::error_info(e, verbose_http_errors)};
-            cb( 400, error_serializer(results));
+            cb( 400, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (chain::invalid_http_request& e) {
             fc_dlog( logger(), "Invalid http request while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{400, "Invalid Request", error_results::error_info(e, verbose_http_errors)};
-            cb( 400, error_serializer(results));
+            cb( 400, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (chain::account_query_exception& e) {
             fc_dlog( logger(), "Account query exception while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{400, "Account lookup", error_results::error_info(e, verbose_http_errors)};
-            cb( 400, error_serializer(results));
+            cb( 400, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (chain::unsatisfied_authorization& e) {
             fc_dlog( logger(), "Auth error while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{401, "UnAuthorized", error_results::error_info(e, verbose_http_errors)};
-            cb( 401, error_serializer(results));
+            cb( 401, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (chain::tx_duplicate& e) {
             fc_dlog( logger(), "Duplicate trx while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.to_detail_string()) );
             error_results results{409, "Conflict", error_results::error_info(e, verbose_http_errors)};
-            cb( 409, error_serializer(results));
+            cb( 409, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (fc::eof_exception& e) {
             fc_elog( logger(), "Unable to parse arguments to ${api}.${call}", ("api", api_name)( "call", call_name ) );
             fc_dlog( logger(), "Bad arguments: ${args}", ("args", body) );
             error_results results{422, "Unprocessable Entity", error_results::error_info(e, verbose_http_errors)};
-            cb( 422, error_serializer(results));
+            cb( 422, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (fc::exception& e) {
             fc_dlog( logger(), "Exception while processing ${api}.${call}: ${e}",
                      ("api", api_name)( "call", call_name )("e", e.to_detail_string()) );
             error_results results{500, "Internal Service Error", error_results::error_info(e, verbose_http_errors)};
-            cb( 500, error_serializer(results));
+            cb( 500, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (std::exception& e) {
             fc_dlog( logger(), "STD Exception encountered while processing ${api}.${call}: ${e}",
                      ("api", api_name)("call", call_name)("e", e.what()) );
             error_results results{500, "Internal Service Error", error_results::error_info(fc::exception( FC_LOG_MESSAGE( error, e.what())), verbose_http_errors)};
-            cb( 500, error_serializer(results));
+            cb( 500, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          } catch (...) {
             fc_elog( logger(), "Unknown Exception encountered while processing ${api}.${call}",
                      ("api", api_name)( "call", call_name ) );
             error_results results{500, "Internal Service Error",
                error_results::error_info(fc::exception( FC_LOG_MESSAGE( error, "Unknown Exception" )), verbose_http_errors)};
-            cb( 500, error_serializer(results));
+            cb( 500, [results=std::move(results), err=std::move(err)]() mutable { return err(results); }, detail::in_flight_sizeof(results));
          }
       } catch (...) {
          std::cerr << "Exception attempting to handle exception for " << api_name << "." << call_name << std::endl;

@@ -42,20 +42,21 @@ class Db
             {  std::string("/hello"),
                api_category::node,
                [&](string&&, string&& body, url_response_callback&& cb) {
-                  cb(200, fc::variant("world!"));
+                  cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                }
             },
             {  std::string("/echo"),
                api_category::node,
                [&](string&&, string&& body, url_response_callback&& cb) {
-                  cb(200, fc::variant(body));
+                  cb(200, [body](){ return fc::json::to_string(fc::variant(body), fc::time_point::maximum()); }, body.size());
                }
             },
             {  std::string("/check_ones"), // returns "yes" if body only has only '1' chars, "no" otherwise
                api_category::node,
                [&](string&&, string&& body, url_response_callback&& cb) {
                   bool ok = std::all_of(body.begin(), body.end(), [](char c) { return c == '1'; });
-                  cb(200, fc::variant(ok ? string("yes") : string("no")));
+                  auto res = ok ? string("yes") : string("no");
+                  cb(200, [res]() { return fc::json::to_string(fc::variant(res), fc::time_point::maximum()); }, res.size());
                }
           },
          }, appbase::exec_queue::read_write);
@@ -484,31 +485,31 @@ BOOST_FIXTURE_TEST_CASE(valid_category_addresses, http_plugin_test_fixture) {
 
    http_plugin->add_api({{std::string("/v1/node/hello"), api_category::node,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }},
                          {std::string("/v1/chain_ro/hello"), api_category::chain_ro,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }},
                          {std::string("/v1/chain_rw/hello"), api_category::chain_rw,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }},
                          {std::string("/v1/net_ro/hello"), api_category::net_ro,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }},
                          {std::string("/v1/net_rw/hello"), api_category::net_rw,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }},
                          {std::string("/v1/producer_ro/hello"), api_category::producer_ro,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }},
                          {std::string("/v1/producer_rw/hello"), api_category::producer_rw,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, fc::variant("world!"));
+                             cb(200, [](){ return fc::json::to_string(fc::variant("world!"), fc::time_point::maximum()); }, 6);
                           }}},
                         appbase::exec_queue::read_write);
 
@@ -582,10 +583,9 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
 
    http_plugin->add_api({{std::string("/4megabyte"), api_category::node,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             fc::blob b;
-                             b.data.resize(4*1024*1024);
-                             fc::rand_bytes(b.data.data(), b.data.size());
-                             cb(200, b);
+                             std::string b(4*1024*1024, '\0');
+                             fc::rand_bytes(b.data(), b.size());
+                             cb(200, [b=std::move(b)](){ return std::move(b); }, 4*1024*1024);
                           }}}, appbase::exec_queue::read_write);
 
    boost::asio::io_context ctx;
@@ -680,7 +680,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
 
    http_plugin->add_api({{std::string("/doit"), api_category::node,
                           [&](string&&, string&& body, url_response_callback&& cb) {
-                             cb(200, "hello");
+                             cb(200, [](){ return "hello"; }, 5);
                           }}}, appbase::exec_queue::read_write);
 
    boost::asio::io_context ctx;
