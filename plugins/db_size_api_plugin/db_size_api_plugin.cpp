@@ -1,3 +1,4 @@
+#include <eosio/http_plugin/common.hpp>
 #include <fc/variant.hpp>
 #include <fc/io/json.hpp>
 #include <eosio/db_size_api_plugin/db_size_api_plugin.hpp>
@@ -16,9 +17,12 @@ using namespace eosio;
           try { \
              body = parse_params<std::string, http_params_types::no_params>(body); \
              INVOKE \
-             cb(http_response_code, fc::variant(result)); \
+             auto result_size = detail::in_flight_sizeof(result); \
+             cb(http_response_code, [result=std::move(result)]() { \
+               return fc::json::to_string(result, fc::time_point::maximum()); \
+             }, result_size ); \
           } catch (...) { \
-             http_plugin::handle_exception(#api_name, #call_name, body, cb); \
+             http_plugin::handle_exception(#api_name, #call_name, body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());}); \
           } \
        }}
 

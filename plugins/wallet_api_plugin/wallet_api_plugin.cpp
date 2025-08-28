@@ -1,3 +1,4 @@
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/wallet_api_plugin/wallet_api_plugin.hpp>
 #include <eosio/wallet_plugin/wallet_manager.hpp>
 #include <eosio/chain/exceptions.hpp>
@@ -26,9 +27,10 @@ using namespace eosio;
    [&api_handle](string&&, string&& body, url_response_callback&& cb) mutable { \
           try { \
              INVOKE \
-             cb(http_response_code, fc::variant(result)); \
+             auto result_size = detail::in_flight_sizeof(result); \
+             cb(http_response_code, [result=std::move(result)](){ return fc::json::to_string(result, fc::time_point::maximum()); }, result_size); \
           } catch (...) { \
-             http_plugin::handle_exception(#api_name, #call_name, body, cb); \
+             http_plugin::handle_exception(#api_name, #call_name, body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());}); \
           } \
        }}
 

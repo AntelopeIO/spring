@@ -1,3 +1,4 @@
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/trace_api/trace_api_plugin.hpp>
 
 #include <eosio/trace_api/abi_data_handler.hpp>
@@ -262,7 +263,10 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
 
          if (!block_number) {
             error_results results{400, "Bad or missing block_num"};
-            cb( 400, fc::variant( results ));
+            auto results_size = detail::in_flight_sizeof(results);
+            cb( 400, [results=std::move(results)](){
+               return fc::json::to_string(results, fc::time_point::maximum());
+            }, results_size);
             return;
          }
 
@@ -271,12 +275,18 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
             auto resp = req_handler->get_block_trace(*block_number);
             if (resp.is_null()) {
                error_results results{404, "Trace API: block trace missing"};
-               cb( 404, fc::variant( results ));
+               auto results_size = detail::in_flight_sizeof(results);
+               cb( 400, [results=std::move(results)](){
+                  return fc::json::to_string(results, fc::time_point::maximum());
+               }, results_size);
             } else {
-               cb( 200, std::move(resp) );
+               auto resp_size = detail::in_flight_sizeof(resp);
+               cb( 200, [resp=std::move(resp)]() mutable {
+                  return fc::json::to_string(resp, fc::time_point::maximum());
+               }, resp_size);
             }
          } catch (...) {
-            http_plugin::handle_exception("trace_api", "get_block", body, cb);
+            http_plugin::handle_exception("trace_api", "get_block", body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());});
          }
       }});
 
@@ -303,7 +313,10 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
 
          if (!trx_id) {
             error_results results{400, "Bad or missing transaction ID"};
-            cb( 400, fc::variant( results ));
+            auto results_size = detail::in_flight_sizeof(results);
+            cb( 400, [results=std::move(results)](){
+               return fc::json::to_string(results, fc::time_point::maximum());
+            }, results_size);
             return;
          }
 
@@ -312,18 +325,27 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
             get_block_n blk_num = common->store->get_trx_block_number(*trx_id);
             if (!blk_num.has_value()){
                error_results results{404, "Trace API: transaction id missing in the transaction id log files"};
-               cb( 404, fc::variant( results ));
+               auto results_size = detail::in_flight_sizeof(results);
+               cb( 404, [results=std::move(results)](){
+                  return fc::json::to_string(results, fc::time_point::maximum());
+               }, results_size);
             } else {
                auto resp = req_handler->get_transaction_trace(*trx_id, *blk_num);
                if (resp.is_null()) {
                   error_results results{404, "Trace API: transaction trace missing"};
-                  cb( 404, fc::variant( results ));
+                  auto results_size = detail::in_flight_sizeof(results);
+                  cb( 404, [results=std::move(results)](){
+                     return fc::json::to_string(results, fc::time_point::maximum());
+                  }, results_size);
                } else {
-                  cb( 200, std::move(resp) );
+                  auto resp_size = detail::in_flight_sizeof(resp);
+                  cb( 200, [resp=std::move(resp)]() mutable {
+                     return fc::json::to_string(resp, fc::time_point::maximum());
+                  }, resp_size);
                }
             }
           } catch (...) {
-             http_plugin::handle_exception("trace_api", "get_transaction", body, cb);
+             http_plugin::handle_exception("trace_api", "get_transaction", body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());});
           }
       }});
    }

@@ -1,6 +1,6 @@
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/producer_api_plugin/producer_api_plugin.hpp>
 #include <eosio/chain/exceptions.hpp>
-
 #include <fc/time.hpp>
 #include <fc/variant.hpp>
 
@@ -18,17 +18,18 @@ namespace eosio {
 
    static auto _producer_api_plugin = application::register_plugin<producer_api_plugin>();
 
-using namespace eosio;
-
 #define CALL_WITH_400(api_name, category, api_handle, call_name, INVOKE, http_response_code) \
 {std::string("/v1/" #api_name "/" #call_name), \
    api_category::category, \
    [&producer](string&&, string&& body, url_response_callback&& cb) mutable { \
           try { \
              INVOKE \
-             cb(http_response_code, fc::variant(result)); \
+             auto result_size = detail::in_flight_sizeof(result); \
+             cb(http_response_code, [result=std::move(result)]() { \
+               return fc::json::to_string(result, fc::time_point::maximum()); \
+             }, result_size); \
           } catch (...) { \
-             http_plugin::handle_exception(#api_name, #call_name, body, cb); \
+             http_plugin::handle_exception(#api_name, #call_name, body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());}); \
           } \
        }}
 
@@ -42,10 +43,13 @@ using namespace eosio;
             try {\
                std::get<fc::exception_ptr>(result)->rethrow();\
             } catch (...) {\
-               http_plugin::handle_exception(#api_name, #call_name, body, cb);\
+               http_plugin::handle_exception(#api_name, #call_name, body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());});\
             }\
          } else if (std::holds_alternative<call_result>(result)) { \
-            cb(http_response_code, fc::variant(std::get<call_result>(result)));\
+            auto result_size = detail::in_flight_sizeof(std::get<call_result>(result)); \
+            cb(http_response_code, [result=std::move(result)]() { \
+               return fc::json::to_string(std::get<call_result>(result), fc::time_point::maximum()); \
+            }, result_size);\
          } else { \
             assert(0); \
          } \

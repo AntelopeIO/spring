@@ -1,3 +1,4 @@
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/test_control_api_plugin/test_control_api_plugin.hpp>
 #include <eosio/chain/exceptions.hpp>
 
@@ -31,9 +32,10 @@ void test_control_api_plugin::plugin_initialize(const variables_map&) {}
           try { \
              auto params = parse_params<api_namespace::call_name ## _params, params_type>(body);\
              fc::variant result( api_handle.call_name( std::move(params) ) ); \
-             cb(http_response_code, std::move(result)); \
+             auto result_size = eosio::detail::in_flight_sizeof(result); \
+             cb(http_response_code, [result=std::move(result)]() {return fc::json::to_string(result, fc::time_point::maximum());}, result_size); \
           } catch (...) { \
-             http_plugin::handle_exception(#api_name, #call_name, body, cb); \
+             http_plugin::handle_exception(#api_name, #call_name, body, cb, [](const eosio::error_results& e) {return fc::json::to_string(e, fc::time_point::maximum());}); \
           } \
        }}
 

@@ -3,6 +3,7 @@
 #include <eosio/chain/application.hpp>
 #include <eosio/chain/controller.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/http_plugin/macros.hpp>
 
 #include <eosio/chain_api_plugin/api_v2/error_results.hpp>

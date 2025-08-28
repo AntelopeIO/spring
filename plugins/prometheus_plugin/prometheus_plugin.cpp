@@ -1,3 +1,4 @@
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/prometheus_plugin/prometheus_plugin.hpp>
 
 #include <eosio/chain/plugin_interface.hpp>
@@ -8,6 +9,21 @@
 #include <fc/log/logger.hpp>
 
 #include "metrics.hpp"
+
+#define JSON_PARAMS_PARSER(namespace, call_name, params_type) \
+   [](const std::string& body) { \
+      return json_parse_params<namespace::call_name ## _params, params_type>(body); \
+   }
+
+#define TEXT_RESULT_SERIALIZER() \
+   [](const std::string& result) { \
+      return result; \
+   }
+
+#define JSON_ERROR_SERIALIZER() \
+   [](const eosio::error_results& e) { \
+      return fc::json::to_string(e, fc::time_point::maximum()); \
+   }
 
 namespace eosio { 
 
@@ -46,6 +62,7 @@ namespace eosio {
       }
    };
    using metrics_params = fc::variant_object;
+   using metrics_results = std::string;
 
 
    void prometheus_plugin::plugin_initialize(const variables_map& options) {
@@ -56,7 +73,7 @@ namespace eosio {
 
       prometheus_api_handle handle{my.get()};
       app().get_plugin<http_plugin>().add_async_api({
-        CALL_ASYNC_WITH_400(prometheus, prometheus, handle, eosio, metrics, std::string, 200, http_params_types::no_params)}
+        CALL_ASYNC_WITH_400(1, prometheus, prometheus, handle, metrics, std::string, 200, JSON_PARAMS_PARSER(eosio, metrics, http_params_types::no_params), TEXT_RESULT_SERIALIZER(), JSON_ERROR_SERIALIZER())}
         , http_content_type::plaintext);
    }
 

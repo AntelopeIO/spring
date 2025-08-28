@@ -1,6 +1,7 @@
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
 #include <eosio/chain_api_plugin/api_v2.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/http_plugin/common.hpp>
 #include <eosio/http_plugin/macros.hpp>
 #include <fc/time.hpp>
 #include <fc/io/json.hpp>
@@ -25,34 +26,6 @@ chain_api_plugin::~chain_api_plugin() = default;
 
 void chain_api_plugin::set_program_options(options_description&, options_description&) {}
 void chain_api_plugin::plugin_initialize(const variables_map&) {}
-
-template<typename T, http_params_types params_type>
-T json_parse_params(const std::string& body) {
-   if constexpr (params_type == http_params_types::params_required) {
-      if (is_empty_content(body)) {
-         EOS_THROW(chain::invalid_http_request, "A Request body is required");
-      }
-   }
-
-   try {
-      try {
-         if constexpr (params_type == http_params_types::no_params || params_type == http_params_types::possible_no_params) {
-            if (is_empty_content(body)) {
-               if constexpr (std::is_same_v<T, std::string>) {
-                  return std::string("{}");
-               }
-               return {};
-            }
-            if constexpr (params_type == http_params_types::no_params) {
-               EOS_THROW(chain::invalid_http_request, "no parameter should be given");
-            }
-         }
-         return fc::json::from_string(body).as<T>();
-      } catch (const chain::chain_exception& e) { // EOS_RETHROW_EXCEPTIONS does not re-type these so, re-code it
-         throw fc::exception(e);
-      }
-   } EOS_RETHROW_EXCEPTIONS(chain::invalid_http_request, "Unable to parse valid input from POST body");
-}
 
 // Only want a simple 'Invalid transaction id' if unable to parse the body
 template<>
