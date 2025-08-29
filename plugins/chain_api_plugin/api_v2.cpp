@@ -15,15 +15,40 @@ namespace eosio {
 using eosio::chain::controller;
 using namespace appbase;
 
+template<typename T, http_params_types ParamsType>
+T proto_parse_params(const std::string& body) {
+   using m = type_map<T>;
+   if constexpr (ParamsType == http_params_types::params_required) {
+      if (body.empty()) {
+         EOS_THROW(chain::invalid_http_request, "A Request body is required");
+      }
+   }
+
+   try {
+      try {
+         if constexpr (ParamsType == http_params_types::no_params || ParamsType == http_params_types::possible_no_params) {
+            if (body.empty()) {
+               return T{}; // Default-constructed for empty body
+            }
+            if constexpr (ParamsType == http_params_types::no_params) {
+               EOS_THROW(chain::invalid_http_request, "No parameter should be given");
+            }
+         }
+         typename m::pb_type_req request;
+         if (!request.ParseFromString(body)) {
+            EOS_THROW(chain::invalid_http_request, "Failed to parse protobuf type from binary data");
+         }
+         return m::convert(request);
+      } catch (const chain::chain_exception& e) {
+         throw fc::exception(e);
+      }
+   } EOS_RETHROW_EXCEPTIONS(chain::invalid_http_request, "Unable to parse valid input from POST body")
+}
+
 // v2 protobuf parser and serializer
 #define PROTOBUF_PARAMS_PARSER(namespace, call_name, params_type) \
    [](const std::string& body) { \
-      using m = type_map<namespace::call_name ## _params>; \
-      m::pb_type_req request; \
-      if (!request.ParseFromString(body)) { \
-         throw std::runtime_error("Failed to parse protobuf type from binary data"); \
-      } \
-      return m::convert(request); \
+      return proto_parse_params<namespace::call_name ## _params, params_type>(body); \
    }
 
 #define PROTOBUF_RESULT_SERIALIZER(namespace, call_name) \
