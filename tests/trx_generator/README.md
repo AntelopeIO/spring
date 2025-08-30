@@ -63,3 +63,57 @@ The Transaction Generator logs each transaction's id and sent timestamp at the m
                                     transactions to
 * `-h [ --help ]`                   print this list
 </details>
+
+## Running Other Actions
+To run a different action using `trx_generator`, you can leverage its ability to process custom transaction actions beyond the default token transfers. Based on the provided documentation and source code, here's how you can configure it:
+
+1. **Prepare the ABI File**: Use the `--abi-file` option to specify the path to the ABI file of the contract that defines the action you want to execute. This file describes the structure of the actions available in the contract.
+
+   Example: `--abi-file path/to/contract.abi`
+
+2. **Define Action Data**: Use the `--actions-data` option to provide a JSON file or string that describes the action(s) you want to include in the transactions. This JSON should specify the action name, the account associated with the action, and the data payload for the action as per the ABI.
+
+   Example JSON structure for action data:
+   ```json
+   [
+       {
+           "actionName": "youraction",
+           "actionAuthAcct": "accountname",
+           "actionData": {
+               "param1": "value1",
+               "param2": "value2"
+           },
+           "authorization": {
+               "actor": "accountname",
+               "permission": "active"
+           }
+       }
+   ]
+   ```
+   You can pass this directly as a string or save it to a file and reference it:
+   `--actions-data path/to/actions.json` or `--actions-data '[{"actionName": "youraction", ...}]'`
+
+3. **Specify Authorization Keys**: Use the `--actions-auths` option to provide a JSON file or string that maps account names to their corresponding private keys for signing the transactions. This ensures that the actions are authorized by the correct accounts.
+
+   Example JSON structure for auths:
+   ```json
+   {
+       "accountname": "privatekeystring"
+   }
+   ```
+   Pass it similarly:
+   `--actions-auths path/to/auths.json` or `--actions-auths '{"accountname": "privatekeystring"}'`
+
+4. **Set Contract Owner Account**: Ensure the `--contract-owner-account` option is set to the account name that owns the contract where the action is defined.
+
+   Example: `--contract-owner-account contractaccount`
+
+5. **Run the Generator**: Execute the `trx_generator` with these options along with other necessary configurations like `--chain-id`, `--last-irreversible-block-id`, `--target-tps`, etc., to generate and send transactions with your custom action.
+
+   Full command example:
+   ```bash
+   ./build/tests/trx_generator/trx_generator --generator-id 1 --chain-id yourchainid --contract-owner-account contractaccount --abi-file path/to/contract.abi --actions-data path/to/actions.json --actions-auths path/to/auths.json --last-irreversible-block-id yourlibid --target-tps 10 --trx-gen-duration 60 --log-dir logs
+   ```
+
+This configuration allows `trx_generator` to create transactions with the specified custom action instead of the default transfer actions. The tool will use the provided ABI to serialize the action data and sign the transactions with the appropriate private keys. If you need to generate unique account names per transaction (e.g., for account creation actions), the tool supports placeholders like `ACCT_PER_TRX` in the action data, which it will replace with generated names.
+
