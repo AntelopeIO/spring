@@ -37,6 +37,7 @@ endif ( APPLE )
 
 add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP)
 add_compile_definitions(BOOST_UNORDERED_DISABLE_NEON)
+add_compile_definitions(XXH_INLINE_ALL=1)
 
 set( Boost_USE_MULTITHREADED      ON )
 set( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
@@ -60,7 +61,6 @@ find_library(libbscrypto bscrypto @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libdecrepit decrepit @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libchainbase chainbase @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libbuiltins builtins @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
-find_library(libspringxxhash springxxhash @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 
 #Ubuntu build requires rt library to be specified explicitly
 if(UNIX AND NOT APPLE)
@@ -86,7 +86,6 @@ target_link_libraries(EosioChain INTERFACE
    ${liblogging}
    ${libchainbase}
    ${libbuiltins}
-   ${libspringxxhash}
    ${libsecp256k1}
    ${libbn256}
    ${libbls12-381}

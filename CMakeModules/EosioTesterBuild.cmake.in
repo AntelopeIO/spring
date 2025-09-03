@@ -34,6 +34,7 @@ endif ( APPLE )
 
 add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP)
 add_compile_definitions(BOOST_UNORDERED_DISABLE_NEON)
+add_compile_definitions(XXH_INLINE_ALL=1)
 
 set( Boost_USE_MULTITHREADED      ON )
 set( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
@@ -57,7 +58,6 @@ find_library(libbscrypto bscrypto @CMAKE_BINARY_DIR@/libraries/libfc/libraries/b
 find_library(libdecrepit decrepit @CMAKE_BINARY_DIR@/libraries/libfc/libraries/boringssl/bssl NO_DEFAULT_PATH)
 find_library(libchainbase chainbase @CMAKE_BINARY_DIR@/libraries/chaindb NO_DEFAULT_PATH)
 find_library(libbuiltins builtins @CMAKE_BINARY_DIR@/libraries/builtins NO_DEFAULT_PATH)
-find_library(libspringxxhash springxxhash @CMAKE_BINARY_DIR@/libraries/libfc/libraries/xxhash NO_DEFAULT_PATH)
 
 #Ubuntu build requires rt library to be specified explicitly
 if(UNIX AND NOT APPLE)
