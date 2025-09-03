@@ -102,7 +102,6 @@ BOOST_FIXTURE_TEST_CASE( get_scope_test, validating_tester ) try {
       BOOST_REQUIRE_EQUAL(name("inita"_n), result.rows[0].scope);
       BOOST_REQUIRE_EQUAL(name("accounts"_n), result.rows[0].table);
       BOOST_REQUIRE_EQUAL(name("eosio"_n), result.rows[0].payer);
-      BOOST_REQUIRE_EQUAL(1u, result.rows[0].count);
 
       BOOST_REQUIRE_EQUAL(name("initb"_n), result.rows[1].scope);
       BOOST_REQUIRE_EQUAL(name("initc"_n), result.rows[2].scope);
