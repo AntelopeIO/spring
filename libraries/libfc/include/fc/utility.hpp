@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <tuple>
 #include <memory>
+#include <numeric>
 
 #ifdef _MSC_VER
 #pragma warning(disable: 4482) // nonstandard extension used enum Name::Val, standard in C++11
@@ -203,6 +204,44 @@ namespace fc {
   };
 
   using yield_function_t = optional_delegate<void()>;
+
+  //TODO: these should really be consteval, but they're getting pulled in by a few of our c++17 compiled files
+  namespace size_literals {
+     namespace detail {
+        constexpr unsigned long long multiply_pow2(const unsigned long long val, const unsigned long long shift) {
+           if(shift >= std::numeric_limits<unsigned long long>::digits)
+              throw std::invalid_argument("exponent for pow2 too large");
+
+           constexpr unsigned long long max_ull = std::numeric_limits<unsigned long long>::max();
+
+           if(val > (max_ull >> shift))
+              throw std::invalid_argument("literal too large");
+
+           return val << shift;
+        }
+     }
+
+     constexpr unsigned long long operator""_KiB(const unsigned long long val) {
+        return detail::multiply_pow2(val, 10);
+     }
+     constexpr unsigned long long operator""_MiB(const unsigned long long val) {
+        return detail::multiply_pow2(val, 20);
+     }
+     constexpr unsigned long long operator""_GiB(const unsigned long long val) {
+        return detail::multiply_pow2(val, 30);
+     }
+     constexpr unsigned long long operator""_TiB(const unsigned long long val) {
+        return detail::multiply_pow2(val, 40);
+     }
+
+     constexpr unsigned long long operator""_pow2(const unsigned long long n) {
+        return detail::multiply_pow2(1, n);
+     }
+
+     static_assert(4_MiB == 4*1024*1024);
+     static_assert(16_pow2 == 64*1024);
+     static_assert(63_pow2 == 9223372036854775808ull);
+  }
 
 }
 
