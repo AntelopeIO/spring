@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <tuple>
 #include <memory>
+#include <numeric>
 
 #ifdef _MSC_VER
 #pragma warning(disable: 4482) // nonstandard extension used enum Name::Val, standard in C++11
