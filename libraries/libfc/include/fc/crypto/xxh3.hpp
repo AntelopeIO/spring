@@ -4,17 +4,25 @@
 #include <fc/crypto/packhash.hpp>
 #include <fc/io/raw_fwd.hpp>
 
+#include <xxHash/xxhash.h>
+
 namespace fc {
 
 namespace detail {
 struct alignas(64) alignmeto64 {};
+
+template <typename T>
+concept ContiguousCharSource = requires(const T& obj) {
+   { obj.data() } -> std::convertible_to<const char*>;
+   { obj.size() } -> std::unsigned_integral;
+};
 }
 
 struct xxh3 : public add_packhash_to_hash<xxh3> {
    xxh3() = default;
    explicit xxh3(const uint64_t h) : _hash(h) {}
 
-   ///XXX: no data() since would that be confusing LE/BE? but that breaks common interface across hash types
+   ///no data() since would that be confusing LE/BE? but that breaks common interface across hash types
 
    static xxh3 hash(const char* d, uint32_t dlen);
    static xxh3 hash(const std::string&);
@@ -22,6 +30,10 @@ struct xxh3 : public add_packhash_to_hash<xxh3> {
    template<typename T>
    static xxh3 hash( const T& t ) {
       return packhash(t);
+   }
+
+   static xxh3 hash_raw(const detail::ContiguousCharSource auto& r) {
+      return xxh3{XXH3_64bits(r.data(), r.size())};
    }
 
    class encoder {
@@ -35,7 +47,7 @@ struct xxh3 : public add_packhash_to_hash<xxh3> {
 
       private:
          struct impl;
-         //XXH3_state_t documents requirement of 64 byte alignment: oof tracking down that spookiness was fun...
+         //XXH3_state_t documents requirement of 64 byte alignment.
          fc::fwd<impl,576,detail::alignmeto64> my;
    };
 

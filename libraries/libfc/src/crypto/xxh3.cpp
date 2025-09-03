@@ -1,11 +1,6 @@
 #include <fc/crypto/xxh3.hpp>
 #include <fc/fwd_impl.hpp>
 
-#ifdef __x86_64__
-#include <xxHash/xxh_x86dispatch.h>
-#endif
-#include <xxHash/xxhash.h>
-
 namespace fc {
 
 struct xxh3::encoder::impl {

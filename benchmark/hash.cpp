@@ -17,6 +17,9 @@ void hash_benchmarking() {
    const std::string really_small_message = "abcdefghijklmnop";
    const std::string small_message = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ01";
 
+   std::span<const char, 16> really_small_message_span(really_small_message.data(), 16);
+   std::span<const char, 64> small_message_span(small_message.data(), 64);
+
    // build a large message
    constexpr auto large_msg_size = 4096;
    std::string large_message;
@@ -100,6 +103,17 @@ void hash_benchmarking() {
       fc::xxh3::hash(large_message);
    };
    benchmarking("xxh3 (" + std::to_string(large_message.length()) + " bytes)", xxh3_large_msg);
+
+   auto xxh3_really_small_fixed_message = [&]() {
+      fc::xxh3::hash_raw(really_small_message_span);
+   };
+   benchmarking("xxh3 fixed (" + std::to_string(really_small_message_span.size()) + " bytes)", xxh3_really_small_fixed_message);
+
+   auto xxh3_small_fixed_msg = [&]() {
+      fc::xxh3::hash_raw(small_message_span);
+   };
+   benchmarking("xxh3 fixed (" + std::to_string(small_message_span.size()) + " bytes)", xxh3_small_fixed_msg);
+
 }
 
 } // benchmark
