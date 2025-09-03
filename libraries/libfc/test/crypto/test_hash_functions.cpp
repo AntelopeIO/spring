@@ -5,6 +5,8 @@
 #include <fc/crypto/xxh3.hpp>
 #include <fc/utility.hpp>
 
+#include <span>
+
 using namespace fc;
 
 BOOST_AUTO_TEST_SUITE(hash_functions)
@@ -92,6 +94,7 @@ BOOST_AUTO_TEST_CASE(xhh3) try {
          continue;
 
       BOOST_CHECK_EQUAL(t.Nresult, xxh3::hash(sanity_buffer, t.len)._hash);
+      BOOST_CHECK_EQUAL(t.Nresult, xxh3::hash_raw(std::span(sanity_buffer, t.len))._hash);
    }
 
 } FC_LOG_AND_RETHROW();
