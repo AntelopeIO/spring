@@ -21,9 +21,6 @@ RUN apt-get update && apt-get upgrade -y && \
 
 RUN yes | bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" llvm.sh 20
 
-#make sure no confusion on what llvm library spring's cmake should pick up on
-RUN rm -rf /usr/lib/llvm-20/lib/cmake
-
 COPY <<-EOF /ubsan.supp
   vptr:wasm_eosio_validation.hpp
   vptr:wasm_eosio_injection.hpp
