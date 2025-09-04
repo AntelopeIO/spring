@@ -28,18 +28,18 @@ RUN yes | bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" llvm.sh ${_LLVM_VE
 RUN rm -rf /usr/lib/llvm-${_LLVM_VERSION}/lib/cmake
 
 COPY <<-EOF /ubsan.supp
-  vptr:wasm_eosio_validation.hpp
-  vptr:wasm_eosio_injection.hpp
+	vptr:wasm_eosio_validation.hpp
+	vptr:wasm_eosio_injection.hpp
 EOF
 
 ENV SPRING_PLATFORM_HAS_EXTRAS_CMAKE=1
 COPY <<-EOF /extras.cmake
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+	set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
 
-  set(CMAKE_C_COMPILER "clang-${_LLVM_VERSION}" CACHE STRING "")
-  set(CMAKE_CXX_COMPILER "clang++-${_LLVM_VERSION}" CACHE STRING "")
-  set(CMAKE_C_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
-  set(CMAKE_CXX_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
+	set(CMAKE_C_COMPILER "clang-${_LLVM_VERSION}" CACHE STRING "")
+	set(CMAKE_CXX_COMPILER "clang++-${_LLVM_VERSION}" CACHE STRING "")
+	set(CMAKE_C_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
+	set(CMAKE_CXX_FLAGS "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" CACHE STRING "")
 EOF
 
 ENV UBSAN_OPTIONS=print_stacktrace=1,suppressions=/ubsan.supp

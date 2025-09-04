@@ -29,12 +29,12 @@ RUN rm -rf /usr/lib/llvm-${_LLVM_VERSION}/lib/cmake
 
 ENV SPRING_PLATFORM_HAS_EXTRAS_CMAKE=1
 COPY <<-EOF /extras.cmake
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+	set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
 
-  set(CMAKE_C_COMPILER "clang-${_LLVM_VERSION}" CACHE STRING "")
-  set(CMAKE_CXX_COMPILER "clang++-${_LLVM_VERSION}" CACHE STRING "")
-  set(CMAKE_C_FLAGS "-fsanitize=address -fno-omit-frame-pointer" CACHE STRING "")
-  set(CMAKE_CXX_FLAGS "-fsanitize=address -fno-omit-frame-pointer" CACHE STRING "")
+	set(CMAKE_C_COMPILER "clang-${_LLVM_VERSION}" CACHE STRING "")
+	set(CMAKE_CXX_COMPILER "clang++-${_LLVM_VERSION}" CACHE STRING "")
+	set(CMAKE_C_FLAGS "-fsanitize=address -fno-omit-frame-pointer" CACHE STRING "")
+	set(CMAKE_CXX_FLAGS "-fsanitize=address -fno-omit-frame-pointer" CACHE STRING "")
 EOF
 
 ENV ASAN_OPTIONS=detect_leaks=0
