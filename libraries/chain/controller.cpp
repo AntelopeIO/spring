@@ -961,18 +961,6 @@ struct controller_impl {
       }
    }
 
-#if LLVM_VERSION_MAJOR < 9
-   // LLVM versions prior to 9 do a set_new_handler() in a static global initializer. Reset LLVM's custom handler
-   // back to the default behavior of throwing bad_alloc so we can possibly exit cleanly and not just abort as LLVM's
-   // handler does.
-   // LLVM 9+ doesn't install this handler unless calling InitLLVM(), which we don't.
-   // See https://reviews.llvm.org/D64505
-   struct reset_new_handler {
-      reset_new_handler() { std::set_new_handler([](){ throw std::bad_alloc(); }); }
-   };
-
-   reset_new_handler               rnh; // placed here to allow for this to be set before constructing the other fields
-#endif
    controller&                     self;
    std::function<void()>           shutdown;
    std::function<bool()>           check_shutdown;
@@ -1326,8 +1314,7 @@ struct controller_impl {
    }
 
    controller_impl( const controller::config& cfg, controller& s, protocol_feature_set&& pfs, const chain_id_type& chain_id )
-   :rnh(),
-    self(s),
+   :self(s),
     db( cfg.state_dir,
         cfg.read_only ? database::read_only : database::read_write,
         cfg.state_size, false, cfg.db_map_mode ),
