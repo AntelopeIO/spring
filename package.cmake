@@ -37,8 +37,8 @@ string(REGEX REPLACE "^${CMAKE_PROJECT_NAME}-(.*)$" "${CMAKE_PROJECT_NAME}_\\1_$
 
 string(APPEND CPACK_PACKAGE_FILE_NAME "-${CMAKE_SYSTEM_PROCESSOR}")
 
-set(CPACK_PACKAGE_CONTACT "EOS Network Foundation")
-set(CPACK_PACKAGE_VENDOR "EOS Network Foundation")
+set(CPACK_PACKAGE_CONTACT "Vaulta Foundation")
+set(CPACK_PACKAGE_VENDOR "Vaulta Foundation")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "C++ implementation of the Antelope protocol with Savanna consensus")
 set(CPACK_COMPONENT_BASE_DESCRIPTION "daemon and CLI tools including ${NODE_EXECUTABLE_NAME}, ${CLI_CLIENT_EXECUTABLE_NAME}, and ${KEY_STORE_EXECUTABLE_NAME}")
 set(CPACK_COMPONENT_DEV_DESCRIPTION "headers and libraries for native contract unit testing")
