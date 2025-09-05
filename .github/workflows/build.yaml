@@ -85,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu20, ubuntu22, reproducible]
+        platform: [ubuntu20, ubuntu22, ubuntu24, reproducible]
     runs-on: ubuntu-latest
     container: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.platform].image}}
     steps:
@@ -135,11 +135,13 @@ jobs:
         include:
           - cfg: {name: 'ubuntu20',      base: 'ubuntu20', builddir: 'ubuntu20'}
           - cfg: {name: 'ubuntu22',      base: 'ubuntu22', builddir: 'ubuntu22'}
+          - cfg: {name: 'ubuntu24',      base: 'ubuntu24', builddir: 'ubuntu24'}
           - cfg: {name: 'asserton',      base: 'asserton', builddir: 'asserton'}
           - cfg: {name: 'ubsan',         base: 'ubsan',    builddir: 'ubsan'}
           - cfg: {name: 'asan',          base: 'asan',     builddir: 'asan'}
           - cfg: {name: 'ubuntu20repro', base: 'ubuntu20', builddir: 'reproducible'}
           - cfg: {name: 'ubuntu22repro', base: 'ubuntu22', builddir: 'reproducible'}
+          - cfg: {name: 'ubuntu24repro', base: 'ubuntu24', builddir: 'reproducible'}
     runs-on: ["self-hosted", "enf-x86-hightier"]
     container:
       image: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.cfg.base].image}}
@@ -181,10 +183,12 @@ jobs:
         include:
           - cfg: {name: 'ubuntu20',      base: 'ubuntu20', builddir: 'ubuntu20'}
           - cfg: {name: 'ubuntu22',      base: 'ubuntu22', builddir: 'ubuntu22'}
+          - cfg: {name: 'ubuntu24',      base: 'ubuntu24', builddir: 'ubuntu24'}
           - cfg: {name: 'asserton',      base: 'asserton', builddir: 'asserton'}
           - cfg: {name: 'ubsan',         base: 'ubsan',    builddir: 'ubsan'}
           - cfg: {name: 'ubuntu20repro', base: 'ubuntu20', builddir: 'reproducible'}
           - cfg: {name: 'ubuntu22repro', base: 'ubuntu22', builddir: 'reproducible'}
+          - cfg: {name: 'ubuntu24repro', base: 'ubuntu24', builddir: 'reproducible'}
     runs-on: ["self-hosted", "enf-x86-midtier"]
     steps:
       - uses: actions/checkout@v4
@@ -222,10 +226,12 @@ jobs:
         include:
           - cfg: {name: 'ubuntu20',      base: 'ubuntu20', builddir: 'ubuntu20'}
           - cfg: {name: 'ubuntu22',      base: 'ubuntu22', builddir: 'ubuntu22'}
+          - cfg: {name: 'ubuntu24',      base: 'ubuntu24', builddir: 'ubuntu24'}
           - cfg: {name: 'asserton',      base: 'asserton', builddir: 'asserton'}
           - cfg: {name: 'ubsan',         base: 'ubsan',    builddir: 'ubsan'}
           - cfg: {name: 'ubuntu20repro', base: 'ubuntu20', builddir: 'reproducible'}
           - cfg: {name: 'ubuntu22repro', base: 'ubuntu22', builddir: 'reproducible'}
+          - cfg: {name: 'ubuntu24repro', base: 'ubuntu24', builddir: 'reproducible'}
     runs-on: ["self-hosted", "enf-x86-lowtier"]
     steps:
       - uses: actions/checkout@v4
