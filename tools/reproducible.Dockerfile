@@ -48,7 +48,13 @@ RUN gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys CBA23971357C2E6590D9
                                                             D574BD5D1D0E98895E3BF90044F2485E45D59042
 
 RUN ls *.sig *.asc | xargs -n 1 gpg --verify && \
-    sha256sum -c --ignore-missing cmake-*-SHA-256.txt
+    sha256sum --strict -c --ignore-missing cmake-*-SHA-256.txt
+
+RUN sha256sum --strict -c - <<-EOF
+	0b58557a6d32ceee97c8d533a59b9212d87e0fc4d2833924eb6c611247db2f2a  llvm-project-${_SPRING_CLANG_VERSION}.src.tar.xz
+	74d2529159fd118c3eac6f90107b5611bccc6f647fdea104024183e8d5e25831  llvm-project-${_SPRING_LLVM_VERSION}.src.tar.xz
+	ef3056df528569e0e8956f6cf38806879347ac6de6a4ff7e4105dc4578732cfb  cmake-${_SPRING_CMAKE_VERSION}.tar.gz
+EOF
 
 RUN tar xf cmake-*.tar.gz && \
     cd cmake*[0-9] && \
