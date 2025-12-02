@@ -281,8 +281,17 @@ class Node(Transactions):
         self.getInfo()
         currBlockNum=self.lastRetrievedHeadBlockNum
         currProducer=self.lastRetrievedHeadBlockProducer
-        blocksRemainedInCurrRound = blocksPerProducer - currBlockNum % blocksPerProducer - 1
-        if Utils.Debug: Utils.Print(f'currBlockNum {currBlockNum}, currProducer {currProducer}, blocksRemainedInCurrRound {blocksRemainedInCurrRound}')
+
+        startOfRoundBlockNum = currBlockNum
+        for i in range(1, currBlockNum-1): # the producer might produce multiple rounds
+            if self.getBlockProducerByNum(currBlockNum-i) == currProducer:
+                startOfRoundBlockNum = currBlockNum-i
+            else:
+                break
+
+        currBlockInRound = ( (currBlockNum - startOfRoundBlockNum) % blocksPerProducer ) + 1
+        blocksRemainedInCurrRound = blocksPerProducer - currBlockInRound
+        if Utils.Debug: Utils.Print(f'currBlockNum {currBlockNum}, currProducer {currProducer}, blocksRemainedInCurrRound {blocksRemainedInCurrRound}, currBlockInRound {currBlockInRound}')
 
         # find the positions of currProducerPos and nodeProducer in the schedule
         currProducerPos=0
@@ -310,7 +319,11 @@ class Node(Transactions):
         timeout=blocksToNextScheduledRound/2 + 2 # leave 2 seconds for avoid flakiness
         if Utils.Debug: Utils.Print(f'blocksToNextScheduledRound {blocksToNextScheduledRound}, nextScheduledRoundBlockNum {nextScheduledRoundBlockNum}, timeout {timeout}')
 
-        return not self.waitForBlock(nextScheduledRoundBlockNum, timeout=timeout)
+        if not self.waitForBlock(nextScheduledRoundBlockNum, timeout=timeout):
+            return True
+        if self.getBlockProducer() != self.producerName:
+            return True
+        return False
 
     def killNodeOnProducer(self, producer, whereInSequence, blockType=BlockType.head, silentErrors=True, exitOnError=False, exitMsg=None, returnType=ReturnType.json):
         assert(isinstance(producer, str))
