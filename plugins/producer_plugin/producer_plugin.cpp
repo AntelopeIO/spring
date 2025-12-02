@@ -19,7 +19,7 @@
 #include <fc/time.hpp>
 
 #include <boost/asio.hpp>
-#include <boost/asio/high_resolution_timer.hpp>
+#include <boost/asio/system_timer.hpp>
 #include <boost/signals2/connection.hpp>
 
 #include <cstdint>
@@ -706,7 +706,7 @@ public:
    bool                                  _pause_production   = false;
 
    eosio::chain::named_thread_pool<struct prod>      _timer_thread;
-   boost::asio::high_resolution_timer                _timer{_timer_thread.get_executor()};
+   boost::asio::system_timer                         _timer{_timer_thread.get_executor()};
 
    using signature_provider_type = signature_provider_plugin::signature_provider_type;
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
@@ -826,7 +826,7 @@ public:
                                                                    // use atomic for simplicity and performance
    fc::time_point                 _ro_read_window_start_time;
    fc::time_point                 _ro_window_deadline;    // only modified on app thread, read-window deadline or write-window deadline
-   boost::asio::high_resolution_timer _ro_timer{_timer_thread.get_executor()}; // only accessible from the main thread
+   boost::asio::system_timer      _ro_timer{_timer_thread.get_executor()}; // only accessible from the main thread
    fc::microseconds               _ro_max_trx_time_us{0}; // calculated during option initialization
    ro_trx_queue_t                 _ro_exhausted_trx_queue;
    alignas(hardware_destructive_interference_sz)
