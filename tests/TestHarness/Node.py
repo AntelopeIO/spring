@@ -278,39 +278,14 @@ class Node(Transactions):
             scheduled_producers.append(prod["producer_name"])
         if Utils.Debug: Utils.Print(f'scheduled_producers {scheduled_producers}')
 
-        self.getInfo()
-        currBlockNum=self.lastRetrievedHeadBlockNum
-        currProducer=self.lastRetrievedHeadBlockProducer
-        blocksRemainedInCurrRound = blocksPerProducer - currBlockNum % blocksPerProducer - 1
-        if Utils.Debug: Utils.Print(f'currBlockNum {currBlockNum}, currProducer {currProducer}, blocksRemainedInCurrRound {blocksRemainedInCurrRound}')
-
-        # find the positions of currProducerPos and nodeProducer in the schedule
-        currProducerPos=0
-        nodeProducerPos=0
-        for i in range(0, len(scheduled_producers)):
-            if scheduled_producers[i] == currProducer:
-                currProducerPos=i
-            if scheduled_producers[i] == self.producerName:
-                nodeProducerPos=i
-
-        # find the number of the blocks to node producer's next scheduled round
-        blocksToNextScheduledRound = 0
-        if currProducerPos < nodeProducerPos:
-            # nodeProducerPos - currProducerPos - 1 is the number of producers
-            # from current producer to the node producer in the schedule
-            blocksToNextScheduledRound = (nodeProducerPos - currProducerPos - 1) * blocksPerProducer + blocksRemainedInCurrRound + 1
-        else:
-            # nodeProducerPos is the number of producers before node producer in the schedule
-            # len(scheduled_producers) - currProducerPos - 1 is the number
-            # of producers after node producer in the schedule
-            blocksToNextScheduledRound = (nodeProducerPos + (len(scheduled_producers)  - currProducerPos - 1)) * blocksPerProducer + blocksRemainedInCurrRound + 1
-
-        # find the block number of the node producer's next scheduled round
-        nextScheduledRoundBlockNum=currBlockNum + blocksToNextScheduledRound
-        timeout=blocksToNextScheduledRound/2 + 2 # leave 2 seconds for avoid flakiness
-        if Utils.Debug: Utils.Print(f'blocksToNextScheduledRound {blocksToNextScheduledRound}, nextScheduledRoundBlockNum {nextScheduledRoundBlockNum}, timeout {timeout}')
-
-        return not self.waitForBlock(nextScheduledRoundBlockNum, timeout=timeout)
+        for i in range(0, len(scheduled_producers)*blocksPerProducer):
+            if not self.waitForNextBlock(timeout=13):
+                if Utils.Debug: Utils.Print(f'Failed to get next block')
+                return True
+            if self.getBlockProducer() == self.producerName:
+                if Utils.Debug: Utils.Print(f'{self.producerName} produced block {self.lastRetrievedHeadBlockNum}')
+                return False
+        return True
 
     def killNodeOnProducer(self, producer, whereInSequence, blockType=BlockType.head, silentErrors=True, exitOnError=False, exitMsg=None, returnType=ReturnType.json):
         assert(isinstance(producer, str))
