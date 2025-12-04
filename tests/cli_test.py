@@ -357,8 +357,10 @@ def abi_file_with_nodeos_test():
         walletMgr.launch()
         cmd = "./programs/nodeos/nodeos -e -p eosio --plugin eosio::trace_api_plugin --trace-no-abis --plugin eosio::producer_plugin --plugin eosio::producer_api_plugin --plugin eosio::chain_api_plugin --plugin eosio::chain_plugin --plugin eosio::http_plugin --access-control-allow-origin=* --http-validate-host=false --max-transaction-time=-1 --resource-monitor-not-shutdown-on-threshold-exceeded " + "--data-dir " + data_dir + " --config-dir " + data_dir
         node = Node('localhost', 8888, nodeId, data_dir=Path(data_dir), config_dir=Path(data_dir), cmd=shlex.split(cmd), launch_time=datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S'), walletMgr=walletMgr)
-        time.sleep(5)
-        node.waitForBlock(1)
+        if not node or not Utils.waitForBool(node.checkPulse, timeout=15):
+            Utils.Print("ERROR: node doesn't appear to be running...")
+            assert False, "node doesn't appear to be running"
+        node.waitForBlock(2)
         accountNames = ["eosio", "eosio.token", "alice", "bob"]
         accounts = []
         for name in accountNames:
