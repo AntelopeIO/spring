@@ -93,15 +93,15 @@ class Utils:
     @staticmethod
     def checkOutputFileWrite(time, cmd, output, error):
         stop=Utils.timestamp()
-        os.makedirs(Utils.TestLogRoot, exist_ok=True)
-        os.makedirs(Utils.DataPath, exist_ok=True)
-
-        # Ensure filename is set
-        if not hasattr(Utils, "checkOutputFilename"):
-            Utils.checkOutputFilename=f"{Utils.DataPath}/subprocess_results.log"
-
         # Serialize concurrent writes and open file per write to avoid sharing closed handles
         with Utils._check_output_lock:
+            os.makedirs(Utils.TestLogRoot, exist_ok=True)
+            os.makedirs(Utils.DataPath, exist_ok=True)
+
+            # Ensure filename is set
+            if not hasattr(Utils, "checkOutputFilename"):
+                Utils.checkOutputFilename=f"{Utils.DataPath}/subprocess_results.log"
+
             with open(Utils.checkOutputFilename, "a") as f:
                 f.write(Utils.FileDivider + "\n")
                 f.write("start={%s}\n" % (time))
