@@ -151,7 +151,8 @@ namespace eosio { namespace chain { namespace wasm_injections {
       static constexpr bool post = false;
       static void init() {}
       static void accept( wasm_ops::instr* inst, wasm_ops::visitor_arg& arg ) {
-         wasm_ops::op_types<>::call_t* call_inst = reinterpret_cast<wasm_ops::op_types<>::call_t*>(inst);
+         // Cast to the exact dynamic type to avoid undefined behavior
+         auto* call_inst = static_cast<wasm_ops::call<fix_call_index>*>(inst);
          auto mapped_index = injector_utils::injected_index_mapping.find(call_inst->field);
 
          if ( mapped_index != injector_utils::injected_index_mapping.end() )  {
