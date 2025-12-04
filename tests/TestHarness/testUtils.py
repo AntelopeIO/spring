@@ -17,6 +17,7 @@ import traceback
 import shutil
 import sys
 from pathlib import Path
+import threading
 
 ###########################################################################################
 
@@ -82,6 +83,8 @@ class Utils:
     ConfigDir=f"{DataPath}/"
 
     TimeFmt='%Y-%m-%dT%H:%M:%S.%f'
+    # lock to serialize writes to subprocess_results.log across threads
+    _check_output_lock = threading.Lock()
 
     @staticmethod
     def timestamp():
@@ -90,21 +93,22 @@ class Utils:
     @staticmethod
     def checkOutputFileWrite(time, cmd, output, error):
         stop=Utils.timestamp()
-        os.makedirs(Utils.TestLogRoot, exist_ok=True)
-        os.makedirs(Utils.DataPath, exist_ok=True)
-        if not hasattr(Utils, "checkOutputFile"):
-            Utils.checkOutputFilename=f"{Utils.DataPath}/subprocess_results.log"
-            if Utils.Debug: Utils.Print("opening %s in dir: %s" % (Utils.checkOutputFilename, os.getcwd()))
-            Utils.checkOutputFile=open(Utils.checkOutputFilename,"w")
-        else:
-            Utils.checkOutputFile=open(Utils.checkOutputFilename,"a")
+        # Serialize concurrent writes and open file per write to avoid sharing closed handles
+        with Utils._check_output_lock:
+            os.makedirs(Utils.TestLogRoot, exist_ok=True)
+            os.makedirs(Utils.DataPath, exist_ok=True)
 
-        Utils.checkOutputFile.write(Utils.FileDivider + "\n")
-        Utils.checkOutputFile.write("start={%s}\n" % (time))
-        Utils.checkOutputFile.write("cmd={%s}\n" % (" ".join(cmd)))
-        Utils.checkOutputFile.write("cout={%s}\n" % (output))
-        Utils.checkOutputFile.write("cerr={%s}\n" % (error))
-        Utils.checkOutputFile.write("stop={%s}\n" % (stop))
+            # Ensure filename is set
+            if not hasattr(Utils, "checkOutputFilename"):
+                Utils.checkOutputFilename=f"{Utils.DataPath}/subprocess_results.log"
+
+            with open(Utils.checkOutputFilename, "a") as f:
+                f.write(Utils.FileDivider + "\n")
+                f.write("start={%s}\n" % (time))
+                f.write("cmd={%s}\n" % (" ".join(cmd)))
+                f.write("cout={%s}\n" % (output))
+                f.write("cerr={%s}\n" % (error))
+                f.write("stop={%s}\n" % (stop))
 
     @staticmethod
     def Print(*args, **kwargs):
