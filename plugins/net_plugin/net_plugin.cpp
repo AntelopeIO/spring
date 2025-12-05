@@ -2178,6 +2178,10 @@ namespace eosio {
          fc_dlog(p2p_blk_log, "sync ahead not allowed. block ${bn}, head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${sp}, fork_db size ${s}",
                  ("bn", blk_num)("h", head_num)("fh", cc.fork_db_head().block_num())("fl", cc.fork_db_head().irreversible_blocknum())
                  ("sp", sync_fetch_span)("s", cc.fork_db_size()));
+
+         // make sure controller is processing blocks, might have been interrupted and need a kick
+         fc_dlog(p2p_blk_log, "sync post process_incoming_block to app thread, block ${n}", ("n", blk_num));
+         my_impl->producer_plug->process_blocks();
       }
 
       fc_dlog(p2p_blk_log, "sync ahead not allowed. block ${bn}, sync_last_requested_num ${lrn}, sync-fetch-span ${s}",
