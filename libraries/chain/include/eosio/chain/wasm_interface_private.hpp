@@ -171,7 +171,10 @@ struct eosvmoc_tier {
          //   Not allowing interrupt for onblock seems rather harmless, so instead of distinguishing between onerror and
          //   onblock, just disallow for all implicit.
          const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() &&
-                                         context.trx_context.has_undo() && !context.trx_context.is_implicit() && !context.trx_context.is_scheduled();
+                                         context.trx_context.has_undo() &&
+                                         !context.trx_context.is_implicit() &&
+                                         !context.trx_context.is_scheduled() &&
+                                         !context.control.is_replaying();
          auto ex = fc::make_scoped_exit([&]() {
             if (allow_oc_interrupt) {
                eos_vm_oc_compile_interrupt = false;
