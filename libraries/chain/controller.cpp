@@ -5522,6 +5522,10 @@ void controller::set_disable_replay_opts( bool v ) {
    my->conf.disable_replay_opts = v;
 }
 
+bool controller::is_replaying() const {
+   return my->replaying;
+}
+
 block_handle controller::head()const {
    return my->chain_head;
 }

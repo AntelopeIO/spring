@@ -286,6 +286,8 @@ namespace eosio::chain {
          void   set_key_blacklist( const flat_set<public_key_type>& );
 
          void   set_disable_replay_opts( bool v );
+         // thread safe
+         bool   is_replaying() const;
 
          block_handle         head()const;
          block_handle         fork_db_head()const;
