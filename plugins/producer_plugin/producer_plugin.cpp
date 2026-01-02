@@ -1070,9 +1070,9 @@ public:
                     return;
                  }
 
-                 // key recovery complete, continue execution on the main thread
+                 // key recovery complete, post to the trx queue
                  app().executor().post(
-                         priority::low, exec_queue::read_write,
+                         priority::low, exec_queue::trx_read_write,
                          [this, trx_meta{std::move(trx_meta)}, is_transient, next{std::move(next)}, api_trx, return_failure_traces]() {
                             auto start       = fc::time_point::now();
                             auto idle_time   = _time_tracker.add_idle_time(start);
@@ -1125,6 +1125,7 @@ public:
          }
 
          if (!chain.is_building_block()) {
+            fc_dlog(_trx_log, "adding incoming trx ${id} to unapplied queue", ("id", id));
             _unapplied_transactions.add_incoming(trx, api_trx, return_failure_trace, next);
             trx_tracker.cancel();
             return true;
@@ -2360,6 +2361,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    LOG_AND_DROP();
 
    if (chain.is_building_block()) {
+      app().executor().enable_trx_read_write_queue(true);
       const auto& pending_block_signing_authority = chain.pending_block_signing_authority();
 
       if (in_producing_mode() && pending_block_signing_authority != scheduled_producer.authority) {
@@ -2991,6 +2993,7 @@ void producer_plugin_impl::produce_block() {
       _protocol_features_signaled = false;
    }
 
+   app().executor().enable_trx_read_write_queue(false);
    // idump( (fc::time_point::now() - chain.pending_block_time()) );
    chain.assemble_and_complete_block([&](const digest_type& d) {
       auto debug_logger = maybe_make_debug_time_logger();

@@ -2,9 +2,15 @@
 #include <boost/asio.hpp>
 #include <boost/heap/binomial_heap.hpp>
 
+#include <array>
+#include <cassert>
 #include <condition_variable>
+#include <functional>
+#include <memory>
 #include <mutex>
+#include <numeric>
 #include <queue>
+#include <utility>
 
 namespace appbase {
 // adapted from: https://www.boost.org/doc/libs/1_69_0/doc/html/boost_asio/example/cpp11/invocation/prioritised_handlers.cpp
@@ -18,20 +24,26 @@ enum class handler_id {
    process_incoming_block                 // process blocks already added to fork_db
 };
 
-enum class exec_queue {
-   read_only,          // the queue storing tasks which are safe to execute
+enum class exec_queue : uint8_t {
+   read_only = 0,      // The queue storing tasks which are safe to execute
                        // in parallel with other read-only & read_exclusive tasks in the read-only
                        // thread pool as well as on the main app thread.
                        // Multi-thread safe as long as nothing is executed from the read_write queue.
-   read_write,         // the queue storing tasks which can be only executed
+   read_write,         // The queue storing tasks which can be only executed
                        // on the app thread while read-only tasks are
                        // not being executed in read-only threads. Single threaded.
-   read_exclusive      // the queue storing tasks which should only be executed
+   trx_read_write,     // The queue storing trx tasks which can only be executed on the app thread while
+                       // read-only tasks are not being executed in read-only threads. Single threaded.
+                       // The trxs have a separate queue so they can be individually prioritized. They only
+                       // execute when there are no read_write tasks queued. The priority only is relative
+                       // to other trx tasks in the trx_read_write queue.
+   read_exclusive,     // The queue storing tasks which should only be executed
                        // in parallel with other read_exclusive or read_only tasks in the
                        // read-only thread pool. Will never be executed on the main thread.
                        // If no read-only thread pool is available that calls one of the execute_* with
                        // read_exclusive then this queue grows unbounded. exec_pri_queue asserts
                        // if asked to queue a read_exclusive task when init'ed with 0 read-only threads.
+   size                // Placeholder for number of elements in enum
 };
 
 // Locking has to be coordinated by caller, use with care.
@@ -40,9 +52,8 @@ class exec_pri_queue : public boost::asio::execution_context
 public:
 
    ~exec_pri_queue() {
-      clear(read_only_handlers_);
-      clear(read_write_handlers_);
-      clear(read_exclusive_handlers_);
+      for (auto& q : queues_)
+         clear(q);
    }
 
    // inform how many read_threads will be calling read_only/read_exclusive queues
@@ -58,7 +69,7 @@ public:
    }
 
    void stop() {
-      std::lock_guard g( mtx_ );
+      std::scoped_lock g( mtx_ );
       exiting_blocking_ = true;
       cond_.notify_all();
    }
@@ -76,19 +87,43 @@ public:
       should_exit_ = [](){ assert(false); return true; }; // should not be called when locking is disabled
    }
 
+private:
+
+   // return false if should be posted instead, force=true then add will add to queue and return true
    template <typename Function>
-   void add(int priority, exec_queue q, size_t order, Function&& function) {
+   bool add(int priority, exec_queue q, size_t order, Function&& function, bool force) {
       assert( num_read_threads_ > 0 || q != exec_queue::read_exclusive);
       prio_queue& que = priority_que(q);
-      std::unique_ptr<queued_handler_base> handler(new queued_handler<Function>(handler_id::unique, priority, order, std::forward<Function>(function)));
-      if (lock_enabled_ || q == exec_queue::read_exclusive) { // called directly from any thread for read_exclusive
-         std::lock_guard g( mtx_ );
+      auto create_handler = [&]{
+         return std::make_unique<queued_handler<Function>>(handler_id::unique, priority, order, std::forward<Function>(function));
+      };
+      if (q == exec_queue::read_exclusive || lock_enabled_) {
+         std::unique_ptr<queued_handler_base> handler = create_handler();
+         // called directly from any thread for read_exclusive
+         std::scoped_lock g( mtx_ );
          que.push( handler.release() );
          if (num_waiting_)
             cond_.notify_one();
+      } else if (q == exec_queue::trx_read_write) {
+         std::scoped_lock g( mtx_ );
+         if (!force && empty(exec_queue::trx_read_write)) {
+            // Since empty, post so that io context will queue and call execute_highest; otherwise would not be processed
+            // until something else is posted that triggers io context run_one.
+            return false;
+         }
+         que.push( create_handler().release() );
       } else {
-         que.push( handler.release() );
+         que.push( create_handler().release() );
       }
+      return true;
+   }
+
+public:
+
+   // return false if should be posted instead, force=true then add will add to queue and return true
+   template <typename Function>
+   bool add(int priority, exec_queue q, size_t order, Function&& function) {
+      return add(priority, q, order, std::forward<Function>(function), false);
    }
 
    // called from appbase::application_base::exec poll_one() or run_one()
@@ -96,11 +131,12 @@ public:
    void add(handler_id id, int priority, exec_queue q, size_t order, Function&& function) {
       assert( num_read_threads_ > 0 || q != exec_queue::read_exclusive);
       if (id == handler_id::unique) {
-         return add(priority, q, order, std::forward<Function>(function));
+         add(priority, q, order, std::forward<Function>(function), true);
+         return;
       }
       prio_queue& que = priority_que(q);
       std::unique_lock g( mtx_, std::defer_lock );
-      if (lock_enabled_ || q == exec_queue::read_exclusive) {
+      if (q == exec_queue::read_exclusive || q == exec_queue::trx_read_write || lock_enabled_) {
          // called directly from any thread for read_exclusive
          g.lock();
       }
@@ -124,9 +160,8 @@ public:
 
    // only call when no lock required
    void clear() {
-      read_only_handlers_ = prio_queue();
-      read_write_handlers_ = prio_queue();
-      read_exclusive_handlers_ = prio_queue();
+      for (auto& q : queues_)
+         q = prio_queue();
    }
 
    bool execute_highest_locked(exec_queue q) {
@@ -141,12 +176,16 @@ public:
    }
 
    // only call when no lock required
-   bool execute_highest(exec_queue lhs, exec_queue rhs) {
+   // returns number of tasks in queues before executing the highest.
+   //   0 means none were executed.
+   //   1 means there was one executed and none remain.
+   //   > 1 means there was one executed and return-1 remain.
+   size_t execute_highest(exec_queue lhs, exec_queue rhs) {
       prio_queue& lhs_que = priority_que(lhs);
       prio_queue& rhs_que = priority_que(rhs);
       size_t size = lhs_que.size() + rhs_que.size();
       if (size == 0)
-         return false;
+         return size;
       exec_queue q = rhs;
       if (!lhs_que.empty() && (rhs_que.empty() || *rhs_que.top() < *lhs_que.top()))
          q = lhs;
@@ -155,8 +194,7 @@ public:
       // pop, then execute since read_write queue is used to switch to read window and the pop needs to happen before that lambda starts
       auto t = pop(que);
       t->execute();
-      --size;
-      return size > 0;
+      return size;
    }
 
    bool execute_highest_blocking_locked(exec_queue lhs, exec_queue rhs) {
@@ -192,7 +230,9 @@ public:
 
    // Only call when locking disabled
    size_t size(exec_queue q) const { return priority_que(q).size(); }
-   size_t size() const { return read_only_handlers_.size() + read_write_handlers_.size() + read_exclusive_handlers_.size(); }
+   size_t size() const {
+      return std::accumulate(queues_.begin(), queues_.end(), size_t(0), [](size_t s, const prio_queue& q) { return s + q.size(); });
+   }
 
    // Only call when locking disabled
    bool empty(exec_queue q) const { return priority_que(q).empty(); }
@@ -326,29 +366,11 @@ private:
    using prio_queue = boost::heap::binomial_heap<queued_handler_base*, boost::heap::compare<deref_less>>;
 
    prio_queue& priority_que(exec_queue q) {
-      switch (q) {
-         case exec_queue::read_only:
-            return read_only_handlers_;
-         case exec_queue::read_write:
-            return read_write_handlers_;
-         case exec_queue::read_exclusive:
-            return read_exclusive_handlers_;
-      }
-      assert(false);
-      return read_only_handlers_;
+      return queues_[static_cast<size_t>(q)];
    }
 
    const prio_queue& priority_que(exec_queue q) const {
-      switch (q) {
-         case exec_queue::read_only:
-            return read_only_handlers_;
-         case exec_queue::read_write:
-            return read_write_handlers_;
-         case exec_queue::read_exclusive:
-            return read_exclusive_handlers_;
-      }
-      assert(false);
-      return read_only_handlers_;
+      return queues_[static_cast<size_t>(q)];
    }
 
    static std::unique_ptr<exec_pri_queue::queued_handler_base> pop(prio_queue& que) {
@@ -372,9 +394,7 @@ private:
    uint32_t max_waiting_{0};
    bool exiting_blocking_{false};
    std::function<bool()> should_exit_; // called holding mtx_
-   prio_queue read_only_handlers_;
-   prio_queue read_write_handlers_;
-   prio_queue read_exclusive_handlers_;
+   std::array<prio_queue, static_cast<size_t>(exec_queue::size)> queues_;
 };
 
 } // appbase
