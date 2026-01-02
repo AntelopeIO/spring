@@ -470,7 +470,7 @@ BOOST_AUTO_TEST_CASE( execute_from_read_only_and_read_write_and_trx_read_write_q
    BOOST_CHECK_LT( rslts[15], rslts[7] );
    BOOST_CHECK_LT( rslts[15], rslts[13] );
 
-   // trx_read_write execute in order or priority
+   // trx_read_write execute in order of priority
    BOOST_CHECK_LT( rslts[2], rslts[13] );
    BOOST_CHECK_LT( rslts[13], rslts[7] );
    BOOST_CHECK_LT( rslts[7], rslts[3] );
