@@ -53,7 +53,7 @@ public:
          assert(id == handler_id::unique);
          if (!pri_queue_.add(priority, q, --order_, std::forward<Func>(func))) {
             // post required to trigger io_ctx_ run_one
-            boost::asio::post(io_ctx_, pri_queue_.wrap(id, priority, q, --order_, std::forward<Func>(func)));
+            boost::asio::post(io_ctx_, pri_queue_.wrap(id, priority, q, order_, std::forward<Func>(func)));
          }
       } else {
          // post to io_context as the main thread may be blocked on io_context.run_one() in application::exec()
@@ -63,18 +63,7 @@ public:
 
    template <typename Func>
    void post( int priority, exec_queue q, Func&& func ) {
-      if (q == exec_queue::read_exclusive || q == exec_queue::trx_read_write) {
-         // no reason to post to io_context which then places this in the read_exclusive_handlers queue.
-         // read_exclusive tasks are run exclusively by read threads by pulling off the read_exclusive handlers queue.
-         // similarly, trx_read_write trxs are pulled off the queue directly to be executed
-         if (!pri_queue_.add(priority, q, --order_, std::forward<Func>(func))) {
-            // post required to trigger io_ctx_ run_one
-            boost::asio::post(io_ctx_, pri_queue_.wrap(priority, q, --order_, std::forward<Func>(func)));
-         }
-      } else {
-         // post to io_context as the main thread may be blocked on io_context.run_one() in application::exec()
-         boost::asio::post(io_ctx_, pri_queue_.wrap(priority, q, --order_, std::forward<Func>(func)));
-      }
+      post( handler_id::unique, priority, q, std::forward<Func>(func) );
    }
 
    // Legacy and deprecated. To be removed after cleaning up its uses in base appbase
@@ -82,7 +71,7 @@ public:
    auto post( int priority, Func&& func ) {
       // safer to use read_write queue for unknown type of operation since operations
       // from read_write queue are not executed in parallel with read-only operations
-      return boost::asio::post(io_ctx_, pri_queue_.wrap(priority, exec_queue::read_write, --order_, std::forward<Func>(func)));
+      return boost::asio::post(io_ctx_, pri_queue_.wrap(handler_id::unique, priority, exec_queue::read_write, --order_, std::forward<Func>(func)));
    }
 
    boost::asio::io_context& get_io_context() { return io_ctx_; }
@@ -130,7 +119,7 @@ public:
    template <typename Function>
    boost::asio::executor_binder<Function, appbase::exec_pri_queue::executor>
    wrap(int priority, exec_queue q, Function&& func ) {
-      return pri_queue_.wrap(priority, q, --order_, std::forward<Function>(func));
+      return pri_queue_.wrap(handler_id::unique, priority, q, --order_, std::forward<Function>(func));
    }
 
    void stop() {

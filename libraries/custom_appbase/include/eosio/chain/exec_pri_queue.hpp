@@ -299,13 +299,6 @@ public:
       return boost::asio::bind_executor( executor(*this, id, priority, order, q), std::forward<Function>(func) );
    }
 
-   template <typename Function>
-   boost::asio::executor_binder<Function, executor>
-   wrap(int priority, exec_queue q, size_t order, Function&& func)
-   {
-      return boost::asio::bind_executor( executor(*this, handler_id::unique, priority, order, q), std::forward<Function>(func) );
-   }
-
 private:
    class queued_handler_base
    {
