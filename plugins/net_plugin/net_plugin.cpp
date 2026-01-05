@@ -367,7 +367,8 @@ namespace eosio {
 
       void add(connection_ptr c);
       string connect(const string& host, const string& p2p_address);
-      string resolve_and_connect(const string& host, const string& p2p_address);
+      string resolve_and_connect(const string& peer_address, const string& listen_address);
+      connection_ptr is_other_connected(const string& peer_address, const connection_ptr& c) const;
       string disconnect(const string& host);
       void disconnect_gossip_connection(const string& host);
       void close_all();
@@ -1351,6 +1352,7 @@ namespace eosio {
 
    connection_status connection::get_status()const {
       connection_status stat;
+      stat.connection_id = connection_id;
       stat.connecting = state() == connection_state::connecting;
       stat.syncing = peer_syncing_from_us;
       stat.is_bp_peer = bp_connection != bp_connection_type::non_bp;
@@ -4951,7 +4953,7 @@ namespace eosio {
       std::unique_lock g( connections_mtx );
       supplied_peers.insert(host);
       g.unlock();
-      fc_dlog(p2p_conn_log, "API connect ${h}", ("h", host));
+      fc_dlog(p2p_conn_log, "API connect '${h}'", ("h", host));
       return resolve_and_connect( host, p2p_address );
    }
 
@@ -4998,10 +5000,21 @@ namespace eosio {
 
       connection_ptr c = shared_from_this();
 
+      if (no_retry == go_away_reason::duplicate) {
+         if (auto other = my_impl->connections.is_other_connected(peer_address(), c); !!other) {
+            fc_dlog( p2p_conn_log, "Skipping connect to ${p} - ${pid} due to existing connection ${o} - ${oid}",
+                     ("p", peer_address())("pid", connection_id)("o", other->peer_address())("oid", other->connection_id));
+            return true; // don't remvoe from valid connections
+         }
+      }
+
       if( consecutive_immediate_connection_close > def_max_consecutive_immediate_connection_close || no_retry == go_away_reason::benign_other ) {
          fc::microseconds connector_period = my_impl->connections.get_connector_period();
-         fc::lock_guard g( conn_mtx );
+         fc::unique_lock g( conn_mtx );
          if( last_close == fc::time_point() || last_close > fc::time_point::now() - connector_period ) {
+            fc::time_point lclose = last_close;
+            g.unlock();
+            fc_dlog( p2p_conn_log, "Skipping connect due to last_close ${t}", ("t", lclose));
             return true; // true so doesn't remove from valid connections
          }
       }
@@ -5033,7 +5046,7 @@ namespace eosio {
          return;
       auto& index = connections.get<by_host>();
       if( auto i = index.find( host ); i != index.end() ) {
-         fc_ilog( p2p_conn_log, "disconnecting: ${cid}", ("cid", i->c->connection_id) );
+         fc_ilog( p2p_conn_log, "disconnecting: '${h}' - ${cid}", ("h", host)("cid", i->c->connection_id) );
          i->c->close();
          connections.erase(i);
       }
@@ -5044,7 +5057,7 @@ namespace eosio {
       std::lock_guard g( connections_mtx );
       auto& index = connections.get<by_host>();
       if( auto i = index.find( host ); i != index.end() ) {
-         fc_ilog( p2p_conn_log, "disconnecting: ${cid}", ("cid", i->c->connection_id) );
+         fc_ilog( p2p_conn_log, "disconnecting: '${h}' - ${cid}", ("h", host)("cid", i->c->connection_id) );
          i->c->close();
          connections.erase(i);
          supplied_peers.erase(host);
@@ -5100,6 +5113,18 @@ namespace eosio {
       auto iter = index.find(host);
       if(iter != index.end())
          return iter->c;
+      return {};
+   }
+
+   // thread safe
+   connection_ptr connections_manager::is_other_connected( const string& peer_address, const connection_ptr& c )const {
+      std::shared_lock g( connections_mtx );
+      const auto& index = connections.get<by_host>();
+      const auto& r = index.equal_range(peer_address);
+      for (auto i = r.first; i != r.second; ++i) {
+         if (i->c != c && i->c->connected())
+            return i->c;
+      }
       return {};
    }
 
