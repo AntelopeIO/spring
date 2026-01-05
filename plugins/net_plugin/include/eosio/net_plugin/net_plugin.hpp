@@ -12,6 +12,7 @@ namespace eosio {
       string            peer;
       string            remote_ip;
       string            remote_port;
+      uint32_t          connection_id        = 0;
       bool              connecting           = false;
       bool              syncing              = false;
       bool              is_bp_peer           = false;
