@@ -4034,15 +4034,19 @@ namespace eosio {
       trx_in_progress_size += trx_size;
       my_impl->chain_plug->accept_transaction( trx,
          [weak = weak_from_this(), trx_size](const next_function_variant<transaction_trace_ptr>& result) mutable {
+         auto log_failed = [&](const fc::exception& e) {
+            fc_dlog( p2p_trx_log, "bad packed_transaction : ${m}",
+                     ("m", e.code() == tx_duplicate::code_value ? e.to_string() : e.what()) );
+         };
          // next (this lambda) called from application thread
          if (std::holds_alternative<fc::exception_ptr>(result)) {
-            fc_dlog( p2p_trx_log, "bad packed_transaction : ${m}", ("m", std::get<fc::exception_ptr>(result)->what()) );
+            log_failed(*std::get<fc::exception_ptr>(result));
          } else {
             const transaction_trace_ptr& trace = std::get<transaction_trace_ptr>(result);
             if( !trace->except ) {
                fc_dlog( p2p_trx_log, "chain accepted transaction, bcast ${id}", ("id", trace->id) );
             } else {
-               fc_ilog( p2p_trx_log, "bad packed_transaction : ${m}", ("m", trace->except->what()));
+               log_failed(*trace->except);
             }
          }
          connection_ptr conn = weak.lock();
@@ -4324,7 +4328,8 @@ namespace eosio {
       boost::asio::post( thread_pool.get_executor(), [this, results]() {
          const auto& id = results.second->id();
          if (results.first) {
-            fc_dlog( p2p_trx_log, "signaled NACK, trx-id = ${id} : ${why}", ("id", id)( "why", results.first->to_detail_string() ) );
+            fc_dlog( p2p_trx_log, "signaled NACK, trx-id = ${id} : ${why}",
+                     ("id", id)("why", results.first->code() == tx_duplicate::code_value ? results.first->to_string() : results.first->to_detail_string()) );
             dispatcher.rejected_transaction(results.second);
          } else {
             fc_dlog( p2p_trx_log, "signaled ACK, trx-id = ${id}", ("id", id) );
