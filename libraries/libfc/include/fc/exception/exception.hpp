@@ -4,11 +4,10 @@
  *  @brief Defines exception's used by fc
  */
 #include <fc/log/logger.hpp>
-#include <exception>
-#include <functional>
-#include <unordered_map>
 #include <boost/core/typeinfo.hpp>
 #include <boost/interprocess/exceptions.hpp>
+#include <exception>
+#include <functional>
 
 namespace fc
 {
@@ -94,15 +93,14 @@ namespace fc
 
          /**
           *   Generates a detailed string including file, line, method,
-          *   and other information that is generally only useful for
-          *   developers.
+          *   and other information. Includes newlines.
           */
-         std::string to_detail_string( log_level ll = log_level::all )const;
+         std::string to_detail_string()const;
 
          /**
-          *   Generates a user-friendly error report.
+          *   Generates an error string with no newline
           */
-         std::string to_string( log_level ll = log_level::info  )const;
+         std::string to_string()const;
 
          /**
           *   Generates a user-friendly error report.
@@ -279,7 +277,7 @@ namespace fc
      const char* expr
      );
 
-  extern bool enable_record_assert_trip;
+  extern const bool enable_record_assert_trip;
 } // namespace fc
 
 #if __APPLE__
