@@ -161,6 +161,8 @@ public:
    bool trx_read_write_queue_empty() { return pri_queue_.empty(exec_queue::trx_read_write); }
    bool read_exclusive_queue_empty() { return pri_queue_.empty(exec_queue::read_exclusive); }
 
+   [[nodiscard]] exec_pri_queue::read_view readable_queue() const { return pri_queue_.readable(); }
+
    // members are ordered taking into account that the last one is destructed first
 private:
    std::thread::id                    main_thread_id_{ std::this_thread::get_id() };

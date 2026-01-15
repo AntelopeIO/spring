@@ -9,7 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
-#include <queue>
+#include <type_traits>
 #include <utility>
 
 namespace appbase {
@@ -86,6 +86,30 @@ public:
       lock_enabled_ = false;
       should_exit_ = [](){ assert(false); return true; }; // should not be called when locking is disabled
    }
+
+   // holds lock until destroyed
+   class read_view {
+      const std::lock_guard<std::mutex> lock_;
+      const exec_pri_queue&             q_;
+   public:
+      read_view(const exec_pri_queue& q, std::mutex& mtx) : lock_(mtx), q_(q) {}
+      read_view(const read_view&) = delete;
+      read_view& operator=(const read_view&) = delete;
+      read_view(read_view&&) noexcept = delete;
+      read_view& operator=(read_view&&) noexcept = delete;
+      bool empty(exec_queue q) const { return q_.empty(q); }
+      size_t size(exec_queue q) const { return q_.size(q); }
+      auto begin(exec_queue q) const { return q_.priority_que(q).ordered_begin(); }
+      auto end(exec_queue q) const { return q_.priority_que(q).ordered_end(); }
+      template <typename Function>
+      static const auto& function_from_iter(const auto& iter) {
+         queued_handler_base* ptr = *iter;
+         assert(dynamic_cast<const queued_handler<Function>*>(ptr) != nullptr);
+         return static_cast<const queued_handler<Function>&>(*ptr).function();
+      }
+   };
+
+   [[nodiscard]] read_view readable() const { return read_view(*this, mtx_); }
 
 private:
 
@@ -253,22 +277,38 @@ public:
          return context_;
       }
 
+      template <typename T>
+      decltype(auto) unwrap(T&& t) const
+      {
+         if constexpr (requires{ t.get(); } && requires{ std::is_invocable_v<decltype(t.get())>; }) {
+            // modern executor_binder
+            return unwrap(std::move(t.get()));
+         } else if constexpr (requires{ t.handler_.get(); } && requires{ std::is_invocable_v<decltype(t.handler_.get())>; }) {
+            // legacy detail::binder (0, 1, 2, etc.)
+            return unwrap(std::move(t.handler_.get()));
+         } else {
+            // looks like a simple unwrapped function
+            static_assert(std::is_invocable_v<T>, "unwrap requires a callable type");
+            return std::forward<T>(t);
+         }
+      }
+
       template <typename Function, typename Allocator>
       void dispatch(Function f, const Allocator&) const
       {
-         context_.add(id_, priority_, que_, order_, std::move(f));
+         context_.add(id_, priority_, que_, order_, unwrap(std::move(f)));
       }
 
       template <typename Function, typename Allocator>
       void post(Function f, const Allocator&) const
       {
-         context_.add(id_, priority_, que_, order_, std::move(f));
+         context_.add(id_, priority_, que_, order_, unwrap(std::move(f)));
       }
 
       template <typename Function, typename Allocator>
       void defer(Function f, const Allocator&) const
       {
-         context_.add(id_, priority_, que_, order_, std::move(f));
+         context_.add(id_, priority_, que_, order_, unwrap(std::move(f)));
       }
 
       void on_work_started() const noexcept {}
@@ -341,6 +381,10 @@ private:
       void execute() final
       {
          function_();
+      }
+
+      const Function& function() const {
+         return function_;
       }
 
    private:

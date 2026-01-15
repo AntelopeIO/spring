@@ -350,9 +350,6 @@ BOOST_AUTO_TEST_CASE( execute_from_empty_read_only_queue ) {
 BOOST_AUTO_TEST_CASE( execute_from_read_only_and_read_write_queues ) {
    scoped_app_thread app;
 
-   // set to run functions from both queues
-   app->executor().is_write_window();
-
    // post functions
    std::map<int, int> rslts {};
    int seq_num = 0;
@@ -415,9 +412,6 @@ BOOST_AUTO_TEST_CASE( execute_from_read_only_and_read_write_queues ) {
 // trx_read_write are processed after all read_only and read_write
 BOOST_AUTO_TEST_CASE( execute_from_read_only_and_read_write_and_trx_read_write_queues ) {
    scoped_app_thread app(true);
-
-   // set to run functions from both queues
-   app->executor().is_write_window();
 
    // post functions
    std::map<int, int> rslts {};
@@ -643,6 +637,61 @@ BOOST_AUTO_TEST_CASE( execute_many_from_read_only_and_read_exclusive_queues ) {
 
    // We expect at least one task to run on every thread including main, but nothing guarantees that, just verify they all ran
    BOOST_REQUIRE_EQUAL(run_on_1+run_on_2+run_on_3+run_on_main, num_expected);
+}
+
+BOOST_AUTO_TEST_CASE( test_read_view_iteration ) {
+   scoped_app_thread app(true);
+
+   // post functions
+   const int trx_priority = priority::high+100; // trx priority set via configuration
+   struct functor {
+      void operator()() {}
+      int some_other_function() const { return i; }
+      int i;
+   };
+   app->executor().post( priority::medium, exec_queue::read_only,      functor{ 0 } );
+   app->executor().post( trx_priority+1,   exec_queue::trx_read_write, functor{ 1 } );
+   app->executor().post( trx_priority+5,   exec_queue::trx_read_write, functor{ 2 } );
+   app->executor().post( trx_priority+1,   exec_queue::trx_read_write, functor{ 3 } );
+   app->executor().post( priority::medium, exec_queue::read_write,     functor{ 4 } );
+   app->executor().post( priority::high,   exec_queue::read_write,     functor{ 5 } );
+   app->executor().post( priority::lowest, exec_queue::read_only,      functor{ 6 } );
+   app->executor().post( trx_priority+2,   exec_queue::trx_read_write, functor{ 7 } );
+
+   auto work = make_work_guard(app->get_io_context());
+   while( true ) {
+      app->get_io_context().poll();
+      size_t s = app->executor().read_only_queue_size() +
+                 app->executor().read_exclusive_queue_size() +
+                 app->executor().read_write_queue_size() +
+                 app->executor().trx_read_write_queue_size();
+      if (s == 8)
+         break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+   }
+
+   {
+      auto read_queue = app->executor().readable_queue();
+      auto b = read_queue.begin(exec_queue::trx_read_write);
+      auto e = read_queue.end(exec_queue::trx_read_write);
+      BOOST_REQUIRE(b != e);
+      BOOST_TEST(std::distance(b, e) == 4);
+      BOOST_REQUIRE_EQUAL( app->executor().trx_read_write_queue_size(), 4u );
+      BOOST_REQUIRE_EQUAL( read_queue.size(exec_queue::trx_read_write), 4u );
+      int v = read_queue.function_from_iter<functor>(b).some_other_function();
+      BOOST_CHECK_EQUAL(v, 2);
+      v = read_queue.function_from_iter<functor>(++b).some_other_function();
+      BOOST_CHECK_EQUAL(v, 7);
+      v = read_queue.function_from_iter<functor>(++b).some_other_function();
+      BOOST_CHECK_EQUAL(v, 1);
+      v = read_queue.function_from_iter<functor>(++b).some_other_function();
+      BOOST_CHECK_EQUAL(v, 3);
+   }
+
+   app.start_exec();
+   work.reset();
+   app->quit();
+   app.join();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
