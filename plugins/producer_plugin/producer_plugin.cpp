@@ -2048,8 +2048,7 @@ producer_plugin_impl::get_unapplied_transactions(const producer_plugin::get_unap
    };
 
    producer_plugin::get_unapplied_transactions_result result;
-   result.size          = ua.size();
-   result.unapplied_size = ua.incoming_size();
+   result.unapplied_size = ua.size();
 
    uint32_t remaining = p.limit ? *p.limit : std::numeric_limits<uint32_t>::max();
    while (itr != ua.end() && remaining > 0) {
