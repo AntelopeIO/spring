@@ -694,6 +694,10 @@ public:
               chain_plug->chain().get_greylist_limit()};
    }
 
+   producer_plugin::get_unapplied_transactions_result
+   get_unapplied_transactions(const producer_plugin::get_unapplied_transactions_params& p,
+                              const fc::time_point& deadline);
+
    void schedule_protocol_feature_activations(const producer_plugin::scheduled_protocol_feature_activations& schedule);
 
    void plugin_shutdown();
@@ -1003,6 +1007,52 @@ public:
       schedule_production_loop();
    }
 
+   struct trx_executor {
+      trx_executor(producer_plugin_impl* self,
+                   transaction_metadata_ptr trx_meta,
+                   bool is_transient,
+                   next_function<transaction_trace_ptr> next,
+                   bool api_trx,
+                   bool return_failure_traces)
+         : self(self)
+         , trx_meta(std::move(trx_meta))
+         , is_transient(is_transient)
+         , next(std::move(next))
+         , api_trx(api_trx)
+         , return_failure_traces(return_failure_traces)
+      {}
+
+      const transaction_metadata_ptr& get_trx_meta() const { return trx_meta; }
+
+      void operator()() {
+         auto start       = fc::time_point::now();
+         auto idle_time   = self->_time_tracker.add_idle_time(start);
+         fc_tlog(_log, "Time since last trx: ${t}us", ("t", idle_time));
+
+         auto exception_handler = [this](fc::exception_ptr ex) {
+            self->log_trx_results(trx_meta->packed_trx(), nullptr, ex, 0, is_transient);
+            next(std::move(ex));
+         };
+         try {
+            if (!self->process_incoming_transaction_async(trx_meta, api_trx, start, return_failure_traces, next)) {
+               if (self->in_producing_mode()) {
+                  self->schedule_maybe_produce_block(true);
+               } else {
+                  self->restart_speculative_block();
+               }
+            }
+         }
+         CATCH_AND_CALL(exception_handler);
+      }
+   private:
+      producer_plugin_impl* self;
+      transaction_metadata_ptr trx_meta;
+      bool is_transient;
+      next_function<transaction_trace_ptr> next;
+      bool api_trx;
+      bool return_failure_traces;
+   };
+
    void on_incoming_transaction_async(const packed_transaction_ptr&        trx,
                                       bool                                 api_trx,
                                       transaction_metadata::trx_type       trx_type,
@@ -1069,29 +1119,10 @@ public:
                     return;
                  }
 
-                 // key recovery complete, post to the trx queue
-                 app().executor().post(
-                         priority::low, exec_queue::trx_read_write,
-                         [this, trx_meta{std::move(trx_meta)}, is_transient, next{std::move(next)}, api_trx, return_failure_traces]() {
-                            auto start       = fc::time_point::now();
-                            auto idle_time   = _time_tracker.add_idle_time(start);
-                            fc_tlog(_log, "Time since last trx: ${t}us", ("t", idle_time));
+                 trx_executor executor{this, std::move(trx_meta), is_transient, std::move(next), api_trx, return_failure_traces};
 
-                            auto exception_handler = [this, is_transient, &next, &trx_meta](fc::exception_ptr ex) {
-                               log_trx_results(trx_meta->packed_trx(), nullptr, ex, 0, is_transient);
-                               next(std::move(ex));
-                            };
-                            try {
-                               if (!process_incoming_transaction_async(trx_meta, api_trx, start, return_failure_traces, next)) {
-                                  if (in_producing_mode()) {
-                                     schedule_maybe_produce_block(true);
-                                  } else {
-                                     restart_speculative_block();
-                                  }
-                               }
-                            }
-                            CATCH_AND_CALL(exception_handler);
-                         });
+                 // key recovery complete, post to the trx queue
+                 app().executor().post(priority::low, exec_queue::trx_read_write, std::move(executor));
               });
    }
 
@@ -1974,13 +2005,14 @@ producer_plugin::get_account_ram_corrections(const get_account_ram_corrections_p
    return result;
 }
 
-producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplied_transactions(const get_unapplied_transactions_params& p,
-                                                                                               const fc::time_point& deadline) const {
+producer_plugin::get_unapplied_transactions_result
+producer_plugin_impl::get_unapplied_transactions(const producer_plugin::get_unapplied_transactions_params& p,
+                                                 const fc::time_point& deadline) {
 
    fc::time_point params_deadline =
       p.time_limit_ms ? std::min(fc::time_point::now().safe_add(fc::milliseconds(*p.time_limit_ms)), deadline) : deadline;
 
-   auto& ua = my->_unapplied_transactions;
+   auto& ua = _unapplied_transactions;
 
    auto itr = ([&]() {
       if (!p.lower_bound.empty()) {
@@ -2015,15 +2047,13 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
       return "unknown type";
    };
 
-   get_unapplied_transactions_result result;
+   producer_plugin::get_unapplied_transactions_result result;
    result.size          = ua.size();
-   result.incoming_size = ua.incoming_size();
+   result.unapplied_size = ua.incoming_size();
 
    uint32_t remaining = p.limit ? *p.limit : std::numeric_limits<uint32_t>::max();
-   if (deadline != fc::time_point::maximum() && remaining > 1000)
-      remaining = 1000;
    while (itr != ua.end() && remaining > 0) {
-      auto& r             = result.trxs.emplace_back();
+      auto& r             = result.unapplied_trxs.emplace_back();
       r.trx_id            = itr->id();
       r.expiration        = itr->expiration();
       const auto& pt      = itr->trx_meta->packed_trx();
@@ -2039,16 +2069,54 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
       r.size               = pt->get_estimated_size();
 
       ++itr;
-      remaining--;
+      --remaining;
       if (fc::time_point::now() >= params_deadline)
          break;
    }
 
+   auto readable_queue = app().executor().readable_queue();
+   result.queued_size = readable_queue.size(exec_queue::trx_read_write);
+
    if (itr != ua.end()) {
       result.more = itr->id();
+      return result;
+   }
+
+   auto qitr = readable_queue.begin(exec_queue::trx_read_write);
+   auto qend = readable_queue.end(exec_queue::trx_read_write);
+   for (; qitr != qend && remaining > 0; ++qitr) {
+      auto& r             = result.queued_trxs.emplace_back();
+      const auto& f = readable_queue.function_from_iter<trx_executor>(qitr);
+      const auto& trx_meta = f.get_trx_meta();
+      const auto& pt = trx_meta->packed_trx();
+      r.trx_id            = pt->id();
+      r.expiration        = pt->expiration();
+      r.trx_type          = "input";
+      r.first_auth        = pt->get_transaction().first_authorizer();
+      const auto& actions = pt->get_transaction().actions;
+      if (!actions.empty()) {
+         r.first_receiver = actions[0].account;
+         r.first_action   = actions[0].name;
+      }
+      r.total_actions      = pt->get_transaction().total_actions();
+      r.billed_cpu_time_us = trx_meta->billed_cpu_time_us;
+      r.size               = pt->get_estimated_size();
+
+      --remaining;
+      if (fc::time_point::now() >= params_deadline)
+         break;
+   }
+
+   if (qitr != qend) {
+      result.more = readable_queue.function_from_iter<trx_executor>(qitr).get_trx_meta()->id();
    }
 
    return result;
+}
+
+producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplied_transactions(const get_unapplied_transactions_params& p,
+                                                                                               const fc::time_point& deadline) const {
+   return my->get_unapplied_transactions(p, deadline);
 }
 
 block_timestamp_type producer_plugin_impl::calculate_pending_block_time() const {

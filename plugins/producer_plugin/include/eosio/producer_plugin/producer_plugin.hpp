@@ -135,9 +135,11 @@ public:
 
    struct get_unapplied_transactions_result {
       size_t                     size = 0;
-      size_t                     incoming_size = 0;
-      std::vector<unapplied_trx> trxs;
-      string                     more; ///< fill lower_bound with trx id to fetch next set of transactions
+      size_t                     unapplied_size = 0;
+      size_t                     queued_size = 0;
+      std::vector<unapplied_trx> unapplied_trxs;
+      std::vector<unapplied_trx> queued_trxs; ///< returned in priority order
+      string                     more; ///< fill lower_bound with trx id to fetch next set of unapplied trxs
    };
 
    get_unapplied_transactions_result get_unapplied_transactions( const get_unapplied_transactions_params& params, const fc::time_point& deadline ) const;
@@ -177,5 +179,5 @@ FC_REFLECT(eosio::producer_plugin::get_account_ram_corrections_params, (lower_bo
 FC_REFLECT(eosio::producer_plugin::get_account_ram_corrections_result, (rows)(more))
 FC_REFLECT(eosio::producer_plugin::get_unapplied_transactions_params, (lower_bound)(limit)(time_limit_ms))
 FC_REFLECT(eosio::producer_plugin::unapplied_trx, (trx_id)(expiration)(trx_type)(first_auth)(first_receiver)(first_action)(total_actions)(billed_cpu_time_us)(size))
-FC_REFLECT(eosio::producer_plugin::get_unapplied_transactions_result, (size)(incoming_size)(trxs)(more))
+FC_REFLECT(eosio::producer_plugin::get_unapplied_transactions_result, (size)(unapplied_size)(queued_size)(unapplied_trxs)(queued_trxs)(more))
 FC_REFLECT(eosio::producer_plugin::pause_at_block_params, (block_num));
