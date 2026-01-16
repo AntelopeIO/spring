@@ -1008,7 +1008,6 @@ public:
                                       transaction_metadata::trx_type       trx_type,
                                       bool                                 return_failure_traces,
                                       next_function<transaction_trace_ptr> next) {
-
       const transaction& t = trx->get_transaction();
       EOS_ASSERT( t.delay_sec.value == 0, transaction_exception, "transaction cannot be delayed" );
 
@@ -2287,8 +2286,10 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    const block_num_type head_block_num    = head.block_num();
    const uint32_t       pending_block_num = head_block_num + 1;
 
-   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}, deadline ${d}",
-           ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name)("d", _pending_block_deadline));
+   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}, deadline ${d}, unapplied trxs ${u}, queued trxs ${q}, queued tasks ${t}",
+           ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name)("d", _pending_block_deadline)
+           ("u", _unapplied_transactions.size())("q", app().executor().readable_queue().size(exec_queue::trx_read_write))
+           ("t", app().executor().read_write_queue_size()));
 
    try {
 
