@@ -85,12 +85,12 @@ public:
       while (true) {
          if ( exec_window_ == exec_window::write ) {
             // During write window only main thread is accessing anything in priority_queue_executor, no locking required
-            size_t before = pri_queue_.execute_highest(exec_queue::read_write, exec_queue::read_only);
-            if (before == 0 && trx_read_write_queue_enabled_.load(std::memory_order_acquire)) {
+            std::optional<size_t> remaining = pri_queue_.execute_highest(exec_queue::read_write, exec_queue::read_only);
+            if (!remaining && trx_read_write_queue_enabled_.load(std::memory_order_acquire)) {
                // locked because any thread can push to the trx_read_write queue
                more = pri_queue_.execute_highest_locked(exec_queue::trx_read_write);
             } else {
-               more = before > 0;
+               more = *remaining > 0;
             }
          } else {
             // When in read window, multiple threads including main app thread are accessing priority_queue_executor, locking required
