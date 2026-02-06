@@ -2125,7 +2125,8 @@ void read_write::push_transaction(const read_write::push_transaction_params& par
          abi_serializer::from_variant(params, *pretty_input, resolver, abi_serializer_max_time);
       } EOS_RETHROW_EXCEPTIONS(chain::packed_transaction_type_exception, "Invalid packed transaction")
 
-      app().get_method<incoming::methods::transaction_async>()(pretty_input, true, transaction_metadata::trx_type::input, false,
+      static incoming::methods::transaction_async::method_type& on_incoming = app().get_method<incoming::methods::transaction_async>();
+      on_incoming(pretty_input, true, transaction_metadata::trx_type::input, false,
             [this, next](const next_function_variant<transaction_trace_ptr>& result) -> void {
          if (std::holds_alternative<fc::exception_ptr>(result)) {
             next(std::get<fc::exception_ptr>(result));
@@ -2261,7 +2262,8 @@ void api_base::send_transaction_gen(API &api, send_transaction_params_t params, 
                      ("e", ptrx->expiration())("m", api.trx_retry->get_max_expiration_time()) );
       }
 
-      app().get_method<incoming::methods::transaction_async>()(ptrx, true, params.trx_type, params.return_failure_trace,
+      static incoming::methods::transaction_async::method_type& on_incoming = app().get_method<incoming::methods::transaction_async>();
+      on_incoming(ptrx, true, params.trx_type, params.return_failure_trace,
             [&api, ptrx, next, retry, retry_num_blocks](const next_function_variant<transaction_trace_ptr>& result) -> void {
             if( std::holds_alternative<fc::exception_ptr>( result ) ) {
                next( std::get<fc::exception_ptr>( result ) );
