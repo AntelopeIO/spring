@@ -202,17 +202,16 @@ public:
    }
 
    // only call when no lock required
-   // returns number of tasks in queues after executing the highest.
-   //  empty optional - none were executed and none remain.
-   //  {0} means 1 was executed and none remain.
-   //  {1} means 1 was executed and 1 remains.
-   //  {x} means 1 was executed and x remain.
-   std::optional<size_t> execute_highest(exec_queue lhs, exec_queue rhs) {
+   // returns number of tasks in queues before executing the highest.
+   //   0 means none were executed.
+   //   1 means there was one executed and none remain.
+   //   > 1 means there was one executed and return-1 remain.
+   size_t execute_highest(exec_queue lhs, exec_queue rhs) {
       prio_queue& lhs_que = priority_que(lhs);
       prio_queue& rhs_que = priority_que(rhs);
       size_t size = lhs_que.size() + rhs_que.size();
       if (size == 0)
-         return {};
+         return size;
       exec_queue q = rhs;
       if (!lhs_que.empty() && (rhs_que.empty() || *rhs_que.top() < *lhs_que.top()))
          q = lhs;
@@ -221,7 +220,7 @@ public:
       // pop, then execute since read_write queue is used to switch to read window and the pop needs to happen before that lambda starts
       auto t = pop(que);
       t->execute();
-      return std::optional{size-1};
+      return size;
    }
 
    bool execute_highest_blocking_locked(exec_queue lhs, exec_queue rhs) {
