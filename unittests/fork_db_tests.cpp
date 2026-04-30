@@ -1,5 +1,6 @@
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/fork_database.hpp>
+#include <eosio/chain/block_handle.hpp>
 #include <eosio/testing/tester.hpp>
 #include <fc/bitutil.hpp>
 #include <boost/test/unit_test.hpp>
@@ -246,6 +247,81 @@ BOOST_FIXTURE_TEST_CASE(is_child_of, generate_fork_db_state) try {
 
    BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp12b->id(), bsp13a->id()));
    BOOST_REQUIRE_EQUAL(false,  fork_db.is_descendant_of(bsp11b->id(), bsp13a->id()));
+
+} FC_LOG_AND_RETHROW();
+
+// Tests for block_handle::locks_out_branch_of()
+// ----------------------------------------------
+// Build two branches of equal length sharing a common root, attach blocks with
+// specific QC claims (strong on a non-shared block, strong on a shared block,
+// weak), and verify lockout is reported only when the strong-QC's target is
+// not in the candidate head's ancestry and the head is not on the QC carrier's
+// branch.
+BOOST_AUTO_TEST_CASE(locks_out_branch_of_test) try {
+   nonce = 0;
+
+   // Helper that overlays a custom qc_claim on a freshly-created block_state.
+   auto make_block_with_qc = [](block_num_type block_num, const block_state_ptr& prev,
+                                const qc_claim_t& qc) {
+      auto bsp = test_block_state_accessor::make_unique_block_state(block_num, prev);
+      bsp->core = prev->core.next(prev->make_block_ref(), qc);
+      return bsp;
+   };
+
+   //               root (block 10)
+   //              /    \
+   //         bsp11a    bsp11b
+   //           |         |
+   //         bsp12a    bsp12b
+   //           |
+   //   { bsp13a_strong, bsp13a_weak, bsp13a_shared } (three variants of block 13 on branch A,
+   //                                                  differing only in their carried qc_claim)
+   //                       and
+   //         bsp13b_strong (on branch B, strong QC for bsp12b)
+
+   block_state_ptr root   = test_block_state_accessor::make_genesis_block_state();
+   block_state_ptr bsp11a = test_block_state_accessor::make_unique_block_state(11, root);
+   block_state_ptr bsp12a = test_block_state_accessor::make_unique_block_state(12, bsp11a);
+   block_state_ptr bsp11b = test_block_state_accessor::make_unique_block_state(11, root);
+   block_state_ptr bsp12b = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+
+   block_state_ptr bsp13a_strong  = make_block_with_qc(13, bsp12a, {.block_num = 12, .is_strong_qc = true});
+   block_state_ptr bsp13a_weak    = make_block_with_qc(13, bsp12a, {.block_num = 12, .is_strong_qc = false});
+   block_state_ptr bsp13a_shared  = make_block_with_qc(13, bsp12a, {.block_num = 10, .is_strong_qc = true});
+   block_state_ptr bsp13b_strong  = make_block_with_qc(13, bsp12b, {.block_num = 12, .is_strong_qc = true});
+
+   block_handle h13a_strong{bsp13a_strong};
+   block_handle h13a_weak{bsp13a_weak};
+   block_handle h13a_shared{bsp13a_shared};
+   block_handle h13b_strong{bsp13b_strong};
+   block_handle h12a{bsp12a};
+   block_handle h12b{bsp12b};
+   block_handle h11a{bsp11a};
+   block_handle h11b{bsp11b};
+   block_handle h_root{root};
+
+   // Strong QC for a block on a different branch from `head` -> head locked out.
+   BOOST_TEST(h13a_strong.locks_out_branch_of(h12b));
+   BOOST_TEST(h13a_strong.locks_out_branch_of(h11b));
+   BOOST_TEST(h13b_strong.locks_out_branch_of(h12a));
+   BOOST_TEST(h13b_strong.locks_out_branch_of(h11a));
+
+   // Strong QC for a block on the same branch as head -> not locked out.
+   // h12a is the QC target itself; h11a is an ancestor of the QC target.
+   BOOST_TEST(!h13a_strong.locks_out_branch_of(h12a));
+   BOOST_TEST(!h13a_strong.locks_out_branch_of(h11a));
+
+   // Strong QC for a shared ancestor (the genesis root) -> not locked out for either branch.
+   BOOST_TEST(!h13a_shared.locks_out_branch_of(h12b));
+   BOOST_TEST(!h13a_shared.locks_out_branch_of(h11b));
+   BOOST_TEST(!h13a_shared.locks_out_branch_of(h_root));
+
+   // Head identical to the new block -> not locked out.
+   BOOST_TEST(!h13a_strong.locks_out_branch_of(h13a_strong));
+
+   // Weak QC, even on a non-shared block -> not locked out (weak votes don't lock finalizers).
+   BOOST_TEST(!h13a_weak.locks_out_branch_of(h12b));
+   BOOST_TEST(!h13a_weak.locks_out_branch_of(h11b));
 
 } FC_LOG_AND_RETHROW();
 
