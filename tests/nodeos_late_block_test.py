@@ -77,6 +77,18 @@ try:
     Print("Verify fork switch")
     assert node3.findInLog("switching forks .* defproducerk"), "Expected to find 'switching forks' in node_03 log"
 
+    # Verify the lockout-detection optimization fired: when the bridge reconnects, node_03
+    # is still inside its producing slot, and the rest of the network's blocks (carrying a
+    # strong QC for a block on the canonical branch) reach node_03's fork database. The
+    # producer plugin's in_producing_mode early-return should fall through and apply blocks
+    # immediately rather than waiting for the slot to end. Without this optimization,
+    # node_03 would orphan its entire round.
+    def findApplyDuringProducing():
+        return node3.findInLog("applying blocks while producing: head's branch is locked out")
+    applyDuringProducingLine = Utils.waitForBool(findApplyDuringProducing, timeout=30)
+    assert applyDuringProducingLine, \
+        "Expected node_03 to apply blocks mid-slot upon detecting strong-QC lockout of its isolated fork"
+
     Print("Wait until Node_00 to produce")
     node3.waitForProducer("defproducera")
 
