@@ -919,16 +919,23 @@ public:
 
       auto& chain = chain_plug->chain();
 
+      // While producing our own block, normally defer applying incoming blocks to avoid disrupting
+      // production mid-block. Exception: if the fork-database best head carries a strong QC for a
+      // block not in our applied head's ancestry, our head's branch can no longer form a QC that
+      // wins fork-choice -- continuing to produce on it is pointless and the resulting blocks would
+      // be orphaned at the next fork switch. In that case fall through and apply blocks now.
       if (in_producing_mode()) {
-         if (_log.is_enabled(fc::log_level::info)) {
-            auto fhead = chain.fork_db_head();
+         const block_handle fhead = chain.fork_db_head();
+         if (!fhead.locks_out_branch_of(chain.head())) {
             fc_ilog(_log, "producing, fork database head at: #${num} id: ${id}",
                     ("num", fhead.block_num())("id", fhead.id()));
+            _time_tracker.add_other_time();
+            // return complete as we are producing and don't want to be interrupted right now. Next start_block will
+            // give an opportunity for this incoming block to be processed.
+            return controller::apply_blocks_result::complete;
          }
-         _time_tracker.add_other_time();
-         // return complete as we are producing and don't want to be interrupted right now. Next start_block will
-         // give an opportunity for this incoming block to be processed.
-         return controller::apply_blocks_result::complete;
+         fc_ilog(_log, "applying blocks while producing: head's branch is locked out of fork-choice by a strong QC at fork-db head #${num} ${id}",
+                 ("num", fhead.block_num())("id", fhead.id()));
       }
 
       // no reason to abort_block if we have nothing ready to process

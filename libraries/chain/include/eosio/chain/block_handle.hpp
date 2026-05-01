@@ -38,6 +38,59 @@ public:
 
    void write(const std::filesystem::path& state_file);
    bool read(const std::filesystem::path& state_file);
+
+   // Returns true if this block carries a strong QC for a block that is not
+   // in `head_handle`'s ancestry.
+   //
+   // Under Savanna a strong QC for some block B implies that at least 2/3 of
+   // finalizer weight voted strong on B. The safety rule for strong votes
+   // locks those finalizers on B, so they cannot subsequently vote in a way
+   // that would let any branch not extending B form its own QC. Therefore if
+   // `head_handle` is on a branch that does not include the QC target, no
+   // block built on `head_handle` can ever be covered by a future QC, and
+   // `head_handle`'s branch cannot win fork-choice -- it is permanently
+   // locked out.
+   //
+   // Returns false in legacy (non-Savanna) mode and when no strong QC is
+   // present.
+   //
+   // Thread-safety: safe to call concurrently with block production / apply.
+   // `block_state_ptr` is a shared_ptr (its copy is atomic) and the
+   // `finality_core` it references is immutable after construction. The
+   // accessors used (`latest_qc_claim`, `get_block_reference`, `extends`)
+   // are const reads against that immutable state.
+   bool locks_out_branch_of(const block_handle& head_handle) const {
+      if (!std::holds_alternative<block_state_ptr>(_bsp) ||
+          !std::holds_alternative<block_state_ptr>(head_handle._bsp))
+         return false;
+
+      const auto& bsp      = std::get<block_state_ptr>(_bsp);
+      const auto& head_bsp = std::get<block_state_ptr>(head_handle._bsp);
+
+      const auto qc = bsp->core.latest_qc_claim();
+      if (!qc.is_strong_qc)
+         return false;
+
+      const auto& this_id = bsp->id();
+      const auto& head_id = head_bsp->id();
+
+      // If head is on this block's branch (head is this block, or this block extends head),
+      // they share the QC's chain -- head's branch can produce blocks that include the QC
+      // target as an ancestor. Not locked out.
+      if (head_id == this_id || bsp->core.extends(head_id))
+         return false;
+
+      // If the QC target is in head's ancestry (or is head itself), head's branch already
+      // includes the block the QC was formed for. Not locked out.
+      const auto& qc_target_id = bsp->core.get_block_reference(qc.block_num).block_id;
+      if (head_id == qc_target_id || head_bsp->core.extends(qc_target_id))
+         return false;
+
+      // Otherwise head's branch and the QC target are on incompatible branches: any block
+      // built on head conflicts with the QC target, and no QC can ever be formed on head's
+      // branch. Locked out.
+      return true;
+   }
 };
 
 } // namespace eosio::chain
