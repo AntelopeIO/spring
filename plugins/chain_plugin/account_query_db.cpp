@@ -465,7 +465,14 @@ namespace eosio::chain_apis {
 
          using result_t = account_query_db::get_accounts_by_authorizers_result;
          result_t result;
-         const auto limit = std::min(args.limit, account_query_db::max_results);
+         EOS_ASSERT(args.cursor.empty() || args.limit.has_value(), chain::invalid_http_request,
+                    "A limit is required when continuing with a cursor");
+         // An omitted limit preserves the legacy complete-or-timeout behavior. An explicit limit opts into
+         // cursor pagination and is clamped to the server's maximum page size.
+         const bool paginated = args.limit.has_value();
+         const auto limit = args.limit
+               ? static_cast<size_t>(std::min(*args.limit, account_query_db::max_page_results))
+               : std::numeric_limits<size_t>::max();
 
          // deduplicate inputs
          std::set<chain::permission_level> account_set;
@@ -518,8 +525,8 @@ namespace eosio::chain_apis {
          /**
           * Add a range of results
           */
-         auto push_results = [&result, &last_cursor, limit, &deadline](const auto& begin, const auto& end,
-                                                                      const auto& input) {
+         auto push_results = [&result, &last_cursor, paginated, limit, &deadline](const auto& begin, const auto& end,
+                                                                                 const auto& input) {
             FC_CHECK_DEADLINE(deadline);
             auto itr = begin;
             for (; itr != end && result.accounts.size() < limit; ++itr) {
@@ -537,15 +544,17 @@ namespace eosio::chain_apis {
                      pi.threshold
                });
 
-               account_query_cursor next;
-               next.input = input;
-               if constexpr (std::is_same_v<std::decay_t<decltype(input)>, chain::permission_level>) {
-                  next.last_authorizing_account = authorizer;
+               if (paginated) {
+                  account_query_cursor next;
+                  next.input = input;
+                  if constexpr (std::is_same_v<std::decay_t<decltype(input)>, chain::permission_level>) {
+                     next.last_authorizing_account = authorizer;
+                  }
+                  next.weight = weight;
+                  next.owner = pi.owner;
+                  next.permission = pi.name;
+                  last_cursor = encode_cursor(next);
                }
-               next.weight = weight;
-               next.owner = pi.owner;
-               next.permission = pi.name;
-               last_cursor = encode_cursor(next);
             }
             if (itr != end) {
                result.more = true;

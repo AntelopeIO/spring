@@ -121,6 +121,12 @@ BOOST_FIXTURE_TEST_CASE(get_accounts_by_authorizers_limit_test, validating_teste
 
    params pars;
    pars.keys.emplace_back(shared_key);
+
+   const auto legacy_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(legacy_results.accounts.size() == 3u);
+   BOOST_TEST_REQUIRE(legacy_results.more == false);
+   BOOST_TEST_REQUIRE(legacy_results.next_cursor.empty());
+
    pars.limit = 2;
 
    const auto limited_results = aq_db.get_accounts_by_authorizers(pars);
@@ -136,6 +142,9 @@ BOOST_FIXTURE_TEST_CASE(get_accounts_by_authorizers_limit_test, validating_teste
    BOOST_TEST_REQUIRE(continued_results.accounts[0].permission_name == "third"_n);
    BOOST_TEST_REQUIRE(continued_results.more == false);
    BOOST_TEST_REQUIRE(continued_results.next_cursor.empty());
+
+   pars.limit.reset();
+   BOOST_CHECK_THROW(aq_db.get_accounts_by_authorizers(pars), invalid_http_request);
 
    pars.cursor.clear();
    pars.limit = 0;
@@ -169,6 +178,7 @@ BOOST_FIXTURE_TEST_CASE(get_accounts_by_authorizers_limit_test, validating_teste
    BOOST_TEST_REQUIRE(reordered_results.accounts[1].permission_name == "second"_n);
    BOOST_TEST_REQUIRE(reordered_results.accounts[2].permission_name == "third"_n);
 
+   pars.limit.reset();
    BOOST_CHECK_THROW(aq_db.get_accounts_by_authorizers(pars, fc::time_point::min()), fc::timeout_exception);
 
 } FC_LOG_AND_RETHROW() }

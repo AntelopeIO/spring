@@ -10,7 +10,7 @@ namespace eosio::chain_apis {
     */
    class account_query_db {
    public:
-      static constexpr uint32_t max_results = 1000;
+      static constexpr uint32_t max_page_results = 1000;
 
       /**
        * Instantiate a new account query DB from the given chain controller
@@ -55,7 +55,7 @@ namespace eosio::chain_apis {
 
          std::vector<permission_level> accounts;
          std::vector<chain::public_key_type> keys;
-         uint32_t limit = max_results;
+         std::optional<uint32_t> limit;
          std::string cursor;
       };
 

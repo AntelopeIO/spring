@@ -873,13 +873,12 @@ paths:
                     $ref: "https://docs.eosnetwork.com/openapi/v2.0/PublicKey.yaml"
                 limit:
                   type: integer
-                  default: 1000
                   maximum: 1000
-                  description: Maximum number of account permission authorities to return per page. The server enforces an upper bound of 1000. A value of zero returns no accounts and sets more to indicate whether any match exists.
+                  description: Maximum number of account permission authorities to return per page, capped by the server at 1000. Supplying this field enables pagination. When omitted, the server preserves legacy behavior by attempting to return the complete result and failing if the request deadline expires. A value of zero returns no accounts and sets more to indicate whether any match exists.
                 cursor:
                   type: string
                   default: ""
-                  description: Opaque continuation cursor returned as next_cursor by a previous request. The accounts and keys inputs must be repeated unchanged when continuing a query.
+                  description: Opaque continuation cursor returned as next_cursor by a previous paginated request. Limit is required and the accounts and keys inputs must be repeated unchanged when continuing a query.
       responses:
         "200":
           description: OK
@@ -922,10 +921,10 @@ paths:
                           description: the sum of weights that must be met or exceeded to satisfy the permission
                   more:
                     type: boolean
-                    description: True when additional matching account permission authorities were omitted because the result limit was reached.
+                    description: True when a paginated request has additional matching account permission authorities beyond the current page.
                   next_cursor:
                     type: string
-                    description: Opaque cursor to pass as cursor in the next request when more is true. Empty for a complete response and for limit zero, which does not advance the query.
+                    description: Opaque cursor to pass as cursor with a limit in the next request when more is true. Empty for an unpaginated or complete response and for limit zero, which does not advance the query.
   /get_transaction_status:
     post:
       description: Attempts to get current blockchain state and, if available, transaction information given the transaction id. For query to work, the transaction finality status feature must be enabled by configuring the chain plugin with the config option '--transaction-finality-status-max-storage-size-gb' in nodeos.
