@@ -92,6 +92,97 @@ BOOST_FIXTURE_TEST_CASE(updateauth_test, validating_tester) { try {
 
 } FC_LOG_AND_RETHROW() }
 
+BOOST_FIXTURE_TEST_CASE(get_accounts_by_authorizers_limit_test, validating_tester) { try {
+
+   auto aq_db = account_query_db(*control);
+
+   auto c = control->accepted_block().connect([&](const block_signal_params& t) {
+      const auto& [ block, id ] = t;
+      aq_db.commit_block( block );
+   });
+
+   produce_blocks(10);
+
+   const auto tester_account = "tester"_n;
+   const auto shared_key = get_public_key(tester_account, "shared");
+   create_account(tester_account);
+
+   // Insert out of lexical order so the test also verifies deterministic tie-breaking.
+   for (const auto permission : {"third"_n, "first"_n, "second"_n}) {
+      const auto trace_ptr = push_action(config::system_account_name, updateauth::get_name(), tester_account,
+                                         fc::mutable_variant_object()
+                                               ("account", tester_account)
+                                               ("permission", permission)
+                                               ("parent", "active")
+                                               ("auth", authority(shared_key, 1)));
+      aq_db.cache_transaction_trace(trace_ptr);
+      produce_block();
+   }
+
+   params pars;
+   pars.keys.emplace_back(shared_key);
+
+   const auto legacy_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(legacy_results.accounts.size() == 3u);
+   BOOST_TEST_REQUIRE(legacy_results.more == false);
+   BOOST_TEST_REQUIRE(legacy_results.next_cursor.empty());
+
+   pars.limit = 2;
+
+   const auto limited_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(limited_results.accounts.size() == 2u);
+   BOOST_TEST_REQUIRE(limited_results.more == true);
+   BOOST_TEST_REQUIRE(!limited_results.next_cursor.empty());
+   BOOST_TEST_REQUIRE(limited_results.accounts[0].permission_name == "first"_n);
+   BOOST_TEST_REQUIRE(limited_results.accounts[1].permission_name == "second"_n);
+
+   pars.cursor = limited_results.next_cursor;
+   const auto continued_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(continued_results.accounts.size() == 1u);
+   BOOST_TEST_REQUIRE(continued_results.accounts[0].permission_name == "third"_n);
+   BOOST_TEST_REQUIRE(continued_results.more == false);
+   BOOST_TEST_REQUIRE(continued_results.next_cursor.empty());
+
+   pars.limit.reset();
+   BOOST_CHECK_THROW(aq_db.get_accounts_by_authorizers(pars), invalid_http_request);
+
+   pars.cursor.clear();
+   pars.limit = 0;
+   const auto existence_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(existence_results.accounts.empty());
+   BOOST_TEST_REQUIRE(existence_results.more == true);
+   BOOST_TEST_REQUIRE(existence_results.next_cursor.empty());
+
+   pars.limit = 3;
+   const auto complete_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(complete_results.accounts.size() == 3u);
+   BOOST_TEST_REQUIRE(complete_results.more == false);
+   BOOST_TEST_REQUIRE(complete_results.next_cursor.empty());
+   BOOST_TEST_REQUIRE(complete_results.accounts[0].permission_name == "first"_n);
+   BOOST_TEST_REQUIRE(complete_results.accounts[1].permission_name == "second"_n);
+   BOOST_TEST_REQUIRE(complete_results.accounts[2].permission_name == "third"_n);
+
+   // Updating a tied row removes and reinserts it, but must not change the query order.
+   const auto trace_ptr = push_action(config::system_account_name, updateauth::get_name(), tester_account,
+                                      fc::mutable_variant_object()
+                                            ("account", tester_account)
+                                            ("permission", "first"_n)
+                                            ("parent", "active")
+                                            ("auth", authority(shared_key, 1)));
+   aq_db.cache_transaction_trace(trace_ptr);
+   produce_block();
+
+   const auto reordered_results = aq_db.get_accounts_by_authorizers(pars);
+   BOOST_TEST_REQUIRE(reordered_results.accounts.size() == 3u);
+   BOOST_TEST_REQUIRE(reordered_results.accounts[0].permission_name == "first"_n);
+   BOOST_TEST_REQUIRE(reordered_results.accounts[1].permission_name == "second"_n);
+   BOOST_TEST_REQUIRE(reordered_results.accounts[2].permission_name == "third"_n);
+
+   pars.limit.reset();
+   BOOST_CHECK_THROW(aq_db.get_accounts_by_authorizers(pars, fc::time_point::min()), fc::timeout_exception);
+
+} FC_LOG_AND_RETHROW() }
+
 BOOST_FIXTURE_TEST_CASE(updateauth_test_multi_threaded, validating_tester) { try {
 
    // instantiate an account_query_db
@@ -286,4 +377,3 @@ BOOST_AUTO_TEST_CASE(fork_test) { try {
    } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
-

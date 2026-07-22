@@ -4,6 +4,9 @@
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/permission_object.hpp>
 
+#include <fc/crypto/base64.hpp>
+#include <fc/io/raw.hpp>
+
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/composite_key.hpp>
@@ -13,12 +16,29 @@
 #include <boost/bimap/multiset_of.hpp>
 #include <boost/bimap/set_of.hpp>
 
+#include <algorithm>
 #include <shared_mutex>
 
 using namespace eosio;
 using namespace eosio::chain::literals;
 using namespace boost::multi_index;
 using namespace boost::bimaps;
+
+namespace eosio::chain_apis {
+   struct account_query_cursor {
+      static constexpr uint8_t current_version = 1;
+
+      uint8_t version = current_version;
+      std::variant<chain::permission_level, chain::public_key_type> input;
+      std::optional<chain::permission_level> last_authorizing_account;
+      chain::weight_type weight = 0;
+      chain::name owner;
+      chain::name permission;
+   };
+}
+
+FC_REFLECT( eosio::chain_apis::account_query_cursor,
+            (version)(input)(last_authorizing_account)(weight)(owner)(permission) )
 
 namespace {
    /**
@@ -81,13 +101,16 @@ namespace {
    struct weighted {
       T                   value;
       chain::weight_type  weight;
+      chain::name         owner;
+      chain::name         permission;
 
       static weighted lower_bound_for( const T& value ) {
-         return {value, std::numeric_limits<chain::weight_type>::min()};
+         return {value, std::numeric_limits<chain::weight_type>::min(), {}, {}};
       }
 
       static weighted upper_bound_for( const T& value ) {
-         return {value, std::numeric_limits<chain::weight_type>::max()};
+         const auto max_name = chain::name{std::numeric_limits<uint64_t>::max()};
+         return {value, std::numeric_limits<chain::weight_type>::max(), max_name, max_name};
       }
    };
 
@@ -97,6 +120,22 @@ namespace {
          return authorizer;
       } else {
          return {};
+      }
+   }
+
+   std::string encode_cursor( const eosio::chain_apis::account_query_cursor& cursor ) {
+      const auto packed = fc::raw::pack(cursor);
+      return fc::base64url_encode(packed.data(), packed.size());
+   }
+
+   eosio::chain_apis::account_query_cursor decode_cursor( const std::string& encoded ) {
+      try {
+         auto cursor = fc::raw::unpack<eosio::chain_apis::account_query_cursor>(fc::base64url_decode(encoded));
+         EOS_ASSERT(cursor.version == eosio::chain_apis::account_query_cursor::current_version,
+                    eosio::chain::invalid_http_request, "Unsupported cursor version");
+         return cursor;
+      } catch (...) {
+         EOS_THROW(eosio::chain::invalid_http_request, "Invalid cursor");
       }
    }
 }
@@ -118,7 +157,8 @@ namespace std {
    template<typename T>
    struct less<weighted<T>> {
       bool operator()( const weighted<T>& lhs, const weighted<T>& rhs ) const {
-         return std::tie(lhs.value, lhs.weight) < std::tie(rhs.value, rhs.weight);
+         return std::tie(lhs.value, lhs.weight, lhs.owner, lhs.permission) <
+                std::tie(rhs.value, rhs.weight, rhs.owner, rhs.permission);
       }
    };
 
@@ -171,12 +211,12 @@ namespace eosio::chain_apis {
       void add_to_bimaps( const permission_info& pi, const chain::permission_object& po ) {
          // For each account, add this permission info's non-owning reference to the bimap for accounts
          for (const auto& a : po.auth.accounts) {
-            name_bimap.insert(name_bimap_t::value_type {{a.permission, a.weight}, pi});
+            name_bimap.insert(name_bimap_t::value_type {{a.permission, a.weight, pi.owner, pi.name}, pi});
          }
 
          // for each key, add this permission info's non-owning reference to the bimap for keys
          for (const auto& k: po.auth.keys) {
-            key_bimap.insert(key_bimap_t::value_type {{k.key.to_public_key(), k.weight}, pi});
+            key_bimap.insert(key_bimap_t::value_type {{k.key.to_public_key(), k.weight, pi.owner, pi.name}, pi});
          }
       }
 
@@ -419,21 +459,78 @@ namespace eosio::chain_apis {
       }
 
       account_query_db::get_accounts_by_authorizers_result
-      get_accounts_by_authorizers( const account_query_db::get_accounts_by_authorizers_params& args) const {
+      get_accounts_by_authorizers( const account_query_db::get_accounts_by_authorizers_params& args,
+                                  const fc::time_point& deadline) const {
          std::shared_lock read_lock(rw_mutex);
 
          using result_t = account_query_db::get_accounts_by_authorizers_result;
          result_t result;
+         EOS_ASSERT(args.cursor.empty() || args.limit.has_value(), chain::invalid_http_request,
+                    "A limit is required when continuing with a cursor");
+         // An omitted limit preserves the legacy complete-or-timeout behavior. An explicit limit opts into
+         // cursor pagination and is clamped to the server's maximum page size.
+         const bool paginated = args.limit.has_value();
+         const auto limit = args.limit
+               ? static_cast<size_t>(std::min(*args.limit, account_query_db::max_page_results))
+               : std::numeric_limits<size_t>::max();
 
          // deduplicate inputs
-         auto account_set = std::set<chain::permission_level>(args.accounts.begin(), args.accounts.end());
-         const auto key_set = std::set<chain::public_key_type>(args.keys.begin(), args.keys.end());
+         std::set<chain::permission_level> account_set;
+         for (const auto& account : args.accounts) {
+            FC_CHECK_DEADLINE(deadline);
+            account_set.emplace(account);
+         }
+
+         std::set<chain::public_key_type> key_set;
+         for (const auto& key : args.keys) {
+            FC_CHECK_DEADLINE(deadline);
+            key_set.emplace(key);
+         }
+
+         std::optional<account_query_cursor> cursor;
+         if (!args.cursor.empty()) {
+            cursor = decode_cursor(args.cursor);
+         }
+
+         auto account_itr = account_set.begin();
+         auto key_itr = key_set.begin();
+         bool resume_account = false;
+         bool resume_key = false;
+
+         if (cursor) {
+            if (std::holds_alternative<chain::permission_level>(cursor->input)) {
+               const auto& input = std::get<chain::permission_level>(cursor->input);
+               account_itr = account_set.find(input);
+               EOS_ASSERT(account_itr != account_set.end(), chain::invalid_http_request,
+                          "Cursor account is not present in the request");
+               EOS_ASSERT(cursor->last_authorizing_account.has_value(), chain::invalid_http_request,
+                          "Invalid account cursor");
+               const auto& last_authorizer = *cursor->last_authorizing_account;
+               EOS_ASSERT(last_authorizer.actor == input.actor &&
+                          (input.permission.empty() || last_authorizer.permission == input.permission),
+                          chain::invalid_http_request, "Invalid account cursor");
+               resume_account = true;
+            } else {
+               const auto& input = std::get<chain::public_key_type>(cursor->input);
+               key_itr = key_set.find(input);
+               EOS_ASSERT(key_itr != key_set.end(), chain::invalid_http_request,
+                          "Cursor key is not present in the request");
+               account_itr = account_set.end();
+               resume_key = true;
+            }
+         }
+
+         std::string last_cursor;
 
          /**
           * Add a range of results
           */
-         auto push_results = [&result](const auto& begin, const auto& end) {
-            for (auto itr = begin; itr != end; ++itr) {
+         auto push_results = [&result, &last_cursor, paginated, limit, &deadline](const auto& begin, const auto& end,
+                                                                                 const auto& input) {
+            FC_CHECK_DEADLINE(deadline);
+            auto itr = begin;
+            for (; itr != end && result.accounts.size() < limit; ++itr) {
+               FC_CHECK_DEADLINE(deadline);
                const auto& pi = itr->second.get();
                const auto& authorizer = itr->first.value;
                auto weight = itr->first.weight;
@@ -446,33 +543,74 @@ namespace eosio::chain_apis {
                      weight,
                      pi.threshold
                });
+
+               if (paginated) {
+                  account_query_cursor next;
+                  next.input = input;
+                  if constexpr (std::is_same_v<std::decay_t<decltype(input)>, chain::permission_level>) {
+                     next.last_authorizing_account = authorizer;
+                  }
+                  next.weight = weight;
+                  next.owner = pi.owner;
+                  next.permission = pi.name;
+                  last_cursor = encode_cursor(next);
+               }
             }
+            if (itr != end) {
+               result.more = true;
+               result.next_cursor = last_cursor;
+               return false;
+            }
+            return true;
          };
 
-
-         for (const auto& a: account_set) {
+         for (; account_itr != account_set.end(); ++account_itr) {
+            FC_CHECK_DEADLINE(deadline);
+            const auto& a = *account_itr;
             if (a.permission.empty()) {
                // empty permission is a wildcard
                // construct a range between the lower bound of the given account and the lower bound of the
                // next possible account name
-               const auto begin = name_bimap.left.lower_bound(weighted<chain::permission_level>::lower_bound_for({a.actor, a.permission}));
+               auto begin = name_bimap.left.lower_bound(weighted<chain::permission_level>::lower_bound_for({a.actor, a.permission}));
                const auto next_account_name = chain::name(a.actor.to_uint64_t() + 1);
                const auto end = name_bimap.left.lower_bound(weighted<chain::permission_level>::lower_bound_for({next_account_name, a.permission}));
-               push_results(begin, end);
+               if (resume_account) {
+                  const auto& last_authorizer = *cursor->last_authorizing_account;
+                  begin = name_bimap.left.upper_bound(weighted<chain::permission_level>{
+                        last_authorizer, cursor->weight, cursor->owner, cursor->permission});
+                  resume_account = false;
+               }
+               if (!push_results(begin, end, a))
+                  return result;
             } else {
                // construct a range of all possible weights for an account/permission pair
                const auto p = chain::permission_level{a.actor, a.permission};
-               const auto begin = name_bimap.left.lower_bound(weighted<chain::permission_level>::lower_bound_for(p));
+               auto begin = name_bimap.left.lower_bound(weighted<chain::permission_level>::lower_bound_for(p));
                const auto end = name_bimap.left.upper_bound(weighted<chain::permission_level>::upper_bound_for(p));
-               push_results(begin, end);
+               if (resume_account) {
+                  const auto& last_authorizer = *cursor->last_authorizing_account;
+                  begin = name_bimap.left.upper_bound(weighted<chain::permission_level>{
+                        last_authorizer, cursor->weight, cursor->owner, cursor->permission});
+                  resume_account = false;
+               }
+               if (!push_results(begin, end, a))
+                  return result;
             }
          }
 
-         for (const auto& k: key_set) {
+         for (; key_itr != key_set.end(); ++key_itr) {
+            FC_CHECK_DEADLINE(deadline);
+            const auto& k = *key_itr;
             // construct a range of all possible weights for a key
-            const auto begin = key_bimap.left.lower_bound(weighted<chain::public_key_type>::lower_bound_for(k));
+            auto begin = key_bimap.left.lower_bound(weighted<chain::public_key_type>::lower_bound_for(k));
             const auto end = key_bimap.left.upper_bound(weighted<chain::public_key_type>::upper_bound_for(k));
-            push_results(begin, end);
+            if (resume_key) {
+               begin = key_bimap.left.upper_bound(weighted<chain::public_key_type>{
+                     k, cursor->weight, cursor->owner, cursor->permission});
+               resume_key = false;
+            }
+            if (!push_results(begin, end, k))
+               return result;
          }
 
          return result;
@@ -528,8 +666,9 @@ namespace eosio::chain_apis {
       } FC_LOG_AND_DROP(("ACCOUNT DB commit_block ERROR"));
    }
 
-   account_query_db::get_accounts_by_authorizers_result account_query_db::get_accounts_by_authorizers( const account_query_db::get_accounts_by_authorizers_params& args) const {
-      return _impl->get_accounts_by_authorizers(args);
+   account_query_db::get_accounts_by_authorizers_result account_query_db::get_accounts_by_authorizers(
+         const account_query_db::get_accounts_by_authorizers_params& args, const fc::time_point& deadline) const {
+      return _impl->get_accounts_by_authorizers(args, deadline);
    }
 
 }

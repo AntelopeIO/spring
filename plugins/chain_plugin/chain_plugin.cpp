@@ -2636,10 +2636,10 @@ read_only::get_transaction_id_result read_only::get_transaction_id( const read_o
 
 
 account_query_db::get_accounts_by_authorizers_result
-read_only::get_accounts_by_authorizers( const account_query_db::get_accounts_by_authorizers_params& args, const fc::time_point& ) const
+read_only::get_accounts_by_authorizers( const account_query_db::get_accounts_by_authorizers_params& args, const fc::time_point& deadline ) const
 {
    EOS_ASSERT(aqdb.has_value(), plugin_config_exception, "Account Queries being accessed when not enabled");
-   return aqdb->get_accounts_by_authorizers(args);
+   return aqdb->get_accounts_by_authorizers(args, deadline);
 }
 
 namespace detail {
