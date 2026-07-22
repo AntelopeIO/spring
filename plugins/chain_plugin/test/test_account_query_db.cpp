@@ -96,7 +96,7 @@ BOOST_FIXTURE_TEST_CASE(get_accounts_by_authorizers_limit_test, validating_teste
 
    auto aq_db = account_query_db(*control);
 
-   auto c = control->accepted_block.connect([&](const block_signal_params& t) {
+   auto c = control->accepted_block().connect([&](const block_signal_params& t) {
       const auto& [ block, id ] = t;
       aq_db.commit_block( block );
    });
