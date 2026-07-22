@@ -56,6 +56,7 @@ namespace eosio::chain_apis {
          std::vector<permission_level> accounts;
          std::vector<chain::public_key_type> keys;
          uint32_t limit = max_results;
+         std::string cursor;
       };
 
       /**
@@ -73,6 +74,7 @@ namespace eosio::chain_apis {
 
          std::vector<account_result> accounts;
          bool more = false;
+         std::string next_cursor;
       };
       /**
        * Given a set of account names and public keys, find all account permission authorities that are, in part or whole,
@@ -81,7 +83,9 @@ namespace eosio::chain_apis {
        * @param args
        * @return
        */
-      get_accounts_by_authorizers_result get_accounts_by_authorizers( const get_accounts_by_authorizers_params& args) const;
+      get_accounts_by_authorizers_result get_accounts_by_authorizers(
+            const get_accounts_by_authorizers_params& args,
+            const fc::time_point& deadline = fc::time_point::maximum()) const;
 
    private:
       std::unique_ptr<struct account_query_db_impl> _impl;
@@ -133,6 +137,6 @@ namespace fc {
    }
 }
 
-FC_REFLECT( eosio::chain_apis::account_query_db::get_accounts_by_authorizers_params, (accounts)(keys)(limit))
+FC_REFLECT( eosio::chain_apis::account_query_db::get_accounts_by_authorizers_params, (accounts)(keys)(limit)(cursor))
 FC_REFLECT( eosio::chain_apis::account_query_db::get_accounts_by_authorizers_result::account_result, (account_name)(permission_name)(authorizing_account)(authorizing_key)(weight)(threshold))
-FC_REFLECT( eosio::chain_apis::account_query_db::get_accounts_by_authorizers_result, (accounts)(more))
+FC_REFLECT( eosio::chain_apis::account_query_db::get_accounts_by_authorizers_result, (accounts)(more)(next_cursor))
