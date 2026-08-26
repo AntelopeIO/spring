@@ -3,6 +3,7 @@ file(GLOB HEADERS "include/eosio/state-history/*.hpp")
 add_library( state_history
              abi.cpp
              create_deltas.cpp
+             log_utils.cpp
              trace_converter.cpp
              ${HEADERS}
            )

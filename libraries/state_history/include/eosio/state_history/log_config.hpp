@@ -23,7 +23,8 @@ struct partition_config {
 
 using state_history_log_config = std::variant<std::monostate, prune_config, partition_config>;
 
-std::ostream& boost_test_print_type(std::ostream& os, const state_history_log_config& conf) {
+//defined in a header included by more than one translation unit, so it must be inline
+inline std::ostream& boost_test_print_type(std::ostream& os, const state_history_log_config& conf) {
    std::visit(chain::overloaded {
       [&os](const std::monostate&) {
          os << "flat";

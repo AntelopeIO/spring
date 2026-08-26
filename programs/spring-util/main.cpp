@@ -9,6 +9,7 @@
 #include "actions/bls.hpp"
 #include "actions/chain.hpp"
 #include "actions/generic.hpp"
+#include "actions/shiplog.hpp"
 #include "actions/snapshot.hpp"
 
 #include <memory>
@@ -33,6 +34,10 @@ int main(int argc, char** argv) {
    // blocklog sc tree from eosio-blocklog
    auto blocklog_subcommand = std::make_shared<blocklog_actions>();
    blocklog_subcommand->setup(app);
+
+   // ship-log sc tree
+   auto shiplog_subcommand = std::make_shared<shiplog_actions>();
+   shiplog_subcommand->setup(app);
 
    // bls sc tree
    auto bls_subcommand = std::make_shared<bls_actions>();
