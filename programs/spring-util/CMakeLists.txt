@@ -1,4 +1,4 @@
-add_executable( ${SPRING_UTIL_EXECUTABLE_NAME} main.cpp actions/subcommand.cpp actions/generic.cpp actions/blocklog.cpp actions/bls.cpp actions/snapshot.cpp actions/chain.cpp)
+add_executable( ${SPRING_UTIL_EXECUTABLE_NAME} main.cpp actions/subcommand.cpp actions/generic.cpp actions/blocklog.cpp actions/shiplog.cpp actions/bls.cpp actions/snapshot.cpp actions/chain.cpp)
 
 if( UNIX AND NOT APPLE )
   set(rt_library rt )
@@ -8,7 +8,7 @@ target_include_directories(${SPRING_UTIL_EXECUTABLE_NAME} PUBLIC ${CMAKE_CURRENT
 
 target_link_libraries( ${SPRING_UTIL_EXECUTABLE_NAME}
         PRIVATE appbase version
-        PRIVATE eosio_chain chain_plugin fc spring-cli11 producer_plugin ${CMAKE_DL_LIBS} ${PLATFORM_SPECIFIC_LIBS} )
+        PRIVATE eosio_chain chain_plugin fc spring-cli11 producer_plugin state_history ${CMAKE_DL_LIBS} ${PLATFORM_SPECIFIC_LIBS} )
 
 copy_bin( ${SPRING_UTIL_EXECUTABLE_NAME} )
 install( TARGETS

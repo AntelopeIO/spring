@@ -250,6 +250,14 @@ void state_history_plugin::set_program_options(options_description& cli, options
            "the path (relative to data-dir) to create a unix socket upon which to listen for incoming connections.");
    options("trace-history-debug-mode", bpo::bool_switch()->default_value(false), "enable debug mode for trace history");
    options("state-history-log-retain-blocks", bpo::value<uint32_t>(), "if set, periodically prune the state history files to store only configured number of most recent blocks");
+   options("state-history-force-write", bpo::bool_switch()->default_value(false),
+           "EMERGENCY RECOVERY option: never let damaged or inconsistent state history logs prevent the node from "
+           "running. A log that fails its startup checks or cannot accept the next block is moved aside (kept on disk, "
+           "never deleted) and writing continues into a fresh log. This keeps the node up at the cost of completeness. "
+           "Blocks held only in the set-aside logs, plus any the node skips while recovering, will be missing from "
+           "the state history this node serves until those logs are repaired and merged back. Without this option such "
+           "conditions are fatal. The spring-util ship-log utility can inspect, repair, and trim the logs this sets "
+           "aside (and merge them once renamed off the -corrupt- suffix).");
 }
 
 void state_history_plugin_impl::plugin_initialize(const variables_map& options) {
@@ -328,12 +336,18 @@ void state_history_plugin_impl::plugin_initialize(const variables_map& options) 
             config.max_retained_files = options.at("max-retained-history-files").as<uint32_t>();
       }
 
+      const bool force_write = options.at("state-history-force-write").as<bool>();
+      if(force_write)
+         wlog("state-history-force-write is set (emergency recovery): state history logs that fail their checks will "
+              "be moved aside rather than stopping the node; the served state history may be incomplete for the "
+              "affected blocks until those logs are repaired and merged back");
+
       if(options.at("trace-history").as<bool>())
-         trace_log.emplace(state_history_dir, ship_log_conf, "trace_history", [this](chain::block_num_type bn) {return get_block_id(bn);});
+         trace_log.emplace(state_history_dir, ship_log_conf, "trace_history", [this](chain::block_num_type bn) {return get_block_id(bn);}, force_write);
       if(options.at("chain-state-history").as<bool>())
-         chain_state_log.emplace(state_history_dir, ship_log_conf, "chain_state_history", [this](chain::block_num_type bn) {return get_block_id(bn);});
+         chain_state_log.emplace(state_history_dir, ship_log_conf, "chain_state_history", [this](chain::block_num_type bn) {return get_block_id(bn);}, force_write);
       if(options.at("finality-data-history").as<bool>())
-         finality_data_log.emplace(state_history_dir, ship_log_conf, "finality_data_history", [this](chain::block_num_type bn) {return get_block_id(bn);});
+         finality_data_log.emplace(state_history_dir, ship_log_conf, "finality_data_history", [this](chain::block_num_type bn) {return get_block_id(bn);}, force_write);
    }
    FC_LOG_AND_RETHROW()
 } // state_history_plugin::plugin_initialize

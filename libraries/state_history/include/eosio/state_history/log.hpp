@@ -118,9 +118,14 @@ private:
    state_history_log(state_history_log&&) = default;
    state_history_log& operator=(state_history_log&&) = default;
 
+   /**
+    * @param force_write when set, an index that disagrees with its log is regenerated instead of
+    *                    being a fatal error (the log itself still auto-recovers exactly as before)
+    */
    state_history_log(const std::filesystem::path& log_dir_and_stem,
                      non_local_get_block_id_func non_local_get_block_id = no_non_local_get_block_id_func,
-                     const std::optional<state_history::prune_config>& prune_conf = std::nullopt) :
+                     const std::optional<state_history::prune_config>& prune_conf = std::nullopt,
+                     bool force_write = false) :
      prune_config(prune_conf), non_local_get_block_id(non_local_get_block_id),
      log(std::filesystem::path(log_dir_and_stem).replace_extension("log")),
      index(std::filesystem::path(log_dir_and_stem).replace_extension("index")) {
@@ -135,7 +140,19 @@ private:
 
       check_log_on_init();
       check_index_on_init();
-      check_log_and_index_on_init();
+      try {
+         check_log_and_index_on_init();
+      } catch(const std::bad_alloc&) {
+         throw;
+      } catch(const std::exception& e) {
+         if(!force_write)
+            throw;
+         wlog("${name} disagrees with its log (${e}); force-write is set so it will be regenerated",
+              ("name", index.display_path())("e", e.what()));
+         index.resize(0);
+         check_index_on_init();
+         check_log_and_index_on_init();
+      }
 
       //check for conversions to/from pruned log, as long as log contains something
       if(!empty()) {
@@ -171,8 +188,18 @@ private:
 
       const size_t first_data_pos = get_pos(_begin_block);
       const size_t last_data_pos = log.size();
-      if(last_data_pos - first_data_pos < *prune_config->vacuum_on_close)
-         vacuum();
+      //vacuum-on-close is a best-effort space reclamation; the log is fully valid whether or not it
+      // runs. Never let it throw out of the destructor (which would std::terminate): this also keeps
+      // force-write's head_log.reset() safe when it sets a damaged pruned log aside.
+      try {
+         if(last_data_pos - first_data_pos < *prune_config->vacuum_on_close)
+            vacuum();
+      } catch(const std::exception& e) {
+         wlog("vacuum-on-close of ${name} failed (${e}); leaving the log un-vacuumed",
+              ("name", log.display_path())("e", e.what()));
+      } catch(...) {
+         wlog("vacuum-on-close of ${name} failed; leaving the log un-vacuumed", ("name", log.display_path()));
+      }
    }
 
    //        begin     end
@@ -221,14 +248,29 @@ private:
          EOS_ASSERT(block_num <= _end_block, chain::plugin_exception, "block ${b} skips over block ${e} in ${name}", ("b", block_num)("e", _end_block)("name", log.display_path()));
       EOS_ASSERT(block_num >= _index_begin_block, chain::plugin_exception, "block ${b} is before start block ${s} of ${name}", ("b", block_num)("s", _begin_block)("name", log.display_path()));
       if(block_num == _end_block) //appending at the end of known blocks; can shortcut some checks since we have last_block_id readily available
-         EOS_ASSERT(prev_id == last_block_id, chain::plugin_exception, "missed a fork change in ${name}", ("name", log.display_path()));
+         EOS_ASSERT(prev_id == last_block_id, chain::plugin_exception,
+                    "missed a fork change in ${name}; appending block ${b} with previous id ${pid} but the log's last "
+                    "entry is block ${lb} with id ${lid}",
+                    ("name", log.display_path())("b", block_num)("pid", prev_id)("lb", _end_block - 1)("lid", last_block_id));
       else {                      //seeing a block num we've seen before OR first block in the log; prepare some extra checks
          //find the previous block id as a sanity check. This might not be in our log due to log splitting. It also might not be present at all if this is the first
          // block written, so don't require this lookup to succeed, just require the id to match if the lookup succeeded.
          if(std::optional<chain::block_id_type> local_id_found = get_block_id(block_num-1))
-            EOS_ASSERT(local_id_found == prev_id, chain::plugin_exception, "missed a fork change in ${name}", ("name", log.display_path()));
+            //spelling out both ids and the recorded id's own block number makes a damaged index distinguishable
+            // from a genuine fork at a glance: an id for some unrelated block means the index is misdirecting reads
+            EOS_ASSERT(local_id_found == prev_id, chain::plugin_exception,
+                       "missed a fork change in ${name}; block ${b} has previous id ${pid} but the index resolves "
+                       "block ${pb} to id ${fid}, an id for block ${fb} (a block number mismatch means a corrupt "
+                       "index, not a fork; verify with 'spring-util ship-log block-id' and rebuild with "
+                       "'spring-util ship-log make-index')",
+                       ("name", log.display_path())("b", block_num)("pid", prev_id)("pb", block_num - 1)
+                       ("fid", *local_id_found)("fb", chain::block_header::num_from_id(*local_id_found)));
          else if(std::optional<chain::block_id_type> non_local_id_found = non_local_get_block_id(block_num-1))
-            EOS_ASSERT(non_local_id_found == prev_id, chain::plugin_exception, "missed a fork change in ${name}", ("name", log.display_path()));
+            EOS_ASSERT(non_local_id_found == prev_id, chain::plugin_exception,
+                       "missed a fork change in ${name}; block ${b} has previous id ${pid} but block ${pb} is "
+                       "recorded as ${fid} elsewhere in the catalog or chain",
+                       ("name", log.display_path())("b", block_num)("pid", prev_id)("pb", block_num - 1)
+                       ("fid", *non_local_id_found));
          //we don't want to re-write blocks that we already have, so check if the existing block_id recorded in the log matches and if so, bail
          if(get_block_id(block_num) == id)
             return;

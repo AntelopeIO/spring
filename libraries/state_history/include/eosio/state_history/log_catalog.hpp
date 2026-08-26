@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <regex>
+#include <string_view>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
@@ -15,6 +16,10 @@
 namespace eosio::state_history {
 
 using namespace boost::multi_index;
+
+/// suffix given to bundles force-write moves aside; deliberately matches neither the retained-file
+/// regex nor any name this code opens, so orphaned bundles are inert until an operator acts on them
+inline constexpr std::string_view orphaned_bundle_infix = "-corrupt-";
 
 struct catalogued_log_file {
    chain::block_num_type            begin_block_num = 0;
@@ -44,6 +49,13 @@ class log_catalog {
 
    const state_history_log::non_local_get_block_id_func non_local_get_block_id;
 
+   //when set, conditions that would otherwise prevent the node from running -- a head log that
+   // fails its startup checks or cannot accept the next block, or an inconsistent retained set --
+   // are handled by moving the offending bundle aside (never deleting data) and continuing with a
+   // fresh log. see the state-history-force-write option.
+   const bool                                 force_write = false;
+   std::optional<state_history::prune_config> head_log_prune_conf;
+
    struct by_mru {};
    typedef multi_index_container<
      catalogued_log_file,
@@ -63,14 +75,17 @@ public:
    log_catalog& operator=(log_catalog&) = delete;
 
    log_catalog(const std::filesystem::path& log_dir, const state_history::state_history_log_config& config, const std::string& log_name,
-               state_history_log::non_local_get_block_id_func non_local_get_block_id = state_history_log::no_non_local_get_block_id_func) :
-     non_local_get_block_id(non_local_get_block_id), head_log_path_and_basename(log_dir / log_name) {
+               state_history_log::non_local_get_block_id_func non_local_get_block_id = state_history_log::no_non_local_get_block_id_func,
+               bool force_write = false) :
+     non_local_get_block_id(non_local_get_block_id), force_write(force_write),
+     head_log_path_and_basename(log_dir / log_name) {
       std::visit(chain::overloaded {
          [this](const std::monostate&) {
             open_head_log();
          },
          [this](const state_history::prune_config& prune) {
-            open_head_log(prune);
+            head_log_prune_conf = prune;
+            open_head_log();
          },
          [this, &log_dir, &log_name](const state_history::partition_config& partition_config) {
             open_head_log();
@@ -83,6 +98,62 @@ public:
 
    template <typename F>
    void pack_and_write_entry(const chain::block_id_type& id, const chain::block_id_type& prev_id, F&& pack_to) {
+      if(!force_write)
+         return do_pack_and_write_entry(id, prev_id, pack_to);
+
+      //force-write: never let the existing logs stop the node from running. First try the normal
+      // write; if the head log cannot accept the block (a gap after a snapshot restore, a missed
+      // fork change from divergent history, ...), move the head bundle aside and retry with a fresh
+      // one. The retry can unrotate a retained bundle into the head and fail on it for the same
+      // reason; in that case the whole catalog is moved aside and writing restarts from scratch.
+      // Bundles are renamed (kept on disk), never deleted.
+      try {
+         return do_pack_and_write_entry(id, prev_id, pack_to);
+      } catch(const std::bad_alloc&) {
+         throw;
+      } catch(const std::exception& e) {
+         elog("Failed to write block ${b} to ${name}.log (${e}); state-history-force-write is set: moving the head "
+              "log aside and retrying with a fresh one",
+              ("b", chain::block_header::num_from_id(id))("name", head_log_path_and_basename.string())("e", e.what()));
+      }
+      head_log.reset();
+      orphan_bundle(head_log_path_and_basename);
+      open_head_log();
+      try {
+         return do_pack_and_write_entry(id, prev_id, pack_to);
+      } catch(const std::bad_alloc&) {
+         throw;
+      } catch(const std::exception& e) {
+         elog("Still failed to write block ${b} (${e}); moving all retained logs aside and starting over",
+              ("b", chain::block_header::num_from_id(id))("e", e.what()));
+      }
+      while(!retained_log_files.empty()) {
+         catalog_t::node_type n = retained_log_files.extract(retained_log_files.begin());
+         n.value().log.reset();
+         orphan_bundle(n.value().path_and_basename);
+      }
+      head_log.reset();
+      orphan_bundle(head_log_path_and_basename);
+      open_head_log();
+      //With no retained logs and an empty head log there is nothing left in the catalog for the write
+      // to conflict with. It can still be rejected by a disagreement with the chain itself -- the
+      // non-local block-id lookup says block-1 has an id other than prev_id -- which no amount of log
+      // rewriting can resolve. Honor force-write's promise to keep the node running by skipping the
+      // block (it cannot be represented in the state history) rather than throwing.
+      try {
+         do_pack_and_write_entry(id, prev_id, pack_to);
+      } catch(const std::bad_alloc&) {
+         throw;
+      } catch(const std::exception& e) {
+         elog("state-history-force-write could not write block ${b} even into a fresh empty log (${e}); the block "
+              "conflicts with the chain rather than the log, so it is skipped and will not be served in the state "
+              "history", ("b", chain::block_header::num_from_id(id))("e", e.what()));
+      }
+   }
+
+private:
+   template <typename F>
+   void do_pack_and_write_entry(const chain::block_id_type& id, const chain::block_id_type& prev_id, F&& pack_to) {
       const uint32_t block_num = chain::block_header::num_from_id(id);
 
       if(!retained_log_files.empty()) {
@@ -120,6 +191,7 @@ public:
          rotate_logs();
    }
 
+public:
    std::optional<ship_log_entry> get_entry(uint32_t block_num) {
       return call_for_log(block_num, [&](state_history_log&& l) {
          return l.get_entry(block_num);
@@ -206,25 +278,50 @@ private:
 
          const std::filesystem::path path_and_basename = dir_entry.path().parent_path() / dir_entry.path().stem();
 
-         state_history_log log(path_and_basename, [](chain::block_num_type) {return std::nullopt;});
-         if(log.empty())
-            continue;
-         const auto [begin_bnum, end_bnum] = log.block_range();
-         retained_log_files.emplace(begin_bnum, end_bnum, path_and_basename);
+         try {
+            state_history_log log(path_and_basename, [](chain::block_num_type) {return std::nullopt;});
+            if(log.empty())
+               continue;
+            const auto [begin_bnum, end_bnum] = log.block_range();
+            retained_log_files.emplace(begin_bnum, end_bnum, path_and_basename);
+         } catch(const std::bad_alloc&) {
+            throw;
+         } catch(const std::exception& e) {
+            if(!force_write)
+               throw;
+            elog("Failed to open retained log ${name}.log (${e}); state-history-force-write is set: leaving it out "
+                 "of the catalog, its blocks will not be served",
+                 ("name", path_and_basename.string())("e", e.what()));
+         }
       }
 
+      //a gap or overlap between retained files is normally fatal; with force-write the files stay in
+      // place and the catalog simply cannot serve the missing blocks
       if(retained_log_files.size() > 1)
-         for(catalog_t::iterator it = retained_log_files.begin(); it != std::prev(retained_log_files.end()); ++it)
-            EOS_ASSERT(it->end_block_num == std::next(it)->begin_block_num, chain::plugin_exception,
+         for(catalog_t::iterator it = retained_log_files.begin(); it != std::prev(retained_log_files.end()); ++it) {
+            if(it->end_block_num == std::next(it)->begin_block_num)
+               continue;
+            EOS_ASSERT(force_write, chain::plugin_exception,
                        "retained log file ${sf}.log has block range ${sb}-${se} but ${ef}.log has range ${eb}-${ee} which results in a hole",
                        ("sf", it->path_and_basename.native())("sb", it->begin_block_num)("se", it->end_block_num-1)
                        ("ef", std::next(it)->path_and_basename.native())("eb", std::next(it)->begin_block_num)("ee", std::next(it)->end_block_num-1));
+            elog("retained log file ${sf}.log has block range ${sb}-${se} but ${ef}.log has range ${eb}-${ee} which "
+                 "results in a hole; state-history-force-write is set: blocks in the hole will not be served",
+                 ("sf", it->path_and_basename.native())("sb", it->begin_block_num)("se", it->end_block_num-1)
+                 ("ef", std::next(it)->path_and_basename.native())("eb", std::next(it)->begin_block_num)("ee", std::next(it)->end_block_num-1));
+         }
 
-      if(!retained_log_files.empty() && !head_log->empty())
-         EOS_ASSERT(retained_log_files.rbegin()->end_block_num == head_log->block_range().first, chain::plugin_exception,
+      if(!retained_log_files.empty() && !head_log->empty() &&
+         retained_log_files.rbegin()->end_block_num != head_log->block_range().first) {
+         EOS_ASSERT(force_write, chain::plugin_exception,
                     "retained log file ${sf}.log has block range ${sb}-${se} but head log has range ${eb}-${ee} which results in a hole",
                     ("sf", retained_log_files.rbegin()->path_and_basename.native())("sb", retained_log_files.rbegin()->begin_block_num)("se", retained_log_files.rbegin()->end_block_num-1)
                     ("eb", head_log->block_range().first)("ee", head_log->block_range().second-1));
+         elog("retained log file ${sf}.log has block range ${sb}-${se} but head log has range ${eb}-${ee} which "
+              "results in a hole; state-history-force-write is set: blocks in the hole will not be served",
+              ("sf", retained_log_files.rbegin()->path_and_basename.native())("sb", retained_log_files.rbegin()->begin_block_num)("se", retained_log_files.rbegin()->end_block_num-1)
+              ("eb", head_log->block_range().first)("ee", head_log->block_range().second-1));
+      }
    }
 
    void unrotate_log() {
@@ -276,8 +373,46 @@ private:
       }
    }
 
-   void open_head_log(std::optional<state_history::prune_config> prune_config = std::nullopt) {
-      head_log.emplace(head_log_path_and_basename, non_local_get_block_id, prune_config);
+   void open_head_log() {
+      try {
+         head_log.emplace(head_log_path_and_basename, non_local_get_block_id, head_log_prune_conf, force_write);
+      } catch(const std::bad_alloc&) {
+         throw;
+      } catch(const std::exception& e) {
+         if(!force_write)
+            throw;
+         elog("Failed to open ${name}.log (${e}); state-history-force-write is set: moving it aside and starting a "
+              "fresh log", ("name", head_log_path_and_basename.string())("e", e.what()));
+         head_log.reset();
+         orphan_bundle(head_log_path_and_basename);
+         head_log.emplace(head_log_path_and_basename, non_local_get_block_id, head_log_prune_conf, force_write);
+      }
+   }
+
+   /**
+    * Move a bundle out of the way to `<stem>-corrupt-<n>` (a name neither the retained-file scan
+    * nor this class will ever pick up) so a fresh log can take its place without destroying data.
+    * An empty bundle has nothing worth keeping and is simply deleted.
+    */
+   void orphan_bundle(const std::filesystem::path& path_and_basename) {
+      const std::filesystem::path log_file = std::filesystem::path(path_and_basename).replace_extension("log");
+      if(!std::filesystem::exists(log_file) || std::filesystem::file_size(log_file) == 0) {
+         delete_bundle(path_and_basename);
+         return;
+      }
+      unsigned n = 0;
+      std::filesystem::path orphan_base;
+      do {
+         orphan_base = path_and_basename;
+         orphan_base += std::string(orphaned_bundle_infix) + std::to_string(++n);
+      } while(std::filesystem::exists(std::filesystem::path(orphan_base).replace_extension("log")));
+      wlog("Moving ${from}.log aside to ${to}.log",
+           ("from", path_and_basename.string())("to", orphan_base.string()));
+      for(const char* ext : {"log", "index"}) {
+         const std::filesystem::path from = std::filesystem::path(path_and_basename).replace_extension(ext);
+         if(std::filesystem::exists(from))
+            std::filesystem::rename(from, std::filesystem::path(orphan_base).replace_extension(ext));
+      }
    }
 
    void delete_head_log() {

@@ -77,9 +77,11 @@ void blocklog_actions::setup(CLI::App& app) {
       {"block_log", print_from_t::block_log},
       {"fork_db",   print_from_t::fork_db  }
    };
+   //add_option, not add_flag: a flag only accepts its value in --print-from=<value> form, silently
+   // rejecting the conventional "--print-from <value>" spelling
    print_log
-      ->add_flag("--print-from", opt->print_from,
-                 "Whether to print blocks from the block log, fork database, or both. Default is both.")
+      ->add_option("--print-from", opt->print_from,
+                   "Whether to print blocks from the block log, fork database, or both. Default is both.")
       ->transform(CLI::CheckedTransformer(print_from_map, CLI::ignore_case));
 
    // subcommand - make index
