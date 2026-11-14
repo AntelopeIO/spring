@@ -183,7 +183,7 @@ set(CMAKE_DISABLE_FIND_PACKAGE_OpenSSL On)
 
 # many tests require handling of signals themselves and even when they don't we'd like for them to generate a core dump, this
 # is effectively --catch_system_errors=no broadly across all tests
-add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP)
+add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP BOOST_TEST_DISABLE_ALT_STACK)
 
 # Unless this is set, some boost unordered headers include `arm_neon.h` when building on ARM processors,
 # which includes a definition for `float16_t` conflicting with the one in `libraries/softfloat`.

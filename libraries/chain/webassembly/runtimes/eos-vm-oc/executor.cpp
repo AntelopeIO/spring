@@ -143,7 +143,7 @@ struct executor_signal_init {
       struct sigaction sig_action, old_sig_action;
       sig_action.sa_sigaction = segv_handler;
       sigemptyset(&sig_action.sa_mask);
-      sig_action.sa_flags = SA_SIGINFO | SA_NODEFER;
+      sig_action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
       sigaction(SIGSEGV, &sig_action, &old_sig_action);
       if(old_sig_action.sa_flags & SA_SIGINFO)
          chained_handler = old_sig_action.sa_sigaction;

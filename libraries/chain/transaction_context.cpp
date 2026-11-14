@@ -8,6 +8,7 @@
 #include <eosio/chain/transaction_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/deep_mind.hpp>
+#include <eosio/chain/signalaltstack.hpp>
 
 #include <bit>
 
@@ -69,6 +70,9 @@ namespace eosio::chain {
    }
 
    void transaction_context::initialize() {
+      //any thread that will execute contracts must have a signal altstack installed
+      thread_local signal_alt_stack the_signal_alt_stack;
+
       if (!control.skip_db_sessions() && !is_read_only()) {
          undo_session.emplace(control.mutable_db().start_undo_session(true));
       }
